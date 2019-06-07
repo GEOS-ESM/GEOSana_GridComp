@@ -1,0 +1,280 @@
+#!/bin/sh
+main(){
+ FAKE=$1
+ export BaseDir VER CASE expn
+ export FILES UTIL SCRIPTS staging FAKE
+
+ staging='NOSTAGE'            # The use of staging is discouraged.
+
+ clear
+
+ echo
+ echo "              ######################################"
+ echo "              #   FVGCM Experiment Installation    #"
+ echo "              ######################################"
+ echo
+
+ failed=0
+
+ echo
+ echo "         ------------------------------------------------------ "
+ echo "         FVGCM root directory is the top-level directory where  "
+ echo "         the model source is installed.                         "
+ echo "         ------------------------------------------------------ "
+ echo
+ echo -n "    -->  FVGCM root directory (default: '`pwd`')?  "
+ read fvroot
+ : ${fvroot:=`pwd`} 
+
+# The line immediately below will have its RHS replaced by the
+#  actual relative path, upon execution of make.j.
+
+ BaseDir=BASEPATH
+ VER=RELPATH
+
+ res=`grep FVGCM_RESOLUTION fvgcm.h | awk '{print $4}'`
+
+ echo
+ echo "         ---------------------------------------------------------- "
+ echo "         Experiment name specifies a path relative to FVGCM root    "
+ echo "         directory. Job submission should be done in this directory "
+ echo "         instead of FVGCM root directory.                           "
+ echo "         ---------------------------------------------------------- "
+ echo
+ echo -n "    -->  Experiment name (default: '$res')?  "
+ read expn
+ : ${expn:=$res}
+
+ CASE=$expn
+
+ mkdir -p $fvroot/$expn
+
+#
+# WS 00.05.10:  Install the binary, if available
+#
+  if [ -x fvgcm.x ] ; then
+         u_cpfiles 
+         failed=$?
+         FILES="fvgcm.x diag.tbl" 
+         UTIL="diagpp rst_date wk2mo"
+         SCRIPTS="GENERIC MONTHLY WEEKLY"
+  elif [ -x dycore ] ; then
+         u_cpfiles_dycore
+         failed=$?
+         FILES="dycore diag.tbl"
+         UTIL="diagpp rst_date"
+         SCRIPTS="DYCORE"
+  else
+         echo "Cannot find an executable to install"
+  fi
+
+#
+
+ u_inst
+
+#
+
+ if [ $failed = 0 ]
+ then
+   msg="#  '$expn' has been successfully installed!  #"
+   hash=`echo $msg | tr '[:print:]' '[#*]'`
+   echo
+   echo "              #$hash#"
+   echo "              $msg"
+   echo "              #$hash#"
+   echo
+ fi
+
+ return 0
+}
+#
+#
+u_cpfiles_dycore(){
+
+ echo
+ echo "         ---------------------------------------------------------- "
+ echo "         Start-up data files needed for a simulation:               "
+ echo
+ echo "                  d_rst - dynamics restart file                     "
+ echo
+ echo "         Typically these files are copied from previously spun-up   "
+ echo "         runs. Answer 'yes' and specify the full path of the data if"
+ echo "         you want to do it now. Answer 'no' if you prefer to do it  "
+ echo "         later.                                                     "
+ echo "         ---------------------------------------------------------- "
+ echo
+ echo -n "    -->  Copy startup files (default: 'yes')?  "
+ read copyfiles
+ : ${copyfiles:=yes}
+
+ case $copyfiles in
+     [Yy]*) echo -n "    -->  Copy startup files from (default: '/share/fvgcm/FVCCM3/TEST_DATA/$res')?  "
+            read rstdatadir 
+            : ${rstdatadir:=/share/fvgcm/FVCCM3/TEST_DATA/$res}
+            echo
+            for file in d_rst
+            do
+              if [ -f $rstdatadir/$file ]
+              then
+                 echo "         ..... copying $rstdatadir/$file"
+                 cp -f $rstdatadir/$file $fvroot/$expn
+              else
+                 echo "    ***  Cannot find $rstdatadir/$file ***"
+                 failed=`expr $failed + 1`
+              fi
+            done ;;
+     [Nn]*) echo
+            echo "    >>>  Remember to copy the startup files. <<<" ;;
+ esac
+ echo
+ return $failed
+}
+#
+#
+u_cpfiles(){
+
+ echo
+ echo "         ---------------------------------------------------------- "
+ echo "         Start-up data files needed for a simulation:               "
+ echo
+ echo "                  d_rst - dynamics restart file                     "
+ echo "                  p_rst - physics restart file                      "
+ echo "                lsm_rst - lsm restart file                          "
+ echo "           lsm.rpointer - lsm auxiliary (pseudo pointer) file       "
+ echo
+ echo "         Typically these files are copied from previously spun-up   "
+ echo "         runs. Answer 'yes' and specify the full path of the data if"
+ echo "         you want to do it now. Answer 'no' if you prefer to do it  "
+ echo "         later.                                                     "
+ echo "         ---------------------------------------------------------- "
+ echo
+ echo -n "    -->  Copy startup files (default: 'yes')?  "
+ read copyfiles
+ : ${copyfiles:=yes}
+
+ case $copyfiles in
+     [Yy]*) echo -n "    -->  Copy startup files from (default: '/share/fvgcm/FVCCM3/TEST_DATA/b55')?  "
+            read rstdatadir 
+            : ${rstdatadir:=/share/fvgcm/FVCCM3/TEST_DATA/b55}
+            echo
+            for file in d_rst p_rst lsm_rst lsm.rpointer
+            do
+              if [ -f $rstdatadir/$file ]
+              then
+                 echo "         ..... copying $rstdatadir/$file"
+                 cp -f $rstdatadir/$file $fvroot/$expn
+              else
+                 echo "    ***  Cannot find $rstdatadir/$file ***"
+                 failed=`expr $failed + 1`
+              fi
+            done ;;
+     [Nn]*) echo
+            echo "    >>>  Remember to copy the startup files. <<<" ;;
+ esac
+ echo
+ return $failed
+}
+#
+#
+#
+u_inst(){
+
+ os=`uname -s`
+ mach=`uname -m`
+
+ case $os in 
+     IRIX64)  arch=SGI   ;;
+        AIX)  arch=IBM   
+              machM=`uname -M`
+              if [ "$machM" = "IBM,9076-260" ] ; then
+                mach=gseaborg
+              fi ;;
+      Linux)  arch=LINUX ;;
+       OSF1)  arch=DEC   ;;
+        sn*)  arch=CRAY  ;;
+ esac
+ if [ "$mach" = "CRAY T3E" ]
+ then
+   arch=CRAY_T3E
+ fi
+
+
+
+ for file in $FILES
+ do
+   if [ -f $fvroot/$file ]
+   then
+     cp -f $fvroot/$file $fvroot/$expn
+   else
+     echo "Cannot find $file"
+     exit 1
+   fi
+ done
+
+#
+#
+#
+
+ for file in $UTIL
+ do
+   if [ -f $fvroot/util/$file ]
+   then
+     cp -f $fvroot/util/$file $fvroot/$expn
+   else
+     echo "Cannot find $file"
+     exit 1
+   fi
+ done
+
+#
+# WS 00.06.02 : Add the path to the surface data
+#
+ echo -n "    -->  Path to surface data (default: '/share/fvgcm')?  "
+ read fvdata
+ : ${fvdata:=/share/fvgcm}                      
+
+#  
+# ... Use m4 to create system specific job scripts
+#
+ cd $fvroot/$expn
+
+ for type in $SCRIPTS
+ do
+     case $type in
+         GENERIC) script=fvgcm.j ;;
+         MONTHLY) script=monthly.j.tmpl ;;
+          WEEKLY) script=weekly.j.tmpl  ;;
+          DYCORE) script=dycore.j ;;
+     esac
+
+     sed -e "s/arch/$arch/1" \
+         -e "s/mach/$mach/1" \
+         -e "s/type/$type/1" \
+         -e "s%fvdata%$fvdata%1" \
+         -e "s/staging/$staging/1" \
+         -e "s/fake/$FAKE/1" \
+            $fvroot/cf/define.m4.tmpl > define.m4
+
+     m4 -B1000000 $fvroot/cf/script.m4 > $script
+
+     chmod +x $script
+ done
+
+ rm -f define.m4
+
+ return 0
+
+}
+#
+#
+#
+fake=$1
+fake=`echo $fake | tr 'a-z' 'A-Z'`
+if [ "$fake" = "FAKE" ]
+then 
+  main TRUE
+else
+  main FALSE
+fi
+status=$?
+exit  $status

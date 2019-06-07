@@ -1,0 +1,22 @@
+!-------------------------------------------------------------------------
+!         NASA/GSFC, Data Assimilation Office, Code 910.3, GEOS/DAS      !
+!-------------------------------------------------------------------------
+!BOI
+!
+! !TITLE: The Application Drivers of the GEOS-4 TLM/ADM
+!
+! !AUTHORS: R. Todling, R. Giering, and T. Kaminski
+!
+! !AFFILIATION: Data Assimilation Office, NASA/GSFC, Greenbelt, MD 20771
+!
+! !DATE: 13 November 2002
+!
+! !INTRODUCTION: Summary of drivers for TLM/ADM applications
+!
+!  These are a set of main programs related to different applications of 
+!  the GEOS-4 tangent linear and adjoint models. Most these programs 
+!  are simple examples provided by FastOpt (see section 4.4.5 of the
+!  Automatic Differentiation Document V, by Giering, et al. (2002).
+!
+!EOI
+!-------------------------------------------------------------------------

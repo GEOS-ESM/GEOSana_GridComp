@@ -1,0 +1,20 @@
+!-------------------------------------------------------------------------
+!         NASA/GSFC, Data Assimilation Office, Code 910.3, GEOS/DAS      !
+!-------------------------------------------------------------------------
+!BOI
+!
+! !TITLE: The GEOS-4 Tracer-Advection Tangent Linear and Adjoint Library
+!
+! !AUTHORS: R. Todling, R. Giering, and T. Kaminski
+!
+! !AFFILIATION: Data Assimilation Office, NASA/GSFC, Greenbelt, MD 20771
+!
+! !DATE: 13 November 2002
+!
+! !INTRODUCTION: Tracer-Advection Tangent Linear and Adjoint Library
+!
+!  This package implements the routines supporting GEOS-4 tracer-advection
+!  perturbation library.
+!
+!EOI
+!-------------------------------------------------------------------------

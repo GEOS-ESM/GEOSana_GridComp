@@ -1,0 +1,20 @@
+*** For the impatient experienced users --
+1. cvs co fvgcm       [see instructions below]
+2. cd fvgcm
+3. ./configure        [see instructions below]
+4. qsub make.j
+5. make install       [take all defaults]
+6. cd b55       [occasionally editing of fvgcm.j is required -- see manual]
+7. qsub fvgcm.j
+
+
+*** To access CVS repository, please do the following first *** 
+0. Have an account on hera.gsfc.nasa.gov
+1. setenv CVSROOT :ext:${LOGNAME}@hera.gsfc.nasa.gov:/CM/baseline/GEOS_DAS
+2. setenv CVS_RSH ssh             
+
+*** Some useful options for configure are shown below ***
+1. configure -mpi (-mpi1)  #for MPI-1 (send/recv)
+2. configure -mlp
+3. configure               #for MPI-2 (put/get)
+4. configure -case=b55     #to specify resolution

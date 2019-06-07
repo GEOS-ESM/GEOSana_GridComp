@@ -1,0 +1,19 @@
+#
+#  External dependencies. Utility 'fdp' uses this file to resolve
+#  each external dependency.
+#
+benergy.o: $(LIBGCM)
+cd_core.o: $(LIBGCM)
+fill_module.o: $(LIBGCM)
+fvcore.o: $(LIBGCM)
+hswf.o: $(LIBGCM)
+mapz_module.o: $(LIBGCM)
+precision.o: $(LIBGCM)
+prognostics.o: $(LIBGCM)
+reference.o: $(LIBGCM)
+stepon.o: $(LIBGCM)
+sw_core.o: $(LIBGCM)
+timingmodule.o: $(LIBGCM)
+tpcc_ad_store.o: $(LIBGCM)
+tp_core.o: $(LIBGCM)
+

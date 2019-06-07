@@ -1,0 +1,64 @@
+#
+# Make.macros -- common make macros
+#
+
+# fvDAS/fvGCM build environment
+
+COREBIN         = $(COREROOT)/bin
+CORELIB         = $(COREROOT)/lib
+COREINC         = $(COREROOT)/include
+COREETC         = $(COREROOT)/etc
+
+.SUFFIXES:
+.SUFFIXES:      .F .c .o
+#
+ SHELL          = /bin/sh
+ MAKEDEPEND     = makedepend
+ AR             = ar
+ ARFLAGS        = rlc
+ RM             = rm -f
+ MV             = mv -f
+#
+#-----------------------------
+#   SGI Origin 2000/R10000
+#-----------------------------
+#
+ FC             = f90
+ CC             = cc
+#DEFS           = -DTIMING -DIRIX64 -DSGI_FFT     #-DR4BYTE
+ DEFS           = -DSPMD -DUSE_MLP -DTIMING -DIRIX64 -DSGI_FFT -DLSMH_off -DSET_CPUS  -DGFIO
+ FOPT           = -O3 -OPT:Olimit=4000 -extend_source
+ FOPT2          = -O2
+ FFLAGS1        = -Ipilgrim -mips4 -64 -r8 -i4 -col80 -cpp -mp
+ FFLAGS2        = -mips4 -64 -cpp
+ FFLAGS         = ${DEFS} ${FFLAGS1}
+ FREE_FGS       = ${FFLAGS}
+ COPT           = -O
+ CFLAGS         = ${DEFS} -mips4 -64
+ LDFLAGS        = -mp -64 -LANG:recursive=on -lcomplib.sgimath -lfastm -s
+ CPP            = /lib/cpp
+ CPPFLAGS       = -P
+ MPILIB         = -lmpi
+ LPILGDYN       =
+#
+#
+#
+ MPEUINC        = -I$(COREINC)/mpeu
+ LIBGFIO        = $(CORELIB)/libgfio.a
+ LIBEU          = $(CORELIB)/libeu.a
+#
+#--------------------------------------------
+# NetCDF/HDF option: must use HDF for fvPSAS.
+#--------------------------------------------
+#
+ NCINC          = -I/ford1/local/IRIX64/netcdf/include
+ NCLIB          = -L/ford1/local/IRIX64/netcdf/lib -lnetcdf
+ HDFINC         = -I/ford1/local/IRIX64/hdf4.1r1/include
+ HDFLIB         = -L/ford1/local/IRIX64/hdf4.1r1/lib -lmfhdf -ldf -ljpeg -lz
+ SDFINC         = $(HDFINC)
+ SDFLIB         = $(HDFLIB)
+#
+#----------------------------------------------------------------------
+
+
+

@@ -1,0 +1,9 @@
+.SUFFIXES:
+.SUFFIXES: .F .F90 .c .o
+.F.o:
+		${FC} ${INCLUDE} ${FFLAGS} ${FOPT} -c $<
+.F90.o:
+		${FC} ${INCLUDE} ${FREE_FGS} ${FOPT} -c $<
+
+.c.o:
+		${CC} ${INCLUDE} ${CFLAGS} ${COPT} -c $<

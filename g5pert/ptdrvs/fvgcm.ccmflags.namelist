@@ -1,0 +1,5 @@
+  &FLAGS
+      dcaf = .true.     ! dry convective adjustment above 10 hPa
+      nlvdry = 5        ! currently not used
+      gwdf = .true.     ! gravity wave drag switch 
+ &END

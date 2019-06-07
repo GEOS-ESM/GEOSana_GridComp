@@ -1,0 +1,1913 @@
+divert(-1)dnl
+
+dnl ---------------------------------------------------
+dnl  m4 source for generating generic job script and
+dnl  other special purpose scripts such as for monthly
+dnl  and weekly jobs. 
+dnl ---------------------------------------------------
+
+changequote([%,%])dnl
+
+dnl ---------------------------------------
+dnl  Suffix for generic, monthly or weekly
+dnl ---------------------------------------
+
+define([%FV_SUFFIX_SAVE%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%.${mmsave}%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%.${mmsave}-${wksave}%], [%dnl
+ifelse(FV_TYPE, GENERIC, [%%], [%dnl
+ifelse(FV_TYPE, DYCORE, [%%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+define([%FV_DAYS%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%${days}%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%${days}%], [%dnl
+ifelse(FV_TYPE, GENERIC,  [%1%], [%dnl
+ifelse(FV_TYPE, DYCORE, [%1%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+dnl --------------------
+dnl Define filenames for IC
+dnl --------------------
+define([%FV_SSTDATA%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%'sstsice_144x91.hadley.y1949-1998.nc'%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%'${s_name}_${s_res}.${s_freq}.${s_date}.nc'%], [%dnl
+ifelse(FV_TYPE, GENERIC, [%'SSTM5079_144x91.nc'%], [%dnl
+ifelse(FV_TYPE, DYCORE,  [%'SSTM5079_144x91.nc'%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+define([%FV_SSTCYC%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%.false.%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%.false.%], [%dnl
+ifelse(FV_TYPE, GENERIC, [%.true.%], [%dnl
+ifelse(FV_TYPE, DYCORE,  [%.false.%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+define([%FV_OZNDATA%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%'o3.amip2_uars_fub_91x55.nc'%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%'o3.amip2_uars_fub_181x55.nc'%],    [%dnl
+ifelse(FV_TYPE, GENERIC, [%'o3.amip2_uars_fub_91x55.nc'%], [%dnl
+ifelse(FV_TYPE, DYCORE,  [%'o3.amip2_uars_fub_91x55.nc'%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+define([%FV_H2ODATA%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%'RandelH2O_91x25.bin'%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%'RandelH2O_181x25.bin'%],    [%dnl
+ifelse(FV_TYPE, GENERIC, [%'RandelH2O_91x25.bin'%], [%dnl
+ifelse(FV_TYPE, DYCORE,  [%'RandelH2O_91x25.bin'%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+define([%FV_SRFDATA%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%'surf_r1.data_144x91.usgs'%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%'surf_r1.data_288x181.usgs'%],    [%dnl
+ifelse(FV_TYPE, GENERIC, [%'surf_r1.data_144x91.usgs'%], [%dnl
+ifelse(FV_TYPE, DYCORE,  [%'surf_r1.data_144x91.usgs'%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+define([%FV_CCM3%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%.true.%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%.true.%],    [%dnl
+ifelse(FV_TYPE, GENERIC, [%.true.%],   [%dnl
+ifelse(FV_TYPE, DYCORE, [%.false.%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+define([%FV_NSPLIT%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%4%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%8%],    [%dnl
+ifelse(FV_TYPE, GENERIC, [%4%],   [%dnl
+ifelse(FV_TYPE, DYCORE, [%4%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+define([%FV_EXE%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%"fvgcm.x"%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%"fvgcm.x"%], [%dnl
+ifelse(FV_TYPE, GENERIC, [%"fvgcm.x"%], [%dnl
+ifelse(FV_TYPE, DYCORE,  [%"dycore"%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+define([%FV_DIAG_EXE%], [%dnl
+ifelse(FV_TYPE, MONTHLY, [%"diagpp"%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%"diagpp"%],    [%dnl
+ifelse(FV_TYPE, GENERIC, [%"diagpp"%],    [%dnl
+ifelse(FV_TYPE, DYCORE,  [%"refpp"%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+define([%FV_NYMDB%], [%19790901%])
+
+define([%FV_NYMDE%], [%19790902%])
+
+define([%FV_LND_NLIST%], [%"lsm.namelist"%])
+
+
+
+
+dnl --------------------
+dnl  Main template body
+dnl --------------------
+
+define([%FV_TMPL%], [%dnl
+#!/bin/csh -f
+
+ifelse(FV_ARCH, SGI, [%dnl
+# ------------------------------
+changecom('/*', '*/')dnl
+#PBS -l ncpus=NCPUGEN
+changecom()dnl
+#PBS -l walltime=1:00:00
+#PBS -S /bin/csh
+#PBS -V
+#PBS -j eo
+changecom('/*', '*/')dnl
+#PBS -W group_list=FV_GID
+changecom()dnl
+# ------------------------------
+
+%], [%dnl
+ifelse(FV_ARCH, IBM, [%dnl
+#
+# NCCS IBM
+#
+#@ job_type = parallel
+#@ output = fvgcm.out
+#@ error = fvgcm.err
+#@ class = defclass
+#@ tasks_per_node = 1
+#@ node = NMPIGEN
+#@ wall_clock_limit = 2:00:00
+#@ network.MPI = css0,shared,ip
+#@ queue
+
+%], [%dnl
+ifelse(FV_ARCH, LINUX, [%dnl
+
+%], [%dnl
+ifelse(FV_ARCH, DEC, [%dnl
+#PSUB -tM 2:00
+#PSUB -b climate
+#PSUB -mb
+#PSUB -me
+#PSUB -e batch.dycore.err
+#PSUB -o batch.dycore.out
+
+%], [%dnl
+ifelse(FV_ARCH, CRAY, [%dnl
+#QSUB -me
+#QSUB -e batch.dycore.err
+#QSUB -o batch.dycore.out
+#QSUB -s /bin/csh
+
+%], [%dnl
+ifelse(FV_ARCH, CRAY_T3E, [%dnl
+#QSUB -l mpp_p=NCPUGEN
+#QSUB -l mpp_t=3600
+#QSUB -l p_mpp_t=3600
+#QSUB -me
+#QSUB -e batch.dycore.err
+#QSUB -o batch.dycore.out
+#QSUB -s /bin/csh
+
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+#
+# ... Is this INTERACTIVE or BATCH?
+#
+ if (! $?ENVIRONMENT) then
+   setenv ENVIRONMENT INTERACTIVE
+ endif
+ echo "Environment variable defined as $ENVIRONMENT"
+ if ("$ENVIRONMENT" == "INTERACTIVE") then
+   set jobname = $[%%]0
+ endif
+
+ifelse(FV_ARCH, SGI, [%dnl
+ if ("$ENVIRONMENT" == "BATCH") then
+   set jobname = $PBS_JOBNAME
+ endif
+
+%], [%dnl
+ifelse(FV_ARCH, IBM, [%dnl
+ if ("$ENVIRONMENT" == "BATCH") then
+   set jobname = dycore.j
+ endif
+
+%], [%dnl
+ifelse(FV_ARCH, LINUX, [%dnl
+
+%], [%dnl
+ifelse(FV_ARCH, DEC, [%dnl
+ if ("$ENVIRONMENT" == "BATCH") then
+   set jobname = dycore.j
+ endif
+
+%], [%dnl
+ifelse(FV_ARCH, CRAY, [%dnl
+ if ("$ENVIRONMENT" == "BATCH") then
+   set jobname = dycore.j
+ endif
+
+%], [%dnl
+ifelse(FV_ARCH, CRAY_T3E, [%dnl
+ if ("$ENVIRONMENT" == "BATCH") then
+   set jobname = dycore.j
+ endif
+
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+#
+# -----------------------------------------------------
+# Usage:
+#        fvgcm.j     :for normal restart run (default)
+#        init.j       :for init run
+#        branch.j     :for branch run
+# -----------------------------------------------------
+#
+ set Restart = 1                # Normal restart run
+ switch (${jobname})
+ case init.j:
+   set Restart = 0              # Initialization run
+ breaksw
+ case branch.j:
+   set Restart = 2              # Branch run
+ breaksw
+ default:
+ endsw
+#
+# ##############################
+# #  Start User Configuration  #
+# ##############################
+#
+# ... System Configuration
+#
+ifelse(FV_ARCH, SGI, [%dnl
+ limit stacksize   4000000                 # KB
+ set archtype = "sgi"
+
+%], [%dnl
+ifelse(FV_ARCH, IBM, [%dnl
+ setenv XLFRTEOPTS namelist=OLD
+ setenv XLSMPOPTS "stack = 16000000"       # bytes
+ setenv MP_LABELIO no
+ set archtype = "ibm"
+
+%], [%dnl
+ifelse(FV_ARCH, LINUX, [%dnl
+ limit stacksize   unlimited
+ setenv MPSTKZ     32M
+ set archtype = "linux"
+
+%], [%dnl
+ifelse(FV_ARCH, DEC, [%dnl
+ setenv KMP_STACKSIZE 64000000             # bytes
+ setenv MP_STACK_SIZE 64000000             # bytes
+ set archtype = "dec"
+
+%], [%dnl
+ifelse(FV_ARCH, CRAY, [%dnl
+ set archtype = "cray"
+
+%], [%dnl
+ifelse(FV_ARCH, CRAY_T3E, [%dnl
+ set archtype = "cray"
+
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+ setenv MPI        MPIFLAG
+ setenv N_MPI      NMPIGEN
+ setenv N_SMP      NSMPGEN
+ setenv BaseDir    syscmd(printenv BaseDir)dnl
+ setenv VER        syscmd(printenv VER)dnl
+ setenv CASE       syscmd(printenv CASE)dnl
+
+dnl
+dnl
+ifelse(FV_TYPE, DYCORE,, [%dnl
+ if ($MPI != 0) then
+  echo ""
+  #echo "MPI not supported for this configuration - disabling"
+  echo ""
+  #setenv MPI 0
+  #setenv N_MPI 1
+ endif
+%]) dnl
+dnl
+dnl
+
+#
+ set EXE         = FV_EXE
+ set LOG         = status.log
+ set DIAG_EXE    = FV_DIAG_EXE
+ set FFC_RUN     = ""
+ set LND_NLIST = FV_LND_NLIST
+ ifelse(FV_ARCH, LINUX, [%dnl
+   set FFC_RUN   = "-Wl,-T"
+ endif
+%]) dnl
+#
+ set SourceDir   = ${BaseDir}/${VER}
+ set FVData      = FV_DATA
+ set LMData      = FV_LMDATA
+ set CLMSURF     = FV_CLM_SURF
+ set s_name      = sstsice
+# set s_res       = 288x181
+ set s_freq      = weekly
+#
+# Set Work directory according to architecture
+#
+ifelse(FV_ARCH, SGI, [%dnl
+ set WorkDir0     = FV_SCRATCH
+ set WorkDir      = ${WorkDir0}
+%], [%dnl
+ifelse(FV_ARCH, IBM, [%dnl
+ifelse(FV_MACH, gseaborg, [%dnl
+ set WorkDir0     = /scratch
+%], [%dnl
+#set WorkDir0     = /p/gb2
+ set WorkDir0     = /g1/${LOGNAME}
+%])dnl
+ set WorkDir      = ${WorkDir0}/${LOGNAME}/${VER}/${CASE}
+%], [%dnl
+ifelse(FV_ARCH, LINUX, [%dnl
+ set WorkDir0     = FV_SCRATCH
+ set WorkDir      = ${WorkDir0}
+%], [%dnl
+ifelse(FV_ARCH, DEC, [%dnl
+ set WorkDir0     = /var/tmp
+ set WorkDir      = ${WorkDir0}/${LOGNAME}/${VER}/${CASE}
+%], [%dnl
+ifelse(FV_ARCH, CRAY, [%dnl
+ set WorkDir0     = /usr/tmp
+ set WorkDir      = ${WorkDir0}/${LOGNAME}/Work/${VER}/${CASE}
+%], [%dnl
+ifelse(FV_ARCH, CRAY_T3E, [%dnl
+ set WorkDir0     = /usr/tmp
+ set WorkDir      = ${WorkDir0}/${LOGNAME}/Work/${VER}/${CASE}
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+ 
+#
+# Postprocessing:
+#
+#     Interpolate diagnostics output from eta to pressure 
+#     coordinates, with an option to save the interpolated
+#     dataset (at pressure levels) instead of the original
+#     dataset (at eta levels). SavePres=1 implies that the
+#     eta dataset will not be archived to the MSS.
+#
+ifelse(FV_ARCH, SGI, [%dnl
+ set PostProc    = POSTPROC     # 1=Yes,0=No
+%],[%dnl
+ set PostProc    = 0            # 1=Yes,0=No
+%])dnl
+
+ set SavePres    = 0            # 1=Yes,0=No
+
+ifelse(FV_ARCH, SGI, [%dnl
+ set SaveToMSS   = SAVETOMSS    # 1=Yes,0=No
+%],[%dnl
+ set SaveToMSS   = 0            # 1=Yes,0=No
+%])dnl
+
+ set atNAS        = FV_atNAS
+ if ( "$atNAS" == 1 ) then
+  set MSSHost     = helios1     #NAS
+ else
+  set MSSHost     = mintz
+ endif
+ifelse(FV_STAGE, USESTAGE, [%dnl
+#
+ set UseStage    = 1            # 1=Yes,0=No
+ set StageHost   = dixon0
+ set StageDisk   = stage2
+%])dnl
+#
+ set SpinUp      = 0            # 1=Yes,0=No
+ set Benchmark   = 0            # 1=Yes,0=No
+ set CleanSilo   = 0            # 1=Yes,0=No
+#
+ set MaxCount    = 1
+#
+# ... Model Configuration
+#
+ifelse(FV_TYPE, MONTHLY, [%dnl
+dnl ---------
+dnl  monthly 
+dnl ---------
+ set Days   = (31 28 31 30 31 30 31 31 30 31 30 31)
+ set Months = (Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
+ 
+### set Year   = YEAR           # model year    #12/04/2001
+### set Mon    = MONTH          # model month   #12/04/2001
+
+
+ set buf  = `${SourceDir}/${CASE}/rst_date $FFC_RUN ${SourceDir}/${CASE}/d_rst`
+ set nymd1 = $buf[1]
+ set nhms1 = $buf[2]
+ set Year=`echo $nymd1 |awk [%'{t=substr($%][%1,1,4);printf "%4.4d\n",t}'%]`
+ set Mon=`echo  $nymd1 |awk [%'{t=substr($%][%1,5,2);printf "%2.2d\n",t}'%]`
+
+
+ set count  = 1
+ while ( ${count} <= ${MaxCount} )       # Time Loop (monthly)
+
+ set Year   = `echo ${Year} | awk '{printf "%4.4d", $[%%]1}' -`
+ set Mon    = `echo ${Mon}  | awk '{printf "%2.2d", $[%%]1}' -`
+#
+# Check if $Year is a leap year 
+#
+  set Leap_Year = 0
+  set Days   = (31 28 31 30 31 30 31 31 30 31 30 31)
+  if ( "$Year" >= 1900 ) then
+     if ( "`expr $Year \% 4`" == 0 ) then
+        if ( "`expr $Year \% 100`" == 0 ) then
+           if ( "`expr $Year \% 400`" == 0 ) then
+               set Leap_Year = 1
+           endif
+        else
+            set Leap_Year = 1
+        endif
+     endif
+  endif
+ if ( "$Leap_Year" == 1 ) then
+   set Days   = (31 29 31 30 31 30 31 31 30 31 30 31)
+ endif
+#
+ set mmsave = ${Mon}
+ set days   = ${Days[${Mon}]}
+ set s_date = y${Year}
+ set s_res  = 144x91
+%], [%dnl
+ifelse(FV_TYPE, WEEKLY, [%dnl
+dnl --------
+dnl  weekly 
+dnl --------
+ set Days   = (31 28 31 30 31 30 31 31 30 31 30 31)
+ set Months = (Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
+ 
+ set Year   = YEAR           # model year
+ set Mon    = MONTH          # model month
+ set Week   = WEEK           # week of the month
+
+ set count  = 1
+ while ( ${count} <= ${MaxCount} )       # Time Loop (weekly)
+
+ set Year   = `echo ${Year} | awk '{printf "%4.4d",$[%%]1}' -`
+ set Mon    = `echo ${Mon}  | awk '{printf "%2.2d",$[%%]1}' -`
+#
+# Check if $Year is a leap year
+#
+  set Leap_Year = 0
+  if ( "$Year" >= 1900 ) then
+     if ( "`expr $Year \% 4`" == 0 ) then
+        if ( "`expr $Year \% 100`" == 0 ) then
+           if ( "`expr $Year \% 400`" == 0 ) then
+               set Leap_Year = 1
+           endif
+        else
+            set Leap_Year = 1
+        endif
+     endif
+  endif
+ if ( "$Leap_Year" == 1 ) then
+   set Days   = (31 29 31 30 31 30 31 31 30 31 30 31)
+ endif
+#
+ set mmsave = ${Mon}
+ set wksave = ${Week}
+ set s_date = y${Year}
+ set s_res  = 288x181
+
+
+ if (${Week} == 1 ) then
+   cp /dev/null ${SourceDir}/${CASE}/wklists.${Mon}.${Year}
+ endif
+
+ if (${Week} <= 4) then
+   set days = 7
+ else
+   @ days   = ${Days[${Mon}]} - (${Week} - 1) * 7
+ endif
+%], [%dnl
+ifelse(FV_TYPE, GENERIC, [%dnl
+ set count  = 1
+ while ( ${count} <= ${MaxCount} )       # Time Loop
+%], [%dnl
+ifelse(FV_TYPE, DYCORE, [%dnl
+ set count  = 1
+ while ( ${count} <= ${MaxCount} )       # Time Loop
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+dnl Year not defined in dycore.j, set s_date=y${Year}
+ cat >! ${SourceDir}/${CASE}/ccmrun.namelist << EOF
+ &INPUT
+  JOB      = 'fvgcm_${CASE}'
+  NCPATH   = '${FVData}'
+ifelse(FV_TYPE, DYCORE, [%dnl
+%], [%dnl   else
+  SSTDATA  = FV_SSTDATA
+  SSTCYC   = FV_SSTCYC
+  OZNDATA  = FV_OZNDATA
+  H2ODATA  = FV_H2ODATA
+%])dnl   End of ifelse (DYCORE)
+  SRFDATA  = FV_SRFDATA
+  NYMDB    = FV_NYMDB
+  NHMSB    = 000000
+  NYMDE    = FV_NYMDE
+  NHMSE    = 000000
+  NDAY     = FV_DAYS
+  PDT      = 1800
+  MDT      = 1800
+  fvpsasdt = 060000
+  NDOUT    = 060000
+  zstat    = .true.
+  ccm3     = FV_CCM3
+  rayf     = .false.
+  iuhs     = 80
+  iuic     = 81
+  iout     = 82
+  izou     = 99
+  nsrest   = $Restart
+  diag     = .true.
+  prec_das = 1
+ &END
+EOF
+
+#
+#
+#
+set START_YMD = `grep NYMDB ${SourceDir}/${CASE}/ccmrun.namelist | cut -d'=' -f2`
+set STOP_YMD = `grep NYMDE ${SourceDir}/${CASE}/ccmrun.namelist | cut -d'=' -f2`
+set NHMSB1   = `grep NHMSB ${SourceDir}/${CASE}/ccmrun.namelist | cut -d'=' -f2`
+set h1=`echo  $NHMSB1 |awk '{[%t=substr($%]1,1,2);printf  "%d\n",t}'`
+set m1=`echo  $NHMSB1 |awk '{[%t=substr($%]1,3,2);printf  "%d\n",t}'`
+set s1=`echo  $NHMSB1 |awk '{[%t=substr($%]1,5,2);printf  "%d\n",t}'`
+set tmp = `expr $h1 \* 3600 \+ $m1 \* 60 \+ $s1 `
+set START_TOD = `echo $tmp | awk '{printf "%5.5d", [%$%]1}'`
+set NHMSE1   = `grep NHMSE ${SourceDir}/${CASE}/ccmrun.namelist | cut -d'=' -f2`
+set h1=`echo  $NHMSE1 |awk '{[%t=substr($%]1,1,2);printf  "%d\n",t}'`
+set m1=`echo  $NHMSE1 |awk '{[%t=substr($%]1,3,2);printf  "%d\n",t}'`
+set s1=`echo  $NHMSE1 |awk '{[%t=substr($%]1,5,2);printf  "%d\n",t}'`
+set tmp = `expr $h1 \* 3600 \+ $m1 \* 60 \+ $s1 `
+set STOP_TOD = `echo $tmp | awk '{printf "%5.5d", [%$%]1}'`
+
+
+#
+# Flags to drive DCA and GWD, added by Bowen 06/16/99
+#
+cat >! ${SourceDir}/${CASE}/ccmflags.namelist << EOF
+ &FLAGS
+      dcaf = .true.
+      nlvdry = 5
+      gwdf = .true.
+ &END
+EOF
+
+#
+# For lsm 
+#
+ set locpnr     = .
+ set lsm_rest_pfile = lsm.rpointer
+ set clm_rest_pfile = clm.rpointer
+#
+# ############################
+# #  End User Configuration  #
+# ############################
+#
+# ... Configurations derived from user section
+#
+
+ifelse(FV_ARCH, SGI, [%dnl
+ setenv MP_SET_NUMTHREADS   ${N_SMP}
+ setenv OMP_NUM_THREADS     ${N_SMP}
+ set stacksize = `limit stacksize | awk '{print $[%%]2}' -`
+ if (${stacksize} == "unlimited" || ${stacksize} > 4000000) then
+   setenv MP_STACK_OVERFLOW OFF
+ endif
+
+%], [%dnl
+ifelse(FV_ARCH, IBM, [%dnl
+ setenv XLSMPOPTS "$XLSMPOPTS :  parthds=${N_SMP} : schedule=static"
+ if ("$ENVIRONMENT" == "BATCH") then
+ifelse(FV_MACH, gseaborg, [%dnl
+   setenv MP_RMPOOL 2
+%], [%dnl
+   setenv MP_RMPOOL 1
+%])dnl
+ else
+ifelse(FV_MACH, gseaborg, [%dnl
+   setenv MP_RMPOOL 2
+%], [%dnl
+   setenv MP_RMPOOL 0
+%])dnl
+   setenv MP_PROCS ${N_MPI}
+ endif
+
+%], [%dnl
+ifelse(FV_ARCH, LINUX, [%dnl
+
+%], [%dnl
+ifelse(FV_ARCH, DEC, [%dnl
+ setenv OMP_SCHEDULE STATIC
+ setenv OMP_NUM_THREADS ${N_SMP}
+
+%], [%dnl
+ifelse(FV_ARCH, CRAY, [%dnl
+
+%], [%dnl
+ifelse(FV_ARCH, CRAY_T3E, [%dnl
+
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+setenv MPC_GANG OFF
+setenv MPC_GANG OFF
+setenv OMP_DYNAMIC FALSE
+setenv MP_STACK_OVERFLOW OFF
+setenv MP_SLAVE_STACKSIZE 200000000
+
+#------FVPSAS environment
+set N_TOTAL = ` expr  ${N_MPI} \* ${N_SMP} `
+echo "N_TOTAL $N_TOTAL"
+setenv NUMBER_MLP_PROCESSES        ${N_MPI}
+setenv NUMBER_CPUS_PER_MLP_PROCESS ${N_SMP}
+setenv NUMBER_CPUS_IN_MACHINE      ${N_TOTAL}
+setenv MP_SET_NUMTHREADS           ${N_SMP}
+setenv OMP_NUM_THREADS             ${N_SMP}
+                                                   
+
+ifelse(FV_ARCH, SGI, [%dnl
+ set Workbase = `echo ${WorkDir0}|cut -d'/' -f2`
+ set Versilo = ${VER}
+%],[%dnl
+ set Workbase = `echo ${WorkDir0}|cut -b 2-`
+ set Versilo = Silo/${VER}
+%])dnl
+
+###  if (! ${?Silo}) then
+ifelse(FV_TYPE, MONTHLY, [%dnl
+   set Silo   = "/${Workbase}/${LOGNAME}/${Versilo}/${CASE}/${Year}/${Months[${Mon}]}"
+   set SavDir = "/${Workbase}/${LOGNAME}/${VER}/${CASE}/${Year}"
+%], [%dnl
+ifelse(FV_TYPE, WEEKLY, [%dnl
+   set Silo   = "/${Workbase}/${LOGNAME}/${Versilo}/${CASE}/${Year}/${Months[${Mon}]}/${Week}"
+   set SavDir = "/${Workbase}/${LOGNAME}/${VER}/${CASE}/${Year}/${Months[${Mon}]}"
+%], [%dnl
+ifelse(FV_TYPE, [%GENERIC%], [%dnl
+   set Silo   = "/${Workbase}/${LOGNAME}/${Versilo}/${CASE}"
+   set SavDir = "/${Workbase}/${LOGNAME}/${VER}"
+%], [%dnl
+ifelse(FV_TYPE, [%DYCORE%], [%dnl
+   set Silo   = "/${Workbase}/${LOGNAME}/${Versilo}/${CASE}"
+   set SavDir = "/${Workbase}/${LOGNAME}/${VER}"
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+###  endif
+ echo "Silo    --> ${Silo}"
+ if ("${Silo}" == "${SourceDir}/${CASE}") then
+   set Samesilo = 1
+   echo "Silo is coincident with Case area of Source Directory"
+ else
+   set Samesilo = 0
+   if (${archtype} == "cray") then
+     rm -fr ${Silo}
+   endif
+   mkdir -p ${Silo}
+ endif
+
+ if (${SaveToMSS}) then
+ifelse(FV_STAGE, USESTAGE, [%dnl
+   set LocalStage = 1
+%])dnl
+###   if (! ${?MSSPath}) then
+      if ( "$atNAS" == 1 ) then
+        set MSSPath = ${VER}/${CASE}     #NASdnl
+      else
+        set MSSPath = /output/${LOGNAME}/${VER}/${CASE}
+      endif
+ifelse(FV_TYPE, MONTHLY, [%/${Year}%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%/${Year}/${Months[${Mon}]}%], [%dnl
+ifelse(FV_TYPE, GENERIC, [%%], [%dnl
+ifelse(FV_TYPE, DYCORE, [%%])dnl
+%])dnl
+%])dnl
+%])
+###   endif
+# --- Only add -hp suffix if it is not already there
+   if (! `echo ${MSSHost} | grep '\-hp$' | wc -c`) then
+#     set MSSHost = ${MSSHost}-hp
+     set MSSHost = ${MSSHost}
+   endif
+      if ( "$atNAS" == 1 ) then
+        set MSS = ${MSSHost}:${MSSPath}
+      else
+        set MSS = ${MSSPath}
+      endif
+   echo "MSS     --> ${MSS}"
+ else
+ifelse(FV_STAGE, USESTAGE, [%dnl
+   set UseStage  = 0
+%])dnl
+   set MSSPath   =
+   set MSS       =
+ endif
+
+ifelse(FV_STAGE, USESTAGE, [%dnl
+ if (${UseStage}) then
+   if (! ${?StagePath}) then
+     set StagePath = /${StageDisk}/${LOGNAME}/${VER}/${CASE}dnl
+ifelse(FV_TYPE, MONTHLY, [%/${Year}/${Months[${Mon}]}%], [%dnl
+ifelse(FV_TYPE, WEEKLY,  [%/${Year}/${Months[${Mon}]}/${Week}%], [%dnl
+ifelse(FV_TYPE, GENERIC, [%%], [%dnl
+ifelse(FV_TYPE, GENERIC, [%%])dnl
+%])dnl
+%])dnl
+%])
+   endif
+#   set Stage = ${StageHost}-hp:${StagePath}
+   set Stage = ${StageHost}:${StagePath}
+   echo "Stage   --> ${Stage}"
+   if ("${StageHost}" == "`/usr/bsd/hostname`") then
+     set LocalStage = 1
+     set StagePath  = ${Silo}
+   else
+     set LocalStage = 0
+   endif
+ else
+   set UseStage = 0
+ endif
+%])dnl
+#
+# ... Set up working directory and copy/link all the restart files along
+#     with model executable, utilities, namelist and diagnostic table
+#     file to this directory (if necessary).
+#     The simulation is carried out here in the working directory.
+#
+#     See if distinct working directory is called for
+#
+ if ("${WorkDir}" == "${SourceDir}/${CASE}") then
+   set Samedir = 1
+   echo "Working in Case area of Source Directory"
+ else
+   set Samedir = 0
+   if (${archtype} == "cray") then
+     rm -fr ${WorkDir}
+   endif
+   mkdir -p ${WorkDir}
+ endif
+#
+# Use of non-distinct working directory not yet fully supported (AAM)
+#
+ echo "WorkDir --> ${WorkDir}"
+ echo " "
+ cd ${WorkDir}
+
+ foreach f ($LND_NLIST ccmrun.namelist history_files.rc diag.rc \
+            ccmflags.namelist )
+   if (-e $f) /bin/rm -f $f
+ end
+
+#
+# copy or link, depending on architecture
+#
+ifelse(FV_ARCH, SGI, [%dnl
+ /bin/cp -f ${SourceDir}/${CASE}/rst_date                 rst_date
+ /bin/cp -f ${SourceDir}/${CASE}/wrtdiagrc                wrtdiagrc
+ /bin/cp -f ${SourceDir}/${CASE}/$EXE                     $EXE
+ /bin/cp -f ${SourceDir}/${CASE}/ccmrun.namelist          ccmrun.namelist
+ /bin/cp -f ${SourceDir}/${CASE}/ccmflags.namelist        ccmflags.namelist
+%],[%dnl
+ ln -s -f ${SourceDir}/${CASE}/rst_date                 rst_date
+ ln -s -f ${SourceDir}/${CASE}/wrtdiagrc                wrtdiagrc
+ ln -s -f ${SourceDir}/${CASE}/$EXE                     $EXE
+ ln -s -f ${SourceDir}/${CASE}/ccmrun.namelist          ccmrun.namelist
+ ln -s -f ${SourceDir}/${CASE}/ccmflags.namelist        ccmflags.namelist
+%])dnl
+
+ifelse(FV_FAKE, TRUE, [%dnl
+   /bin/cp -f ${SourceDir}/${CASE}/v_fvgcm.sh             v_fvgcm.sh 
+   /bin/cp -f ${SourceDir}/${CASE}/rst_stamp              rst_stamp
+%]) dnl
+ 
+ if (-e ${SourceDir}/${CASE}/diag.rc) then
+   /bin/cp -f ${SourceDir}/${CASE}/diag.rc               diag.rc
+ else
+   echo " --> Cannot find diag.rc, running wrtdiagrc."
+   ./wrtdiagrc
+   /bin/cp -f diag.rc                               ${SourceDir}/${CASE}/diag.rc
+ endif
+#
+ if (${Restart}) then
+
+ifelse(FV_TYPE, DYCORE, [%dnl
+#
+   /bin/cp -f ${SourceDir}/${CASE}/d_rst                  d_rst
+
+%], [%dnl   else
+
+   /bin/cp -f ${SourceDir}/${CASE}/d_rst                  d_rst  
+   /bin/cp -f ${SourceDir}/${CASE}/p_rst                  p_rst
+
+   /bin/cp -f ${SourceDir}/${CASE}/${lsm_rest_pfile}  ${lsm_rest_pfile} >&/dev/null
+   /bin/cp -f ${SourceDir}/${CASE}/${clm_rest_pfile}  ${clm_rest_pfile} >&/dev/null
+#
+# ... Find out the actual restart and history filenames for lsm
+#     from the pointer file.
+#
+set lsm_rst = "null"
+set lsm_hst = "null"
+if ( -e $lsm_rest_pfile ) then
+   set lsm_rst = `head -1 ${lsm_rest_pfile}`
+   set lsm_rst = ${lsm_rst:t}
+   set lsm_hst = `tail -1 ${lsm_rest_pfile}`
+   if ( "$lsm_hst" == "" ) then
+      set  lsm_hst = "null"
+   else
+      set lsm_hst = ${lsm_hst:t}
+   endif
+endif
+
+   if (-e ${SourceDir}/${CASE}/lsm_rst) then
+#    echo "Copying lsm restart file --> ${lsm_rst}"
+     /bin/cp -f ${SourceDir}/${CASE}/lsm_rst      ${lsm_rst}
+   endif
+   if (-e ${SourceDir}/${CASE}/lsm_hst) then
+#    echo "Copying lsm history file --> ${lsm_hst}"
+     /bin/cp -f ${SourceDir}/${CASE}/lsm_hst      ${lsm_hst}
+   endif
+
+%])dnl   End of ifelse (DYCORE)
+
+ else
+   if (! -e ${SourceDir}/${CASE}) mkdir -p ${SourceDir}/${CASE}
+#
+# d_rst_init: initial data for the dynamical fields (SEPT01)
+# p_rst_init: initial oro and TS (interpolated from the T42 model.)
+#
+   /bin/cp -f ${SourceDir}/${CASE}/d_rst_init             d_rst
+   /bin/cp -f ${SourceDir}/${CASE}/p_rst_init             p_rst
+
+   foreach f (drainage.p5xp5.nc bats.data olson.data \
+              flak.1x1 swmp.1x1 webb.1x1)
+     /bin/cp -f ${FVData}/$f  .
+   end
+ endif
+#
+# set finidat =  'arbitrary initialization' only when the very first
+# run. lsm will initialize itself.
+#
+ if (${Restart}) then
+   set finidat = ' '
+ else
+   set finidat = 'arbitrary initialization'
+ endif
+
+ cat >! lsm.namelist << EOF
+ &lsmexp
+    locpnr     = '${locpnr}',
+    rest_pfile = '${lsm_rest_pfile}',
+    finidat    = '${finidat}',
+ &end
+EOF
+ cat >! clm.namelist << EOF
+ &clmexp
+     calendar     = 'GREGORIAN'
+     dtime        = 1800
+     start_ymd    = $START_YMD
+     start_tod    = $START_TOD
+     stop_ymd     = $STOP_YMD
+     stop_tod     = $STOP_TOD
+     ctitle       = 'clm2'
+     caseid       = '${CASE}'
+     hist_crtinic = 'NONE'
+     hist_nhtfrq  = -24
+     hist_mfilt   = 1
+     nsrest       = 1
+     rpntpath     = '${SourceDir}/${CASE}/${clm_rest_pfile}'
+dnl  finidat      = '${SourceDir}/${CASE}/clmr_19910101_75600'
+     fsurdat      = '${LMData}/srfdata/fvccm/${CLMSURF}'
+     fpftcon      = '${LMData}/pftdata/pft-physiology-vegdyn-cleanup-ratio'
+     mksrf_fvegtyp    = '${LMData}/rawdata/mksrf_pft.nc'
+     mksrf_fsoitex    = '${LMData}/rawdata/mksrf_soitex.10level.nc'
+     mksrf_fsoicol    = '${LMData}/rawdata/mksrf_soicol_clm2.nc'
+     mksrf_flanwat    = '${LMData}/rawdata/mksrf_lanwat.nc'
+     mksrf_fglacier   = '${LMData}/rawdata/mksrf_glacier.nc'
+     mksrf_furban     = '${LMData}/rawdata/mksrf_urban.nc'
+     mksrf_flai       = '${LMData}/rawdata/mksrf_lai.nc'
+ &end
+EOF
+
+set CTITLE = `grep ctitle clm.namelist | cut -d'=' -f2 |tr \' ' '`
+set CASEID = `grep caseid clm.namelist | cut -d'=' -f2 |tr \' ' '`
+
+ ln -sf ccmrun.namelist                           fort.11
+ ln -sf $LND_NLIST                                fort.12
+ ln -sf ccmflags.namelist                         fort.13
+
+ set nymdb = `grep -i nymdb fort.11|awk '{printf "%d", $[%%]3}'`
+ set nhmsb = `grep -i nhmsb fort.11|awk '{printf "%d", $[%%]3}'`
+ set nymde = `grep -i nymde fort.11|awk '{printf "%d", $[%%]3}'`
+ set nhmse = `grep -i nhmse fort.11|awk '{printf "%d", $[%%]3}'`
+
+# Get the starting date and time before model run
+
+ set buf  = `./rst_date $FFC_RUN d_rst`
+ set nymd1 = $buf[1]
+ set nhms1 = $buf[2]
+
+ifelse(FV_TYPE, MONTHLY, [%dnl
+set d_Year=`echo $nymd1 |awk [%'{t=substr($%][%1,1,4);printf "%4.4d\n",t}'%]`
+set d_Mon=`echo  $nymd1 |awk [%'{t=substr($%][%1,5,2);printf "%2.2d\n",t}'%]`
+
+if ("$d_Year" != "$Year" || "$d_Mon" != "$Mon" ) then
+   echo "Year and Mon should be reset to continue this run."
+   echo "Year and Mon you specified are $Year and $Mon."
+   echo "Year and Mon from d_rst are    $d_Year and $d_Mon."
+   echo "Exit"
+   exit
+endif
+%])
+
+
+ set nymd1x = `expr $nymd1 : '0*\(.*\)'`
+ if ($nymd1x == "") set nymd1x = 0
+ set nhms1x = `expr $nhms1 : '0*\(.*\)'`
+ if ($nhms1x == "") set nhms1x = 0
+
+ set nymdex = `expr $nymde : '0*\(.*\)'`
+ if ($nymdex == "") set nymdex = 0
+ set nhmsex = `expr $nhmse : '0*\(.*\)'`
+ if ($nhmsex == "") set nhmsex = 0
+
+ if ( ${Restart} != 0 ) then
+ if (${nymd1x} >= ${nymdex} && ${nhms1x} >= ${nhmsex}) then
+   echo "Simulation already completed, stop."
+   exit 0
+ endif
+ endif
+
+ifelse(FV_FAKE, TRUE, [%dnl
+  (time ./v_fvgcm.sh) |& tee $LOG
+%]) dnl
+
+set RUN_OPT_BEGIN =
+set RUN_OPT_END =
+
+ifelse(FV_ARCH, SGI, [%dnl
+if ($MPI != 0) then
+  set RUN_OPT_BEGIN = "mpirun -np $N_MPI"
+endif
+
+set RUN_OPT_BEGIN = "env MPC_GANG=off ${RUN_OPT_BEGIN}"
+
+%], [%dnl
+ifelse(FV_ARCH, IBM, [%dnl
+set RUN_OPT_BEGIN = "poe"
+
+%], [%dnl
+ifelse(FV_ARCH, LINUX, [%dnl
+  set RUN_OPT_END = $FFC_RUN
+if ($MPI != 0) then
+  set RUN_OPT_BEGIN = "mpirun -np $N_MPI"
+endif
+
+%], [%dnl
+ifelse(FV_ARCH, DEC, [%dnl
+if ($MPI != 0) then
+  set RUN_OPT_BEGIN = "mpirun -np $N_MPI"
+endif
+
+%], [%dnl
+ifelse(FV_ARCH, CRAY, [%dnl
+
+%], [%dnl
+ifelse(FV_ARCH, CRAY_T3E, [%dnl
+if ($MPI != 0) then
+  set RUN_OPT_BEGIN = "mpprun -n $N_MPI"
+endif
+
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+
+#
+#
+
+ time ${RUN_OPT_BEGIN} ./$EXE ${RUN_OPT_END}
+
+ set failed = $status
+
+ grep 'Normal Execution.' $LOG >& /dev/null
+ if ( ${status} ) then
+   echo "This simulation was failed with exit status = ${failed}, stop."
+   exit (${failed})
+ endif
+
+#
+#
+#
+
+if (-e fort.98) then
+   /bin/cp -f fort.98  ${SourceDir}/${CASE}/aoa.data
+endif
+if (-e fort.99) then
+   /bin/cp -f fort.99  ${SourceDir}/${CASE}/zavg.data
+endif
+
+#
+# Move files to Silo for archiving and/or post-processing
+#
+ if (${SpinUp}) then
+   if ( "${Silo}" == "${SourceDir}/${CASE}" ) then
+      echo "SpinUp is $SpinUp."
+      echo "${Silo} can not be removed."
+   else
+      if (-e ${Silo}) /bin/rm -fr ${Silo}
+      mkdir -p ${Silo}
+   endif
+ endif
+
+#
+# Calculate the starting date for output
+# Bo-Wen 07/19/2000
+#
+cat >! starting_date.csh << EOF
+#!/bin/csh -f
+set nymd1=[%\$%]1
+set nhms1=[%\$%]2
+set NDOUT=[%\$%]3
+set ndout=\`grep \$NDOUT ccmrun.namelist | cut -d '=' -f2 | tr ',' ' '\`
+##echo "nymd1 and nhms1 are \$nymd1 and \$nhms1"
+##echo "ndout  \$ndout"
+#
+set Year=\`echo \$nymd1 |awk [%'{t=substr(\$%][%1,1,4);printf "%d\n",t}'%]\`
+set Mon=\`echo  \$nymd1 |awk [%'{t=substr(\$%][%1,5,2);printf "%d\n",t}'%]\`
+set Day=\`echo  \$nymd1 |awk [%'{t=substr(\$%][%1,7,2);printf "%d\n",t}'%]\`
+#
+set Hour=\`echo \$nhms1 |awk [%'{t=substr(\$%][%1,1,2);printf "%d\n",t}'%]\`
+set Min=\`echo  \$nhms1 |awk [%'{t=substr(\$%][%1,3,2);printf "%d\n",t}'%]\`
+set Sec=\`echo  \$nhms1 |awk [%'{t=substr(\$%][%1,5,2);printf "%d\n",t}'%]\`
+#
+set H1=\`echo  \$ndout |awk [%'{t=substr(\$%][%1,1,2);printf  "%d\n",t}'%]\`
+set M1=\`echo  \$ndout |awk [%'{t=substr(\$%][%1,3,2);printf  "%d\n",t}'%]\`
+set S1=\`echo  \$ndout |awk [%'{t=substr(\$%][%1,5,2);printf  "%d\n",t}'%]\`
+#
+set Sec=\`expr \$Sec + \$S1\`
+set Min=\`expr \$Min + \$M1\`
+set Hour=\`expr \$Hour + \$H1\`
+#
+if ( "\$Sec" >= 60 ) then
+   set Sec=\`expr \$Sec - 60\`
+   set Min=\`expr \$Min + 1 \`
+endif
+#
+if ( "\$Min" >= 60 ) then
+   set Min=\`expr \$Min - 60 \`
+   set Hour=\`expr \$Hour + 1\`
+endif
+#
+if ( "\$Hour" >= 24) then
+   set Hour=\`expr \$Hour - 24 \`
+   set Day=\`expr \$Day  + 1  \`
+endif
+#
+if ( "\$Day"  >= 28 ) then
+  set Leap_Year = 0
+  if ( "\$Year" >= 1900 ) then
+     if ( "\`expr \$Year \% 4\`" == 0 ) then
+        if ( "\`expr \$Year \% 100\`" == 0 ) then
+           if ( "\`expr \$Year \% 400\`" == 0 ) then
+               set Leap_Year = 1
+           endif
+        else
+            set Leap_Year = 1
+        endif
+     endif
+  endif
+ if ( "\$Leap_Year" == 1 ) then
+   set DAYS   = (31 29 31 30 31 30 31 31 30 31 30 31)
+ else
+   set DAYS   = (31 28 31 30 31 30 31 31 30 31 30 31)
+ endif
+#
+ set U_day=\`echo \$DAYS | cut -d ' ' -f\$Mon\`
+
+ if ( "\$Day" >  "\$U_day" ) then
+   set Mon=\`expr \$Mon + 1 \`
+   set Day=\`expr \$Day - \$U_day\`
+ endif
+endif
+#
+#
+#
+if ( "\$Mon" > "12" ) then
+   set Year=\`expr \$Year + 1 \`
+   set Mon=\`expr \$Mon - 12 \`
+endif
+#
+#
+#
+set TMP1=\`echo \$Year | awk '{printf "%4.4d", [%\$%]1}' \`
+set TMP2=\`echo \$Mon  | awk '{printf "%2.2d", [%\$%]1}' \`
+set TMP3=\`echo \$Day  | awk '{printf "%2.2d", [%\$%]1}' \`
+set nymd1=\${TMP1}\${TMP2}\${TMP3}
+#
+set TMP1=\`echo \$Hour | awk '{printf "%2.2d", [%\$%]1}' \`
+set TMP2=\`echo \$Min  | awk '{printf "%2.2d", [%\$%]1}' \`
+set TMP3=\`echo \$Sec  | awk '{printf "%2.2d", [%\$%]1}' \`
+set nhms1=\${TMP1}\${TMP2}\${TMP3}
+##echo "nymd1 and nhms1 are \$nymd1 and \$nhms1"
+echo "\$nymd1 \$nhms1"
+#
+#
+EOF
+#
+set nymd1_org = $nymd1
+set nhms1_org = $nhms1
+
+chmod +x ./starting_date.csh
+set buf = `./starting_date.csh  $nymd1_org $nhms1_org NDOUT`
+set nymd1 = ${buf[1]}
+set nhms1 = ${buf[2]}
+
+set nymd1x = `expr $nymd1 : '0*\(.*\)'`
+if ($nymd1x == "") set nymd1x = 0
+set nhms1x = `expr $nhms1 : '0*\(.*\)'`
+if ($nhms1x == "") set nhms1x = 0
+
+#
+#
+
+ set buf  = `./rst_date $FFC_RUN d_rst`
+ set nymd2 = ${buf[1]}
+ set nhms2 = ${buf[2]}
+
+ set nymd2x = `expr $nymd2 : '0*\(.*\)'`
+ if ($nymd2x == "") set nymd2x = 0
+ set nhms2x = `expr $nhms2 : '0*\(.*\)'`
+ if ($nhms2x == "") set nhms2x = 0
+
+ if (${nymd1x} > ${nymd2x}) then
+     set nymd1 = ${nymd2}
+     set nhms1 = ${nhms2}
+ else if (${nymd1x} == ${nymd2x} && ${nhms1x} > ${nhms2x}) then
+     set nhms1 = ${nhms2}
+ endif        
+
+# The following two files are needed for restart
+# The lsm also needs its own restart file
+
+ifelse(FV_TYPE, DYCORE, [%dnl
+
+ if (! ${Benchmark}) then
+   /bin/cp -f d_rst                ${SourceDir}/${CASE}/d_rst
+ endif
+ set d_rst = ${CASE}_d${nymd2}.${nhms2}
+ /bin/mv -f d_rst                  ${Silo}/${d_rst}
+ set rout  = ${CASE}_rout_${nymd1}.${nhms1}-${nymd2}.${nhms2}
+ if (-e fort.82) then
+   /bin/mv -f fort.82                ${Silo}/${rout}
+ endif
+
+#
+# Empty
+#
+
+%], [%dnl  ELSE
+
+ if (! ${Benchmark}) then
+   /bin/cp -f d_rst                ${SourceDir}/${CASE}/d_rst
+   /bin/cp -f p_rst                ${SourceDir}/${CASE}/p_rst
+ endif
+
+ set d_rst = ${CASE}_d${nymd2}.${nhms2}
+ set p_rst = ${CASE}_p${nymd2}.${nhms2}
+ set rout  = ${CASE}_rout_${nymd1}.${nhms1}-${nymd2}.${nhms2}
+
+ /bin/mv -f d_rst                  ${Silo}/${d_rst}
+ /bin/mv -f p_rst                  ${Silo}/${p_rst}
+ if (-e fort.82) then
+   /bin/mv -f fort.82                ${Silo}/${rout}
+ endif
+
+%])dnl
+
+# diagnostic files
+ifelse(FV_FAKE, TRUE, [%dnl
+ set diagctl = "null"        #Bowen in case no diag.ctl was found
+ set diagbin = "null"
+ set diagtm  = "null"
+ set diagprs = "null"
+ set p_rst   = "null"
+ set lsm_rst    = "lsm.rpointer"
+ set lsm_hst    = "lsm.rpointer"
+ set lsm_rest_pfile = "lsm.rpointer"
+ set clm_rest_pfile = "clm.rpointer"
+%]) dnl
+
+
+ifelse(FV_TYPE, DYCORE, [%dnl
+ set diag2dctl = "null" 
+ set diag2dbin = "null" 
+ set diagctl = "null"        #Bowen in case no diag.ctl was found
+ set diagbin = "null"
+ set diagtm  = "null"
+ set diagprs = "null"
+ set p_rst   = "null"
+ set lsm_rst    = "lsm.rpointer"
+ set lsm_hst    = "lsm.rpointer"
+ set lsm_rest_pfile = "lsm.rpointer"
+ set clm_rest_pfile = "clm.rpointer"
+ echo 'echo not avaiable' >! ${SourceDir}/${CASE}/$DIAG_EXE
+ chmod +x ${SourceDir}/${CASE}/$DIAG_EXE
+%]) dnl
+
+# quick look files
+
+ set aoa  = ${CASE}_aoa_${nymd1}.${nhms1}-${nymd2}.${nhms2}
+ set zavg = ${CASE}_zavg_${nymd1}.${nhms1}-${nymd2}.${nhms2}
+ if (-e fort.98) /bin/mv -f fort.98 ${Silo}/${aoa}
+ if (-e fort.99) /bin/mv -f fort.99 ${Silo}/${zavg}
+
+ /bin/mv ${CASEID}.${CTITLE}*   ${Silo}  >& /dev/null 
+
+foreach f (`cat history_files.rc`)
+/bin/mv $f ${Silo}/
+end
+mv history_files.rc ${Silo}/     #BW
+
+
+ifelse(FV_TYPE, DYCORE, [%dnl
+
+#
+# Empty
+#
+
+%], [%dnl
+
+
+# Get updated lsm restart and history filenames
+
+if ( -e $lsm_rest_pfile ) then
+ set lsm_rst = `head -1 $lsm_rest_pfile`
+ set lsm_rst = ${lsm_rst:t}
+ set lsm_hst = `tail -1 $lsm_rest_pfile`
+ set lsm_hst = ${lsm_hst:t}
+endif
+
+set clmr_file="null"
+dnl if ( -e ./$clm_rest_pfile ) then
+if ( -e ${SourceDir}/${CASE}/$clm_rest_pfile ) then
+  set tmp=`head ${SourceDir}/${CASE}/$clm_rest_pfile |cut -d" " -f1`
+  set clmr_file=`basename $tmp`
+endif
+
+
+ if (! ${Restart}) then
+   /bin/mv -f lsm_diagnos.* lsmh_timcon.nc lsmi_arbini ${Silo}
+ endif
+
+ if (! ${Benchmark}) then
+   if (-e ${lsm_hst}) then
+     /bin/cp -f ${lsm_hst} ${SourceDir}/${CASE}/lsm_hst
+   else
+     /bin/rm -f ${SourceDir}/${CASE}/lsm_hst
+   endif
+   /bin/cp -f ${lsm_rest_pfile} ${SourceDir}/${CASE} >& /dev/null
+   /bin/cp -f ${lsm_rst} ${SourceDir}/${CASE}/lsm_rst >& /dev/null
+ dnl  /bin/cp -f ${clm_rest_pfile} ${SourceDir}/${CASE} >& /dev/null
+ dnl  /bin/cp -f ${clmr_file} ${SourceDir}/${CASE}/clm_rst >& /dev/null
+   /bin/cp -f ${Silo}/${clmr_file} ${SourceDir}/${CASE}/clm_rst >& /dev/null
+   echo "${SourceDir}/${CASE}/clm_rst" > ${SourceDir}/${CASE}/${clm_rest_pfile} 
+ endif
+ if (-e ${lsm_hst}) then
+   /bin/mv -f ${lsm_hst} ${Silo}
+ else
+   set lsm_hst =
+ endif
+ /bin/mv -f   ${lsm_rst} ${Silo}   >&/dev/null
+ /bin/mv -f   ${lsm_rest_pfile} ${Silo} >&/dev/null
+
+
+%])dnl   End of ifelse
+
+ cd ${SourceDir}/${CASE}
+
+ set nymd2 = `echo ${nymd2} | awk '{printf "%8.8d", $[%%]1}'`
+ set nhms2 = `echo ${nhms2} | awk '{printf "%6.6d", $[%%]1}'`
+ set nymde = `echo ${nymde} | awk '{printf "%8.8d", $[%%]1}'`
+ set nhmse = `echo ${nhmse} | awk '{printf "%6.6d", $[%%]1}'`
+
+ set nymd2x = `expr $nymd2 : '0*\(.*\)'`
+ if ($nymd2x == "") set nymd2x = 0
+ set nhms2x = `expr $nhms2 : '0*\(.*\)'`
+ if ($nhms2x == "") set nhms2x = 0
+ set nymdex = `expr $nymde : '0*\(.*\)'`
+ if ($nymdex == "") set nymdex = 0
+ set nhmsex = `expr $nhmse : '0*\(.*\)'`
+ if ($nhmsex == "") set nhmsex = 0
+
+ echo " "
+ echo ${nymd2} ${nhms2}|awk '{printf "NYMD,  NHMS  = %8.8d, %6.6d\n", $[%%]1, $[%%]2}'
+ echo ${nymde} ${nhmse}|awk '{printf "NYMDE, NHMSE = %8.8d, %6.6d\n", $[%%]1, $[%%]2}'
+ echo " "
+
+dnl 
+
+ifelse(FV_TYPE, WEEKLY, [%dnl
+dnl
+dnl --- Keep the current values of YEAR and MON for wk2mo
+dnl
+  set Monm1 = $Mon
+  set Yearm1 = $Year
+  set ISTOP = 0
+%])dnl
+
+ if (${nymd2x} >= ${nymdex} && ${nhms2x} >= ${nhmsex}) then
+   echo "Simulation completed, stop."
+dnl
+ifelse(FV_TYPE, WEEKLY, [%dnl
+dnl --- For weekly run
+  set ISTOP = 1
+%])dnl
+
+ else
+   if (${ENVIRONMENT} == "BATCH") then
+     if (! ${Benchmark} && ${Restart}) then 
+ifelse(FV_TYPE, MONTHLY, [%dnl
+dnl
+dnl --- If it's monthly job script 
+dnl
+       @ Mon ++
+       @ Mon = ($Mon - 1) % 12 + 1
+       if ($Mon == 1) @ Year ++
+       set Mon  = `echo $Mon   | awk '{printf "%2.2d", $[%%]1}' -`
+       set Year = `echo $Year  | awk '{printf "%4.4d", $[%%]1}' -`
+       set month = `echo month | tr 'a-z' 'A-Z'`
+       set year  = `echo year  | tr 'a-z' 'A-Z'`
+       if (${count} == ${MaxCount}) then
+         echo "Continue to re-sumbit next job."
+         echo " "
+###         sed -e "s%set Mon    = ${month}%set Mon    = ${Mon}%1" \  #12/04/2001
+###             -e "s%set Year   = ${year}%set Year   = ${Year}%1" \  #12/04/2001
+###                monthly.j.tmpl >! ${CASE}_m.${Mon}
+                cp -f monthly.j.tmpl  ${CASE}_m.${Mon}                #12/04/2001
+         chmod ug+x ${CASE}_m.${Mon}
+         qsub ${CASE}_m.${Mon}
+       endif
+%], [%dnl
+ifelse(FV_TYPE, WEEKLY, [%dnl
+dnl
+dnl --- If it's weekly job script 
+dnl
+       @ rest   = ${Days[${Mon}]} - ${Week} * 7
+       if (${rest} > 0) then
+         @ Week ++
+       else
+         set Week = 1                  # Next month
+         @ Mon ++
+         @ Mon = ($Mon - 1) % 12 + 1
+         if ($Mon == 1) @ Year ++
+       endif
+       set Year  = `echo $Year  | awk '{printf "%4.4d", $[%%]1}' -`
+       set Mon   = `echo $Mon   | awk '{printf "%2.2d", $[%%]1}' -`
+       set year  = `echo year  | tr 'a-z' 'A-Z'`
+       set month = `echo month | tr 'a-z' 'A-Z'`
+       set week  = `echo week  | tr 'a-z' 'A-Z'`
+       if (${count} == ${MaxCount}) then
+         echo "Continue to re-sumbit next job."
+         echo " "
+         sed -e "s%set Mon    = ${month}%set Mon    = ${Mon}%1" \
+             -e "s%set Year   = ${year}%set Year   = ${Year}%1" \
+             -e "s%set Week   = ${week}%set Week   = ${Week}%1" \
+                weekly.j.tmpl >! ${CASE}_w.${Mon}-${Week}
+         chmod ug+x ${CASE}_w.${Mon}-${Week}
+         qsub ${CASE}_w.${Mon}-${Week}
+       endif
+%], [%dnl
+ifelse(FV_TYPE, GENERIC, [%dnl
+dnl
+dnl --- If it's generic jobs script fvgcm.j
+dnl
+       if (${count} == ${MaxCount}) then
+         echo "Continue to re-sumbit next job."
+         echo " "
+         qsub ${jobname}
+       endif
+%], [%dnl
+ifelse(FV_TYPE, DYCORE, [%dnl
+dnl
+dnl --- If it's dycore jobs script dycore.j
+dnl
+       if (${count} == ${MaxCount}) then
+         echo "Continue to re-sumbit next job."
+         echo " "
+         qsub ${jobname}
+       endif
+%])dnl
+%])dnl
+%])dnl
+%])dnl
+     else
+       echo "This is an initalization run, resubmission will"
+       echo "not be performed automatically."
+       echo " "
+     endif
+   else
+     echo "This is an interactive job, please re-sumbit"
+     echo "next job manually."
+     echo " "
+   endif
+ endif
+
+ifelse(FV_STAGE, USESTAGE, [%dnl
+# Set up directories in mass storage system
+
+ if (${SaveToMSS}) then
+
+   if (${UseStage}) then
+#     set RemoteHost = ${StageHost}-hp
+     set RemoteHost = ${StageHost}
+     set RemotePath = ${StagePath}
+   else
+     set RemoteHost = ${MSSHost}
+     set RemotePath = ${MSSPath}
+   endif
+   set Destination = ${RemoteHost}:${RemotePath}
+
+   if (! ${LocalStage}) then
+     echo  " --> Timing for staging ... "
+     date 
+
+#  Copy the following to mass storage system (or stage storage)
+
+ if ( "$atNAS" == 1 ) then
+      ssh ${RemoteHost}  "mkdir -p ${RemotePath}" >& /dev/null
+      scp -v ${d_rst} ${p_rst} ${rout} ${Destination}
+ else
+     mkdir -p ${RemotePath} >& /dev/null
+     cp -v ${d_rst} ${p_rst} ${rout}  ${Destination}
+ endif
+     if (${status}) then
+       echo "cp failed, check the following files on ${Destination}"
+       foreach f (${d_rst} ${p_rst} ${rout})
+         echo " --> ${f}"
+         end
+       set CleanSilo = 0
+     else
+       if (${CleanSilo}) then
+         /bin/rm -f ${d_rst} ${p_rst} ${rout}
+       endif
+     endif
+
+# Copy lsm stuff
+
+     if (${Restart}) then
+ if ( "$atNAS" == 1 ) then
+        ssh ${RemoteHost}  "mkdir -p ${RemotePath}" >& /dev/null
+        scp -v ${lsm_rst} ${lsm_hst} ${CASEID}.${CTITLE}* ${Destination}
+ else
+       mkdir -p ${RemotePath} >& /dev/null
+       cp -v ${lsm_rst} ${lsm_hst} ${CASEID}.${CTITLE}* ${Destination}
+ endif
+       if (${status}) then
+         echo "cp failed, check the following files on ${Destination}"
+         foreach f (${lsm_rst} ${lsm_hst})
+           echo " --> ${f}"
+         end
+         set CleanSilo = 0
+       else
+         if (${CleanSilo}) then
+           /bin/rm -f ${lsm_rst} ${lsm_hst}
+         endif
+       endif
+     else
+ if ( "$atNAS" == 1 ) then
+        ssh ${RemoteHost}  "mkdir -p ${RemotePath}" >& /dev/null
+        scp -v lsm_diagnos.* lsmh_timcon.nc lsmi_arbini ${Destination}
+ else
+       mkdir -p ${RemotePath} >& /dev/null
+       cp -v lsm_diagnos.* lsmh_timcon.nc lsmi_arbini ${Destination}
+ endif
+       if (${status}) then
+         echo "cp failed, check the following files on ${Destination}"
+         foreach f (lsm_diagnos.* lsmh_timcon.nc lsmi_arbini)
+           echo " --> ${f}"
+         end
+         set CleanSilo = 0
+       else
+         if (${CleanSilo}) then
+           /bin/rm -f lsm_diagnos.* lsmh_timcon.nc lsmi_arbini
+         endif
+       endif
+     endif
+
+#  Copy diagnostic files
+
+ if ( "$atNAS" == 1 ) then
+      ssh ${RemoteHost}  "mkdir -p ${RemotePath}" >& /dev/null
+      scp -v ${diagctl} ${diagbin} ${zavg} ${aoa} ${diag2dctl} ${diag2dbin} \
+            ${Destination}
+ else
+     mkdir -p ${RemotePath} >& /dev/null
+     cp -v ${diagctl} ${diagbin} ${zavg} ${aoa} ${diag2dctl} ${diag2dbin} \
+            ${Destination}
+ endif
+     if (${status}) then
+       echo "cp failed, check the following files on ${Destination}"
+       foreach f (${diagctl} ${diagbin} ${zavg} ${aoa} ${diag2dctl} ${diag2dbin})
+         echo " --> ${f}"
+       end
+       set CleanSilo = 0
+     else
+       if (${CleanSilo}) then
+         /bin/rm -f ${diagctl} ${diagbin} ${diag2dctl} ${diag2dbin}
+       endif
+     endif
+
+#  Copy miscellaneous files
+
+ if ( "$atNAS" == 1 ) then
+      ssh ${RemoteHost}  "mkdir -p ${RemotePath}" >& /dev/null
+      scp -v *.namelist ${Destination}
+ else
+     mkdir -p ${RemotePath} >& /dev/null
+     cp -v *.namelist ${Destination}
+ endif
+     if (${status}) then
+       echo "cp failed, check the following files on ${Destination}"
+       foreach f (*.namelist)
+         echo " --> ${f}"
+       end
+       set CleanSilo = 0
+     else
+       if (${CleanSilo}) then
+         /bin/rm -f *.namelist
+       endif
+     endif
+
+     date
+
+# clean-up
+
+     if (${CleanSilo}) then
+#       cd ..
+       set hometmp = `pwd`
+       cd `dirname $hometmp`
+       /bin/rm -fr ${Silo}
+     else
+       mail ${LOGNAME} << EOF
+ *** This is a message sent from ${jobname}:
+
+ Please remember to clean up ${Silo} on ${HOST}.
+EOF
+     endif   # CleanSilo
+
+   endif     # LocalStage
+
+ endif       # SaveToMSS
+%])dnl
+
+ifelse(FV_TYPE, WEEKLY, [%dnl
+  if (${Week} == 1 ) then
+    set tmpfile = ${SourceDir}/${CASE}/wklists.${Monm1}.${Yearm1}
+    echo ${diagbin} >> ${tmpfile}
+  else
+    echo ${diagbin} >> ${SourceDir}/${CASE}/wklists.${Mon}.${Year}
+  endif
+%])dnl
+
+ cd ${Silo}
+ ls -l 
+
+# Submit batch job for file transfer and/or postprocessing
+
+ if (${SaveToMSS} || ${PostProc}) then
+   cd ${SourceDir}/${CASE}
+   cat >! ${CASE}_xfr[%%]FV_SUFFIX_SAVE << EOF
+#!/bin/csh -f
+# -----------------------
+ifelse(FV_STAGE, USESTAGE, [%dnl
+#PBS -q @${StageHost}
+%])dnl
+#PBS -l ncpus=1
+#PBS -l walltime=12:00:00
+#PBS -S /bin/csh
+#PBS -j eo
+changecom('/*', '*/')dnl
+#PBS -W group_list=FV_GID
+changecom()dnl
+# -----------------------
+#
+ set CASE       = ${CASE}
+ set SourceDir  = ${SourceDir}
+ifelse(FV_STAGE, USESTAGE, [%dnl
+ set StageHost  = ${StageHost}
+%])dnl
+ set PostProc   = ${PostProc}
+ set SavePres   = ${SavePres}
+ set CleanSilo  = ${CleanSilo}
+ set SaveToMSS  = ${SaveToMSS}
+ set MSSHost    = ${MSSHost}
+ set MSSPath    = ${MSSPath}
+ set MSS        = ${MSS}
+ set CASEID     = ${CASEID}
+ set CTITLE     = ${CTITLE}
+ set atNAS      = ${atNAS}
+#
+ set DIAG_EXE   = ${DIAG_EXE}
+
+#
+ set d_rst      = ${d_rst}
+ set p_rst      = ${p_rst}
+ set rout       = ${rout}
+ set zavg       = ${zavg}
+ set aoa        = ${aoa}
+ set lsm_rst    = ${lsm_rst}
+ set lsm_hst    = ${lsm_hst}
+ set lsm_rest_pfile = ${lsm_rest_pfile}
+ set clm_rest_pfile = ${clm_rest_pfile}
+ set Silo       = ${Silo}
+ set SavDir     = ${SavDir} 
+ifelse(FV_TYPE, WEEKLY, [%dnl
+ set Week       = ${Week}    
+ set Mon        = ${Mon}
+ set Year       = ${Year}
+ set Monm1      = ${Monm1}
+ set Yearm1     = ${Yearm1}
+ set ISTOP      = ${ISTOP}
+%])dnl
+#
+ cd \${Silo}
+ifelse(FV_STAGE, USESTAGE, [%dnl
+ cd \${StagePath}
+%])dnl
+
+#
+ ls -l
+ du -sk .
+ if (\${SaveToMSS}) then
+#
+# ---------------------------------------------------------------------
+# ... Archiving to Mass Storage System
+#
+#   - group files into 4 categories with one scp command for each group
+#     to reduce the risk of network/system failure
+#   - move the zonal-mean and time-mean to a separate directory for
+#     quick look of the simulation
+# ---------------------------------------------------------------------
+#
+   date
+ifelse(FV_STAGE, USESTAGE, [%dnl
+   echo "File transfer from \${StageHost} to \${MSSHost} ..."
+ifelse(FV_STAGE, NOSTAGE, [%dnl
+   echo "File transfer from `hostname` to \${MSSHost} ..."
+%])dnl
+%])dnl
+   if ( \$atNAS == 1 ) then
+    set copy = scp
+    ssh \${MSSHost}  "mkdir -p \${MSSPath}" >& /dev/null
+   else
+    set copy = cp
+    mkdir -p \${MSSPath} >& /dev/null
+   endif
+   set keep = 0
+#
+# -----------------------------------------
+# ... Group 1: 
+#   - dynamics and physics restart files 
+#   - dynamical core reference state output
+#   - zonal-mean file
+# -----------------------------------------
+#
+
+ifelse(FV_TYPE, DYCORE, [%dnl
+#
+    \${copy} -v \${d_rst}  \${rout} \${zavg} \${MSS}
+%], [%dnl   else
+
+   \${copy} -v \${d_rst} \${p_rst} \${rout} \${zavg} \${MSS}
+%])dnl   End of ifelse (DYCORE)
+
+
+   if (! \${status} && \${CleanSilo} ) then
+     /bin/rm -f \${d_rst} \${p_rst} \${rout}
+   else
+     @ keep ++
+   endif
+
+   \${copy} -v \${aoa} \${MSS}
+
+ if ( \$atNAS == 0 ) then
+   /bin/mv -f \${zavg} \${SavDir}
+   /bin/mv -f \${aoa} \${SavDir}
+ endif
+#
+# --------------------------------
+# ... Group 2: 
+#   - lsm restart file
+#   - lsm history file (if exists)
+#   - lsm pointer file
+# --------------------------------
+#
+   \${copy} -v \${lsm_rst} \${lsm_hst} \${lsm_rest_pfile}  \${MSS}
+
+   if (! \${status} && \${CleanSilo} ) then
+     /bin/rm -f \${lsm_rst} \${lsm_hst} \${lsm_rest_pfile} \${clm_rest_pfile}
+   else
+     @ keep ++
+   endif
+
+endif        # SaveToMSS
+#
+# ------------------------------------------------
+# ... Group 3:
+#   - diagnostic output and its GrADS control file 
+#
+# ... Postprocessing
+#      1.  Interpolation to pressure coordinates
+#      2.  Time average
+# ------------------------------------------------
+#
+#
+ if (\${PostProc}) then
+    /bin/cp -f \${SourceDir}/\${CASE}/\${DIAG_EXE} .
+   if ( \$SavePres == 1 ) then
+     set SavePrs   = -saveprs
+   else
+     set SavePrs   = 
+   endif
+###EOF                   #BW
+
+foreach f (\`cat \${Silo}/history_files.rc\`)
+switch (\$f)
+  case \*.ctl:
+###cat >>! ${CASE}_xfr[%%]FV_SUFFIX_SAVE << EOF    #BW
+      set buf = \`time ./\${DIAG_EXE} \${SavePrs} \$f\`
+      set filetm    = \${buf[1]}
+      set filets    = \${buf[2]}
+      set filein    = \${buf[3]}
+      if (\${SaveToMSS}) then
+        \${copy} -v \$f  \${MSS}
+        \${copy} -v \${filetm}.ctl \${filetm} \${filets}.ctl \${filets} \${MSS}
+      if (! \${status} && \${CleanSilo} ) then
+          /bin/rm -f \${filets} \${filets} \${filein}.ctl \${filein}
+      endif
+      endif
+###EOF                     #BW
+      breaksw
+  case \*_\?\?\?\\?\?\?\?\?.\?\?\?\?\?\?-\?\?\?\?\?\?\?\?.\?\?\?\?\?\?:
+      breaksw
+  default:
+###cat >>! ${CASE}_xfr[%%]FV_SUFFIX_SAVE << EOF        #BW
+   if (\${SaveToMSS}) then
+      \${copy} -v \$f \${MSS}
+      if (! \${status} && \${CleanSilo} ) then
+         /bin/rm -f \$f
+      endif
+   endif
+###EOF
+  endsw
+end
+
+####   cat >>! ${CASE}_xfr[%%]FV_SUFFIX_SAVE << EOF
+
+# No postprocessing check for archiving
+else
+ if (\${SaveToMSS}) then
+####EOF
+   foreach f (\`cat \${Silo}/history_files.rc\`)
+####cat >>! ${CASE}_xfr[%%]FV_SUFFIX_SAVE << EOF
+      \${copy} -v \$f  \${MSS}
+      if (! \${status} && \${CleanSilo} ) then
+        /bin/rm -f \$f
+      endif
+####EOF
+   end
+ endif
+
+####   cat >>! ${CASE}_xfr[%%]FV_SUFFIX_SAVE << EOF
+
+endif        # Postproc
+
+dnl    if (! \${keep} && \${CleanSilo}) then
+dnl      cd ..
+dnl ifelse(FV_STAGE, NOSTAGE, [%dnl
+dnl      /bin/rm -f \${Silo}/\*
+dnl ifelse(FV_STAGE, USESTAGE, [%dnl
+dnl      /bin/rm -f \${StagePath}/\*
+dnl %])dnl
+dnl %])dnl
+dnl    endif
+
+#ifelse(FV_TYPE, WEEKLY, [%dnl
+# if (\${Week} == 1 || \${ISTOP} == 1) then
+#   cd \${SavDir}
+#   set tmpfile = \${SourceDir}/\${CASE}/wklists.\${Monm1}.\${Yearm1}
+##    echo \${diagbin} >> \${tmpfile}
+#   set F_LISTS=""
+#   foreach file (\`cat \${tmpfile}\`)
+#dnl     set f_d=\`echo \$file|awk '{l=length(\$[%%]1)\; print [%substr([%\$1%],
+#dnl l-30, l)%]}'-\`
+#     set f_d=\`echo \$file|awk '{l=length(\$[%%]1); val=\$[%%]1; print [%substr(val, l-30, l)%]}'\`
+#dnl     set f_d=`echo \$file|awk '{l=length($1); print substr($1, l-30, l)}'-`
+#     set f_t=\`echo \$file|awk '{l=length(\$[%%]1); val=\$[%%]1; print [%substr(val, 1, l-32)%]}'\`
+#     set diagbin_prs=\${f_t}_prs_tm_\${f_d}
+#     set F_LISTS="\$F_LISTS \$diagbin_prs"
+#    end
+#     /bin/cp -f \${SourceDir}/\${CASE}/wk2mo .
+#     ./wk2mo \$F_LISTS
+#  else
+##    echo \${diagbin} >> \${SourceDir}/\${CASE}/wklists.\${Mon}.\${Year}
+#     echo "Week = $Week"
+#  endif
+#%])dnl
+
+ date
+ exit 0
+EOF
+
+   chmod +x ${CASE}_xfr[%%]FV_SUFFIX_SAVE
+   qsub ${CASE}_xfr[%%]FV_SUFFIX_SAVE
+
+ endif        # SaveToMSS
+ 
+ @ count ++
+ end          # End of Time Loop
+
+ exit 0
+%])dnl
+dnl
+divert(0)dnl
+dnl
+dnl ---------------------------------------------------
+dnl
+dnl -----------------------------
+dnl  Include the definition file
+dnl -----------------------------
+include([%define.m4%])dnl
+FV_TMPL[%%]dnl
+dnl
+dnl ---------------------------------------------------
+dnl

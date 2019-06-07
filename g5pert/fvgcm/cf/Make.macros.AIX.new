@@ -1,0 +1,9 @@
+SPMD:=TRUE
+LIB_NETCDF:=/g2/home/bwshen/CCM4/netcdf/lib32/r4i4
+INC_NETCDF:=/g2/home/bwshen/CCM4/netcdf/include
+LIB_MPI:=
+INC_MPI:=
+MODEL_EXEDIR:=..
+EXENAME:=fvgcm.x
+DEFS:= -DTIMING  -DREAL8 -DLSMH_off -DVERSION='"1.2.0"'  -DSPMD -DCCM -DUSE_MPI
+#DEFS:= -DTIMING  -DREAL8 -DLSMH_off -DVERSION='"1.2.0"'   -DCCM -DAIX

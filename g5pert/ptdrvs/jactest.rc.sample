@@ -1,0 +1,25 @@
+# Resource file for jactest program
+# 
+# History:
+#
+#  17Feb2004  Todling  Created
+#
+#-------------------------------------------------------------------
+
+# allowable datatypes and covariance parameters:
+# ---------------------------------------------
+
+jac_points_to_test::
+
+#  lon_indx   lat_indx   lev_indx
+#     i          j          k    
+
+        1        23         10
+       72        23         18
+        1         1         18
+        1         2         10
+        1        46         18
+        1        45         10
+
+::
+

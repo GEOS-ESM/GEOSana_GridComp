@@ -1,0 +1,5 @@
+model_ad.F90	: hand written adjoint wrapper to use same drivers as full case
+model_tl.F90	: hand written tangent wrapper to use same drivers as full case
+
+*_tad.F90	: generated adjoint files
+*_ttl.F90	: generated tangent files

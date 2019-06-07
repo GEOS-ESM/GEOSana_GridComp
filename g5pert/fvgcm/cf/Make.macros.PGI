@@ -1,0 +1,47 @@
+#
+# Make.macros -- common make macros
+#
+
+# fvDAS/fvGCM build environment
+
+COREBIN         = $(COREROOT)/bin
+CORELIB         = $(COREROOT)/lib
+COREINC         = $(COREROOT)/include
+COREETC         = $(COREROOT)/etc
+
+.SUFFIXES:
+.SUFFIXES:      .F .c .o
+#
+ SHELL          = /bin/sh
+ MAKEDEPEND     = makedepend
+ AR             = ar
+ ARFLAGS        = rlc
+ RM             = rm -f
+ MV             = mv -f
+#
+#-----------------------------
+#    Intel Pentium Pro/II
+#    (Portland Group Inc.)
+#-----------------------------
+#
+ FC              = pgf90
+ CC              = gcc
+#DEFS            = -DOpenMP -DTIMING #-DR4BYTE
+ DEFS            = -DPGI -DTIMING -DSPMD 
+ FOPT            = -O2
+ FOPT2           = -O2
+ FFLAGS1         = -r8 -i4 -byteswapio -tp p6 -Munroll -mp -Mextend -Mrecursive -Mdalign
+ FFLAGS1         = -r8 -i4 -byteswapio -tp p6 -Munroll     -Mextend -Mrecursive -Mdalign
+ FFLAGS2         = -byteswapio -tp p6 -Munroll
+ FFLAGS          = ${DEFS} ${FFLAGS1}
+ COPT            = -O
+ CFLAGS          = ${DEFS}
+ LDFLAGS         = -s
+ CPP             = pgf90
+ CPPFLAGS        = -E
+ NCINC          = -I/usr/local/netcdf-3.4_Lahey/include
+ NCLIB          = -L/usr/local/netcdf-3.4_Lahey/lib -lnetcdf
+ LPILGDYN       = 
+ SDFINC         = $(NCINC)
+ SDFLIB         = $(NCLIB)
+#-----------------------------

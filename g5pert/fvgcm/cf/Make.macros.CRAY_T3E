@@ -1,0 +1,47 @@
+#
+# Make.macros -- common make macros
+#
+.SUFFIXES:
+.SUFFIXES:	.F .c .o
+#
+ SHELL          = /bin/sh
+ MAKEDEPEND     = makedepend
+ AR             = ar
+ ARFLAGS        = rlc
+ RM             = rm -f
+ MV             = mv -f
+#
+#-----------------------------
+#         CRAY T3E
+#-----------------------------
+#
+ FC             = f90
+ CC             = cc
+ DEFS           = -DCRAY -DCRAY_T3E -DMPI_ON -DREAL8 -DTIMING
+#FOPT           = -O3
+ FOPT           = -O3 -Oaggress -Ojump -Ounroll1
+ FOPT2          = -O2
+ FFLAGS1        = -dp -F -N 80 -x all -em \
+                  -p . -p .. -p ../pilgrim -p ../misc -p pilgrim -p misc
+ FFLAGS2        = -dp -F -x all -em -p .. ${DEFS}
+ FFLAGS         = ${DEFS} ${FFLAGS1}
+ COPT           = -O
+ CFLAGS         = ${DEFS}
+ LDFLAGS        =
+ CPP            = /opt/ctl/bin/cpp
+ CPPFLAGS       = -P
+ MPILIB         = 
+ LPILGDYN       = -lpilgrim
+#
+#--------------------------------------------
+# NetCDF/HDF option: must use HDF for fvPSAS.
+#--------------------------------------------
+#
+ NCINC          = -I/usr/local/pkg/usg/netcdf3.4/include
+ NCLIB          = -L/usr/local/pkg/usg/netcdf3.4/lib -lnetcdf
+ HDFINC         =
+ HDFLIB         =
+ SDFINC         = $(HDFINC)
+ SDFLIB         = $(HDFLIB)
+#
+#-----------------------------

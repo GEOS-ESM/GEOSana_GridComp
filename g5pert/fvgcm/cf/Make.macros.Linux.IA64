@@ -1,0 +1,52 @@
+#
+# Make.macros -- common make macros
+#
+COREBIN         = $(COREROOT)/bin
+CORELIB         = $(COREROOT)/lib
+COREINC         = $(COREROOT)/include
+COREETC         = $(COREROOT)/etc
+
+.SUFFIXES:
+.SUFFIXES:      .F90 .F .c .o
+#
+ SHELL          = /bin/sh
+ MAKEDEPEND     = makedepend
+ AR             = ar
+ ARFLAGS        = rc
+ RM             = rm -f
+ MV             = mv -f
+#
+#-------------------
+#   Linux with FFC
+#-------------------
+#
+ FC             = ifort
+ CC             = cc
+ DEFS           = -DSPMD -DUSE_MPI -DTIMING -DLSMH_off 
+ FOPT           = -extend_source -r8 -w -cm -O3 -convert big_endian
+ FOPT2          = -extend_source -r8 -w -cm -O1 -convert big_endian
+ FFLAGS1        = -DHIDE_SHR_MSG -DLINUX -cpp
+ FFLAGS2        = -DHIDE_SHR_MSG -DLINUX -cpp
+ FFLAGS         = ${DEFS} ${FFLAGS1}
+ FREE_FGS       = ${FFLAGS}
+ COPT           = -O
+ CFLAGS         = ${DEFS} 
+ LDFLAGS        = -lscs
+ LDFLAGS        = -openmp -lscs
+ CPP            = /lib/cpp
+ CPPFLAGS       = -P
+ MPILIB         =
+ NCINC          = -I/share/ESMA/baselibs/v1_8r1p-i9/Linux/include/netcdf
+ NCLIB          = -L/share/ESMA/baselibs/v1_8r1p-i9/Linux/lib -lnetcdf
+ LPILGDYN       = 
+ SDFINC         = $(NCINC)
+ SDFLIB         = $(NCLIB)
+ HDFINC         = -I/share/ESMA/baselibs/v1_8r1p-i9/Linux/include/hdf
+ HDFLIB         = -L/share/ESMA/baselibs/v1_8r1p-i9/Linux/lib -lmfhdf -ldf -lhdfjpeg -lhdfz -lsz
+ SDFINC         = $(HDFINC)
+ SDFLIB         = $(HDFLIB)
+
+ MPEUINC        = -I$(COREINC)/GMAO_mpeu
+ LIBGFIO        = $(CORELIB)/libGMAO_gfio.a
+ LIBEU          = $(CORELIB)/libGMAO_eu.a
+#-----------------------------

@@ -1,0 +1,39 @@
+01Aug2006 Todling GEOSpert-gAdb9map06-3
+---------------------------------------
+- Added tracer adm/tlm capability to fvgcm - needs testing
+- Merged with Gelaro's tag related to svec-restarting capabilities
+  (rgel-f13b11-083-3altix)
+
+28Jul2006 Todling GEOSpert-gAdb9map06-2
+---------------------------------------
+- GEOS-5 GCM in sync with gAdas-1_5beta9-map06p1 (w/ exception of on file in turbulence
+  since this addes physics trajectory capability here) 
+
+28Jul2006 Todling GEOSpert-gAdb9map06-1
+---------------------------------------
+- Brought ADM/TLM up to date with Eros; merged tags gAdas-1_5beta9-map06 and
+  g5pert-gAdb7-2 
+- This reshapes the directory structure as in GEOS-5 DAS; g5pert structure still
+  not 100% GNUMake-compliant.
+
+Old commnets ....
+---------------------------------------
+The main programs must have the .f90 extension in order to avoid being
+automatically compiled in by the Makefile.
+
+adrfftmlt.F90		: adjoint of rfftmlt Fast Fourier transformation
+adtimingmodule.F90	: adjoint timing modules
+g_timingmodule.F90	: tangent timing modules
+mod_comm_adtl.F90       : directives and code for ADM/TLM communication (MPI)
+prgcheckadm.f90		: main program
+prgchecktlm.f90		: main program
+prgcost1.f90		: main program
+prgcost2.f90		: main program
+prgrunadm.f90		: main program
+prgrunadmtlm.f90	: main program
+prgruntlm.f90		: main program
+taf.flow		: TAF flow directives need to process code
+timingmodule.flow	: TAF flow directives need to process code
+
+
+

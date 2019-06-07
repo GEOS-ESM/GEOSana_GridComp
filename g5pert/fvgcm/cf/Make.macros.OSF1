@@ -1,0 +1,83 @@
+#
+# Make.macros -- common make macros
+#
+
+# fvDAS/fvGCM build environment
+
+COREBIN         = $(COREROOT)/bin
+CORELIB         = $(COREROOT)/lib
+COREINC         = $(COREROOT)/include
+COREETC         = $(COREROOT)/etc
+
+.SUFFIXES:
+.SUFFIXES:      .F .c .o
+#
+ SHELL          = /bin/sh
+ MAKEDEPEND     = makedepend
+ AR             = ar
+ ARFLAGS        = rlc
+ RM             = rm -f
+ MV             = mv -f
+#
+#-----------------------------
+#     DEC AlphaServer
+#-----------------------------
+#
+# Set variables depending on Guide, OpenMP w/o Guide, no OpenMP,
+#    MPI
+#
+
+# Guide     Guide     Guide     Guide
+#OMPALPHA       =
+#  No MPI
+#FC             = guidef90
+#CC             = cc
+#  MPI
+#FC             = /g/g2/mirin/mpiguidef90
+#CC             = mpicc
+#
+
+# No Guide     No Guide     No Guide
+#  OpenMP
+ OMPALPHA       = -omp
+# No OpenMP
+#OMPALPHA       =
+
+#  NO MPI
+#FC             = f90
+#CC             = cc
+#  MPI
+#FC             = mpif90
+ FC             = /g/g2/mirin/nmpif90
+ CC             = mpicc
+#
+
+ DEFS           = -DDEC -DOpenMP -DTIMING -DMPI_ON -DREAL8
+ FOPT           = -O4
+ FOPT2          = -O4
+ FFLAGS1        = -cpp -extend_source -automatic -r8 -fast -tune host \
+                  -arch host -convert big_endian -assume byterecl \
+                  -Ipilgrim ${OMPALPHA}
+ FFLAGS2        = -cpp -automatic -fast -tune host -arch host \
+                  -convert big_endian -assume byterecl
+ FFLAGS         = ${DEFS} ${FFLAGS1}
+ COPT           = -O
+ CFLAGS         = ${DEFS}
+ LDFLAGS        = ${OMPALPHA}
+ CPP            = /usr/bin/cpp
+ CPPFLAGS       = -P -I/usr/local/mpich-1.1.2shm/include
+ MPILIB         =
+ LPILGDYN       = -lpilgrim
+#
+#--------------------------------------------
+# NetCDF/HDF option: must use HDF for fvPSAS.
+#--------------------------------------------
+#
+ NCINC          = -I/usr/local/netcdf/include
+ NCLIB          = -L/usr/local/netcdf/lib -lnetcdf
+ HDFINC         =
+ HDFLIB         =
+ SDFINC         = $(HDFINC)
+ SDFLIB         = $(HDFLIB)
+#
+#-----------------------------

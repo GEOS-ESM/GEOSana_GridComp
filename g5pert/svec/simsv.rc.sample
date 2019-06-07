@@ -1,0 +1,45 @@
+# postStats.rc
+
+# History:
+# -------
+#
+#  30Sep2004 Winslow  - Original code
+#  04Mar2009 Todling  - All hdf suffixes to nc4
+#
+
+# designate singular vector reference file name 
+ file_nameR: u000_a18.traj.eta.20170123.nc4 
+
+# designate singular vector file names for similarity check: group A
+ file_nameA1: sv1.isvec.eta.20170123_00z+20170123_00z.te001.nc4
+ file_nameA2: sv1.isvec.eta.20170123_00z+20170123_00z.te002.nc4
+ file_nameA3: sv1.isvec.eta.20170123_00z+20170123_00z.te003.nc4
+ file_nameA4: sv1.isvec.eta.20170123_00z+20170123_00z.te004.nc4
+ file_nameA5: sv1.isvec.eta.20170123_00z+20170123_00z.te005.nc4
+ file_nameA6: sv1.isvec.eta.20170123_00z+20170123_00z.te006.nc4
+
+# designate singular vector file names for similarity check: group B
+ file_nameB1: sv1.isvec.eta.20170123_00z+20170123_00z.te001.nc4
+ file_nameB2: sv1.isvec.eta.20170123_00z+20170123_00z.te002.nc4
+ file_nameB3: sv1.isvec.eta.20170123_00z+20170123_00z.te003.nc4
+ file_nameB4: sv1.isvec.eta.20170123_00z+20170123_00z.te004.nc4
+ file_nameB5: sv1.isvec.eta.20170123_00z+20170123_00z.te005.nc4
+ file_nameB6: sv1.isvec.eta.20170123_00z+20170123_00z.te006.nc4
+
+# Date and times for similarity check
+ date: 20170123 
+ time1: 000000
+ time2: 060000
+ time3: 120000
+ time4: 180000
+
+#
+ details: yes
+
+# local projection      west-lon  east-lon    so-lat  no-lat   upper-lev  lower-lev
+#local_svec_projection:    -70     -40          25    55          9        18
+ local_svec_projection:    -180       180       -90      90       1          18
+#local_svec_projection:    -73       -70         40      43       18         18
+
+#local_svec_projection:    -70       -40         25     55         6         99
+
