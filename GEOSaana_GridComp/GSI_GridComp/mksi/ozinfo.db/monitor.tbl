@@ -1,0 +1,39 @@
+
+# aura ozone levels (mls)                            count  -- levels --
+aura      19900101 000000  29991231 240000   o3lev       0
+
+# aura ozone levels (omi)                            count  -- levels --
+aura      19900101 000000  29991231 240000   omi         0
+aura      19900101 000000  29991231 240000   omieff      0
+
+# metop-a ozone levels (gome)                        count  -- levels --
+metop-a   19900101 000000  29991231 240000   gome        0
+
+
+# NOVA-07, -09, -11 ozone levels (sbuv2)             count  -- levels --
+n07       19900101 000000  29991231 240000   sbuv2	 0
+n09       19900101 000000  29991231 240000   sbuv2       0
+n11       19900101 000000  29991231 240000   sbuv2       0
+
+# NOVA-14 ozone levels (sbuv2, sbuv6)                count  -- levels --
+n14       19900101 000000  29991231 240000   sbuv2       0
+n14       19900101 000000  29991231 240000   sbuv6       0
+
+# NOVA-16 ozone levels (sbuv2, sbuv6, sbuv8)         count  -- levels --
+n16       19900101 000000  29991231 240000   sbuv2       0
+n16       19900101 000000  29991231 240000   sbuv6       0
+n16       19900101 000000  29991231 240000   sbuv8       0
+
+# NOVA-17 ozone levels (sbuv2, sbuv6, sbuv8)         count  -- levels --
+n17       19900101 000000  29991231 240000   sbuv2       0
+n17       19900101 000000  29991231 240000   sbuv6       0
+n17       19900101 000000  29991231 240000   sbuv8       0
+
+# NOVA-18 ozone levels (sbuv2, sbuv6, sbuv8)         count  -- levels --
+n18       19900101 000000  29991231 240000   sbuv2       0
+n18       19900101 000000  29991231 240000   sbuv6       0
+n18       19900101 000000  29991231 240000   sbuv8       0
+
+# NOVA-19 ozone levels (sbuv2, sbuv6, sbuv8)         count  -- levels --
+n19       19900101 000000  29991231 240000   sbuv8       0
+

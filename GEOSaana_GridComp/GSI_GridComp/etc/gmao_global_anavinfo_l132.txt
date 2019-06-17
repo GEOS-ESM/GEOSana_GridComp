@@ -1,0 +1,151 @@
+met_guess::
+!var     level   crtm_use    desc                 orig_name
+  ps        1      -1         surface_pressure     ps
+  z         1      -1         geopotential_height  phis
+  u       132       2         zonal_wind           u
+  v       132       2         meridional_wind      v
+  div     132      -1         zonal_wind           div
+  vor     132      -1         meridional_wind      vor
+  tv      132       2         virtial_temperature  tv
+  q       132       2         specific_humidity    sphu
+  oz      132       2         ozone                ozone
+  cw      132      -1         cloud_condensate     qctot
+  ql      132      12         Water                qltot
+  qi      132      12         Ice                  qitot
+  qr      132      12         Rain                 qrtot
+  qs      132      12         Snow                 qstot
+# qg      132      10         Graupel              qg
+# qh      132      10         Hail                 qh
+# cf      132       2         cloud_frac4rad(fcld) cloud
+  z_c       1      -1         cool_layer_depth     DCOOL
+  z_w       1      -1         warm_layer_depth     DWARM
+  dt_cool   1      -1         cool_layer_tdrop     TDROP
+  tdel      1      -1         warm_layer_ttop      TDEL
+  tref      1      -1         foundation_temp      TS_FOUND
+! tskin     1      ??         skin_temperature     ts
+! frland    1      -1         fraction_land        frland
+! frlandice 1      -1         fraction_land_ice    frlandice
+! frlake    1      -1         fraction_lake        frlake
+! frocean   1      -1         fraction_ocean       frocean
+! frseaice  1      -1         fraction_sea_ice     frseaice
+! snowdep   1      -1         snow_depth           SNOWDP
+! soilmst   1      -1         snow_depth           GWETTOP
+::
+
+state_derivatives::
+!var  level  src
+ ps   1      met_guess
+ u    132    met_guess
+ v    132    met_guess
+ tv   132    met_guess
+ q    132    met_guess
+ oz   132    met_guess
+ cw   132    met_guess
+ ql   132    met_guess
+ qi   132    met_guess
+ qr   132    met_guess
+ qs   132    met_guess
+ prse 133    met_guess
+#sst  central  --> I don't think this is needed
+::
+
+state_tendencies::
+!var  levels  source
+ prse 133     met_guess
+ oz   132     met_guess
+ u    132     met_guess
+ v    132     met_guess
+ tv   132     met_guess
+ q    132     met_guess
+ cw   132     met_guess
+ ql   132     met_guess
+ qi   132     met_guess
+ qr   132     met_guess
+ qs   132     met_guess
+::
+
+#background_bias_estimator::
+#!var  levels  source
+# ps    1      met_guess
+# sst   1      met_guess
+# tv   132     met_guess
+# div  132     met_guess
+# vor  132     met_guess
+# u    132     met_guess
+# v    132     met_guess
+# q    132     met_guess
+# oz   132     met_guess
+# cw   132     met_guess
+# qi   132     met_guess
+# ql   132     met_guess
+# qr   132     met_guess
+# qs   132     met_guess
+#::
+
+chem_guess::
+#!var     level  itracer crtm_use   type              orig_name
+# co      132      1        -1       n-a                CO
+  co2     132      1         3       n-a                CO2
+#      GOCART Aerosols
+#    ------ Dust ------
+#du001     72      1         11      dust               DU001
+#du002     72      1         11      dust               DU002
+#du003     72      1         11      dust               DU003
+#du004     72      1         11      dust               DU004
+#du005     72      1         11      dust               DU005
+#     ------ Sea-salt ------
+#ss001     72      1         11      ssam               SS001
+#ss002     72      1         11      sscm1              SS002
+#ss003     72      1         11      sscm2              SS003
+#ss004     72      1         11      sscm3              SS004
+#ss005     72      1         11      sea_salt           SS005
+#     ------ Sulfates ------
+#so4       72      1         11      sulfate            SO4        
+#     ------ Carbonaceous (main) ------
+#bcphobic  72      1         11      dry_black_carbon   BCPHOBIC
+#bcphilic  72      1         11      wet_black_carbon   BCPHILIC
+#ocphobic  72      1         11      dry_organic_carbon OCPHOBIC
+#ocphilic  72      1         11      wet_organic_carbon OCPHILIC
+::
+
+state_vector::
+!var     level  itracer source     funcof
+ u        132     0     met_guess    u
+ v        132     0     met_guess    v
+#u        132     0     met_guess    chi,psi
+#v        132     0     met_guess    chi,psi
+ tv       132     0     met_guess    tv
+ tsen     132     0     met_guess    tv,q
+ q        132     1     met_guess    q
+ oz       132     1     met_guess    oz
+ cw       132     1     met_guess    cw
+ ql       132     1     met_guess    ql
+ qi       132     1     met_guess    qi
+ qr       132     1     met_guess    qr
+ qs       132     1     met_guess    qs
+ prse     133     0     met_guess    prse
+#co       132     1     chem_guess   co
+#co2      132     1     chem_guess   co2
+ ps        1      0     met_guess    prse
+ sst       1      0     met_guess    sst
+::
+
+control_vector::
+!var     level  itracer as/tsfc_sdv  an_amp0   source  funcof
+ sf      132      0       0.45        -1.0     state    u,v
+ vp      132      0       0.55        -1.0     state    u,v
+ t       132      0       0.90        -1.0     state    tv
+ q       132      1       0.60        -1.0     state    q
+ oz      132      1       0.20        -1.0     state    oz
+#co      132      1       0.20        -1.0     state    co
+#cw      132      1       1.00        -1.0     state    cw
+ ql      132      1       0.00        -1.0     state    ql
+ qi      132      1       0.00        -1.0     state    qi
+ qr      132      1       0.00        -1.0     state    qr
+ qs      132      1       0.00        -1.0     state    qs
+ ps        1      0       0.75        -1.0     state    prse
+#sst       1      0       2.40        -1.0     state    sst
+ sst       1      0       1.20        -1.0     state    sst
+ stl       1      0       3.00        -1.0     motley   sst
+ sti       1      0       3.00        -1.0     motley   sst
+::

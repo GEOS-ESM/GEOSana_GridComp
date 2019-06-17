@@ -1,0 +1,167 @@
+#-- iuseClass-n_channels.tbl
+#
+#-- This table list selected channels used for a given iuse flag
+#
+#-- Information here overrides entries given in all earlier channel tables.
+
+# Examples:
+# 
+#      <sat>     <from>           <to>         <sensor> <n -- channels -->
+	x99  99990101 000000  99991231 240000    abc     3   1 2 3
+	x99  99990101 000000  99991231 240000    xyz     2   2 3
+	x99  99990101 000000  99991231 240000    ijk     5   1 2 3 4 5
+	x99  99990101 000000  99991231 240000    qrs     3   3 4 5
+#
+
+#  01Sep2010 Guo	- Created as a place holder or a template
+#  02Sep2010 Liu/Guo	- compiled initial downgrade/upgrade information
+#  14May2013 Sienkiewicz/McCarty - no BC for SSU channel 3
+#  31Jul2013 Todling	- Add ATMS channel 15
+#  20Nov2013 McCarty    - Made consistent w active chans
+#  23Feb2014 Todling    - Channel 14 of AMSU-A on Metop-b turned on
+
+#  11Mar2014 McCarty    - remove SSU ch 3 when AMSU-A Ch 14 appears
+#  20Nov2018 McCarty    - Add NOAA-20
+# NOAA-05 (tn)
+#=============
+# tirosn SSU ch 3 unusable
+
+
+# NOAA-06 (na)
+#=============
+# 1st period (19790630-19790417)
+n06  19790702 000000  19800302 000000  ssu    1      3                                  #
+n06  19800302 060000  19800304 000000  tovs   0                                         # all: bad earth location    
+n06  19800304 060000  19801104 000000  ssu    1      3					# 
+n06  19801104 060000  19801105 000000  tovs   0						# all: bad earth location    
+n06  19801105 060000  19830417 240000  ssu    1      3					# 
+
+# 2nd period (no hirs during 2nd period)
+n06  19850408 000000  19850701 240000  ssu    1      3					# 
+n06  19850702 000000  19851014 240000  tovs   0                                         # all: data gap
+n06  19851015 000000  19851031 240000  ssu    1      3					# 
+n06  19860101 000000  19860102 240000  tovs   0                                         # all: bad earth location    
+n06  19860103 000000  19861117 240000  ssu    1      3					# 
+
+n07  19810711 000000  19830630 240000  ssu    1      3					# 
+n07  19830701 000000  19840301 240000  ssu    1      3					# ssu: ch2 calibration invalid     
+n07  19840302 000000  19840302 060000  tovs   0                                         # ssu: ch2 calibration invalid   all: noisy    
+n07  19840302 120000  19850204 000000  ssu    1      3					# ssu: ch2 calibration invalid     
+n07  19850204 060000  19850204 060000  ssu    0						# all channels noisy 
+n07  19850204 120000  19850218 240000  ssu    1      3					# ssu: ch2 calibration invalid     
+
+# NOAA-08 (ne)
+#=============
+n08  19830426 000000  19830913 240000  ssu    1      3					# 
+n08  19830914 000000  19840620 240000  ssu    0      					# ssu: ch3 failure (instrument malfunction)      
+n08  19850702 000000  19851014 240000  tovs   0						# ssu: ch1 malfunction & ch3 failure
+
+# NOAA-09 (nf)
+#=============
+n09  19850102 000000  19850323 240000  ssu    0      					# ssu: ch3 unusable     
+n09  19850324 000000  19851231 240000  ssu    1      3					# ssu: ch3 ok        
+n09  19860101 000000  19860102 240000  tovs   0                                         # bad earth location        
+n09  19860103 000000  19861231 240000  ssu    1      3					# ssu: ch3 ok        
+n09  19870101 000000  19870102 000000  tovs   0						# bad earth location     
+n09  19870102 060000  19881101 240000  ssu    1      3					# 
+
+# NOAA-10 (ng)
+#=============
+# no ssu on noaa-10
+
+# NOAA-11 (nh)
+#=============
+# 1st period
+n11  19881102 000000  19941231 240000  ssu    1      3					# 
+# 2nd period
+n11  19970715 000000  19981031 240000  ssu    1      3					#  SSU ch 3 disabled at the appearance of AMSU-A ch 14
+n11  19981101 000000  19990225 240000  ssu    0                                        # 
+
+# NOAA-12 (nd)
+#=============
+# no ssu on noaa-12
+
+# NOAA-14 (nj)
+#=============
+n14  19950119 000000  19960429 240000  ssu    1      3					# 
+n14  19960430 000000  19960430 240000  tovs   0                                         # all: noisy   
+n14  19960501 000000  19981031 240000  ssu    1      3					# 
+n14  19981101 000000  19990702 240000  ssu    0
+n14  19990703 000000  20011018 240000  ssu    0     					# ssu: ch3 inconsistent with noaa-15 amsu-a    
+n14  20011019 000000  20011019 240000  tovs   0                                         # all: noisy   
+n14  20011020 000000  20060504 240000  ssu    0          				# ssu: ch3 inconsistent with noaa-15 amsu-a   
+n14  20060505 000000  20061231 240000  ssu    0						# ssu: turned off due to low battery voltages  
+n14  20070101 000000  20070523 240000  ssu    0         				# no longer up
+
+
+# NOAA-15 (nk)
+#=============
+n15  19980702 000000  19990101 000000  amsua  1        14               # 
+n15  19990101 060000  19990101 060000  amsua  0                         # amsua: all noisy     
+n15  19990101 120000  20001029 240000  amsua  1        14               # 
+n15  20001030 000000  20020331 240000  amsua  0                         # amsua: bad ch14 (ch11?)
+n15  20020401 000000  21001231 240000  amsua  0                         # amsua: bad ch11 & ch14 
+
+# NOAA-16 (nl)
+#=============
+n16  20001105 000000  20001231 240000  amsua  1        14               # M2: redundant entry intentional.  Observations
+###                                                                     # exist prior to MERRA(1) start date.  Will
+###                                                                     # attempt to assimilate.  This should be set
+###                                                                     # to inactive should an issue arise (wm)
+n16  20010101 000000  20010110 240000  amsua  1        14               #
+n16  20010111 000000  20010111 240000  amsua  0                         # amsua: all noisy
+n16  20010112 000000  20020906 240000  amsua  1        14               # 
+n16  20020907 000000  20020907 240000  amsua  0                         # amsua: ch9-14 noisy 
+n16  20020908 000000  20021120 240000  amsua  1        14               # 
+n16  20021121 000000  20021127 240000  amsua  0                         # amsua: all channels on ecmwf blacklist    
+n16  20021128 000000  20030512 060000  amsua  1        14               # 
+n16  20030512 120000  20040616 240000  amsua  1        14               # amsua: ch9 noisy
+n16  20040617 000000  20050114 240000  amsua  1        14               # amsua: ch9 & ch10-11 noisy
+n16  20050115 000000  20070129 120000  amsua  0                         # amsua: ch 9-14 noisy 
+n16  20070129 180000  21001231 240000  amsua  0                         # amsua: ch4 noisy; QC affected; turn off all 
+
+# NOAA-17 (nm)
+#=============
+n17  20020715 000000  20031027 240000  amsua  1        14               # ncep does not use amsua ch7
+n17  20031028 000000  20031030 240000  amsua  0                         # amsua: antenna anomaly     
+
+# NOAA-18 (nn)
+#=============
+n18  20051001 000000  20071116 120000  amsua  1        14               # M2: redundant entry intentional.  Observations
+###                                                                                             # exist prior to MERRA(1) start date.  Will
+###                                                                                             # attempt to assimilate.  This should be set
+###                                                                                             # to inactive should an issue arise (wm)
+n18  20051101 000000  20071116 120000  amsua  1        14               # (old note)added all 14 back (see iuse-4.tbl)
+n18  20071116 180000  21001231 240000  amsua  1        14               # amsua: 9 bad, added all 14 back
+
+# NOAA-19 (nn')
+#==============
+n19  20090414 000000  20091215 060000  amsua  1        14               # M2: redundant entry intentional.  Observations
+###                                                                                             # exist prior to MERRA(1) start date.  Will
+###                                                                                             # attempt to assimilate.  This should be set
+###                                                                                             # to inactive should an issue arise (wm)
+n19  20091215 120000  20091221 240000  amsua  1        14               #
+n19  20091222 000000  21001231 240000  amsua  1        14               #  ch8 noisy (noise started on 12/21/2009) 
+
+# Aqua AMSU-A
+#=============
+aqua  20021012 000000  20071102 120000  amsua 1        14
+aqua  20071102 180000  20160923 120000  amsua 1        14               # ch4 noisy; QC affected ; turn off ch1-5
+aqua  20160923 180000  21001231 240000  amsua 0                         # chs1-2 detector failure, cannot QC
+                                                                        #    without development - wm
+
+
+# METOP-A
+#=========
+metop-a 20070521 000000  20090115 060000  amsua 1      14            #
+metop-a 20090115 120000  21001231 240000  amsua 1      14            # ch7 noisy
+
+# METOP-B
+#=========
+metop-b 20130213 000000  21001231 240000  amsua  1     14            # active for e512a_rt - known tech ok to be on
+
+
+# Downgrade & upgrade 14 to iuse=4
+npp  20111116 000000  21001231 240000  atms  1  15
+n20  20111116 000000  21001231 240000  atms  1  15
+

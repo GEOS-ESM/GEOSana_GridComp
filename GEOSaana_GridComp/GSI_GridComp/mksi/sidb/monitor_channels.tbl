@@ -1,0 +1,23 @@
+#-- monitor_channels.tbl
+#
+#-- This table list selected channels used for monitoring purposes.
+#
+#-- Information here overrides entries given in "active_channels.tbl".
+
+# Examples:
+# 
+#      <sat>     <from>           <to>         <sensor> <n -- channels -->
+	x99  99990101 000000  99991231 240000    abc     3   1 2 3
+	x99  99990101 000000  99991231 240000    xyz     2   2 3
+	x99  99990101 000000  99991231 240000    ijk     5   1 2 3 4 5
+	x99  99990101 000000  99991231 240000    qrs     3   3 4 5
+#
+
+#  23Jun2009 Emily/Jing     Add n19 instrument entries
+
+# NOAA-19 (nn')
+#n19  20090414 000000  29991231 240000 hirs4  14     2 3 4 5 6 7 8 9 10 11 12 13 14 15
+#n19  20090414 000000  29991231 240000 amsua  15   1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+#n19  20090414 000000  29991231 240000 mhs     5   1 2 3 4 5
+#n19  20090414 000000  29991231 240000 avhrr3  0
+

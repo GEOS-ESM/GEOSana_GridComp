@@ -1,0 +1,37 @@
+
+ =====================
+ check_satbias summary
+ =====================
+
+ satbias_rst: outdir/satbias_revert_rst
+ satinfo.rc:  input/gmao_revert_satinfo.rc
+
+     0 recs removed because instrument/channel not in satinfo.rc
+     0 recs added from satinfo.rc
+
+   281 recs renamed airs_aqua to airs281_aqua
+   399 recs renamed cris_npp to cris399_npp
+   616 recs renamed iasi_metop-a to iasi616_metop-a
+   616 recs renamed iasi_metop-b to iasi616_metop-b
+
+     8 recs where seviri_m08 channels were renumbered
+       - old: (4, 5, 6, 7, 8, 9, 10, 11)
+       - new: (1, 2, 3, 4, 5, 6, 7, 8)
+
+     8 recs where seviri_m09 channels were renumbered
+       - old: (4, 5, 6, 7, 8, 9, 10, 11)
+       - new: (1, 2, 3, 4, 5, 6, 7, 8)
+
+     8 recs where seviri_m10 channels were renumbered
+       - old: (4, 5, 6, 7, 8, 9, 10, 11)
+       - new: (1, 2, 3, 4, 5, 6, 7, 8)
+
+  2855 satbias recs before update
+  2855 satbias recs after update
+
+ new satbias file has been written: outdir/satbias_revert_rst.new
+ sortflag = "default"
+
+
+The following details are listed below:
+=======================================

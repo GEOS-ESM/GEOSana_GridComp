@@ -1,0 +1,149 @@
+met_guess::
+!var     level   crtm_use    desc                 orig_name
+  ps        1      -1         surface_pressure     ps
+  z         1      -1         geopotential_height  phis
+  u        72       2         zonal_wind           u
+  v        72       2         meridional_wind      v
+  div      72      -1         zonal_wind           div
+  vor      72      -1         meridional_wind      vor
+  tv       72       2         virtial_temperature  tv
+  q        72       2         specific_humidity    sphu
+  oz       72       2         ozone                ozone
+  cw       72      10         cloud_condensate     qctot
+  ql       72      -1         Water                qltot
+  qi       72      -1         Ice                  qitot
+# qr       72      10         Rain                 qrtot
+# qs       72      10         Snow                 qstot
+# qg       72      10         Graupel              qg
+# qh       72      10         Hail                 qh
+# cf       72       2         cloud_frac4rad(fcld) cloud
+  z_c       1      -1         cool_layer_depth     DCOOL
+  z_w       1      -1         warm_layer_depth     DWARM
+  dt_cool   1      -1         cool_layer_tdrop     TDROP
+  tdel      1      -1         warm_layer_ttop      TDEL
+  tref      1      -1         foundation_temp      TS_FOUND
+! tskin     1      ??         skin_temperature     ts
+! frland    1      -1         fraction_land        frland
+! frlandice 1      -1         fraction_land_ice    frlandice
+! frlake    1      -1         fraction_lake        frlake
+! frocean   1      -1         fraction_ocean       frocean
+! frseaice  1      -1         fraction_sea_ice     frseaice
+! snowdep   1      -1         snow_depth           SNOWDP
+! soilmst   1      -1         snow_depth           GWETTOP
+::
+
+state_derivatives::
+!var  level  src
+ ps   1      met_guess
+ u    72     met_guess
+ v    72     met_guess
+ tv   72     met_guess
+ q    72     met_guess
+ oz   72     met_guess
+ cw   72     met_guess
+ prse 73     met_guess
+#sst  central  --> I don't think this is needed
+::
+
+state_tendencies::
+!var  levels  source
+ prse 73      met_guess
+ oz   72      met_guess
+ u    72      met_guess
+ v    72      met_guess
+ tv   72      met_guess
+ q    72      met_guess
+ cw   72      met_guess
+::
+
+#background_bias_estimator::
+#!var  levels  source
+# ps    1      met_guess
+# sst   1      met_guess
+# tv   72      met_guess
+# div  72      met_guess
+# vor  72      met_guess
+# u    72      met_guess
+# v    72      met_guess
+# q    72      met_guess
+# oz   72      met_guess
+# cw   72      met_guess
+# qi   72      met_guess
+# ql   72      met_guess
+#::
+
+chem_guess::
+#!var     level  itracer crtm_use   type              orig_name
+# co       72      1        -1       n-a                CO
+  co2      72      1         2       n-a                CO2
+#      GOCART Aerosols
+#    ------ Dust ------
+#du001     72      1         11      dust               DU001
+#du002     72      1         11      dust               DU002
+#du003     72      1         11      dust               DU003
+#du004     72      1         11      dust               DU004
+#du005     72      1         11      dust               DU005
+#     ------ Sea-salt ------
+#ss001     72      1         11      ssam               SS001
+#ss002     72      1         11      sscm1              SS002
+#ss003     72      1         11      sscm2              SS003
+#ss004     72      1         11      sscm3              SS004
+#ss005     72      1         11      sea_salt           SS005
+#     ------ Sulfates ------
+#so4       72      1         11      sulfate            SO4        
+#     ------ Carbonaceous (main) ------
+#bcphobic  72      1         11      dry_black_carbon   BCPHOBIC
+#bcphilic  72      1         11      wet_black_carbon   BCPHILIC
+#ocphobic  72      1         11      dry_organic_carbon OCPHOBIC
+#ocphilic  72      1         11      wet_organic_carbon OCPHILIC
+::
+
+state_vector::
+!var     level  itracer source     funcof
+ u        72      0     met_guess    u
+ v        72      0     met_guess    v
+#u        72      0     met_guess    chi,psi
+#v        72      0     met_guess    chi,psi
+ tv       72      0     met_guess    tv
+ tsen     72      0     met_guess    tv,q
+ q        72      1     met_guess    q
+ oz       72      1     met_guess    oz
+ cw       72      1     met_guess    cw
+ prse     73      0     met_guess    prse
+#co       72      1     chem_guess   co
+#co2      72      1     chem_guess   co2
+ ps        1      0     met_guess    prse
+ sst       1      0     met_guess    sst
+::
+
+control_vector::
+!var     level  itracer as/tsfc_sdv  an_amp0   source  funcof
+ sf       72      0       0.43        -1.0     state    u,v
+ vp       72      0       0.54        -1.0     state    u,v
+ t        72      0       0.90        -1.0     state    tv
+ q        72      1       0.599       -1.0     state    q
+ oz       72      1       0.20        -1.0     state    oz
+# co       72      1       0.2        -1.0     state    co
+ cw       72      1       1.0         -1.0     state    cw
+ ps        1      0       0.47        -1.0     state    prse
+ sst       1      0       1.20        -1.0     state    sst
+ stl       1      0       3.0         -1.0     motley   sst
+ sti       1      0       3.0         -1.0     motley   sst
+::
+
+#correlated_observations::
+! Notes: 
+! (1) method:
+!     -1 - leave as is (ie, default R)
+!      0 - diag of estimated R only
+!      2 - full R
+! (2) kreq is the parameter in Weston et al. (2014) to adjust the spetrum of R
+!     code listens to factors made larger than zero in the table below.
+! (3) present value settings for AIRS and IASI bring J/n considerable closer to 1/2
+!
+! obtype   method  kreq  type   cov_file
+# airs       2      25.  sea    airs_ocean_rcov.bin
+# cris      -1     -99.  global cris_rcov.bin
+# iasi       2      15.  global iasi_ocean_rcov.bin
+# ssmis     -1     -99.  global ssmis_rcov.bin
+#::
