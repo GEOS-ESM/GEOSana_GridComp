@@ -561,7 +561,7 @@ set (SRCS
 
 esma_add_library (GSI_GridComp
   SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
-  DEPENDENCIES MAPL_Base NCEP_crtm NCEP_nemsio GMAO_stoch nc_diag_read nc_diag_write)
+  DEPENDENCIES MAPL_Base NCEP_crtm NCEP_nemsio GMAO_stoch nc_diag_read nc_diag_write NCEP_bufr_r8i4)
 target_compile_definitions (GSI_GridComp PRIVATE HAVE_ESMF)
 target_compile_definitions (GSI_GridComp PRIVATE _SKIP_READ_OBS_CHECK_ LINUX funder _TIMER_ON_)
 target_compile_definitions (GSI_GridComp PRIVATE _REAL8_ FortranByte=char FortranInt=int FortranLlong=long\ long)
