@@ -1,8 +1,7 @@
 #esma_set_this ()
 
-set (alldirs
-  mksi etc
-  )
+add_subdirectory(mksi)
+add_subdirectory(etc)
 
 set (GSIGC_SRCS
   GSI_GridCompMod.F90
@@ -553,6 +552,10 @@ set (SRCS
   ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS}
   )
 
+set (gsiscripts
+     analyzer gsidiags match_obcls_obsys.pl)
+
+install(FILES ${gsiscripts} DESTINATION bin)
   
 #  GSI_GridCompMod.F90 m_gsiversion.F90 m_FletcherChecksum.F90
 
@@ -585,3 +588,5 @@ target_compile_definitions (GSI_GridComp PRIVATE _REAL8_ FortranByte=char Fortra
 #foreach (t GSI_Util GSI_Observer GSI_Other GSI_Solver)
 #  target_compile_definitions (${t} PUBLIC _REAL8_ _SKIP_READ_OBS_CHECK_ LINUX funder FortranByte=char FortranInt=int FortranLlong=long\ long)
 #endforeach()
+
+ecbuild_add_executable(TARGET prepbykx.x SOURCES prepbykx.f LIBS ${this})
