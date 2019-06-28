@@ -1,5 +1,0 @@
-   &lsmexp
-    locpnr     = '.'
-    rest_pfile = 'lsm.rpointer'
-    finidat    = ' '
-   &end
