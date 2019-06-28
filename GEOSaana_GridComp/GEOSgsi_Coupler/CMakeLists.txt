@@ -22,6 +22,11 @@ set (SRCSX
 
 set (SRCS ${SRCSO} ${SRCSX})
 
+# This is equivalent to FOPT= in GNU Make
+if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
+   set (CMAKE_Fortran_FLAGS_RELEASE "${FOPT3} ${BIG_ENDIAN} ${BYTERECLEN} ${TRACEBACK} ${ALIGNCOM}")
+endif ()
+
 esma_add_library (${this}
   SRCS ${SRCS}
   DEPENDENCIES GEOSagcmPert_GridComp GSI_GridComp Chem_Base nc_diag_write NCEP_crtm fvgcm MAPL_Base fvgcm

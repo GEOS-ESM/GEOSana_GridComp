@@ -549,8 +549,80 @@ set (SRCS_SOLVER
   )
 
 set (SRCS
-  ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS}
+  ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} prepbykx.f
   )
+
+set (OBJS_OPENBUFR
+   getcount_bufr.f90
+   m_extOzone.F90
+   read_aerosol.f90
+   read_ahi.f90
+   read_airs.f90
+   read_amsre.f90
+   read_amsr2.f90
+   read_anowbufr.f90
+   read_atms.f90
+   read_avhrr.f90
+   read_avhrr_navy.f90
+   read_bufrtovs.f90
+   read_cris.f90
+   read_fl_hdob.f90
+   read_goesimg.f90
+   read_goesndr.f90
+   read_goesimgr_skycover.f90
+   read_gmi.f90
+   read_gps.f90
+   read_iasi.f90
+   read_l2bufr_mod.f90
+   read_lidar.f90
+   read_Lightning.f90
+   read_mitm_mxtm.f90
+   read_modsbufr.f90
+   read_nsstbufr.f90
+   read_nasa_larc.f90
+   read_NASA_LaRC_cloud.f90
+   read_ozone.f90
+   read_pblh.f90
+   read_pcp.f90
+   read_prepbufr.f90
+   read_radar.f90
+   read_radarref_mosaic.f90
+   read_rapidscat.f90
+   read_saphir.f90
+   read_satmar.f90
+   read_satwnd.f90
+   read_seviri.f90
+   read_sfcwnd.f90
+   read_ssmi.f90
+   read_ssmis.f90
+   read_wcpbufr.f90
+   oneobmod.F90
+   )
+
+if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
+   if (CMAKE_BUILD_TYPE MATCHES Release)
+      set (CMAKE_Fortran_FLAGS_RELEASE "")
+      foreach (src ${SRCS})
+         if (${src} MATCHES blockIO.c)
+            set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "")
+         elseif (${src} MATCHES prepbykx.f)
+            set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${EXTENDED_SOURCE} ${FP_MODEL_STRICT} ${ALIGNCOM}")
+         elseif (${src} MATCHES m_gsiversion.F90)
+            set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BIG_ENDIAN} ${BYTERECLEN}")
+         elseif (${src} MATCHES crtm_interface.f90)
+            set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${BIG_ENDIAN} ${BYTERECLEN} ${TRACEBACK} ${FOPT3}")
+         elseif (${src} MATCHES hybrid_ensemble_isotropic.F90)
+            set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${BIG_ENDIAN} ${BYTERECLEN} ${TRACEBACK} ${FOPT1}")
+         elseif (${src} MATCHES read_diag.f90)
+            set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${BIG_ENDIAN} ${BYTERECLEN} ${TRACEBACK} ${FOPT0}")
+         elseif (${src} IN_LIST OBJS_OPENBUFR)
+            set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM}")
+         else ()
+            set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BIG_ENDIAN} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM}")
+         endif ()
+      endforeach ()
+   endif ()
+endif ()
 
 set (gsiscripts
      analyzer gsidiags match_obcls_obsys.pl)
@@ -565,9 +637,14 @@ install(FILES ${gsiscripts} DESTINATION bin)
 esma_add_library (GSI_GridComp
   SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
   DEPENDENCIES MAPL_Base NCEP_crtm NCEP_nemsio GMAO_stoch nc_diag_read nc_diag_write NCEP_bufr_r8i4)
-target_compile_definitions (GSI_GridComp PRIVATE HAVE_ESMF)
-target_compile_definitions (GSI_GridComp PRIVATE _SKIP_READ_OBS_CHECK_ LINUX funder _TIMER_ON_)
-target_compile_definitions (GSI_GridComp PRIVATE _REAL8_ FortranByte=char FortranInt=int FortranLlong=long\ long)
+
+foreach (item HAVE_ESMF _SKIP_READ_OBS_CHECK_ _TIMER_ON_ _REAL8_)
+   target_compile_definitions (GSI_GridComp PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${item}>)
+endforeach()
+
+foreach (item LINUX funder FortranByte=char FortranInt=int FortranLlong=long\ long)
+   target_compile_definitions (GSI_GridComp PRIVATE $<$<COMPILE_LANGUAGE:C>:${item}>)
+endforeach()
 
 #esma_add_library (GSI_Util
 #  SRCS ${SRCS_UTIL}

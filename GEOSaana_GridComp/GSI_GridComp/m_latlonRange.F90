@@ -31,6 +31,7 @@ module m_latlonRange
   use mpeu_mpif, only: MPI_iKIND
   use mpeu_util, only: assert_
   use mpeu_util, only: tell,perr,die
+  use timermod, only: timer_ini,timer_fnl
   implicit none
   private       ! except
   public :: latlonRange          ! data structure
