@@ -632,11 +632,6 @@ install(
    DESTINATION bin
    )
   
-#  GSI_GridCompMod.F90 m_gsiversion.F90 m_FletcherChecksum.F90
-
-#  ${SRCSX} ${NCD_SRCS} )
-
-
 esma_add_library (GSI_GridComp
   SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
   DEPENDENCIES MAPL_Base NCEP_crtm NCEP_nemsio GMAO_stoch nc_diag_read nc_diag_write NCEP_bufr_r8i4)
@@ -648,6 +643,11 @@ endforeach()
 foreach (item LINUX funder FortranByte=char FortranInt=int FortranLlong=long\ long)
    target_compile_definitions (GSI_GridComp PRIVATE $<$<COMPILE_LANGUAGE:C>:${item}>)
 endforeach()
+
+# MAT: I am not sure we can do the split libraries like GNU Make GEOS used to.
+#      As an example, obsmod.F90 (Observer) depends on constants.f90 (Util). But
+#      aircraftinfo.f90 (Util) depends on obsmod.F90 (Observer). This means 
+#      GSI_Util depends on GSI_Observer and GSI_Observer depends on GSI_Util.
 
 #esma_add_library (GSI_Util
 #  SRCS ${SRCS_UTIL}
