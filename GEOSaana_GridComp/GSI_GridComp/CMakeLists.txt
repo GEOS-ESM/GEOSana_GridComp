@@ -144,11 +144,6 @@ set (SRCS_UTIL
   sparsearr.f90
   state_vectors.f90
   stop1.f90
-  stub_ensmod.f90
-  stub_nstmod.f90
-  stub_set_crtm_aerosol.f90
-  stub_pertmod.F90
-  stub_timermod.f90
   tendsmod.f90
   timermod.f90
   tintrp2a.f90
@@ -624,6 +619,23 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
    endif ()
 endif ()
 
+set (SRCS_STUBS
+  stub_ensmod.f90
+  stub_nstmod.f90
+  stub_set_crtm_aerosol.f90
+  stub_pertmod.F90
+  stub_timermod.f90
+  )
+
+if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
+   if (CMAKE_BUILD_TYPE MATCHES Release)
+      set (CMAKE_Fortran_FLAGS_RELEASE "")
+      foreach (src ${SRCS_STUBS})
+         set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BIG_ENDIAN} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM}")
+      endforeach ()
+   endif ()
+endif ()
+
 set (gsiscripts
      analyzer gsidiags match_obcls_obsys.pl)
 
@@ -634,14 +646,20 @@ install(
   
 esma_add_library (GSI_GridComp
   SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
-  DEPENDENCIES MAPL_Base NCEP_crtm NCEP_nemsio GMAO_stoch nc_diag_read nc_diag_write NCEP_bufr_r8i4)
+  DEPENDENCIES MAPL_Base NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
+
+esma_add_library (GSI_GridComp_with_stubs
+   SRCS ${SRCS_STUBS} ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
+  DEPENDENCIES MAPL_Base NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 foreach (item HAVE_ESMF _SKIP_READ_OBS_CHECK_ _TIMER_ON_ _REAL8_)
    target_compile_definitions (GSI_GridComp PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${item}>)
+   target_compile_definitions (GSI_GridComp_with_stubs PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${item}>)
 endforeach()
 
 foreach (item LINUX funder FortranByte=char FortranInt=int FortranLlong=long\ long)
    target_compile_definitions (GSI_GridComp PRIVATE $<$<COMPILE_LANGUAGE:C>:${item}>)
+   target_compile_definitions (GSI_GridComp_with_stubs PRIVATE $<$<COMPILE_LANGUAGE:C>:${item}>)
 endforeach()
 
 # MAT: I am not sure we can do the split libraries like GNU Make GEOS used to.
