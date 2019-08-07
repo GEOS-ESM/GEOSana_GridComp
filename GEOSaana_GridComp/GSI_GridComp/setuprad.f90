@@ -2341,80 +2341,7 @@
            end do
 
            if (luse_obsdiag .and. lobsdiagsave) then
-              if (l_may_be_passive) then
-                 ii_ptr=1       ! obsptr is currently associated with this node
-                 do ii=1,nchanl_diag
-                    if (.not.associated(obsptr)) then
-                       write(6,*)'setuprad: error obsptr'
-                       call stop2(280)
-                    end if
-
-                    do jj=ii_ptr,ich_diag(ii)-1         ! move up to the current node at ich_diag(ii)
-                      if(.not.associated(obsptr)) then
-                       call perr('setuprad', '.not.associated(obsptr)')
-                       call perr('setuprad', '                   ii =',ii)
-                       call perr('setuprad', '               ii_ptr =',ii_ptr)
-                       call perr('setuprad', '         ich_diag(ii) =',ich_diag(ii))
-                       call perr('setuprad', '                   jj =',jj)
-                       call  die('setuprad')
-                      endif
-
-                      obsptr => obsptr%next
-                      ii_ptr =  ii_ptr+1
-                    enddo
-
-                    if(ii_ptr/=ich_diag(ii)) then
-                       call perr('setuprad', 'ii_ptr /= ich_diag(ii), ii =',ii)
-                       call perr('setuprad', '                    ii_ptr =',ii_ptr)
-                       call perr('setuprad', '              ich_diag(ii) =',ich_diag(ii))
-                       call  die('setuprad')
-                    endif
-
-                    if (obsptr%indxglb/=(ioid(n)-1)*nchanl+ich_diag(ii)) then
-                       !!! This test will fail, if(reduce_diag)!
-                       !write(6,*)'setuprad: error writing diagnostics'
-                       !call stop2(281)
-                       call perr('setuprad','failed on writing diagnostics, reduce_diag =',reduce_diag)
-                       call perr('setuprad','                                    nchanl =',nchanl)
-                       call perr('setuprad','                               nchanl_diag =',nchanl_diag)
-                       call perr('setuprad','                            obsptr%indxglb =',obsptr%indxglb)
-                       call perr('setuprad','           (ioid(n)-1)*nchanl+ich_diag(ii) =',(ioid(n)-1)*nchanl+ich_diag(ii))
-                       call perr('setuprad','                                   ioid(n) =',ioid(n))
-                       call perr('setuprad','                                        ii =',ii)
-                       call perr('setuprad','                              ich_diag(ii) =',ich_diag(ii))
-                       call perr('setuprad','                                    ii_ptr =',ii_ptr)
-                       call perr('setuprad','                                         n =',n)
-                       call  die('setuprad')
-                    end if
- 
-                    ioff=ioff0
-                    do jj=1,miter
-                       ioff=ioff+1
-                       if (obsptr%muse(jj)) then
-                          diagbufchan(ioff,ich_diag(ii)) = one
-                       else
-                          diagbufchan(ioff,ich_diag(ii)) = -one
-                       endif
-                    enddo
-                    do jj=1,miter+1
-                       ioff=ioff+1
-                       diagbufchan(ioff,ich_diag(ii)) = obsptr%nldepart(jj)
-                    enddo
-                    do jj=1,miter
-                       ioff=ioff+1
-                       diagbufchan(ioff,ich_diag(ii)) = obsptr%tldepart(jj)
-                    enddo
-                    do jj=1,miter
-                       ioff=ioff+1
-                       diagbufchan(ioff,ich_diag(ii)) = obsptr%obssen(jj)
-                    enddo
-
-                    obsptr => obsptr%next       ! move up to the first node of the next profile
-                    ii_ptr =  ii_ptr+1
-                 enddo
-              else
-                 diagbufchan(ioff+1:ioff+4*miter+1,1:nchanl_diag) = zero
-              endif
+              call do_obsdiagsave_
            endif
 
            if (.not.lextra) then
@@ -2430,11 +2357,20 @@
   real(r_single),parameter::  missing = -9.99e9_r_single
   integer(i_kind),parameter:: imissing = -999999
   real(r_kind),dimension(:),allocatable :: predbias_angord
+  integer(i_kind),dimension(miter) :: obsdiag_iuse
+  real(r_single),dimension(miter+1) :: obsdiag_nldepart
+  real(r_single),dimension(miter  ) :: obsdiag_tldepart,obsdiag_obssen
 
   if (adp_anglebc) then
     allocate(predbias_angord(angord) )
     predbias_angord = zero
   endif
+
+  if (luse_obsdiag .and. lobsdiagsave .and. .not. binary_diag) then
+    ioff = ioff0
+    call do_obsdiagsave_
+  endif
+
 
               do i=1,nchanl_diag
                  call nc_diag_metadata("Channel_Index",         i                                   )
@@ -2585,6 +2521,31 @@
                     call nc_diag_data2d("BC_angord",   sngl(predbias_angord)                                       )
                  end if
 
+                 if (luse_obsdiag .and. lobsdiagsave) then
+                    ioff=ioff0
+                    do jj=1,miter
+                       ioff=ioff+1
+                       obsdiag_iuse(jj)     = diagbufchan(ioff,ich_diag(i))
+                    enddo
+                    do jj=1,miter+1
+                       ioff=ioff+1
+                       obsdiag_nldepart(jj) = diagbufchan(ioff,ich_diag(i)) 
+                    enddo
+                    do jj=1,miter
+                       ioff=ioff+1
+                       obsdiag_tldepart(jj) = diagbufchan(ioff,ich_diag(i)) 
+                    enddo
+                    do jj=1,miter
+                       ioff=ioff+1
+                       obsdiag_obssen(jj)   = diagbufchan(ioff,ich_diag(i))
+                    enddo
+
+                    call nc_diag_data2d("ObsDiagSave_iuse",     obsdiag_iuse     )
+                    call nc_diag_data2d("ObsDiagSave_nldepart", obsdiag_nldepart )
+                    call nc_diag_data2d("ObsDiagSave_tldepart", obsdiag_tldepart )
+                    call nc_diag_data2d("ObsDiagSave_obssen",   obsdiag_obssen   )
+                 endif
+
               enddo
   if (adp_anglebc) then
     deallocate(predbias_angord)
@@ -2594,5 +2555,83 @@
   subroutine final_binary_diag_
   close(4)
   end subroutine final_binary_diag_
+
+  subroutine do_obsdiagsave_
+  if (l_may_be_passive) then
+     ii_ptr=1       ! obsptr is currently associated with this node
+     do ii=1,nchanl_diag
+        if (.not.associated(obsptr)) then
+           write(6,*)'setuprad: error obsptr'
+           call stop2(280)
+        end if
+
+        do jj=ii_ptr,ich_diag(ii)-1         ! move up to the current node at ich_diag(ii)
+          if(.not.associated(obsptr)) then
+           call perr('setuprad', '.not.associated(obsptr)')
+           call perr('setuprad', '                   ii =',ii)
+           call perr('setuprad', '               ii_ptr =',ii_ptr)
+           call perr('setuprad', '         ich_diag(ii) =',ich_diag(ii))
+           call perr('setuprad', '                   jj =',jj)
+           call  die('setuprad')
+          endif
+
+          obsptr => obsptr%next
+          ii_ptr =  ii_ptr+1
+        enddo
+
+        if(ii_ptr/=ich_diag(ii)) then
+           call perr('setuprad', 'ii_ptr /= ich_diag(ii), ii =',ii)
+           call perr('setuprad', '                    ii_ptr =',ii_ptr)
+           call perr('setuprad', '              ich_diag(ii) =',ich_diag(ii))
+           call  die('setuprad')
+        endif
+
+        if (obsptr%indxglb/=(ioid(n)-1)*nchanl+ich_diag(ii)) then
+           !!! This test will fail, if(reduce_diag)!
+           !write(6,*)'setuprad: error writing diagnostics'
+           !call stop2(281)
+           call perr('setuprad','failed on writing diagnostics, reduce_diag =',reduce_diag)
+           call perr('setuprad','                                    nchanl =',nchanl)
+           call perr('setuprad','                               nchanl_diag =',nchanl_diag)
+           call perr('setuprad','                            obsptr%indxglb =',obsptr%indxglb)
+           call perr('setuprad','           (ioid(n)-1)*nchanl+ich_diag(ii) =',(ioid(n)-1)*nchanl+ich_diag(ii))
+           call perr('setuprad','                                   ioid(n) =',ioid(n))
+           call perr('setuprad','                                        ii =',ii)
+           call perr('setuprad','                              ich_diag(ii) =',ich_diag(ii))
+           call perr('setuprad','                                    ii_ptr =',ii_ptr)
+           call perr('setuprad','                                         n =',n)
+           call  die('setuprad')
+        end if
+
+        ioff=ioff0
+        do jj=1,miter
+           ioff=ioff+1
+           if (obsptr%muse(jj)) then
+              diagbufchan(ioff,ich_diag(ii)) = one
+           else
+              diagbufchan(ioff,ich_diag(ii)) = -one
+           endif
+        enddo
+        do jj=1,miter+1
+           ioff=ioff+1
+           diagbufchan(ioff,ich_diag(ii)) = obsptr%nldepart(jj)
+        enddo
+        do jj=1,miter
+           ioff=ioff+1
+           diagbufchan(ioff,ich_diag(ii)) = obsptr%tldepart(jj)
+        enddo
+        do jj=1,miter
+           ioff=ioff+1
+           diagbufchan(ioff,ich_diag(ii)) = obsptr%obssen(jj)
+        enddo
+
+        obsptr => obsptr%next       ! move up to the first node of the next profile
+        ii_ptr =  ii_ptr+1
+     enddo ! do ii=1,nchanl_diag
+  else
+     diagbufchan(ioff+1:ioff+4*miter+1,1:nchanl_diag) = zero
+  endif ! l_may_be_passive
+
+  end subroutine do_obsdiagsave_
  end subroutine setuprad
 

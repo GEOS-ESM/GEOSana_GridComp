@@ -276,7 +276,7 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
 
 ! Declare local variables
   logical:: luse,muse,toss,save_jacobian
-  integer(i_kind):: k,jsig,icnt,khgt,kprof,ikx,nn,j,nchar,nreal,mreal,ii,ioff
+  integer(i_kind):: k,jsig,icnt,khgt,kprof,ikx,nn,j,nchar,nreal,mreal,ii,ioff,jj
   real(r_kind):: pressure,arg,wgross,wgt,term,cg_gps,valqc,elev,satid,dtype,dobs
   real(r_kind):: ress,val,ratio_errors,val2
   real(r_kind):: exp_arg,data_ikx,data_rinc,cg_term,rat_err2,elat
@@ -746,12 +746,15 @@ end subroutine contents_binary_diag_
 subroutine contents_netcdf_diag_
   use sparsearr, only: sparr2, readarray, fullarray
   integer(i_kind),dimension(miter) :: obsdiag_iuse
+  real(r_single),dimension(miter+1) :: obsdiag_nldepart
+  real(r_single),dimension(miter  ) :: obsdiag_tldepart,obsdiag_obssen
+
+
   integer(i_kind)                  :: obstype, obssubtype
   type(sparr2) :: dhx_dx
 
 ! Observation class
   character(7),parameter     :: obsclass = '    gps'
-
            call nc_diag_metadata("Station_ID",                            gps_allptr%cdiag             )
            call nc_diag_metadata("Observation_Class",                     obsclass                     )
            obstype    = gps_allptr%rdiag(1) 
@@ -787,23 +790,35 @@ subroutine contents_netcdf_diag_
            endif
 
 
-
 !           call nc_diag_data2d("T_Jacobian",                              gps_allptr%mmpoint%jac_t             )
-           if (lobsdiagsave) then
-              print *,'ERROR: OBSDIAGSAVE SKIPPED IN NCDIAG DEVELOPMENT.  STOPPING.'
-              call stop2(55)
-!              do jj=1,miter
-!                 if (gps_allptr%diags%muse(jj)) then
-!                    obsdiag_iuse(jj) =  one
-!                 else
-!                    obsdiag_iuse(jj) = -one
-!                 endif
-!              enddo
-!
-!              call nc_diag_data2d("ObsDiagSave_iuse",     obsdiag_iuse                             )
-!              call nc_diag_data2d("ObsDiagSave_nldepart", gps_allptr%diags%nldepart )
-!              call nc_diag_data2d("ObsDiagSave_tldepart", gps_allptr%diags%tldepart )
-!              call nc_diag_data2d("ObsDiagSave_obssen",   gps_allptr%diags%obssen   )
+           if (lobsdiagsave .and. associated(obsptr)) then
+               ioff = mreal
+               do jj=1,miter
+                  ioff=ioff+1
+                  if (gps_allptr%rdiag(ioff) == one) then
+                     obsdiag_iuse(jj) = one
+                  else
+                     obsdiag_iuse(jj) = -one
+                  endif
+               enddo
+               do jj=1,miter+1
+                  ioff=ioff+1
+                  obsdiag_nldepart = gps_allptr%rdiag(ioff) 
+               enddo
+               do jj=1,miter
+                  ioff=ioff+1
+                  obsdiag_tldepart = gps_allptr%rdiag(ioff) 
+               enddo
+               do jj=1,miter
+                  ioff=ioff+1
+                  obsdiag_obssen   = gps_allptr%rdiag(ioff) 
+               enddo
+    
+               call nc_diag_data2d("ObsDiagSave_iuse",     obsdiag_iuse     )
+               call nc_diag_data2d("ObsDiagSave_nldepart", obsdiag_nldepart )
+               call nc_diag_data2d("ObsDiagSave_tldepart", obsdiag_tldepart )
+               call nc_diag_data2d("ObsDiagSave_obssen",   obsdiag_obssen   )
+
            endif
 end subroutine contents_netcdf_diag_
 end subroutine genstats_gps

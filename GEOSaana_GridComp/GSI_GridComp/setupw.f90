@@ -1720,9 +1720,12 @@ subroutine setupw(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
               enddo
 
               call nc_diag_data2d("ObsDiagSave_iuse",     obsdiag_iuse                             )
-              call nc_diag_data2d("ObsDiagSave_nldepart", obsdiags(i_w_ob_type,ibin)%tail%nldepart )
-              call nc_diag_data2d("ObsDiagSave_tldepart", obsdiags(i_w_ob_type,ibin)%tail%tldepart )
-              call nc_diag_data2d("ObsDiagSave_obssen",   obsdiags(i_w_ob_type,ibin)%tail%obssen   )
+              call nc_diag_data2d("u_ObsDiagSave_nldepart", obsptr%nldepart )
+              call nc_diag_data2d("u_ObsDiagSave_tldepart", obsptr%tldepart )
+              call nc_diag_data2d("u_ObsDiagSave_obssen",   obsptr%obssen   )
+              call nc_diag_data2d("v_ObsDiagSave_nldepart", obsdiags(i_w_ob_type,ibin)%tail%nldepart )
+              call nc_diag_data2d("v_ObsDiagSave_tldepart", obsdiags(i_w_ob_type,ibin)%tail%tldepart )
+              call nc_diag_data2d("v_ObsDiagSave_obssen",   obsdiags(i_w_ob_type,ibin)%tail%obssen   )
            endif
 
            if (twodvar_regional) then
