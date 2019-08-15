@@ -2075,6 +2075,7 @@ subroutine qc_irsnd(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,mixed,luse,goessnd
      if (tb_obs(i) >= tbmax .or. tb_obs(i) <= tbmin) then
         varinv(i)=zero
         varinv_use(i)=zero
+        if(id_qc(i) == igood_qc)id_qc(i)=ifail_gross_routine_qc
      end if
      tmp=one-(one-sfchgtfact)*ptau5(1,i)
      varinv(i) = varinv(i)*tmp
