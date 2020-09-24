@@ -24,7 +24,6 @@ use Env;                 # make env vars readily available
 use File::Basename;      # for basename(), dirname()
 use File::Copy "cp";     # for cp()
 use Getopt::Long;        # load module with GetOptions function
-use Shell qw(cat rm);    # cat and rm commands
 use Time::Local;         # time functions
 use FindBin;             # so we can find where this script resides
 
@@ -262,7 +261,7 @@ sub lndiag_files {
           @files = split(/\n/,$files_tmp);
           $filecnt=@files;  # how many files are there
           if ($filecnt > 0 ) {
-             if ( -e "diag_${sat}.${nymd}${hh}" ) { rm("diag_${sat}.${nymd}${hh}") };
+             if ( -e "diag_${sat}.${nymd}${hh}" ) { unlink("diag_${sat}.${nymd}${hh}") };
           }
     }
 
@@ -333,7 +332,7 @@ sub oneobs_binary {
            print " $cmd\n";
            $rc_ignore = system($cmd);
            if ( -z "${this_diag_file}" ) {
-                rm("${this_diag_file}");
+                unlink("${this_diag_file}");
            } else {
                 if ( $opt_catonly ) {
                 } else {
@@ -381,7 +380,7 @@ sub oneobs_netcdf {
 	       $rc_ignore = system($cmd);	       
 	   }
            if ( -z "${this_diag_file}" ) {
-                rm("${this_diag_file}");
+                unlink("${this_diag_file}");
            } else {
                 if ( $opt_catonly ) {
                 } else {

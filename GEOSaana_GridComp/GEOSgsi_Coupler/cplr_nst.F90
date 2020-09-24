@@ -5,13 +5,13 @@ subroutine nst_init_
 end subroutine nst_init_
 !*******************************************************************************************
 
-subroutine nst_set_ (mype,mype_io)
+subroutine nst_read_ (mype,mype_io)
       use kinds, only: i_kind
-      use geos_nstmod, only: geos_nst_set
+      use geos_nstmod, only: geos_nst_read
       implicit none
       integer(i_kind), intent(in   ) :: mype,mype_io
-      call geos_nst_set()
-end subroutine nst_set_
+      call geos_nst_read()
+end subroutine nst_read_
 !*******************************************************************************************
 
 subroutine nst_final_
@@ -268,7 +268,7 @@ subroutine deter_nst_(dlat_earth,dlon_earth,obstime,zob,tref,dtw,dtc,tz_tr)
 
 ! z_c >=0 by definition. in GEOS. 
 
-! keep Xu Li's code for future ref.
+! keep Xu Li''s code for future ref.
 !       dtw = fac_dtl*dt_warm*(one-min(zob,z_w)/z_w)
 !       if ( z_c > zero ) then
 !         dtc = fac_tsl*dt_cool*(one-min(zob,z_c)/z_c)
@@ -310,7 +310,7 @@ end subroutine deter_nst_
 ! tztr = one
 ! tztr = zero
 
-! keep Xu Li's code for future ref.
+! keep Xu Li''s code for future ref.
 ! c1 = one-fac_dtl*w_0+fac_tsl*c_0
 ! c2 = one+fac_tsl*c_0
 !
@@ -363,10 +363,10 @@ subroutine skindepth_(obstype, sd_rad)
   sd_rad = 0.000015_r_kind
 
 ! MW radiance
-  if ( obstype=='amsua'     .OR. obstype=='amsub'     .OR. obstype=='mhs'         .OR. obstype=='msu'  .OR.&
-       obstype=='ssmi'      .OR. obstype=='ssmis'     .OR. obstype=='hsb'         .OR. obstype=='atms' .OR.&
-       obstype=='amsre_low' .OR. obstype=='amsre_mid' .OR. obstype=='amsre_high'                       .OR.&
-       obstype=='tmi'       .OR. obstype=='gmi_low'   .OR. obstype=='gmi_hig' ) then
+  if ( obstype=='amsua'     .OR. obstype=='amsub'     .OR. obstype=='mhs'         .OR. obstype=='msu'   .OR.&
+       obstype=='ssmi'      .OR. obstype=='ssmis'     .OR. obstype=='hsb'         .OR. obstype=='atms'  .OR.&
+       obstype=='amsre_low' .OR. obstype=='amsre_mid' .OR. obstype=='amsre_high'  .OR. obstype=='amsre2'.OR.&
+       obstype=='tmi'       .OR. obstype=='gmi' ) then
 
 !   1.25 mm. range is ~1- 1.5 mm.
     sd_rad = 0.00125_r_kind 

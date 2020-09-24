@@ -25,8 +25,8 @@ subroutine getsiga ()
 use kinds, only: i_kind, r_kind
 use mpimod, only: mype
 use constants, only: zero,one
-use gsi_4dvar, only: nsubwin,ibdate,lsqrtb,jsiga
-use jfunc, only: jiter,miter
+use gsi_4dvar, only: ibdate,lsqrtb,jsiga
+use jfunc, only: jiter
 use lanczos, only : congrad_siga
 use state_vectors, only: allocate_state,deallocate_state
 use gsi_4dcouplermod, only: gsi_4dcoupler_putpert
@@ -99,7 +99,6 @@ use kinds, only: i_kind, r_kind
 use mpimod, only: mype
 use constants, only: zero,one
 use gsi_4dvar, only: nsubwin,lsqrtb
-use jfunc, only: jiter,miter
 use state_vectors, only: allocate_state,deallocate_state
 use gsi_4dcouplermod, only: gsi_4dcoupler_putpert
 use gsi_bundlemod, only: gsi_bundle
@@ -190,7 +189,6 @@ use kinds, only: i_kind, r_kind
 use mpimod, only: mype
 use constants, only: zero,one
 use gsi_4dvar, only: nsubwin,lsqrtb
-use jfunc, only: jiter,miter
 use state_vectors, only: allocate_state,deallocate_state
 use gsi_4dcouplermod, only: gsi_4dcoupler_getpert
 use gsi_bundlemod, only: gsi_bundle
@@ -277,6 +275,8 @@ subroutine view_st (sval,filename)
 ! program history log:
 !   2011-02-23  todling  - initial code
 !                          (not sure we'll keep this here)
+!   2020-02-26  todling   obsbin time now in minute
+!   2020-03-03  todling   split set/final from put
 !
 !   input argument list:
 !
@@ -291,8 +291,10 @@ subroutine view_st (sval,filename)
 use kinds, only: i_kind, r_kind
 use mpimod, only: mype
 use constants, only: zero,one
-use gsi_4dvar, only: ibdate,nobs_bins,nhr_obsbin
+use gsi_4dvar, only: ibdate,nobs_bins,nmn_obsbin
+use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_set
 use gsi_4dcouplermod, only: gsi_4dcoupler_putpert
+use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_final
 use gsi_bundlemod, only: gsi_bundle
 implicit none
 type(gsi_bundle)            :: sval(nobs_bins)
@@ -301,18 +303,23 @@ character(len=*),intent(in) :: filename
 character(len=*),parameter:: myname_ = "view_st"
 integer(i_kind)      :: nymd                      ! date as in YYYYMMDD
 integer(i_kind)      :: nhms                      ! time as in HHMMSS
-integer(i_kind)      :: ii
+integer(i_kind)      :: ii,status
 integer(i_kind)      :: mydate(5)
 
 integer(i_kind),dimension(8) :: ida,jda
 real(r_kind),dimension(5)    :: fha
 
-
-! write out analysis errors
+! initial date/time and writer
 mydate = ibdate
+nymd = 10000*mydate(1)+mydate(2)*100+mydate(3)
+nhms = 10000*mydate(4)+mydate(5)*100
+
+call GSI_4dCoupler_putpert_set(nymd,nhms,status)
+
+! write out analysis errors/increments
 do ii=1,nobs_bins
    nymd = 10000*mydate(1)+mydate(2)*100+mydate(3)
-   nhms = 10000*mydate(4)
+   nhms = 10000*mydate(4)+mydate(5)*100
    ! iwrtinc ...
 
    if(mype==0) write(6,'(2a,i8.8,2x,i6.6)')trim(myname_),': start writing state on ', nymd, nhms
@@ -321,19 +328,23 @@ do ii=1,nobs_bins
 
    ! increment mydate ...
    fha(:)=0.0; ida=0; jda=0
-   fha(2)=nhr_obsbin! relative time interval in hours
+   fha(3)=nmn_obsbin! relative time interval in minutes
    ida(1)=mydate(1) ! year
    ida(2)=mydate(2) ! month
    ida(3)=mydate(3) ! day
    ida(4)=0         ! time zone
    ida(5)=mydate(4) ! hour
+   ida(6)=mydate(5) ! hour
    ! Move date-time forward by nhr_assimilation hours
    call w3movdat(fha,ida,jda)
    mydate(1)=jda(1)
    mydate(2)=jda(2)
    mydate(3)=jda(3)
    mydate(4)=jda(5)
+   mydate(5)=jda(6)
 enddo
+! finalize writer
+call GSI_4dCoupler_putpert_final(status)
 
 if(mype==0) write(6,'(3a)')trim(myname_),': complete writing state ', trim(filename)
 

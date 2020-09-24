@@ -12,6 +12,7 @@ module lag_fields
 !   2010-08-19  lueken - add only to module use;no machine code, so use .f90
 !   2011-04-20  todling - de-active read and write until further notice
 !   2013-10-25  todling - reposition ltosi and others to commvars
+!   2020-02-26  todling - reset obsbin from hr to min
 !
 ! subroutines included:
 !   sub lag_modini
@@ -42,7 +43,7 @@ module lag_fields
   use general_commvars_mod, only: ltosi,ltosj,ltosi_s,ltosj_s
   use guess_grids, only: nfldsig,hrdifsig
   use constants, only: zero,two,pi,deg2rad
-  use gsi_4dvar, only: nobs_bins,hr_obsbin,l4dvar
+  use gsi_4dvar, only: nobs_bins,mn_obsbin,l4dvar
 
   use lag_traj, only: lag_initlparam,lag_iteduration
   use lag_traj, only: lag_rk2itenpara_r,lag_rk2itenpara_i
@@ -154,11 +155,11 @@ module lag_fields
 !   machine:
 !
 !$$$ end documentation block
-    use constants, only: r3600
+    use constants, only: r60
     implicit none
 
     ! Initialisation of the model module (lag_traj)
-    lag_iteduration=hr_obsbin*r3600
+    lag_iteduration=mn_obsbin*r60
     call lag_initlparam()
     
     ! Not initialised at first
@@ -824,7 +825,7 @@ module lag_fields
        if (l4dvar .and. nobs_bins>1) then
           do i=2,nobs_bins
  
-             fieldtime=(i-2)*hr_obsbin
+             fieldtime=(i-2)*mn_obsbin
              if(fieldtime>=hrdifsig(1) .and. fieldtime<=hrdifsig(nfldsig)) then
  
                 ! Which guess field to use

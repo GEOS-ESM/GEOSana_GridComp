@@ -15,6 +15,8 @@ module m_obsLList
 !                         latlonRange from (elat,elon) values of observations.
 !   2016-07-25  j.guo   - added getTLDdotprod, to accumulate obsNode TLD-dot_produst
 !   2016-09-19  j.guo   - added function lincr_() to extend []_lsize().
+!   2017-08-26  G.Ge    - change allocate(headLL%mold,mold=mold)
+!                             to allocate(headLL%mold,source=mold)
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -40,7 +42,7 @@ module m_obsLList
      integer(i_kind):: n_alloc    =0
 
      integer(i_kind):: my_obsType =0
-     class(obsNode),allocatable:: mold          ! a mold for the nodes
+     class(obsNode),pointer:: mold => null()    ! a mold for the nodes
 
      class(obsNode),pointer:: head => null()    ! 
      class(obsNode),pointer:: tail => null()
@@ -93,8 +95,6 @@ module m_obsLList
 
   character(len=*),parameter:: MYNAME="m_obsLList"
 
-!#define CHECKSUM_VERBOSE
-!#define DEBUG_TRACE
 #include "myassert.H"
 #include "mytrace.H"
 contains
@@ -126,7 +126,7 @@ function lmold_(headLL) result(ptr_)
   class(obsNode),pointer:: ptr_
   type(obsLList),target,intent(in):: headLL
   ptr_ => null()
-  if(allocated(headLL%mold)) ptr_ => headLL%mold
+  if(associated(headLL%mold)) ptr_ => headLL%mold
 end function lmold_
 
 !--------------------------- will go to m_obsLList ----------------------
@@ -205,67 +205,55 @@ subroutine lreset_(headLL,mold,stat)
 !
 !$$$ end documentation block
   use m_obsNode, only: obsNode_next
+  use m_obsNode, only: obsNode_clean
+  use m_obsNode, only: obsNode_type => obsNode_mytype
   implicit none
   type(obsLList), intent(inout):: headLL
-  class(obsNode), intent(in):: mold
+  class(obsNode), intent(in   ):: mold
   integer(i_kind),optional,intent(out):: stat
 
   character(len=*),parameter:: myname_=MYNAME//"::lreset_"
-  class(obsNode),pointer:: l_obsNode
-  class(obsNode),pointer:: n_obsNode
-  character(len=:),allocatable:: mytype_
+  character(len=:),allocatable:: mymold_
   integer(i_kind):: n
   integer(i_kind):: ier
 _ENTRY_(myname_)
-  !call tell(myname_,'         mold%mytype() =',mold%mytype())
-  !if(allocated(headLL%mold)) then
-  !  call tell(myname_,'obsLList%mold%mytype() =',headLL%mold%mytype())
-  !  call tell(myname_,'      obsLList%n_alloc =',headLL%n_alloc)
-  !endif
 
   if(present(stat)) stat=0
-  n=0
 
-  l_obsNode => lheadNode_(headLL)
-  do while(associated(l_obsNode))
-        ! Steps of forward resetting (not a recursive resetting),
-        ! (1) hold the %next node;
-        ! (2) clean then deallocate the current node, while leave the %next node untouched;
-        ! (3) switch the current node to the held %next node.
-    n=n+1
-    n_obsNode => obsNode_next(l_obsNode)
-    mytype_=l_obsNode%mytype()
-    call nodeDestroy_(l_obsNode,stat=ier)
-        if(ier/=0) then
-          call perr(myname_,'call nodeDestroy_(), stat =',ier)
-          call perr(myname_,'                    count =',n)
-          call perr(myname_,'       l_obsNode%mytype() =',mytype_)
-          call perr(myname_,'     headLL%mold%mytype() =',headLL%mold%mytype())
+  call obsNode_clean(headLL%head,deep=.true.,depth=n,stat=ier)
+        if(ier/=0.or.n/=0) then
+          call perr(myname_,'obsNode_clean(.deep.), stat =',ier)
+          call perr(myname_,'                      depth =',n)
+          call perr(myname_,'              lsize(headLL) =',lsize_(headLL))
+          call perr(myname_,'       headLL%head%mytype() =',obsNode_type(headLL%head))
+          call perr(myname_,'       headLL%mold%mytype() =',obsNode_type(headLL%mold))
           if(.not.present(stat)) call die(myname_)
           stat=ier
           _EXIT_(myname_)
           return
         endif
-    l_obsNode => n_obsNode
-  enddo
+
+  call nodeDestroy_(headLL%head)
 
   headLL%n_alloc = 0
   headLL%l_alloc = 0
   headLL%head    => null()
   headLL%tail    => null()
-  if(allocated(headLL%mold)) then
-    mytype_=headLL%mold%mytype()
+
+  if(associated(headLL%mold)) then
+    mymold_ = obsNode_type(headLL%mold)
     deallocate(headLL%mold,stat=ier)
         if(ier/=0) then
           call perr(myname_,'deallocate(headLL%mold), stat =',ier)
-          call perr(myname_,'         headLL%mold%mytype() =',mytype_)
+          call perr(myname_,'    obsNode_type(headLL%mold) =',mymold_)
           if(.not.present(stat)) call die(myname_)
           stat=ier
           _EXIT_(myname_)
           return
         endif
   endif
-  allocate(headLL%mold,mold=mold)
+
+  allocate(headLL%mold, mold=mold)
 _EXIT_(myname_)
 return
 end subroutine lreset_
@@ -295,10 +283,12 @@ subroutine lappendNode_(headLL,targetNode)
   use m_obsNode, only: obsNode_append
   implicit none
   type(obsLList), intent(inout):: headLL
-  class(obsNode), target, intent(in):: targetNode
+  !class(obsNode), target, intent(in):: targetNode
+  class(obsNode), pointer, intent(in):: targetNode
 
   character(len=*),parameter:: myname_=MYNAME//'::lappendNode_'
 !_ENTRY_(myname_)
+        ASSERT(associated(targetNode))
 
   if(.not.associated(headLL%head)) then
                 ! this is a fresh starting -node- for this linked-list ...
@@ -344,7 +334,8 @@ subroutine lread_(headLL,iunit,redistr,diagLookup,jtype)
 !
 !$$$ end documentation block
 
-    use obsmod, only: obs_diags
+    !use obsmod, only: obs_diags
+    use m_obsdiagNode, only: obs_diags
     use m_obsNode, only: obsNode_read
     use m_obsNode, only: obsNode_setluse
     implicit none
@@ -365,7 +356,7 @@ _ENTRY_(myname_)
 !   a collection of nodes of the same _obsNode_ type,
 !   !-- not about the corresponding linked-list.
 
-        ASSERT(allocated(headLL%mold))
+        ASSERT(associated(headLL%mold))
 
     call obsHeader_read_(headLL%mold,iunit,mobs,jread,istat)
 
@@ -427,6 +418,7 @@ _ENTRY_(myname_)
     enddo  ! < mobs >
 
     call nodeDestroy_(aNode)  ! Clean up the working-space an_onsNode
+    
 _EXIT_(myname_)
 return
 end subroutine lread_
@@ -486,7 +478,7 @@ _ENTRY_(myname_)
 !   !-- A header is about a collection of nodes of the same obsNode type,
 !   !-- not about the corresponding linked-list.
 
-        ASSERT(allocated(headLL%mold))
+        ASSERT(associated(headLL%mold))
 
     lobs = lcount_(headLL,luseonly=luseonly)      ! actual count of write
     mobs = lobs
@@ -582,20 +574,6 @@ _ENTRY_(myname_)
 
   jtype=itype
   jbin =ibin
-#ifdef CHECKSUM_VERBOSE
-  if(headLL%n_alloc>0) then
-    jtype=0
-    jbin =0
-    if(present(itype)) jtype=itype
-    if(present(ibin )) jbin =ibin
-
-    if(nooo/=0.or.ndup/=0) then
-      write(stdout,'(a,2x,2i4,5i6,2i10,a)') stdout_lead(myname_,''),jtype,jbin,headLL%n_alloc,lrecount,nuse,nooo,ndup,ksum,' >>> WARNING <<<'
-    else
-      write(stdout,'(a,2x,2i4,5i6,2i10  )') stdout_lead(myname_,''),jtype,jbin,headLL%n_alloc,lrecount,nuse,nooo,ndup,ksum
-    endif
-  endif
-#endif
 _EXIT_(myname_)
 return
 end subroutine lchecksum_
@@ -808,7 +786,6 @@ end function compare_
 
 subroutine lsort_(headLL,itype,ibin)
 !       lsort_: node-sort diagLL, to line-up nodes according to their keys
-!_DEBUG_USE_
 !_TIMER_USE_
 !  use timermod , only: timer_ini,timer_fnl
   use mpeu_util, only: IndexSet
@@ -824,9 +801,6 @@ subroutine lsort_(headLL,itype,ibin)
   integer(kind=i_kind),allocatable,dimension(:):: indx,idv_,iob_
   integer(kind=i_kind):: i,n
   logical:: sorted
-#ifdef DEBUG_VERIFY
-  logical:: good
-#endif
 
   type fptr_of_obsnode
     class(obsNode),pointer:: ptr
@@ -867,27 +841,6 @@ _ENTRY_(myname_)
   call IndexSort(indx,iob_)
   call IndexSort(indx,idv_)
   lookup(1:n) = lookup(indx(1:n))
-
-#ifdef DEBUG_VERIFY
-  idv_(1:n) = idv_(indx(1:n))
-  iob_(1:n) = iob_(indx(1:n))
-
-  good = .true.
-  do i=1,n
-    pNode => lookup(i)%ptr
-    good = pNode%idv==idv_(i) .and. pNode%iob==iob_(i)
-        if(.not.good) exit
-  enddo
-
-        if(.not.good) then
-          call perr(myname_,'at lookup(i)%ptr, i =',i)
-          call perr(myname_,'               %idv =',pNode%idv)
-          call perr(myname_,'               idv_ =',idv_(i))
-          call perr(myname_,'               %iob =',pNode%iob)
-          call perr(myname_,'               iob_ =',iob_(i))
-          call  die(myname_,'failed verification')
-        endif
-#endif
 
   deallocate(indx,idv_,iob_)
 
@@ -934,28 +887,20 @@ function alloc_nodeCreate_(mold) result(ptr_)
 return
 end function alloc_nodeCreate_
 
-subroutine nodeDestroy_(node,stat)
+subroutine nodeDestroy_(node)
 !-- clean() + deallocate()
+  use m_obsNode, only: obsNode_type => obsNode_mytype
   implicit none
   class(obsNode),pointer,intent(inout):: node
-  integer(i_kind),optional,intent(out):: stat
-
-  character(len=*),parameter:: myname_=myname//"::nodeDestroy_"
+  character(len=*),parameter:: myname_=myname//'::nodeDestroy_'
   integer(i_kind):: ier
-  character(len=:),allocatable:: mytype_
-  if(present(stat)) stat=0
-  !call tell(  myname_,'associated(node) =',associated(node))
   if(associated(node)) then
-    !call tell(myname_,'   node%mytype() =',node%mytype())
-    mytype_=node%mytype()
     call node%clean()
-    !call tell(myname_,'associated(node) =',associated(node))
     deallocate(node,stat=ier)
     if(ier/=0) then
       call perr(myname_,'can not deallocate(node), stat =',ier)
-      call perr(myname_,'                     %mytype() =',mytype_)
-      if(.not.present(stat)) call die(myname_)
-      stat=ier
+      call perr(myname_,'            obsNode_type(node) =',obsNode_type(node))
+      call die(myname_)
     endif
   endif
 return
@@ -969,7 +914,7 @@ subroutine obsHeader_read_(aNode,iunit,iobs,itype,istat)
   integer(i_kind),intent(in ):: iunit
   integer(i_kind),intent(out):: iobs,itype
   integer(i_kind),intent(out):: istat
-  call aNode%header_read(iunit,iobs,itype,istat)
+  call aNode%headerRead(iunit,iobs,itype,istat)
 end subroutine obsHeader_read_
 
 subroutine obsHeader_write_(aNode,junit,mobs,mtype,istat)
@@ -980,6 +925,6 @@ subroutine obsHeader_write_(aNode,junit,mobs,mtype,istat)
   integer(i_kind),intent(in ):: junit
   integer(i_kind),intent(in ):: mobs,mtype
   integer(i_kind),intent(out):: istat
-  call aNode%header_write(junit,mobs,mtype,istat)
+  call aNode%headerWrite(junit,mobs,mtype,istat)
 end subroutine obsHeader_write_
 end module m_obsLList

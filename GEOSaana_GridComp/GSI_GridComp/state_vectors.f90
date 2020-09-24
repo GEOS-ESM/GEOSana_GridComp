@@ -573,6 +573,7 @@ real(r_quad) function dot_prod_st(xst,yst,which)
 !   2012-09-14  Syed RH Rizvi, NCAR/NESL/MMM/DAS - bug fix: for 
 !                                    if(xst%r3(i)%mykind==r_single .and. yst%r3(i)%mykind==r_single)
 !                                    if( present (which)), ipntx and ipnty indexes should be used and not i 
+!   2020-05-08  Todling - a litte more check on dims
 !
 !   input argument list:
 !    xst,yst
@@ -587,16 +588,24 @@ real(r_quad) function dot_prod_st(xst,yst,which)
 !$$$ end documentation block
   implicit none
   type(gsi_bundle)         , intent(in) :: xst, yst
-  character(len=*)  ,optional, intent(in) :: which  ! variable name
+  character(len=*),optional, intent(in) :: which  ! variable name
 
   real(r_quad),dimension(1) :: zz
-  integer(i_kind) :: i,ii,ipntx,ipnty,irkx,irky,ier,ist
+  integer(i_kind) :: i,ii,ipntx,ipnty,irkx,irky,ier,ist,n2d,n3d
 
   if (.not.present(which)) then
 
+     if(xst%n3d/=yst%n3d .or. xst%n2d/=yst%n2d) then
+       if(mype==0) &
+       write(6,*) 'dot_prod_st: improper dims (x,y)', xst%n3d,yst%n3d,xst%n2d,yst%n2d
+       call stop2(998)
+     else
+        n2d=xst%n2d
+        n3d=xst%n3d
+     endif
      zz(1)=zero_quad
      ii=0
-     do i = 1,ns3d
+     do i = 1,n3d
         ii=ii+1
         if(xst%r3(i)%mykind==r_single .and. yst%r3(i)%mykind==r_single)then
            zz(1)= zz(1)+dplevs(xst%r3(i)%qr4,yst%r3(i)%qr4,ihalo=1)
@@ -607,7 +616,7 @@ real(r_quad) function dot_prod_st(xst,yst,which)
            return
         endif
      enddo
-     do i = 1,ns2d
+     do i = 1,n2d
         ii=ii+1
         if(xst%r2(i)%mykind==r_single .and. yst%r2(i)%mykind==r_single)then
            zz(1)= zz(1)+dplevs(xst%r2(i)%qr4,yst%r2(i)%qr4,ihalo=1)

@@ -120,13 +120,32 @@ module obsmod
 !                        - cleaned some debris left from this and previous changes.
 !   2016-05-18  collard  - Added code to allow for historical naming conventions
 !                          for satellite instruments
+!   2015-03-31  wgu      - add isis(sensor/instrument/satellite id) in rad_ob_type to handle
+!                          instruments id in intrad inter-channel correlation
+!                          implementation.
 !   2016-07-19  wgu      - add isfctype - mask for surface type - to radiance obtype
 !   2016-07-19  kbathmann - add rsqrtinv and use_corr_obs to rad_ob_type
 !   2016-07-26  guo      - moved away most cldch_ob_type contents to a new module, m_cldchNode
 !   2016-08-20  guo      - moved (stpcnt,ll_jo,ib_jo) to stpjo.f90.
 !   2016-09-19  guo      - moved function dfile_format() to m_extOzone.F90
+!   2016-02-15 Johnson, Y. Wang, X. Wang - add dbz type for reflectivity DA.
+!                                          POC: xuguang.wang@ou.edu
 !   2016-11-29 shlyaeva  - add lobsdiag_forenkf option for writing out linearized
 !                           H(x) for EnKF
+!   2018-01-01  apodaca  - add GOES/GLM lightning observations
+!   2019-05-28  guo     - moved all type-constants {i_xx_ob_type} as enumerators of
+!                         (1) obsNode types to module m_obsNodeTypeManager.F90 (iobNode_xx); and
+!                         (2) obOper Types to module gsi_obOperTypeManager.F90 (iobOper_xx).
+!                         Note that a single type specification i_xx_ob_type is now split into two,
+!                         one for obsNode types, and another for obOper types.
+!                       - moved nobs_type to module gsi_obOperTypeManager.F90 (obOper_count).
+!                       - moved cobstype(:) to module gsi_obOperTypeManager.F90.
+!                       - moved type obs_diag, obs_diags, aofp_obs_diag, and variable obsdiags(:,:)
+!                         with subroutine inquire_obsdiags() into m_obsdiagNode.F90.
+!                       - moved obscounts(:) into obs_sensitivity.f90.
+!   2019-06-25  Hu       - add diag_radardbz for controling radar reflectivity
+!                               diag file
+!   2020-06-25 Todling   - add lgpsbnd_revint to use revised bending angle integration
 ! 
 ! Subroutines Included:
 !   sub init_obsmod_dflts   - initialize obs related variables to default values
@@ -148,6 +167,8 @@ module obsmod
 !   def perturb_obs  - namelist logical to perturb (=true) observations
 !   def perturb_fact - namelist scaling factor for observation perturbations
 !   def write_diag   - namelist logical array to compute/write (=true) diag files
+!   def diag_radardbz- namelist logical to compute/write (=true) radar
+!                                          reflectiivty diag files
 !   def reduce_diag  - namelist logical to produce reduced radiance diagnostic files
 !   def use_limit    - parameter set equal to -1 if diag files produced or 0 if not diag files or reduce_diag
 !   def obs_setup    - prefix for files passing pe relative obs data to setup routines
@@ -160,6 +181,7 @@ module obsmod
 !   def ditype       - observation group type (set in read_obs, e.g. rad,conv,etc)
 !   def time_window  - half time window for obs type (hours)
 !   def time_window_max - maximum half time window (hours)
+!   def time_window_rad - maximum half time window (hours) for cetain radiance
 !   def obsfile_all  - file containing observations after initial read
 !   def ndat_types   - number of available data types
 !   def ndat_times   - number of available synoptic times
@@ -252,6 +274,8 @@ module obsmod
 !   def swcptail     - solid-water content path linked list tail
 !   def lwcphead     - liquid-water content path linked list head
 !   def lwcptail     - liquid-water content path linked list tail
+!   def lighthead    - lightning linked list head
+!   def lighttail    - lightning linked list tail
 !   def lunobs_obs   - unit to save satellite observation
 !   def iout_rad     - output unit for satellite stats
 !   def iout_pcp     - output unit for precipitation stats
@@ -288,6 +312,7 @@ module obsmod
 !   def iout_pm10    - output unit for pm10 stats
 !   def iout_swcp    - output unit for swcp stats
 !   def iout_lwcp    - output unit for lwcp stats
+!   def iout_light   - output unit for lightning stats
 !   def mype_t       - task to handle temperature stats
 !   def mype_q       - task to handle moisture stats
 !   def mype_uv      - task to handle wind stats
@@ -317,6 +342,7 @@ module obsmod
 !   def mype_pm10    - task to handle pm10
 !   def mype_swcp    - task to handle swcp
 !   def mype_lwcp    - task to handle lwcp
+!   def mype_light   - task to lightning stats
 !   def oberrflg     - logical for reading in new observation error table
 !                      .true.  will read in obs errors from file 'errtable'
 !                      .false. will not read in new obs errors
@@ -360,6 +386,8 @@ module obsmod
 !   def netcdf_diag    - trigger netcdf diag-file output
 !   def l_wcp_cwm      - namelist logical whether to use operator that
 !                        includes cwm for both swcp and lwcp or not
+!   def lgpsbnd_revint - namelist logical determining whether or not to use
+!                        revised integration of bending angle profiles
 !
 ! attributes:
 !   langauge: f90
@@ -384,32 +412,21 @@ module obsmod
   public :: destroy_obsmod_vars
   public :: ran01dom,dval_use
   public :: iout_pcp,iout_rad,iadate,iadatemn,write_diag,reduce_diag,oberrflg,bflag,ndat,dthin,dmesh,l_do_adjoint
+  public :: diag_radardbz
   public :: lsaveobsens
-  public :: i_ps_ob_type,i_t_ob_type,i_w_ob_type,i_q_ob_type
-  public :: i_spd_ob_type,i_rw_ob_type,i_dw_ob_type,i_sst_ob_type
-  public :: i_gust_ob_type,i_vis_ob_type,i_pblh_ob_type,i_wspd10m_ob_type,i_td2m_ob_type
-  public :: i_uwnd10m_ob_type,i_vwnd10m_ob_type
-  public :: i_mxtm_ob_type,i_mitm_ob_type,i_pmsl_ob_type,i_howv_ob_type,i_tcamt_ob_type,i_lcbas_ob_type
-  public :: i_cldch_ob_type, iout_cldch, mype_cldch
-  public :: i_pw_ob_type,i_pcp_ob_type,i_oz_ob_type,i_o3l_ob_type,i_colvk_ob_type,i_gps_ob_type
-  public :: i_rad_ob_type,i_tcp_ob_type,i_lag_ob_type
-  public :: i_swcp_ob_type, i_lwcp_ob_type
-  public :: obscounts,nobs_type
-  public :: cobstype,nprof_gps,time_offset,ianldate
+  public ::                  iout_cldch, mype_cldch
+  public ::          nprof_gps,time_offset,ianldate
   public :: iout_oz,iout_co,dsis,ref_obs,obsfile_all,lobserver,perturb_obs,ditype,dsfcalc,dplat
   public :: time_window,dval,dtype,dfile,dirname,obs_setup,oberror_tune,offtime_data
   public :: lobsdiagsave,lobsdiag_forenkf,blacklst,hilbert_curve,lobskeep,time_window_max,sfcmodel,ext_sonde
+  public :: time_window_rad
   public :: perturb_fact,dtbduv_on,nsat1,obs_sub_comm,mype_diaghdr
   public :: lobsdiag_allocated
-  public :: i_aero_ob_type
-  public :: i_aerol_ob_type
-  public :: i_pm2_5_ob_type
-  public :: i_pm10_ob_type
   public :: nloz_v8,nloz_v6,nloz_omi,nlco,nobskeep
   public :: grids_dim,rmiss_single,nchan_total,mype_sst,mype_gps
   public :: mype_uv,mype_dw,mype_rw,mype_q,mype_tcp,mype_lag,mype_ps,mype_t
   public :: mype_pw,iout_rw,iout_dw,iout_sst,iout_pw,iout_t,iout_q,iout_tcp
-  public :: iout_lag,iout_uv,iout_gps,iout_ps
+  public :: iout_lag,iout_uv,iout_gps,iout_ps,iout_light,mype_light
   public :: mype_gust,mype_vis,mype_pblh,iout_gust,iout_vis,iout_pblh
   public :: mype_tcamt,mype_lcbas,iout_tcamt,iout_lcbas
   public :: mype_wspd10m,mype_td2m,iout_wspd10m,iout_td2m
@@ -420,18 +437,30 @@ module obsmod
   public :: lread_obs_save,obs_input_common,lread_obs_skip
   public :: ndat_times,lwrite_predterms,lwrite_peakwt
   public :: bmiss
-  public :: obs_diags                   ! types
-  public :: obs_diag                    ! types
-  public :: aofp_obs_diag               ! types
-  public :: obsptr                      ! a local working pointer (to be removed)
-  public :: obsdiags                    ! objects
-  public :: inquire_obsdiags
   public :: mype_aero,iout_aero,nlaero
   public :: mype_pm2_5,iout_pm2_5
   public :: mype_pm10,iout_pm10
   public :: use_limit,lrun_subdirs
   public :: l_foreaft_thin,luse_obsdiag
+  public :: lgpsbnd_revint
 
+  ! ==== DBZ DA ===
+  public :: ntilt_radarfiles
+  public :: whichradar
+  public :: vr_dealisingopt, if_vterminal, if_model_dbz, inflate_obserr, if_vrobs_raw
+
+  public :: doradaroneob,oneoblat,oneoblon
+  public :: oneobddiff,oneobvalue,oneobheight,oneobradid
+  public :: ens_hx_dbz_cut,static_gsi_nopcp_dbz,rmesh_dbz,zmesh_dbz,rmesh_vr,zmesh_vr
+  public :: radar_no_thinning
+  public :: mintiltvr,maxtiltvr,minobrangevr,maxobrangevr
+  public :: mintiltdbz,maxtiltdbz,minobrangedbz,maxobrangedbz
+  public :: debugmode
+  public :: missing_to_nopcp
+
+  public :: iout_dbz, mype_dbz
+  ! --- DBZ DA ---
+  
   public :: obsmod_init_instr_table
   public :: obsmod_final_instr_table
   public :: nobs_sub
@@ -462,82 +491,14 @@ module obsmod
 
 ! Declare types
 
-  integer(i_kind),parameter::  i_ps_ob_type= 1    ! ps_ob_type
-  integer(i_kind),parameter::   i_t_ob_type= 2    ! t_ob_type
-  integer(i_kind),parameter::   i_w_ob_type= 3    ! w_ob_type
-  integer(i_kind),parameter::   i_q_ob_type= 4    ! q_ob_type
-  integer(i_kind),parameter:: i_spd_ob_type= 5    ! spd_ob_type
-  integer(i_kind),parameter::  i_rw_ob_type= 6    ! rw_ob_type
-  integer(i_kind),parameter::  i_dw_ob_type= 7    ! dw_ob_type
-  integer(i_kind),parameter:: i_sst_ob_type= 8    ! sst_ob_type
-  integer(i_kind),parameter::  i_pw_ob_type= 9    ! pw_ob_type
-  integer(i_kind),parameter:: i_pcp_ob_type=10    ! pcp_ob_type
-  integer(i_kind),parameter::  i_oz_ob_type=11    ! oz_ob_type
-  integer(i_kind),parameter:: i_o3l_ob_type=12    ! o3l_ob_type
-  integer(i_kind),parameter:: i_gps_ob_type=13    ! gps_ob_type
-  integer(i_kind),parameter:: i_rad_ob_type=14    ! rad_ob_type
-  integer(i_kind),parameter:: i_tcp_ob_type=15    ! tcp_ob_type
-  integer(i_kind),parameter:: i_lag_ob_type=16    ! lag_ob_type
-  integer(i_kind),parameter:: i_colvk_ob_type= 17 ! colvk_ob_type
-  integer(i_kind),parameter:: i_aero_ob_type =18  ! aero_ob_type
-  integer(i_kind),parameter:: i_aerol_ob_type=19  ! aerol_ob_type
-  integer(i_kind),parameter:: i_pm2_5_ob_type=20  ! pm2_5_ob_type
-  integer(i_kind),parameter:: i_gust_ob_type=21   ! gust_ob_type
-  integer(i_kind),parameter:: i_vis_ob_type=22    ! vis_ob_type
-  integer(i_kind),parameter:: i_pblh_ob_type=23   ! pblh_ob_type
-  integer(i_kind),parameter:: i_wspd10m_ob_type=24! wspd10m_ob_type
-  integer(i_kind),parameter:: i_td2m_ob_type=25   ! td2m_ob_type
-  integer(i_kind),parameter:: i_mxtm_ob_type=26   ! mxtm_ob_type
-  integer(i_kind),parameter:: i_mitm_ob_type=27   ! mitm_ob_type
-  integer(i_kind),parameter:: i_pmsl_ob_type=28   ! pmsl_ob_type
-  integer(i_kind),parameter:: i_howv_ob_type=29   ! howv_ob_type
-  integer(i_kind),parameter:: i_tcamt_ob_type=30  ! tcamt_ob_type
-  integer(i_kind),parameter:: i_lcbas_ob_type=31  ! lcbas_ob_type  
-  integer(i_kind),parameter:: i_pm10_ob_type=32   ! pm10_ob_type
-  integer(i_kind),parameter:: i_cldch_ob_type=33  ! cldch_ob_type
-  integer(i_kind),parameter:: i_uwnd10m_ob_type=34! uwnd10m_ob_type
-  integer(i_kind),parameter:: i_vwnd10m_ob_type=35! vwnd10m_ob_type
-  integer(i_kind),parameter:: i_swcp_ob_type=36   ! swcp_ob_type
-  integer(i_kind),parameter:: i_lwcp_ob_type=37   ! lwcp_ob_type
-
-  integer(i_kind),parameter:: nobs_type = 37      ! number of observation types
-
 ! Structure for diagnostics
-
-  type obs_diag
-     type(obs_diag), pointer :: next => NULL()
-     real(r_kind), pointer :: nldepart(:) => null()    ! (miter+1)
-     real(r_kind), pointer :: tldepart(:) => null()    ! (miter)
-     real(r_kind), pointer :: obssen(:)   => null()    ! (miter)
-     real(r_kind) :: wgtjo
-     real(r_kind) :: elat, elon         ! earth lat-lon for redistribution
-     integer(i_kind) :: indxglb         ! a combined index similar to (ich,iob)
-     integer(i_kind) :: nchnperobs      ! number of channels per observations
-     integer(i_kind) :: idv,iob,ich     ! device, obs., and channel indices
-     logical, pointer :: muse(:)          => null()    ! (miter+1), according the setup()s
-     logical :: luse
-  end type obs_diag
-
-  type aofp_obs_diag   ! array-of-Fortran-pointers of type(obs_diag)
-     type(obs_diag), pointer :: ptr => NULL()
-  end type aofp_obs_diag
-
-  type obs_diags
-     integer(i_kind):: n_alloc=0
-     type(obs_diag), pointer :: head => NULL()
-     type(obs_diag), pointer :: tail => NULL()
-     type(aofp_obs_diag), allocatable, dimension(:):: lookup
-  end type obs_diags
-
-  type(obs_diags), pointer :: obsdiags(:,:) => null()  ! (nobs_type,nobs_bins)
-  type(obs_diag), pointer :: obsptr => null()
 
 ! Declare interfaces
   interface destroyobs; module procedure destroyobs_; end interface
 
 ! Declare global variables
 
-  real(r_kind) perturb_fact,time_window_max,time_offset
+  real(r_kind) perturb_fact,time_window_max,time_offset,time_window_rad
   real(r_kind),dimension(50):: dmesh
 
   integer(i_kind) grids_dim,nchan_total,ianldate
@@ -545,7 +506,7 @@ module obsmod
   integer(i_kind) lunobs_obs,nloz_v6,nloz_v8,nobskeep,nloz_omi
   integer(i_kind) nlco,use_limit
   integer(i_kind) iout_rad,iout_pcp,iout_t,iout_q,iout_uv, &
-                  iout_oz,iout_ps,iout_pw,iout_rw
+                  iout_oz,iout_ps,iout_pw,iout_rw, iout_dbz
   integer(i_kind) iout_dw,iout_gps,iout_sst,iout_tcp,iout_lag
   integer(i_kind) iout_co,iout_gust,iout_vis,iout_pblh,iout_tcamt,iout_lcbas
   integer(i_kind) iout_cldch
@@ -555,19 +516,19 @@ module obsmod
                   mype_rw,mype_dw,mype_gps,mype_sst, &
                   mype_tcp,mype_lag,mype_co,mype_gust,mype_vis,mype_pblh, &
                   mype_wspd10m,mype_td2m,mype_mxtm,mype_mitm,mype_pmsl,mype_howv,&
-                  mype_uwnd10m,mype_vwnd10m, mype_tcamt,mype_lcbas
+                  mype_uwnd10m,mype_vwnd10m, mype_tcamt,mype_lcbas, mype_dbz
   integer(i_kind) mype_cldch
   integer(i_kind) iout_swcp, iout_lwcp
   integer(i_kind) mype_swcp, mype_lwcp
   integer(i_kind) nlaero, iout_aero, mype_aero
   integer(i_kind) iout_pm2_5, mype_pm2_5
   integer(i_kind) iout_pm10, mype_pm10
+  integer(i_kind) iout_light, mype_light
   integer(i_kind),dimension(5):: iadate
   integer(i_kind),dimension(5):: iadatemn
   integer(i_kind),allocatable,dimension(:):: dsfcalc,dthin,ipoint
   integer(i_kind),allocatable,dimension(:)::  nsat1,mype_diaghdr
   integer(i_kind),allocatable :: nobs_sub(:,:)
-  integer(i_kind),allocatable :: obscounts(:,:)
   integer(i_kind),allocatable :: obs_sub_comm(:)
   
   character(128) obs_setup
@@ -575,11 +536,27 @@ module obsmod
   character(128) obs_input_common
   character(20),allocatable,dimension(:):: obsfile_all
   character(10),allocatable,dimension(:):: dtype,ditype,dplat
-  character(20),allocatable,dimension(:):: dfile
+  character(120),allocatable,dimension(:):: dfile
   character(20),allocatable,dimension(:):: dsis
   real(r_kind) ,allocatable,dimension(:):: dval
   real(r_kind) ,allocatable,dimension(:):: time_window
-  character(len=20) :: cobstype(nobs_type)
+
+  integer(i_kind) ntilt_radarfiles
+
+  logical ::  doradaroneob
+  logical :: vr_dealisingopt, if_vterminal, if_model_dbz, inflate_obserr, if_vrobs_raw
+  character(4) :: whichradar,oneobradid
+  real(r_kind) :: oneoblat,oneoblon,oneobddiff,oneobvalue,oneobheight
+  logical :: radar_no_thinning
+  logical :: ens_hx_dbz_cut
+  real(r_kind) ::static_gsi_nopcp_dbz
+  real(r_kind) ::rmesh_dbz,zmesh_dbz
+  real(r_kind) ::rmesh_vr,zmesh_vr
+
+  logical :: debugmode
+  real(r_kind) :: minobrangevr,maxobrangevr,mintiltvr,maxtiltvr
+  real(r_kind) :: minobrangedbz,maxobrangedbz,mintiltdbz,maxtiltdbz
+  logical         :: missing_to_nopcp
 
   logical, save :: obs_instr_initialized_=.false.
 
@@ -587,6 +564,7 @@ module obsmod
   logical blacklst,lobsdiagsave,lobsdiag_allocated,lobskeep,lsaveobsens
   logical lobserver,l_do_adjoint, lobsdiag_forenkf
   logical,dimension(0:50):: write_diag
+  logical diag_radardbz 
   logical reduce_diag
   logical offtime_data
   logical hilbert_curve
@@ -597,6 +575,7 @@ module obsmod
   logical ext_sonde
   logical lrun_subdirs
   logical l_foreaft_thin
+  logical lgpsbnd_revint
 
   logical l_wcp_cwm
 
@@ -647,6 +626,39 @@ contains
 
     integer(i_kind) i
 
+    ntilt_radarfiles=1
+    vr_dealisingopt=.false.
+    if_vterminal=.false.
+    if_vrobs_raw=.false.
+    if_model_dbz=.true.
+    inflate_obserr=.false.
+    whichradar="KKKK"
+
+    oneobradid="KKKK"
+    doradaroneob=.false.
+    oneoblat=-999_r_kind
+    oneoblon=-999_r_kind
+    oneobddiff=-999_r_kind
+    oneobvalue=-999_r_kind
+    oneobheight=-999_r_kind
+    radar_no_thinning=.false.
+    ens_hx_dbz_cut=.false.
+    static_gsi_nopcp_dbz=0.0_r_kind
+    rmesh_dbz=2
+    rmesh_vr=2
+    zmesh_dbz=500.0_r_kind
+    zmesh_vr=500.0_r_kind
+    minobrangedbz=10000.0_r_kind
+    maxobrangedbz=200000.0_r_kind
+    debugmode=.false.
+
+    mintiltdbz=0.0_r_kind
+    maxtiltdbz=20.0_r_kind
+    minobrangevr=10000.0_r_kind
+    maxobrangevr=200000.0_r_kind
+    mintiltvr=0.0_r_kind
+    maxtiltvr=20.0_r_kind
+    missing_to_nopcp=.false.
 
 !   Set logical flag
     perturb_obs = .false.   ! .true. = perturb observations
@@ -656,6 +668,7 @@ contains
        write_diag(i)=.false.
     end do
     write_diag(1)=.true.
+    diag_radardbz = .false.
     reduce_diag = .false.
     use_limit = -1
     lobsdiagsave=.false.
@@ -716,7 +729,8 @@ contains
     iout_vwnd10m=234  ! 10-m vwnd
     iout_swcp=235  ! solid-water content path
     iout_lwcp=236  ! liquid-water content path
-
+    iout_light=237 ! lightning
+    iout_dbz=238 ! radar reflectivity
 
     mype_ps = npe-1          ! surface pressure
     mype_t  = max(0,npe-2)   ! temperature
@@ -749,11 +763,13 @@ contains
     mype_vwnd10m= max(0,npe-29)! vwnd10m
     mype_swcp=max(0,npe-30)  ! solid-water content path
     mype_lwcp=max(0,npe-31)  ! liquid-water content path
-
+    mype_light=max(0,npe-32)! GOES/GLM lightning
+    mype_dbz=max(0,npe-33)   ! radar reflectivity
 
 
 !   Initialize arrays used in namelist obs_input 
     time_window_max = three ! set maximum time window to +/-three hours
+    time_window_rad = three ! set maximum time window to +/-three hours for radiance
 
 
 !   Other initializations
@@ -770,46 +786,6 @@ contains
 
     nprof_gps = 0
 
-!   Define a name for obs types
-    cobstype( i_ps_ob_type)  ="surface pressure    " ! ps_ob_type
-    cobstype(  i_t_ob_type)  ="temperature         " ! t_ob_type
-    cobstype(  i_w_ob_type)  ="wind                " ! w_ob_type
-    cobstype(  i_q_ob_type)  ="moisture            " ! q_ob_type
-    cobstype(i_spd_ob_type)  ="wind speed          " ! spd_ob_type
-    cobstype( i_rw_ob_type)  ="radial wind         " ! rw_ob_type
-    cobstype( i_dw_ob_type)  ="doppler wind        " ! dw_ob_type
-    cobstype(i_sst_ob_type)  ="sst                 " ! sst_ob_type
-    cobstype( i_pw_ob_type)  ="precipitable water  " ! pw_ob_type
-    cobstype(i_pcp_ob_type)  ="precipitation       " ! pcp_ob_type
-    cobstype( i_oz_ob_type)  ="ozone               " ! oz_ob_type
-    cobstype(i_o3l_ob_type)  ="level ozone         " ! o3l_ob_type
-    cobstype(i_gps_ob_type)  ="gps                 " ! gps_ob_type
-    cobstype(i_rad_ob_type)  ="radiance            " ! rad_ob_type
-    cobstype(i_tcp_ob_type)  ="tcp (tropic cyclone)" ! tcp_ob_type
-    cobstype(i_lag_ob_type)  ="lagrangian tracer   " ! lag_ob_type
-    cobstype(i_colvk_ob_type)="carbon monoxide     " ! colvk_ob_type
-    cobstype( i_aero_ob_type)="aerosol aod         " ! aero_ob_type
-    cobstype(i_aerol_ob_type)="level aero aod      " ! aerol_ob_type
-    cobstype( i_pm2_5_ob_type)="in-situ pm2_5 obs  " ! pm2_5_ob_type
-    cobstype( i_pm10_ob_type)="in-situ pm10 obs    " ! pm10_ob_type
-    cobstype(i_gust_ob_type) ="gust                " ! gust_ob_type
-    cobstype(i_vis_ob_type)  ="vis                 " ! vis_ob_type
-    cobstype(i_pblh_ob_type) ="pblh                " ! pblh_ob_type
-    cobstype(i_wspd10m_ob_type) ="wspd10m             " ! wspd10m_ob_type
-    cobstype(i_td2m_ob_type) ="td2m                " ! td2m_ob_type
-    cobstype(i_mxtm_ob_type) ="mxtm                " ! mxtm_ob_type
-    cobstype(i_mitm_ob_type) ="mitm                " ! mitm_ob_type
-    cobstype(i_pmsl_ob_type) ="pmsl                " ! pmsl_ob_type
-    cobstype(i_howv_ob_type) ="howv                " ! howv_ob_type
-    cobstype(i_tcamt_ob_type)="tcamt               " ! tcamt_ob_type
-    cobstype(i_lcbas_ob_type)="lcbas               " ! lcbas_ob_type
-    cobstype(i_cldch_ob_type)="cldch               " ! cldch_ob_type
-    cobstype(i_uwnd10m_ob_type) ="uwnd10m          " ! uwnd10m_ob_type
-    cobstype(i_vwnd10m_ob_type) ="vwnd10m          " ! vwnd10m_ob_type
-    cobstype(i_swcp_ob_type) ="swcp                " ! swcp_ob_type
-    cobstype(i_lwcp_ob_type) ="lwcp                " ! lwcp_ob_type
-
-
     hilbert_curve=.false.
 
     obs_input_common = 'obs_input.common'
@@ -825,7 +801,9 @@ contains
     netcdf_diag = .false. ! by default, do not write netcdf_diag
     binary_diag = .true.  ! by default, do write binary diag
 
-    l_wcp_cwm          = .false.                 ! .true. = use operator that involves cwm
+    l_wcp_cwm      = .false.  ! .true. = use operator that involves cwm
+
+    lgpsbnd_revint = .false.  ! when .t., use revised bending angle integration 
 
     return
   end subroutine init_obsmod_dflts
@@ -898,7 +876,6 @@ contains
 !   machine:  ibm rs/6000 sp
 !
 !$$$ end documentation block
-    use gsi_4dvar, only: nobs_bins
     use mpimod, only: mype
     implicit none
 
@@ -921,12 +898,6 @@ contains
 
     allocate (nsat1(ndat),mype_diaghdr(ndat),obs_sub_comm(ndat))
 
-
-    if(luse_obsdiag)then
-      ALLOCATE(obsdiags(nobs_type,nobs_bins))
-    else
-      ALLOCATE(obsdiags(0,0))
-    endif
 
     return
   end subroutine create_obsmod_vars
@@ -974,6 +945,16 @@ contains
           time_window(ii) = time_window_max
           limit = .true.
        endif
+! for cris, iasi, atms, regional analysis may want shorter time window
+       if (index(dtype(ii),'cris') /= 0 .or. index(dtype(ii),'atms') /= 0 .or. &
+           index(dtype(ii),'iasi') /= 0 ) then
+          if(time_window(ii)>time_window_rad) then
+             time_window(ii) = time_window_rad
+             if (mype==0) write(6,*) 'INIT_OBSMOD_VARS: reset time window for ',dtype(ii),&
+                               ' to ',time_window_rad
+          endif
+       endif
+!
     end do
     if (mype==0 .and. limit) &
        write(6,*)'INIT_OBSMOD_VARS: reset time window for one or ',&
@@ -1048,7 +1029,6 @@ contains
 
     implicit none
 
-    if (allocated(obscounts)) deallocate(obscounts) 
     if (allocated(nobs_sub)) deallocate(nobs_sub) 
 
     return
@@ -1121,69 +1101,6 @@ contains
   end function ran01dom
 
 ! ----------------------------------------------------------------------
-subroutine inquire_obsdiags(kiter)
-!$$$  subprogram documentation block
-!                .      .    .                                       .
-! subprogram:    inquire_obsdiags
-!   prgmmr:
-!
-! abstract:
-!
-! program history log:
-!   2009-08-07  lueken - added  subprogram doc block
-!
-!   input argument list:
-!    kiter
-!
-!   output argument list:
-!
-! attributes:
-!   language: f90
-!   machine:
-!
-!$$$ end documentation block
-
-implicit none
-
-integer(i_kind), intent(in   ) :: kiter
-
-real(r_kind) :: sizei, sizer, sizel, sizep, ziter, zsize, ztot
-integer(i_kind) :: ii,jj,iobsa(2),iobsb(2)
-
-! Any better way to determine size or i_kind, r_kind, etc... ?
-sizei=four
-sizer=8.0_r_kind
-sizel=one
-sizep=four
-
-iobsa(:)=0
-do ii=1,size(obsdiags,2)
-   do jj=1,size(obsdiags,1)
-      obsptr => obsdiags(jj,ii)%head
-      do while (associated(obsptr))
-         iobsa(1)=iobsa(1)+1
-         if (ANY(obsptr%muse(:))) iobsa(2)=iobsa(2)+1
-         obsptr => obsptr%next
-      enddo
-   enddo
-enddo
-
-call mpi_reduce(iobsa,iobsb,2,mpi_itype,mpi_max,0,mpi_comm_world,ierror)
-
-if (mype==0) then
-   ziter=real(kiter,r_kind)
-   zsize = sizer*(three*ziter+two) + sizei + sizel*(ziter+one) + sizep*five
-   ztot=real(iobsb(1),r_kind)*zsize
-   ztot=ztot/(1024.0_r_kind*1024.0_r_kind)
- 
-   write(6,*)'obsdiags: Bytes per element=',NINT(zsize)
-   write(6,*)'obsdiags: length total, used=',iobsb(1),iobsb(2)
-   write(6,'(A,F8.1,A)')'obsdiags: Estimated memory usage= ',ztot,' Mb'
-endif
-
-end subroutine inquire_obsdiags
-
-! ----------------------------------------------------------------------
 subroutine init_instr_table_ (nhr_assim,nall,iamroot,rcname)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -1212,6 +1129,8 @@ use mpeu_util, only: gettablesize
 use mpeu_util, only: gettable
 use mpeu_util, only: getindex
 use gridmod, only: twodvar_regional
+use mrmsmod,only: l_mrms_run,mrms_listfile
+use mrmsmod,only: load_mrms_data_info
 implicit none
 
 integer(i_kind),intent(in)  :: nhr_assim       ! number of assimilation hours
@@ -1221,12 +1140,16 @@ character(len=*),optional,intent(in) :: rcname ! optional input filename
 
 character(len=*),parameter::myname_=myname//'*init_instr_table_'
 character(len=*),parameter:: tbname='OBS_INPUT::'
-integer(i_kind) luin,ii,ntot,nrows
+integer(i_kind) luin,ii,ntot,nrows,luin_mrms
 character(len=256),allocatable,dimension(:):: utable
 logical iamroot_
+integer (i_kind)::nrows0
+integer(i_kind) ntot_mrms,nrows_mrms
 
 nall=0
 if(obs_instr_initialized_) return
+
+inquire(file=trim(mrms_listfile), exist=l_mrms_run)
 
 iamroot_=mype==0
 if(present(iamroot)) iamroot_=iamroot 
@@ -1244,7 +1167,17 @@ endif
 call gettablesize(tbname,luin,ntot,nrows)
 if(nrows==0) then
    if(luin/=5) close(luin)
-   return
+   if (.not.l_mrms_run) return
+endif
+
+nrows0=nrows
+if (l_mrms_run) then  ! a run with radar ref data from MRMS
+ luin_mrms=get_lun()
+ open(luin_mrms,file=trim(mrms_listfile),form='formatted')
+ call gettablesize(mrms_listfile,luin_mrms,ntot_mrms,nrows_mrms)
+ nrows0=nrows
+ nrows=nrows+nrows_mrms
+ if(luin_mrms/=5) close(luin_mrms )
 endif
 
 ! Get contents of table
@@ -1272,14 +1205,14 @@ allocate(ditype(nall),ipoint(nall))
 ! Retrieve each token of interest from table and define
 ! variables participating in state vector
 dval_use = .false. 
-do ii=1,nrows
-   read(utable(ii),*) dfile(ii),& ! local file name from which to read observatinal data
-                      dtype(ii),& ! character string identifying type of observatio
-                      dplat(ii),& ! currently contains satellite id (no meaning for non-sat data)
-                      dsis(ii), & ! sensor/instrument/satellite identifier for info files
-                      dval(ii), & ! 
-                      dthin(ii),& ! thinning flag (1=thinning on; otherwise off)
-                      dsfcalc(ii) ! use orig bilinear FOV surface calculation (routine deter_sfc)
+do ii=1,nrows0
+     read(utable(ii),*) dfile(ii),& ! local file name from which to read observatinal data
+                        dtype(ii),& ! character string identifying type of observatio
+                        dplat(ii),& ! currently contains satellite id (no meaning for non-sat data)
+                        dsis(ii), & ! sensor/instrument/satellite identifier for info files
+                        dval(ii), & ! 
+                        dthin(ii),& ! thinning flag (1=thinning on; otherwise off)
+                        dsfcalc(ii) ! use orig bilinear FOV surface calculation (routine deter_sfc)
 
    ! The following is to sort out some historical naming conventions
    select case (dsis(ii)(1:4))
@@ -1301,6 +1234,14 @@ do ii=1,nrows
 enddo
 
 deallocate(utable)
+
+if (l_mrms_run) then
+  if(present(rcname)) then
+    call load_mrms_data_info(mrms_listfile,nrows0,ntot_mrms,nrows_mrms,nrows,obsfile_all,dfile,dtype,ditype,dplat,dsis,dval,dthin,ipoint,dsfcalc,time_window,rcname)
+  else
+    call load_mrms_data_info(mrms_listfile,nrows0,ntot_mrms,nrows_mrms,nrows,obsfile_all,dfile,dtype,ditype,dplat,dsis,dval,dthin,ipoint,dsfcalc,time_window)
+  endif
+endif
 
 obs_instr_initialized_=.true.
 

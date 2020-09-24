@@ -4,6 +4,11 @@
 ! !MODULE:  GSI_BundleMod --- GSI Bundle
 !
 ! !INTERFACE:
+!
+! program change log:
+! 2018-01-18 G. Ge: change pointer,intent(out) to pointer,intent(inout)
+!                   to solve the GSI crash under INTEL v18+
+!
 
 module GSI_BundleMod
    
@@ -279,6 +284,8 @@ module GSI_BundleMod
 !  04Jul2011 Todling - large revision of REAL*4 or REAL*8 implementation
 !  27Jun2012 Parrish - set verbose_ to .false. to turn off diagnostic print in subroutine merge_.
 !  05Oct2014 Todling - add 4d-like interfaces to getvars
+!  26Aug2017   G. Ge - change names(nd) to names(:) to make the passing of assumed size character
+!                      array consistent between nested calls                   
 !
 ! !SEE ALSO:  
 !           gsi_metguess_mod.F90
@@ -357,7 +364,7 @@ CONTAINS
 ! !INPUT PARAMETERS:
 
  integer(i_kind), intent(in):: nd
- character(len=*),intent(in):: names(nd)
+ character(len=*),intent(in):: names(:)
  character(len=*),OPTIONAL,intent(in):: longnames(nd)
  character(len=*),OPTIONAL,intent(in):: units(nd)
  integer(i_kind), OPTIONAL,intent(in):: thisKind
@@ -417,7 +424,7 @@ CONTAINS
  subroutine init2d_(flds,nd,names,istatus,longnames,units,thisKind)
  integer(i_kind), intent(in) :: nd
  type(GSI_2D),    intent(inout):: flds(nd)
- character(len=*),intent(in):: names(nd)
+ character(len=*),intent(in):: names(:)
  integer(i_kind), intent(out):: istatus
  character(len=*),OPTIONAL,intent(in):: longnames(nd)
  character(len=*),OPTIONAL,intent(in):: units(nd)
@@ -459,7 +466,7 @@ CONTAINS
  subroutine init3d_(flds,nd,names,istatus,longnames,units,thisKind)
  integer(i_kind), intent(in) :: nd
  type(GSI_3D),    intent(inout):: flds(nd)
- character(len=*),intent(in):: names(nd)
+ character(len=*),intent(in):: names(:)
  integer(i_kind), intent(out):: istatus
  character(len=*),OPTIONAL,intent(in):: longnames(nd)
  character(len=*),OPTIONAL,intent(in):: units(nd)
@@ -1839,7 +1846,6 @@ CONTAINS
     integer(i_kind) :: irank,ipnt,ival,nsz
 
     istatus=0
-    nullify(pntr)
     call GSI_BundleGetPointer ( Bundle, fldname, ipnt, istatus, irank=irank, ival=ival )
     if (istatus==0) then
         select case (irank)
@@ -1896,7 +1902,6 @@ CONTAINS
     integer(i_kind) :: irank,ipnt,ival,nsz
 
     istatus=0
-    nullify(pntr)
     call GSI_BundleGetPointer ( Bundle, fldname, ipnt, istatus, irank=irank, ival=ival )
     if (istatus==0) then
         select case (irank)
@@ -1949,10 +1954,9 @@ CONTAINS
     integer(i_kind) :: irank,ipnt
 
     istatus=0
-    nullify(pntr)
     call GSI_BundleGetPointer ( Bundle, fldname, ipnt, istatus, irank=irank )
     if (istatus==0.and.irank==2) then
-       pntr => Bundle%r2(ipnt)%qr8
+        pntr => Bundle%r2(ipnt)%qr8
     else
         istatus=1
     endif
@@ -1991,7 +1995,6 @@ CONTAINS
     integer(i_kind) :: irank,ipnt
 
     istatus=0
-    nullify(pntr)
     call GSI_BundleGetPointer ( Bundle, fldname, ipnt, istatus, irank=irank )
     if (istatus==0.and.irank==2) then
         pntr => Bundle%r2(ipnt)%qr4
@@ -2032,7 +2035,6 @@ CONTAINS
     integer(i_kind) :: irank,ipnt
 
     istatus=0
-    nullify(pntr)    
     call GSI_BundleGetPointer ( Bundle, fldname, ipnt, istatus, irank=irank )
     if (istatus==0.and.irank==3) then
         pntr => Bundle%r3(ipnt)%qr8
@@ -2073,7 +2075,6 @@ CONTAINS
     integer(i_kind) :: irank,ipnt
 
     istatus=0
-    nullify(pntr)
     call GSI_BundleGetPointer ( Bundle, fldname, ipnt, istatus, irank=irank )
     if (istatus==0.and.irank==3) then
         pntr => Bundle%r3(ipnt)%qr4

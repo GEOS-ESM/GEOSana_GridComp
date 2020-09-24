@@ -58,6 +58,8 @@
 
       use m_die,       only : die
 
+      use GSI_GridCompMod, only: PPMV2GpG
+
 !  the following will be cleared once I update the interface to putpert
 !  ....................................................................
       use stepon,      only : ak          ! GEOS-5 ADM/TLM pressure levels
@@ -220,7 +222,6 @@
       integer(i_kind),  parameter :: ROOT = 0 ! should really come from above
 
       integer(i_kind), save :: mycount = 0
-      real(r_kind), parameter :: PPMV2DU    = 1.657E-6_r_kind
       real(r_kind), parameter :: kPa_per_Pa = 0.001_r_kind
       real(r_kind), parameter :: Pa_per_kPa = 1000._r_kind
 
@@ -1175,7 +1176,7 @@ end subroutine pertmod_finalize
                  enddo
               enddo
            enddo
-           if(scaleit) xx%r3(i_oz)%q  = xx%r3(i_oz)%q * PPMV2DU
+           if(scaleit) xx%r3(i_oz)%q  = xx%r3(i_oz)%q * PPMV2GpG
       endif
       if ( nc>2 ) then
            do k=1,nsig
@@ -1633,7 +1634,7 @@ end subroutine pertmod_finalize
                  enddo
               enddo
            enddo
-           sub_oz = sub_oz / PPMV2DU
+           sub_oz = sub_oz / PPMV2GpG
       endif
       if ( nc>2 ) then
            do k=1,nsig

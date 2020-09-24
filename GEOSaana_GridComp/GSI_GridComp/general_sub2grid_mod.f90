@@ -47,7 +47,7 @@ module general_sub2grid_mod
 !                             lnames:    optional level index for each variable (assigned as user desires)
 !                             names:     optional names for each variable (assigned as desired)
 !   2012-06-25  parrish  - add subroutine general_sub2grid_destroy_info.
-!   2013-08-03  todling  - protect write-out with verbose (set to false)
+!   2013-08-03  todling  - protect write-out with print_verbose (set to false)
 !   2013-10-25  todling  - nullify work pointers
 !   2014-12-03  derber   - optimization changes
 !
@@ -143,30 +143,30 @@ module general_sub2grid_mod
 
    type sub2grid_info
 
-      integer(i_kind) inner_vars      ! number of inner-most loop variables
-      integer(i_kind) lat1            ! no. of lats on subdomain (no buffer)
-      integer(i_kind) lon1            ! no. of lons on subdomain (no buffer)
-      integer(i_kind) lat2            ! no. of lats on subdomain (buffer)
-      integer(i_kind) lon2            ! no. of lons on subdomain (buffer)
-      integer(i_kind) latlon11        ! no. of points on subdomain (including buffer)
-      integer(i_kind) latlon1n        ! latlon11*nsig
-      integer(i_kind) nlat            ! no. of latitudes
-      integer(i_kind) nlon            ! no. of longitudes
-      integer(i_kind) nsig            ! no. of vertical levels
-      integer(i_kind) num_fields      ! total number of fields/levels
-      integer(i_kind) iglobal         ! number of horizontal points on global grid
-      integer(i_kind) itotsub         ! number of horizontal points of all subdomains combined
-      integer(i_kind) kbegin_loc      ! starting slab index for local processor
-      integer(i_kind) kend_loc        ! ending slab index for local processor
-      integer(i_kind) kend_alloc      ! kend_loc can = kbegin_loc - 1, for a processor not involved.
-                                      !  this causes problems with array allocation:
-                                      !  to correct this, use kend_alloc=max(kend_loc,kbegin_loc)
-      integer(i_kind) nlevs_loc       ! number of active local levels ( = kend_loc-kbegin_loc+1)
-      integer(i_kind) nlevs_alloc     ! number of allocatec local levels ( = kend_alloc-kbegin_loc+1)
-      integer(i_kind) npe             ! total number of processors
-      integer(i_kind) mype            ! local processor
-      integer(i_kind) nskip           ! # of processors skipped between full horizontal fields in grid mode.
-      logical periodic                ! logical flag for periodic e/w domains
+      integer(i_kind):: inner_vars=0    ! number of inner-most loop variables
+      integer(i_kind):: lat1=0          ! no. of lats on subdomain (no buffer)
+      integer(i_kind):: lon1=0          ! no. of lons on subdomain (no buffer)
+      integer(i_kind):: lat2=0          ! no. of lats on subdomain (buffer)
+      integer(i_kind):: lon2=0          ! no. of lons on subdomain (buffer)
+      integer(i_kind):: latlon11=0      ! no. of points on subdomain (including buffer)
+      integer(i_kind):: latlon1n=0      ! latlon11*nsig
+      integer(i_kind):: nlat=0          ! no. of latitudes
+      integer(i_kind):: nlon=0          ! no. of longitudes
+      integer(i_kind):: nsig=0          ! no. of vertical levels
+      integer(i_kind):: num_fields=0    ! total number of fields/levels
+      integer(i_kind):: iglobal=0       ! number of horizontal points on global grid
+      integer(i_kind):: itotsub=0       ! number of horizontal points of all subdomains combined
+      integer(i_kind):: kbegin_loc=0    ! starting slab index for local processor
+      integer(i_kind):: kend_loc=0      ! ending slab index for local processor
+      integer(i_kind):: kend_alloc=0    ! kend_loc can = kbegin_loc - 1, for a processor not involved.
+                                        !  this causes problems with array allocation:
+                                        !  to correct this, use kend_alloc=max(kend_loc,kbegin_loc)
+      integer(i_kind):: nlevs_loc=0     ! number of active local levels ( = kend_loc-kbegin_loc+1)
+      integer(i_kind):: nlevs_alloc=0   ! number of allocatec local levels ( = kend_alloc-kbegin_loc+1)
+      integer(i_kind):: npe=0           ! total number of processors
+      integer(i_kind):: mype=-1         ! local processor
+      integer(i_kind):: nskip=0         ! # of processors skipped between full horizontal fields in grid mode.
+      logical:: periodic=.false.        ! logical flag for periodic e/w domains
       logical,pointer :: periodic_s(:) => null()    ! logical flag for periodic e/w subdomain (all tasks)
       logical,pointer :: vector(:)     => null()    ! logical flag, true for vector variables
       integer(i_kind),pointer :: ilat1(:)       => null()    !  no. of lats for each subdomain (no buffer)
@@ -202,7 +202,7 @@ module general_sub2grid_mod
 
    end type sub2grid_info
 
-   logical :: verbose=.false.
+   logical :: print_verbose=.false.
 
 !  other declarations  ...
 
@@ -431,7 +431,7 @@ module general_sub2grid_mod
       if(.not.present(nskip).and.s%num_fields<s%npe) then
          call get_iuse_pe(s%npe,s%num_fields,idoit)
          npe_used=s%num_fields
-         if(s%mype==0.and.verbose) &
+         if(s%mype==0.and.print_verbose) &
            write(6,*)' npe,num_fields,npe_used,idoit=',s%npe,s%num_fields,npe_used,idoit
       else
          idoit=0
@@ -455,7 +455,7 @@ module general_sub2grid_mod
       do k=0,s%npe-1
          s%kend(k)=s%kbegin(k+1)-1
       end do
-      if(s%mype == 0.and.verbose) then
+      if(s%mype == 0.and.print_verbose) then
          do k=0,s%npe-1
             write(6,*)' in general_sub2grid_create_info, k,kbegin,kend,nlevs_loc,nlevs_alloc=', &
                k,s%kbegin(k),s%kend(k),s%kend(k)-s%kbegin(k)+1,max(s%kbegin(k),s%kend(k))-s%kbegin(k)+1
@@ -535,7 +535,7 @@ subroutine get_iuse_pe(npe,nz,iuse_pe)
            write(6,*)' get_pe2 - inconsistent icount,nz ',nz,icount,'program stops',npe,skip2
            call stop2(999)
         end if
-        if(mype == 0)write(6,*) ' in get_pe2 ',nz,icount,npe,skip2
+        if(mype == 0 .and. print_verbose)write(6,*) ' in get_pe2 ',nz,icount,npe,skip2
    
      end if
      return
@@ -758,7 +758,7 @@ end subroutine get_iuse_pe
      END DO
   END DO
 
-  if ( verbose ) then
+  if ( print_verbose ) then
      do k=1,nxpe*nype
         if(mype == 0) &
              write(6,100) k,istart(k),jstart(k),ilat1(k),jlon1(k)
@@ -913,7 +913,7 @@ end subroutine get_iuse_pe
                periodic=.true.
                periodic_s(k)=.true.
             endif
-            if(mype == 0 .and. verbose) &
+            if(mype == 0 .and. print_verbose) &
                  write(6,100) k-1,istart(k),jstart(k),ilat1(k),jlon1(k)
          end do
       end do
@@ -964,7 +964,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single),     intent(in   ) :: sub_vars(:)
-      real(r_single),    intent(  out)  :: grid_vars(:)
+      real(r_single),    intent(inout)  :: grid_vars(:)
 
       real(r_single),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
       real(r_single),pointer,dimension(:,:,:,:) :: grid_vars_r4=>NULL()
@@ -1144,7 +1144,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single), intent(in   )     :: grid_vars(:)
-      real(r_single),     intent(  out) :: sub_vars(:)
+      real(r_single),     intent(inout) :: sub_vars(:)
 
       real(r_single),pointer,dimension(:,:,:,:) :: grid_vars_r4=>NULL()
       real(r_single),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
@@ -1188,7 +1188,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single), intent(in   )     :: grid_vars(s%inner_vars,s%nlat,s%nlon,s%kbegin_loc:s%kend_alloc)
-      real(r_single),     intent(  out) :: sub_vars(:)
+      real(r_single),     intent(inout) :: sub_vars(:)
 
       real(r_single),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
       integer(i_kind) mold4(2,2,2,2)
@@ -1314,7 +1314,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: sub_vars(:)
-      real(r_double),     intent(  out) :: grid_vars(:)
+      real(r_double),     intent(inout) :: grid_vars(:)
 
       real(r_double),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
       real(r_double),pointer,dimension(:,:,:,:) :: grid_vars_r4=>NULL()
@@ -1494,7 +1494,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: grid_vars(:)
-      real(r_double),     intent(  out) :: sub_vars(:)
+      real(r_double),     intent(inout) :: sub_vars(:)
 
       real(r_double),pointer,dimension(:,:,:,:) :: grid_vars_r4=>NULL()
       real(r_double),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
@@ -1538,7 +1538,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: grid_vars(s%inner_vars,s%nlat,s%nlon,s%kbegin_loc:s%kend_alloc)
-      real(r_double),     intent(  out) :: sub_vars(:)
+      real(r_double),     intent(inout) :: sub_vars(:)
 
       real(r_double),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
       integer(i_kind) mold4(2,2,2,2)
@@ -1661,7 +1661,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single),     intent(in   ) :: sub_vars(:)
-      real(r_single),    intent(  out)  :: grid_vars(:)
+      real(r_single),    intent(inout)  :: grid_vars(:)
       integer(i_kind),    intent(in   ) :: gridpe
 
       real(r_single),pointer,dimension(:,:,:) :: sub_vars_r3=>NULL()
@@ -1844,7 +1844,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: sub_vars(:)
-      real(r_double),     intent(  out) :: grid_vars(:)
+      real(r_double),     intent(inout) :: grid_vars(:)
       integer(i_kind),    intent(in   ) :: gridpe
 
       real(r_double),pointer,dimension(:,:,:) :: sub_vars_r3=>NULL()
@@ -2027,7 +2027,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single), intent(in   )     :: grid_vars(:)
-      real(r_single),     intent(  out) :: sub_vars(:)
+      real(r_single),     intent(inout) :: sub_vars(:)
       integer(i_kind),intent(in   )     :: gridpe
 
       real(r_single),pointer,dimension(:,:,:) :: grid_vars_r3=>NULL()
@@ -2072,7 +2072,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single), intent(in   )     :: grid_vars(s%inner_vars,s%nlat,s%nlon)
-      real(r_single),     intent(  out) :: sub_vars(:)
+      real(r_single),     intent(inout) :: sub_vars(:)
       integer(i_kind),intent(in   )     :: gridpe
 
       real(r_single),pointer,dimension(:,:,:) :: sub_vars_r3=>NULL()
@@ -2182,7 +2182,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: grid_vars(:)
-      real(r_double),     intent(  out) :: sub_vars(:)
+      real(r_double),     intent(inout) :: sub_vars(:)
       integer(i_kind),intent(in   )     :: gridpe
 
       real(r_double),pointer,dimension(:,:,:) :: grid_vars_r3=>NULL()
@@ -2227,7 +2227,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: grid_vars(s%inner_vars,s%nlat,s%nlon)
-      real(r_double),     intent(  out) :: sub_vars(:)
+      real(r_double),     intent(inout) :: sub_vars(:)
       integer(i_kind),    intent(in   ) :: gridpe
 
       real(r_double),pointer,dimension(:,:,:) :: sub_vars_r3=>NULL()
@@ -2341,7 +2341,7 @@ end subroutine get_iuse_pe
       type(sub2grid_info),   intent(in   ) :: se,sa
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
       real(r_single),        intent(in   ) :: sube_vars(:)
-      real(r_single),        intent(  out) :: suba_vars(:)
+      real(r_single),        intent(inout) :: suba_vars(:)
       logical,               intent(in   ) :: regional
 
       real(r_single),pointer,dimension(:,:,:,:) :: sube_vars_r4=>NULL()
@@ -2453,7 +2453,7 @@ end subroutine get_iuse_pe
       type(sub2grid_info),   intent(in   ) :: se,sa
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
       real(r_double),        intent(in   ) :: sube_vars(:)
-      real(r_double),        intent(  out) :: suba_vars(:)
+      real(r_double),        intent(inout) :: suba_vars(:)
       logical,               intent(in   ) :: regional
 
       real(r_double),pointer,dimension(:,:,:,:) :: sube_vars_r4=>NULL()
@@ -2563,7 +2563,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),   intent(in   ) :: se,sa
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
-      real(r_single),        intent(  out) :: sube_vars(:)
+      real(r_single),        intent(inout) :: sube_vars(:)
       real(r_single),        intent(in   ) :: suba_vars(:)
       logical,               intent(in   ) :: regional
 
@@ -2672,7 +2672,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),   intent(in   ) :: se,sa
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
-      real(r_double),        intent(  out) :: sube_vars(:)
+      real(r_double),        intent(inout) :: sube_vars(:)
       real(r_double),        intent(in   ) :: suba_vars(:)
       logical,               intent(in   ) :: regional
 
@@ -2782,7 +2782,7 @@ end subroutine get_iuse_pe
       type(sub2grid_info),   intent(in   ) :: sa,se
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
       real(r_single),        intent(in   ) :: suba_vars(:)
-      real(r_single),        intent(  out) :: sube_vars(:)
+      real(r_single),        intent(inout) :: sube_vars(:)
       logical,               intent(in   ) :: regional
 
       real(r_single),pointer,dimension(:,:,:,:) :: suba_vars_r4=>NULL()
@@ -2893,7 +2893,7 @@ end subroutine get_iuse_pe
       type(sub2grid_info),   intent(in   ) :: sa,se
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
       real(r_double),        intent(in   ) :: suba_vars(:)
-      real(r_double),        intent(  out) :: sube_vars(:)
+      real(r_double),        intent(inout) :: sube_vars(:)
       logical,               intent(in   ) :: regional
 
       real(r_double),pointer,dimension(:,:,:,:) :: suba_vars_r4=>NULL()

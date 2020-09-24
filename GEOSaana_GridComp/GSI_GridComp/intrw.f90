@@ -29,6 +29,7 @@ use m_obsNode, only: obsNode
 use m_rwNode, only: rwNode
 use m_rwNode, only: rwNode_typecast
 use m_rwNode, only: rwNode_nextcast
+use m_obsdiagNode, only: obsdiagNode_set
 implicit none
 
 PRIVATE
@@ -69,6 +70,12 @@ subroutine intrw_(rwhead,rval,sval)
 !   2010-05-13  todlng   - update to use gsi_bundle; update interface
 !   2012-09-14  Syed RH Rizvi, NCAR/NESL/MMM/DAS  - introduced ladtest_obs         
 !   2014-12-03  derber  - modify so that use of obsdiags can be turned off
+!   2017-05-12  Y. Wang and X. Wang - include w into tangent linear of rw operator, 
+!                                     POC: xuguang.wang@ou.edu
+!   2016-06-23  lippi   - add terms for vertical velocity (w) in forward operator
+!                         and adjoint code (uses include_w to check if w is
+!                         being used). Now, the multiplications of costilt
+!                         is done in this code rather than factored in wij.
 !
 ! usage: call intw(ru,rv,su,sv)
 !   input argument list:
@@ -91,8 +98,7 @@ subroutine intrw_(rwhead,rval,sval)
   use constants, only: half,one,tiny_r_kind,cg_term,r3600
   use obsmod, only: lsaveobsens,l_do_adjoint,luse_obsdiag
   use qcmod, only: nlnqc_iter,varqc_iter
-  use gridmod, only: latlon1n
-  use jfunc, only: jiter,l_foto,xhat_dt,dhat_dt
+  use jfunc, only: jiter
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
   use gsi_4dvar, only: ladtest_obs
@@ -104,14 +110,13 @@ subroutine intrw_(rwhead,rval,sval)
   type(gsi_bundle),        intent(inout) :: rval
 
 ! Declare local varibles
+  logical include_w
   integer(i_kind) j1,j2,j3,j4,j5,j6,j7,j8,ier,istatus
 ! real(r_kind) penalty
-  real(r_kind),pointer,dimension(:) :: xhat_dt_u,xhat_dt_v
-  real(r_kind),pointer,dimension(:) :: dhat_dt_u,dhat_dt_v
-  real(r_kind) val,valu,valv,w1,w2,w3,w4,w5,w6,w7,w8
-  real(r_kind) cg_rw,p0,grad,wnotgross,wgross,time_rw,pg_rw
-  real(r_kind),pointer,dimension(:) :: su,sv
-  real(r_kind),pointer,dimension(:) :: ru,rv
+  real(r_kind) val,valu,valv,valw,w1,w2,w3,w4,w5,w6,w7,w8
+  real(r_kind) cg_rw,p0,grad,wnotgross,wgross,pg_rw
+  real(r_kind),pointer,dimension(:) :: su,sv,sw
+  real(r_kind),pointer,dimension(:) :: ru,rv,rw
   type(rwNode), pointer :: rwptr
 
 !  If no rw data return
@@ -122,14 +127,21 @@ subroutine intrw_(rwhead,rval,sval)
   ier=0
   call gsi_bundlegetpointer(sval,'u',su,istatus);ier=istatus+ier
   call gsi_bundlegetpointer(sval,'v',sv,istatus);ier=istatus+ier
+  call gsi_bundlegetpointer(sval,'w',sw,istatus)
+  if (istatus==0) then
+     include_w=.true.
+  else
+     include_w=.false.
+  end if
   call gsi_bundlegetpointer(rval,'u',ru,istatus);ier=istatus+ier
   call gsi_bundlegetpointer(rval,'v',rv,istatus);ier=istatus+ier
-  if(l_foto) then
-     call gsi_bundlegetpointer(xhat_dt,'u',xhat_dt_u,istatus);ier=istatus+ier
-     call gsi_bundlegetpointer(xhat_dt,'v',xhat_dt_v,istatus);ier=istatus+ier
-     call gsi_bundlegetpointer(dhat_dt,'u',dhat_dt_u,istatus);ier=istatus+ier
-     call gsi_bundlegetpointer(dhat_dt,'v',dhat_dt_v,istatus);ier=istatus+ier
-  endif
+  call gsi_bundlegetpointer(rval,'w',rw,istatus)
+  if (istatus==0) then
+     include_w=.true.
+  else
+     include_w=.false.
+  end if
+
   if(ier/=0)return
 
 
@@ -153,31 +165,26 @@ subroutine intrw_(rwhead,rval,sval)
      w7=rwptr%wij(7)
      w8=rwptr%wij(8)
 
+!    Forward model (Tangent Linear; TL)
+!    TLVr  =  TLu*costilt*cosazm  +  TLv*costilt*sinazm  +  TLw*sintilt
+     val=(w1*su(j1)+ w2*su(j2)+ w3*su(j3)+ w4*su(j4)+ w5*su(j5)+    &
+          w6*su(j6)+ w7*su(j7)+ w8*su(j8))*rwptr%cosazm_costilt+    &
+         (w1*sv(j1)+ w2*sv(j2)+ w3*sv(j3)+ w4*sv(j4)+ w5*sv(j5)+    &
+          w6*sv(j6)+ w7*sv(j7)+ w8*sv(j8))*rwptr%sinazm_costilt
+     if(include_w) then
+        val=val+(w1*sw(j1)+ w2*sw(j2)+ w3*sw(j3)+ w4*sw(j4)+ w5*sw(j5)+   &
+                 w6*sw(j6)+ w7*sw(j7)+ w8*sw(j8))*rwptr%sintilt
+     end if
 
-!    Forward mode l
-     val=(w1* su(j1)+w2* su(j2)+w3* su(j3)+w4* su(j4)+                       &
-          w5* su(j5)+w6* su(j6)+w7* su(j7)+w8* su(j8))*rwptr%cosazm+         &
-         (w1* sv(j1)+w2* sv(j2)+w3* sv(j3)+w4* sv(j4)+                       &
-          w5* sv(j5)+w6* sv(j6)+w7* sv(j7)+w8* sv(j8))*rwptr%sinazm
-     if ( l_foto ) then
-        time_rw=rwptr%time*r3600
-        val=val+                                                    &
-         ((w1*xhat_dt_u(j1)+w2*xhat_dt_u(j2)+                       &
-           w3*xhat_dt_u(j3)+w4*xhat_dt_u(j4)+                       &
-           w5*xhat_dt_u(j5)+w6*xhat_dt_u(j6)+                       &
-           w7*xhat_dt_u(j7)+w8*xhat_dt_u(j8))*rwptr%cosazm+         &
-          (w1*xhat_dt_v(j1)+w2*xhat_dt_v(j2)+                       &
-           w3*xhat_dt_v(j3)+w4*xhat_dt_v(j4)+                       &
-           w5*xhat_dt_v(j5)+w6*xhat_dt_v(j6)+                       &
-           w7*xhat_dt_v(j7)+w8*xhat_dt_v(j8))*rwptr%sinazm)*time_rw
-     endif
 
      if(luse_obsdiag)then
         if (lsaveobsens) then
            grad = val*rwptr%raterr2*rwptr%err2
-           rwptr%diags%obssen(jiter) = grad
+           !-- rwptr%diags%obssen(jiter) = grad
+           call obsdiagNode_set(rwptr%diags,jiter=jiter,obssen=grad)
         else
-           if (rwptr%luse) rwptr%diags%tldepart(jiter)=val
+           !-- if (rwptr%luse) rwptr%diags%tldepart(jiter)=val
+           if (rwptr%luse) call obsdiagNode_set(rwptr%diags,jiter=jiter,tldepart=val)
         endif
      endif
 
@@ -204,10 +211,11 @@ subroutine intrw_(rwhead,rval,sval)
 
         endif
 
-!       Adjoint
-        valu=rwptr%cosazm*grad
-        valv=rwptr%sinazm*grad
-        ru(j1)=ru(j1)+w1*valu
+!       Adjoint (AD)
+        valu=rwptr%cosazm_costilt*grad  ! ADVr_u = costilt*cosazm*ADVr
+        valv=rwptr%sinazm_costilt*grad  ! ADVr_v = costilt*sinazm*ADVr
+        if(include_w) valw=rwptr%sintilt*grad ! ADVr_w = sintilt*ADVr
+        ru(j1)=ru(j1)+w1*valu                 ! ADu = ADu + ADVr_u
         ru(j2)=ru(j2)+w2*valu
         ru(j3)=ru(j3)+w3*valu
         ru(j4)=ru(j4)+w4*valu
@@ -215,7 +223,7 @@ subroutine intrw_(rwhead,rval,sval)
         ru(j6)=ru(j6)+w6*valu
         ru(j7)=ru(j7)+w7*valu
         ru(j8)=ru(j8)+w8*valu
-        rv(j1)=rv(j1)+w1*valv
+        rv(j1)=rv(j1)+w1*valv                 ! ADv = ADv + ADVr_v
         rv(j2)=rv(j2)+w2*valv
         rv(j3)=rv(j3)+w3*valv
         rv(j4)=rv(j4)+w4*valv
@@ -223,27 +231,16 @@ subroutine intrw_(rwhead,rval,sval)
         rv(j6)=rv(j6)+w6*valv
         rv(j7)=rv(j7)+w7*valv
         rv(j8)=rv(j8)+w8*valv
- 
-        if ( l_foto ) then
-           valu=valu*time_rw
-           valv=valv*time_rw
-           dhat_dt_u(j1)=dhat_dt_u(j1)+w1*valu
-           dhat_dt_u(j2)=dhat_dt_u(j2)+w2*valu
-           dhat_dt_u(j3)=dhat_dt_u(j3)+w3*valu
-           dhat_dt_u(j4)=dhat_dt_u(j4)+w4*valu
-           dhat_dt_u(j5)=dhat_dt_u(j5)+w5*valu
-           dhat_dt_u(j6)=dhat_dt_u(j6)+w6*valu
-           dhat_dt_u(j7)=dhat_dt_u(j7)+w7*valu
-           dhat_dt_u(j8)=dhat_dt_u(j8)+w8*valu
-           dhat_dt_v(j1)=dhat_dt_v(j1)+w1*valv
-           dhat_dt_v(j2)=dhat_dt_v(j2)+w2*valv
-           dhat_dt_v(j3)=dhat_dt_v(j3)+w3*valv
-           dhat_dt_v(j4)=dhat_dt_v(j4)+w4*valv
-           dhat_dt_v(j5)=dhat_dt_v(j5)+w5*valv
-           dhat_dt_v(j6)=dhat_dt_v(j6)+w6*valv
-           dhat_dt_v(j7)=dhat_dt_v(j7)+w7*valv
-           dhat_dt_v(j8)=dhat_dt_v(j8)+w8*valv
-        endif
+        if(include_w) then 
+           rw(j1)=rw(j1)+w1*valw              ! ADw = ADw + ADVr_w
+           rw(j2)=rw(j2)+w2*valw
+           rw(j3)=rw(j3)+w3*valw
+           rw(j4)=rw(j4)+w4*valw
+           rw(j5)=rw(j5)+w5*valw
+           rw(j6)=rw(j6)+w6*valw
+           rw(j7)=rw(j7)+w7*valw
+           rw(j8)=rw(j8)+w8*valw
+        end if
      endif
 
      !rwptr => rwptr%llpoint

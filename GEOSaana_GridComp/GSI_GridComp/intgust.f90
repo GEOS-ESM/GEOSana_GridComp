@@ -25,6 +25,7 @@ use m_obsNode , only: obsNode
 use m_gustNode, only: gustNode
 use m_gustNode, only: gustNode_typecast
 use m_gustNode, only: gustNode_nextcast
+use m_obsdiagNode, only: obsdiagNode_set
 implicit none
 
 PRIVATE
@@ -63,7 +64,6 @@ subroutine intgust(gusthead,rval,sval)
   use constants, only: half,one,tiny_r_kind,cg_term
   use obsmod, only: lsaveobsens, l_do_adjoint,luse_obsdiag
   use qcmod, only: nlnqc_iter,varqc_iter
-  use gridmod, only: latlon11
   use jfunc, only: jiter
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -112,9 +112,11 @@ subroutine intgust(gusthead,rval,sval)
      if(luse_obsdiag)then
         if (lsaveobsens) then
            grad = val*gustptr%raterr2*gustptr%err2
-           gustptr%diags%obssen(jiter) = grad
+           !-- gustptr%diags%obssen(jiter) = grad
+           call obsdiagNode_set(gustptr%diags,jiter=jiter,obssen=grad)
         else
-           if (gustptr%luse) gustptr%diags%tldepart(jiter)=val
+           !-- if (gustptr%luse) gustptr%diags%tldepart(jiter)=val
+           if (gustptr%luse) call obsdiagNode_set(gustptr%diags,jiter=jiter,tldepart=val)
         endif
      endif
 

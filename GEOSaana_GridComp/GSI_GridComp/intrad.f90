@@ -34,6 +34,7 @@ use m_obsNode, only: obsNode
 use m_radNode, only: radNode
 use m_radNode, only: radNode_typecast
 use m_radNode, only: radNode_nextcast
+use m_obsdiagNode, only: obsdiagNode_set
 implicit none
 
 PRIVATE
@@ -248,7 +249,10 @@ subroutine intrad_(radhead,rval,sval,rpred,spred)
 !   2012-09-14  Syed RH Rizvi, NCAR/NESL/MMM/DAS  - introduced ladtest_obs         
 !   2015-04-01  W. Gu   - scale the bias correction term to handle the
 !                       - inter-channel correlated obs errors.
-!   2016-07-19  kbathmann - move decomposition of correlated R to outer loop.
+!   2019-04-22  kbathmann/W. Gu - use of Cholesky factoriztion of R to update the bias correction term
+!   2019-08-14  W. Gu/guo- speed up bias correction term in the case of the correlated obs
+!   2019-06-22  W. Gu- keep the consistency in the use of r_quad betweeen the forward and adjoint calculations.
+!                      keep the changes for speedup only in the calculations associated with the correlated errors.
 !
 !   input argument list:
 !     radhead  - obs type pointer to obs structure
@@ -285,7 +289,7 @@ subroutine intrad_(radhead,rval,sval,rpred,spred)
   use radinfo, only: npred,jpch_rad,pg_rad,b_rad
   use radinfo, only: nsigradjac
   use obsmod, only: lsaveobsens,l_do_adjoint,luse_obsdiag
-  use jfunc, only: jiter,l_foto,xhat_dt,dhat_dt
+  use jfunc, only: jiter
   use gridmod, only: latlon11,nsig
   use qcmod, only: nlnqc_iter,varqc_iter
   use constants, only: zero,half,one,tiny_r_kind,cg_term,r3600,zero_quad
@@ -305,23 +309,20 @@ subroutine intrad_(radhead,rval,sval,rpred,spred)
   real(r_quad),dimension(npred*jpch_rad),intent(inout) :: rpred
 
 ! Declare local variables
-  integer(i_kind) j1,j2,j3,j4,i1,i2,i3,i4,n,k,ic,ix,nn,mm
+  integer(i_kind) j1,j2,j3,j4,i1,i2,i3,i4,n,k,ic,ix,nn,mm,ncr1,ncr2
   integer(i_kind) ier,istatus
   integer(i_kind),dimension(nsig) :: i1n,i2n,i3n,i4n
   real(r_kind),allocatable,dimension(:):: val
   real(r_kind) w1,w2,w3,w4
   real(r_kind),dimension(nsigradjac):: tval,tdir
-  real(r_kind) cg_rad,p0,wnotgross,wgross,time_rad
+  real(r_kind) cg_rad,p0,wnotgross,wgross
   type(radNode), pointer :: radptr
-  real(r_kind),allocatable,dimension(:,:) :: rsqrtinv
+  real(r_kind),allocatable,dimension(:) :: biasvect 
   integer(i_kind) :: ic1,ix1
-  integer(i_kind) :: chan_count, ii, jj
   real(r_kind),pointer,dimension(:) :: st,sq,scw,soz,su,sv,sqg,sqh,sqi,sql,sqr,sqs
   real(r_kind),pointer,dimension(:) :: sst
   real(r_kind),pointer,dimension(:) :: rt,rq,rcw,roz,ru,rv,rqg,rqh,rqi,rql,rqr,rqs
   real(r_kind),pointer,dimension(:) :: rst
-  real(r_kind),pointer,dimension(:) :: xhat_dt_t,xhat_dt_q,xhat_dt_oz,xhat_dt_u,xhat_dt_v
-  real(r_kind),pointer,dimension(:) :: dhat_dt_t,dhat_dt_q,dhat_dt_oz,dhat_dt_u,dhat_dt_v
   real(r_quad) :: val_quad
 
 !  If no rad observations return
@@ -386,32 +387,6 @@ subroutine intrad_(radhead,rval,sval,rpred,spred)
     call gsi_bundlegetpointer(rval,'qs' ,rqs,istatus)
   end if
 
-  if(l_foto) then
-     ier=0
-     if(luseu)then
-       call gsi_bundlegetpointer(xhat_dt,'u',  xhat_dt_u, istatus);ier=istatus+ier
-       call gsi_bundlegetpointer(dhat_dt,'u',  dhat_dt_u, istatus);ier=istatus+ier
-     end if
-     if(lusev)then
-       call gsi_bundlegetpointer(xhat_dt,'v',  xhat_dt_v, istatus);ier=istatus+ier
-       call gsi_bundlegetpointer(dhat_dt,'v',  dhat_dt_v, istatus);ier=istatus+ier
-     end if
-     if(luset)then
-       call gsi_bundlegetpointer(xhat_dt,'tv' ,xhat_dt_t, istatus);ier=istatus+ier
-       call gsi_bundlegetpointer(dhat_dt,'tv' ,dhat_dt_t, istatus);ier=istatus+ier
-     end if
-     if(luseq)then
-       call gsi_bundlegetpointer(xhat_dt,'q',  xhat_dt_q, istatus);ier=istatus+ier
-       call gsi_bundlegetpointer(dhat_dt,'q',  dhat_dt_q, istatus);ier=istatus+ier
-     end if
-     if(luseoz)then
-       call gsi_bundlegetpointer(xhat_dt,'oz' ,xhat_dt_oz,istatus);ier=istatus+ier
-       call gsi_bundlegetpointer(dhat_dt,'oz' ,dhat_dt_oz,istatus);ier=istatus+ier
-     end if
-
-     if(ier/=0)return
-  endif
-
   !radptr => radhead
   radptr => radNode_typecast(radhead)
   do while (associated(radptr))
@@ -423,17 +398,6 @@ subroutine intrad_(radhead,rval,sval,rpred,spred)
      w2=radptr%wij(2)
      w3=radptr%wij(3)
      w4=radptr%wij(4)
-     if (radptr%use_corr_obs) then
-        allocate(rsqrtinv(radptr%nchan,radptr%nchan))
-        chan_count=0
-        do ii=1,radptr%nchan
-           do jj=ii,radptr%nchan
-              chan_count=chan_count+1
-              rsqrtinv(ii,jj)=radptr%rsqrtinv(chan_count)
-              rsqrtinv(jj,ii)=radptr%rsqrtinv(chan_count)
-           end do
-       end do
-     end if
 !  Begin Forward model
 !  calculate temperature, q, ozone, sst vector at observation location
      i1n(1) = j1
@@ -508,45 +472,25 @@ subroutine intrad_(radhead,rval,sval,rpred,spred)
 
 
 
-     if (l_foto) then
-        time_rad=radptr%time*r3600
-        do k=1,nsig
-           i1 = i1n(k)
-           i2 = i2n(k)
-           i3 = i3n(k)
-           i4 = i4n(k)
-           if(luset)then 
-              tdir(itv+k)= tdir(itv+k)+&
-                           (w1* xhat_dt_t(i1)+w2*xhat_dt_t(i2)+ &
-                            w3* xhat_dt_t(i3)+w4*xhat_dt_t(i4))*time_rad
-           endif
-           if(luseq)then 
-              tdir(iqv+k)= tdir(iqv+k)+&
-                           (w1* xhat_dt_q(i1)+w2*xhat_dt_q(i2)+ &
-                            w3* xhat_dt_q(i3)+w4*xhat_dt_q(i4))*time_rad
-           endif
-           if(luseoz)then 
-              tdir(ioz+k)= tdir(ioz+k)+&
-                          (w1*xhat_dt_oz(i1)+w2*xhat_dt_oz(i2)+ &
-                           w3*xhat_dt_oz(i3)+w4*xhat_dt_oz(i4))*time_rad
-           endif
-        end do
-        if(luseu)then 
-           tdir(ius+1)=   tdir(ius+1)+&
-                          (w1*xhat_dt_u(j1) +w2*xhat_dt_u(j2)+ &
-                           w3*xhat_dt_u(j3) +w4*xhat_dt_u(j4))*time_rad
-        endif
-        if(lusev)then 
-           tdir(ivs+1)=   tdir(ivs+1)+&
-                          (w1*xhat_dt_v(j1) +w2*xhat_dt_v(j2)+ &
-                           w3*xhat_dt_v(j3) +w4*xhat_dt_v(j4))*time_rad
-        endif
- 
-     endif
-
 !  For all other configurations
 !  begin channel specific calculations
      allocate(val(radptr%nchan))
+
+     if (.not. ladtest_obs) then
+       if(radptr%use_corr_obs)then
+        allocate(biasvect(radptr%nchan))
+        do nn=1,radptr%nchan
+          ic1=radptr%icx(nn)
+          ix1=(ic1-1)*npred
+          biasvect(nn) = zero
+          do n=1,npred
+            biasvect(nn) = biasvect(nn) + spred(ix1+n)*radptr%pred(n,nn)
+          end do
+        end do
+       endif
+     end if
+     ncr1=0
+
      do nn=1,radptr%nchan
         ic=radptr%icx(nn)
         ix=(ic-1)*npred
@@ -563,12 +507,9 @@ subroutine intrad_(radhead,rval,sval,rpred,spred)
         if( .not. ladtest_obs) then
            if(radptr%use_corr_obs)then
               val_quad = zero_quad
-              do n=1,npred
-                 do mm=1,radptr%nchan
-                    ic1=radptr%icx(mm)
-                    ix1=(ic1-1)*npred
-                    val_quad=val_quad+rsqrtinv(nn,mm)*spred(ix1+n)*radptr%pred(n,mm)
-                 enddo
+              do mm=1,nn
+                 ncr1=ncr1+1
+                 val_quad=val_quad+radptr%rsqrtinv(ncr1)*biasvect(mm)
               enddo
               val(nn)=val(nn) + val_quad
            else
@@ -578,17 +519,21 @@ subroutine intrad_(radhead,rval,sval,rpred,spred)
            endif
         end if
 
-
         if(luse_obsdiag)then
            if (lsaveobsens) then
-              val(nn) = val(nn)*radptr%err2(nn)*radptr%raterr2(nn)
-              radptr%diags(nn)%ptr%obssen(jiter) = val(nn)
+              val(nn)=val(nn)*radptr%err2(nn)*radptr%raterr2(nn)
+              !-- radptr%diags(nn)%ptr%obssen(jiter) = val(nn)
+              call obsdiagNode_set(radptr%diags(nn)%ptr,jiter=jiter,obssen=val(nn))
            else
-              if (radptr%luse) radptr%diags(nn)%ptr%tldepart(jiter) = val(nn)
+              !-- if (radptr%luse) radptr%diags(nn)%ptr%tldepart(jiter) = val(nn)
+              if (radptr%luse) call obsdiagNode_set(radptr%diags(nn)%ptr,jiter=jiter,tldepart=val(nn))
            endif
         endif
+     end do
 
-        if (l_do_adjoint) then
+     if (l_do_adjoint) then
+        do nn=1,radptr%nchan
+           ic=radptr%icx(nn)
            if (.not. lsaveobsens) then
               if( .not. ladtest_obs)   val(nn)=val(nn)-radptr%res(nn)
 
@@ -602,32 +547,49 @@ subroutine intrad_(radhead,rval,sval,rpred,spred)
                  val(nn) = val(nn)*(one-p0)
               endif
 
-              if(.not. ladtest_obs )val(nn) = val(nn)*radptr%err2(nn)*radptr%raterr2(nn)
+              if(.not.ladtest_obs) val(nn) = val(nn)*radptr%err2(nn)*radptr%raterr2(nn)
            endif
+        enddo
 
 !          Extract contributions from bias correction terms
 !          use compensated summation
-           if( .not. ladtest_obs) then
-              if(radptr%luse)then
-                if(radptr%use_corr_obs)then
-                  do n=1,npred
-                    do mm=1,radptr%nchan
-                      ic1=radptr%icx(mm)
-                      ix1=(ic1-1)*npred
-                      rpred(ix1+n)=rpred(ix1+n)+rsqrtinv(nn,mm)*radptr%pred(n,mm)*val(nn)
-                    enddo
-                  enddo
-                else
-                  do n=1,npred
-                    rpred(ix+n)=rpred(ix+n)+radptr%pred(n,nn)*val(nn)
-                  end do
-                endif
-              end if
-           end if ! not ladtest_obs
-        end if
-     end do
 
-     if(radptr%use_corr_obs) deallocate(rsqrtinv)
+        if( .not. ladtest_obs) then
+          if(radptr%luse)then
+            if (radptr%use_corr_obs) then
+              ncr2 = 0 
+              ncr1 = 0
+              do mm=1,radptr%nchan
+                ncr1 = ncr1 + mm
+                ncr2 = ncr1
+                val_quad = zero_quad
+                do nn=mm,radptr%nchan
+                  val_quad=val_quad+radptr%rsqrtinv(ncr2)*val(nn)
+                  ncr2 = ncr2 + nn
+                enddo
+                biasvect(mm) = val_quad
+              end do
+              do mm=1,radptr%nchan
+                ic1=radptr%icx(mm)
+                ix1=(ic1-1)*npred
+                do n=1,npred
+                  rpred(ix1+n)=rpred(ix1+n)+radptr%pred(n,mm)*biasvect(mm)
+                enddo
+              enddo
+            else
+              do nn=1,radptr%nchan
+                ic=radptr%icx(nn)
+                ix=(ic-1)*npred
+                do n=1,npred
+                  rpred(ix+n)=rpred(ix+n)+radptr%pred(n,nn)*val(nn)
+                end do
+              end do
+            endif
+          end if
+        end if ! not ladtest_obs
+     endif ! l_do_adjoint
+
+     if(radptr%use_corr_obs .and. allocated(biasvect)) deallocate(biasvect)
 
 !          Begin adjoint
 
@@ -741,47 +703,6 @@ subroutine intrad_(radhead,rval,sval,rpred,spred)
               rqs(i4)=rqs(i4)+w4*tval(mm)
            end if
         end do
-        if (l_foto) then
-           if(luseu) then
-              dhat_dt_u(j1)=dhat_dt_u(j1)+w1*tval(ius+1)*time_rad
-              dhat_dt_u(j2)=dhat_dt_u(j2)+w2*tval(ius+1)*time_rad
-              dhat_dt_u(j3)=dhat_dt_u(j3)+w3*tval(ius+1)*time_rad
-              dhat_dt_u(j4)=dhat_dt_u(j4)+w4*tval(ius+1)*time_rad
-           endif
-           if(lusev) then
-              dhat_dt_v(j1)=dhat_dt_v(j1)+w1*tval(ivs+1)*time_rad
-              dhat_dt_v(j2)=dhat_dt_v(j2)+w2*tval(ivs+1)*time_rad
-              dhat_dt_v(j3)=dhat_dt_v(j3)+w3*tval(ivs+1)*time_rad
-              dhat_dt_v(j4)=dhat_dt_v(j4)+w4*tval(ivs+1)*time_rad
-           endif
-           do k=1,nsig
-              i1 = i1n(k)
-              i2 = i2n(k)
-              i3 = i3n(k)
-              i4 = i4n(k)
-              if(luset)then
-                 mm=itv+k
-                 dhat_dt_t(i1)=dhat_dt_t(i1)+w1*tval(mm)*time_rad
-                 dhat_dt_t(i2)=dhat_dt_t(i2)+w2*tval(mm)*time_rad
-                 dhat_dt_t(i3)=dhat_dt_t(i3)+w3*tval(mm)*time_rad
-                 dhat_dt_t(i4)=dhat_dt_t(i4)+w4*tval(mm)*time_rad
-              endif
-              if(luseq)then
-                 mm=iqv+k
-                 dhat_dt_q(i1)=dhat_dt_q(i1)+w1*tval(mm)*time_rad
-                 dhat_dt_q(i2)=dhat_dt_q(i2)+w2*tval(mm)*time_rad
-                 dhat_dt_q(i3)=dhat_dt_q(i3)+w3*tval(mm)*time_rad
-                 dhat_dt_q(i4)=dhat_dt_q(i4)+w4*tval(mm)*time_rad
-              endif
-              if(luseoz)then
-                 mm=ioz+k
-                 dhat_dt_oz(i1)=dhat_dt_oz(i1)+w1*tval(mm)*time_rad
-                 dhat_dt_oz(i2)=dhat_dt_oz(i2)+w2*tval(mm)*time_rad
-                 dhat_dt_oz(i3)=dhat_dt_oz(i3)+w3*tval(mm)*time_rad
-                 dhat_dt_oz(i4)=dhat_dt_oz(i4)+w4*tval(mm)*time_rad
-              end if
-           end do
-        endif
 
      endif ! < l_do_adjoint >
      deallocate(val)

@@ -42,7 +42,7 @@ subroutine general_write_gfsatm(grd,sp_a,sp_b,filename,mype_out,&
     use general_commvars_mod, only: load_grid
     use ncepgfs_io, only: sigio_cnvtdv8,sighead
     use constants, only: zero,zero_single,one,fv,qcmin
-    use gsi_4dvar, only: ibdate,nhr_obsbin,lwrite4danl
+    use gsi_4dvar, only: ibdate,nmn_obsbin,lwrite4danl
     use gsi_bundlemod, only: gsi_bundle
     use gsi_bundlemod, only: gsi_bundlegetpointer
 
@@ -125,7 +125,11 @@ subroutine general_write_gfsatm(grd,sp_a,sp_b,filename,mype_out,&
 
         ! All tasks should also open output file for random write
         call sigio_rwopen(lunanl,filename,iret_write)
-        if ( iret_write /= 0 ) goto 1000
+        if ( iret_write /= 0 ) then
+           write(6,*)'GENERAL_WRITE_GFSATM:  ***ERROR*** writing ',&
+               trim(filename),' mype,iret_write=',mype,iret_write
+           return
+        end if
     endif
 
     ! Load date and write header
@@ -135,7 +139,7 @@ subroutine general_write_gfsatm(grd,sp_a,sp_b,filename,mype_out,&
             ! increment mydate
             mydate=ibdate
             fha(:)=zero ; ida=0; jda=0
-            fha(2)=real(nhr_obsbin*(ibin-1))  ! relative time interval in hours
+            fha(3)=real(nmn_obsbin*(ibin-1))  ! relative time interval in minutes
             ida(1)=mydate(1) ! year
             ida(2)=mydate(2) ! month
             ida(3)=mydate(3) ! day
@@ -326,15 +330,11 @@ subroutine general_write_gfsatm(grd,sp_a,sp_b,filename,mype_out,&
         call sigio_rclose(lunges,iret)
         call sigio_rclose(lunanl,iret)
         iret_write=iret_write+iret
-        if ( iret_write /= 0 ) goto 1000
-    endif
-    return
-
-
-    ! ERROR detected while reading file
-1000 continue
-    write(6,*)'GENERAL_WRITE_GFSATM:  ***ERROR*** writing ',&
+        if ( iret_write /= 0 ) then
+           write(6,*)'GENERAL_WRITE_GFSATM:  ***ERROR*** writing ',&
                trim(filename),' mype,iret_write=',mype,iret_write
+        end if
+    endif
     return
 
 end subroutine general_write_gfsatm

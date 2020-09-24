@@ -3499,3 +3499,37 @@
  cris-fsr_n20          2171   0.210046E-03
  cris-fsr_n20          2175   0.207164E-03
  cris-fsr_n20          2182   0.236132E-03
+ amsr2_gcom-w1            1   0.980553E-03
+ amsr2_gcom-w1            2   0.100863E-02
+ amsr2_gcom-w1            3   0.100189E-02
+ amsr2_gcom-w1            4   0.104665E-02
+ amsr2_gcom-w1            5   0.129056E-02
+ amsr2_gcom-w1            6   0.127567E-02
+ amsr2_gcom-w1            7   0.443792E-02
+ amsr2_gcom-w1            8   0.387269E-02
+ amsr2_gcom-w1            9   0.982616E-02
+ amsr2_gcom-w1           10   0.983006E-02
+ amsr2_gcom-w1           11   0.696136E-02
+ amsr2_gcom-w1           12   0.694651E-02
+ amsr2_gcom-w1           13   0.164017E-01
+ amsr2_gcom-w1           14   0.178760E-01
+ amsua_metop-c            1   0.457797E-02
+ amsua_metop-c            2   0.267605E-02
+ amsua_metop-c            3   0.172784E-01
+ amsua_metop-c            4   0.400982E-01
+ amsua_metop-c            5   0.546722E-01
+ amsua_metop-c            6   0.638715E-01
+ amsua_metop-c            7   0.557472E-01
+ amsua_metop-c            8   0.401506E-01
+ amsua_metop-c            9  -0.377478E-02
+ amsua_metop-c           10  -0.221118E-01
+ amsua_metop-c           11  -0.346369E-01
+ amsua_metop-c           12  -0.487021E-01
+ amsua_metop-c           13  -0.612977E-01
+ amsua_metop-c           14  -0.478934E-01
+ amsua_metop-c           15   0.754649E-02
+ mhs_metop-c              1   0.727545E-02
+ mhs_metop-c              2   0.168135E-01
+ mhs_metop-c              3   0.894943E-01
+ mhs_metop-c              4   0.613941E-01
+ mhs_metop-c              5   0.378597E-01

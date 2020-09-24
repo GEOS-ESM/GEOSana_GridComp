@@ -95,6 +95,10 @@ call allocate_cv(grads)
 nprt=2
 xhat=zero
 yhat=zero
+if(lsaveobsens) then
+  xhatsave=zero
+  yhatsave=zero
+endif
 call jgrad(xhat,yhat,zf0,gradx,lsavinc,nprt,myname)
 if(LMPCGL) then 
    call pcgprecond(gradx,grady)
@@ -177,7 +181,7 @@ if (lobsensfc) then
 !  Save gradient for next (backwards) outer loop
    if (jiter>1) then ! _RTodling: not correct for jiter>1 
       do ii=1,xhat%lencv
-         fcsens%values(ii) = fcsens%values(ii) - xhat%values(ii)
+         fcsens%values(ii) = fcsens%values(ii) - yhat%values(ii)
       enddo
       clfile='fgsens.ZZZ'
       write(clfile(8:10),'(I3.3)') jiter

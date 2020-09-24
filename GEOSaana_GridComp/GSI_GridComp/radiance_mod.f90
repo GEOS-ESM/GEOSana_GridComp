@@ -11,6 +11,7 @@ module radiance_mod
 ! program history log:
 !   2015-07-20 Yanqiu Zhu
 !   2016-10-27 Yanqiu - add ATMS
+!   2020-01-13 mkim - add allsky MHS
 !
 ! subroutines included:
 !   sub radiance_mode_init           -  guess init
@@ -47,8 +48,10 @@ module radiance_mod
   public :: radiance_parameter_aerosol_init
   public :: radiance_ex_obserr
   public :: radiance_ex_obserr_gmi 
+  public :: radiance_ex_obserr_mhs
   public :: radiance_ex_biascor
   public :: radiance_ex_biascor_gmi
+  public :: radiance_ex_biascor_mhs
 
   public :: icloud_fwd,icloud_cv,iallsky,cw_cv,ql_cv
   public :: n_actual_clouds,n_clouds_fwd,n_clouds_jac
@@ -61,6 +64,8 @@ module radiance_mod
 
   public :: total_rad_type
   public :: rad_type_info
+  public :: total_aod_type
+  public :: aod_type_info
 
   public :: rad_obs_type
 
@@ -83,12 +88,13 @@ module radiance_mod
   character(len=20),save,allocatable,dimension(:) :: aerosol_names_fwd
   character(len=20),save,allocatable,dimension(:) :: aerosol_names_jac
   logical :: icloud_fwd,icloud_cv,iallsky,cw_cv,ql_cv
-  logical :: iaerosol_fwd,iaerosol_cv,iaerosol
+  logical :: iaerosol_fwd,iaerosol_cv,iaerosol,iprecip
   integer(i_kind) :: n_actual_clouds,n_clouds_jac,n_clouds_fwd
   integer(i_kind) :: n_actual_aerosols,n_aerosols_fwd,n_aerosols_jac
   integer(i_kind) :: idx_cw,idx_ql,idx_qi,idx_qr,idx_qs,idx_qg,idx_qh
 
   integer(i_kind) :: total_rad_type
+  integer(i_kind) :: total_aod_type
 
   type rad_obs_type
     character(len=10) :: rtype            ! instrument
@@ -99,15 +105,17 @@ module radiance_mod
     logical :: ex_biascor             ! .true. for special bias correction
     logical :: cld_effect             ! .true. additional cloud effect quality control
     logical :: lcloud_fwd,lallsky
+    logical :: lprecip 
     integer(i_kind),pointer,dimension(:) :: lcloud4crtm=> NULL()    ! -1 clear-sky; 0 forwad operator only; 1 iallsky
     logical :: laerosol_fwd,laerosol
     integer(i_kind),pointer,dimension(:) :: laerosol4crtm => NULL() ! -1 no aero used; 0 forwad operator only; 1 iaerosol 
-    real(r_kind),pointer,dimension(:) :: cclr
-    real(r_kind),pointer,dimension(:) :: ccld
-    real(r_kind),pointer,dimension(:) :: cldval1 
+    real(r_kind),pointer,dimension(:) :: cclr    => NULL()
+    real(r_kind),pointer,dimension(:) :: ccld    => NULL()
+    real(r_kind),pointer,dimension(:) :: cldval1 => NULL()
   end type rad_obs_type
 
   type(rad_obs_type),save,dimension(:),allocatable :: rad_type_info
+  type(rad_obs_type),save,dimension(:),allocatable :: aod_type_info
 
 contains
 
@@ -142,6 +150,7 @@ contains
     implicit none
 
     integer(i_kind) icw_av,iql_av,iqi_av,iqtotal,ier
+    integer(i_kind) iqr,iqs,iqg 
     integer(i_kind) indx_p25,indx_dust1,indx_dust2,ip25_av,idust1_av,idust2_av
 
 !   initialize variables
@@ -158,6 +167,8 @@ contains
     iaerosol_fwd=.false.
     iaerosol_cv=.false.
     iaerosol=.false.
+
+    iprecip=.false.
 
     n_actual_aerosols=0
     n_aerosols_fwd=0
@@ -181,6 +192,10 @@ contains
              allocate(cloud_names_jac(max(n_clouds_jac,1)))
              call gsi_metguess_get ('clouds_4crtm_jac::3d', cloud_names_jac, ier)
           end if
+          iqr = getindex(cloud_names_fwd,'qr')
+          iqs = getindex(cloud_names_fwd,'qs')
+          iqg = getindex(cloud_names_fwd,'qg')
+          if (iqr>0 .or. iqs>0 .or. iqg>0) iprecip = .true.
        end if
 
 !      inquire number of clouds to participate in CRTM calculations
@@ -243,7 +258,8 @@ contains
 
     if (mype==0) then
        write(6,*) 'radiance_mode_init: icloud_fwd=',icloud_fwd,' iallsky=',iallsky, &
-                  ' cw_cv=',cw_cv,' ql_cv=',ql_cv,' iaerosol_fwd=',iaerosol_fwd,' iaerosol=',iaerosol
+                  ' cw_cv=',cw_cv,' ql_cv=',ql_cv,' iaerosol_fwd=',iaerosol_fwd,' iaerosol=',iaerosol, &
+                  ' iprecip=',iprecip
        write(6,*) 'radiance_mode_init: n_actual_clouds=',n_actual_clouds
        if (n_actual_clouds>0) write(6,*) 'radiance_mode_init: cloud_names=',cloud_names  
        write(6,*) 'radiance_mode_init: n_clouds_fwd=',n_clouds_fwd
@@ -308,6 +324,7 @@ contains
 !   2015-07-20  zhu -- initial code    
 !   2018-04-04  zhu -- move rad_type_info(k)%cclr and rad_type_info(k)%ccld to this subroutine
 !   2018-04-06  derber -- change rad_type_info(k)%cclr default value from zero to a large number
+!   2019-03-21  Wei/Martin - fix capabilities for AOD assimilation
 !
 !   input argument list:
 !
@@ -323,6 +340,7 @@ contains
     use radinfo, only: nusis,jpch_rad,icloud4crtm,iaerosol4crtm
     use obsmod, only: ndat,dtype,dsis
     use gsi_io, only: verbose
+    use chemmod, only: laeroana_gocart, lread_ext_aerosol
     implicit none
 
     logical :: first,diffistr,found
@@ -344,7 +362,7 @@ contains
           if (.not. iaerosol_fwd) iaerosol4crtm(j)=-1
        end if
     end do
-    
+
     if (icloud_fwd .and. all(icloud4crtm<0)) then 
        icloud_fwd=.false.
        iallsky=.false.
@@ -355,12 +373,14 @@ contains
     end if
 
     if (iaerosol_fwd .and. all(iaerosol4crtm<0)) then
-       iaerosol_fwd=.false.
        iaerosol=.false.
-       n_aerosols_fwd=0
-       n_aerosols_jac=0   
-       aerosol_names_fwd=' '
-       aerosol_names_jac=' '
+       if ( .not. laeroana_gocart ) then
+          iaerosol_fwd=.false.
+          n_aerosols_fwd=0
+          n_aerosols_jac=0   
+          aerosol_names_fwd=' '
+          aerosol_names_jac=' '
+       end if
     end if
 
     if (iallsky .and. all(icloud4crtm<1)) then
@@ -393,7 +413,8 @@ contains
           rtype(i) == 'hsb'    .or. rtype(i) == 'goes_img' .or.  rtype(i) == 'ahi'    .or. &
           rtype(i) == 'avhrr'  .or. rtype(i) == 'amsre'    .or.  rtype(i) == 'ssmis'  .or. & 
           rtype(i) == 'ssmi'   .or. rtype(i) == 'atms'     .or.  rtype(i) == 'cris'   .or. & 
-          rtype(i) == 'amsr2'  .or. rtype(i) == 'gmi'      .or.  rtype(i) == 'saphir'   ) then
+          rtype(i) == 'amsr2'  .or. rtype(i) == 'gmi'      .or.  rtype(i) == 'saphir' .or. &
+          rtype(i) == 'cris-fsr'  ) then
           drtype(i)='rads'
        end if
     end do
@@ -441,9 +462,12 @@ contains
        rad_type_info(k)%ex_biascor=.false.
        rad_type_info(k)%cld_effect=.false.
        rad_type_info(k)%lcloud_fwd=.false.
+       rad_type_info(k)%lprecip=.false.
        rad_type_info(k)%lallsky=.false.
        rad_type_info(k)%laerosol_fwd=.false.
        rad_type_info(k)%laerosol=.false.
+
+       if (iprecip) rad_type_info(k)%lprecip=.true.
 
        ii=k2i(k)
        first=.true.
@@ -501,10 +525,12 @@ contains
              if (iaerosol4crtm(j)==0) rad_type_info(k)%laerosol_fwd=.true.
           end if
        end do
+
        if (mype==0 .and. print_verbose)  &
                                write(6,*) 'radiance_obstype_init: type=', rad_type_info(k)%rtype, &
                                ' nch=',rad_type_info(k)%nchannel, &
                                ' lcloud_fwd=',rad_type_info(k)%lcloud_fwd, &
+                               ' lprecip=',rad_type_info(k)%lprecip, &    
                                ' lallsky=',rad_type_info(k)%lallsky, &
                                ' laerosol_fwd=',rad_type_info(k)%laerosol_fwd, &
                                ' laerosol=',rad_type_info(k)%laerosol
@@ -532,6 +558,7 @@ contains
 !
 ! program history log:
 !   2015-08-20  zhu
+!   2019-03-21  Wei/Martin - added in AOD type support
 !
 !   input argument list:
 !         obstype
@@ -550,7 +577,7 @@ contains
     logical match
     integer(i_kind) i
 
-    if (total_rad_type<=0) return
+    if (total_rad_type<=0 .and. total_aod_type<=0) return
     
     match=.false.
     do i=1,total_rad_type
@@ -580,8 +607,33 @@ contains
           radmod%cclr => rad_type_info(i)%cclr
           radmod%ccld => rad_type_info(i)%ccld
           radmod%cldval1 => rad_type_info(i)%cldval1
+          radmod%lprecip = radmod%lcloud_fwd .and. rad_type_info(i)%lprecip 
+
           return
        end if
+    end do
+    do i=1,total_aod_type
+       match=index(trim(obstype),trim(aod_type_info(i)%rtype)) /= 0
+       if (match) then
+          radmod%rtype = aod_type_info(i)%rtype
+          radmod%nchannel = aod_type_info(i)%nchannel
+          radmod%cld_sea_only = aod_type_info(i)%cld_sea_only
+          radmod%cld_effect = aod_type_info(i)%cld_effect
+          radmod%ex_obserr = aod_type_info(i)%ex_obserr
+          radmod%ex_biascor = aod_type_info(i)%ex_biascor
+ 
+          radmod%lcloud_fwd = aod_type_info(i)%lcloud_fwd
+          radmod%lallsky = aod_type_info(i)%lallsky
+          radmod%lcloud4crtm => aod_type_info(i)%lcloud4crtm
+
+          radmod%laerosol_fwd = aod_type_info(i)%laerosol_fwd
+          radmod%laerosol = aod_type_info(i)%laerosol
+          radmod%laerosol4crtm => aod_type_info(i)%laerosol4crtm
+
+          radmod%cclr => aod_type_info(i)%cclr
+          radmod%ccld => aod_type_info(i)%ccld
+          return
+       end if ! match
     end do
     if (mype==0) write(6,*) 'radiance_obstype_search type not found: obstype=',obstype
 
@@ -603,6 +655,7 @@ contains
 !
 ! program history log:
 !   2015-07-20  zhu
+!   2019-03-21 Wei/Martin - added in aod_type support
 !
 !   input argument list:
 !
@@ -616,6 +669,22 @@ contains
     implicit none
 
     integer(i_kind) :: k
+    if (total_rad_type>0) then
+       do k=1, total_rad_type
+          if(associated(rad_type_info(k)%lcloud4crtm)) deallocate(rad_type_info(k)%lcloud4crtm)
+          if(associated(rad_type_info(k)%laerosol4crtm)) deallocate(rad_type_info(k)%laerosol4crtm)
+          if(associated(rad_type_info(k)%cclr)) deallocate(rad_type_info(k)%cclr)
+          if(associated(rad_type_info(k)%ccld)) deallocate(rad_type_info(k)%ccld)
+       end do
+    end if
+    if (total_aod_type>0) then
+       do k=1, total_aod_type
+          if(associated(aod_type_info(k)%lcloud4crtm)) deallocate(aod_type_info(k)%lcloud4crtm)
+          if(associated(aod_type_info(k)%laerosol4crtm)) deallocate(aod_type_info(k)%laerosol4crtm)
+          if(associated(aod_type_info(k)%cclr)) deallocate(aod_type_info(k)%cclr)
+          if(associated(aod_type_info(k)%ccld)) deallocate(aod_type_info(k)%ccld)
+       end do
+    end if
 
     do k=1, total_rad_type
        if(associated(rad_type_info(k)%lcloud4crtm)) deallocate(rad_type_info(k)%lcloud4crtm)
@@ -625,7 +694,7 @@ contains
        if(associated(rad_type_info(k)%cldval1)) deallocate(rad_type_info(k)%cldval1)
     end do
     if(allocated(rad_type_info)) deallocate(rad_type_info)
-
+    if(allocated(aod_type_info)) deallocate(aod_type_info)
   end subroutine radiance_obstype_destroy
 
 
@@ -719,7 +788,11 @@ contains
 
 !            allocate space for entries from table, Obtain table contents
              tablename='obs_'//trim(obsname)
-             call sensor_parameter_table(trim(tablename),lunin,rad_type_info(i)%nchannel,rad_type_info(i)%cclr,rad_type_info(i)%ccld,rad_type_info(i)%cldval1)
+             if ( rad_type_info(i)%ex_obserr == 'ex_obserr3' ) then
+                call sensor_parameter_table(trim(tablename),lunin,rad_type_info(i)%nchannel,rad_type_info(i)%cclr,rad_type_info(i)%ccld,rad_type_info(i)%cldval1)
+             else
+                call sensor_parameter_table(trim(tablename),lunin,rad_type_info(i)%nchannel,rad_type_info(i)%cclr,rad_type_info(i)%ccld)
+             endif
              exit
           end if
        end do
@@ -742,6 +815,7 @@ contains
 ! program history log:
 !   2015-09-10  zhu
 !   2018-08-10  mkim : added a column of data 'cldval1' in the all-sky sensor parameter table
+!   2019-07-108 todling : turn cldval1 into optional to avoid forcing another column in info file when not needed
 !
 !   input argument list:
 !
@@ -752,7 +826,6 @@ contains
 !   machine:  ibm rs/6000 sp; SGI Origin 2000; Compaq/HP
 !
 !$$$ end documentation block
-
     use kinds, only: i_kind,r_kind
     use mpeu_util, only: gettablesize
     use mpeu_util, only: gettable
@@ -762,7 +835,8 @@ contains
     character(len=*), intent(in) :: filename
     integer(i_kind) , intent(in) :: lunin
     integer(i_kind) , intent(in) :: nchal
-    real(r_kind)    , dimension(nchal), intent(inout) :: cclr,ccld,cldval1
+    real(r_kind)    , dimension(nchal), intent(inout) :: cclr,ccld
+    real(r_kind)    , dimension(nchal), optional, intent(inout) :: cldval1
 
     integer(i_kind) ii,ntot,nrows,ich0
     real(r_kind) cclr0,ccld0,cldval1_0
@@ -774,7 +848,9 @@ contains
 !   Initialize the arrays
     cclr(:)=zero
     ccld(:)=zero
-    cldval1(:)=zero
+    if ( present(cldval1) ) then
+       cldval1(:)=zero
+    endif
 
 !   Scan file for desired table first and get size of table
     call gettablesize(filename,lunin,ntot,nrows)
@@ -789,26 +865,149 @@ contains
 
 !   Retrieve each token of interest from table
     do ii=1,nrows
-       read(utable(ii),*) ich0,cclr0,ccld0,cldval1_0
+       if (present(cldval1)) then
+         read(utable(ii),*) ich0,cclr0,ccld0,cldval1_0
+         cldval1(ich0)=cldval1_0
+       else
+         read(utable(ii),*) ich0,cclr0,ccld0
+       endif
        cclr(ich0)=cclr0
        ccld(ich0)=ccld0
-       cldval1(ich0)=cldval1_0
     enddo
     deallocate(utable)
 
     if (print_verbose) then
-       write(6,*) 'sensor_parameter_table: ich  cclr  ccld  cldval1'
-       do ii=1,nchal
-          write(6,*) ii,cclr(ii),ccld(ii),cldval1(ii)
-       end do
+       if (present(cldval1)) then
+          write(6,*) 'sensor_parameter_table: ich  cclr  ccld  cldval1'
+          do ii=1,nchal
+             write(6,*) ii,cclr(ii),ccld(ii),cldval1(ii)
+          end do
+       else
+          write(6,*) 'sensor_parameter_table: ich  cclr  ccld'
+          do ii=1,nchal
+             write(6,*) ii,cclr(ii),ccld(ii)
+          end do
+       endif
     end if
 
   end subroutine sensor_parameter_table
 
   subroutine radiance_parameter_aerosol_init
+    ! History:   2018-10-31 Wei/Martin - fix stub
+    use aeroinfo, only: jpch_aero,nusis_aero
+    use obsmod, only: ndat,dtype,dsis
+    use gsi_io, only: verbose
     implicit none
+    logical :: first,diffistr,found
+    integer(i_kind) :: i,j,k,ii,nn1,nn2
+    integer(i_kind),dimension(ndat) :: k2i
+    character(10),dimension(ndat) :: rtype,rrtype,drtype
+    logical print_verbose
 
     if (.not. iaerosol_fwd) return
+
+    print_verbose=.false.
+    if(verbose)print_verbose=.true.
+    
+    drtype='nonaod'
+    do i=1,ndat
+       rtype(i)=dtype(i)!     rtype  - observation types to process
+       if (rtype(i) == 'modis_aod' .or. rtype(i) == 'viirs_aod') then
+           drtype='aod'
+       end if 
+    end do
+   
+    k=0
+    k2i=0
+    first=.true.
+    rrtype=''
+    do i=1,ndat
+       if (drtype(i) /= 'aod') cycle
+
+       found=.false.
+       if (first) then
+          k=k+1
+          rrtype(k)=rtype(i)
+          k2i(k)=i
+          first=.false.
+       else
+          do j=1,k
+             if (trim(rtype(i)) == trim(rrtype(j))) then
+                found=.true.
+                exit
+             end if
+          end do
+          if (.not. found) then
+             k=k+1
+             rrtype(k)=rtype(i)
+             k2i(k)=i
+          end if
+       end if
+    end do
+    total_aod_type=k
+
+    if (mype==0) write(6,*) 'radiance_obstype_init: total_aod_type=',k,' types are: ', rrtype(1:total_aod_type)
+
+    if (total_aod_type<=0) return
+    allocate(aod_type_info(total_aod_type))
+
+    do k=1, total_aod_type
+       aod_type_info(k)%rtype=rrtype(k)
+       aod_type_info(k)%cld_sea_only=.false.
+       aod_type_info(k)%ex_obserr=' '
+       aod_type_info(k)%ex_biascor=.false.
+       aod_type_info(k)%cld_effect=.false.
+       aod_type_info(k)%lcloud_fwd=.false.
+       aod_type_info(k)%lallsky=.false.
+       aod_type_info(k)%laerosol_fwd=.true.
+       aod_type_info(k)%laerosol=.true.
+
+       ii=k2i(k)
+       first=.true.
+       nn1=0
+       nn2=0
+       do j=1,jpch_aero
+          if (j==jpch_aero) then
+             diffistr = .true.
+          else
+             diffistr = trim(nusis_aero(j))/=trim(nusis_aero(j+1))
+          end if
+          if (trim(dsis(ii))==trim(nusis_aero(j))) then
+             if (first) then
+                nn1=j
+                first=.false.
+             else
+                nn2=j
+             end if
+             if (diffistr) exit
+          end if
+       end do
+       if (nn1/=0 .and. nn2/=0) then
+          aod_type_info(k)%nchannel=nn2-nn1+1
+       else
+          cycle
+       end if
+
+       allocate(aod_type_info(k)%lcloud4crtm(aod_type_info(k)%nchannel))
+       allocate(aod_type_info(k)%laerosol4crtm(aod_type_info(k)%nchannel))
+       aod_type_info(k)%lcloud4crtm=0
+       aod_type_info(k)%laerosol4crtm=0
+
+       if (mype==0)  &
+                               write(6,*) 'radiance_obstype_init: type=',aod_type_info(k)%rtype, &
+                               ' nch=',aod_type_info(k)%nchannel, &
+                               ' lcloud_fwd=',aod_type_info(k)%lcloud_fwd, &
+                               ' lallsky=',aod_type_info(k)%lallsky, &
+                               ' laerosol_fwd=',aod_type_info(k)%laerosol_fwd, &
+                               ' laerosol=',aod_type_info(k)%laerosol
+
+       allocate(aod_type_info(k)%cclr(aod_type_info(k)%nchannel))
+       allocate(aod_type_info(k)%ccld(aod_type_info(k)%nchannel))
+       aod_type_info(k)%cclr(:)=9999.9_r_kind
+       aod_type_info(k)%ccld(:)=zero
+
+    end do ! end total_aod_type
+
   end subroutine radiance_parameter_aerosol_init
 
   subroutine radiance_ex_obserr_1(radmod,nchanl,clwp_amsua,clw_guess_retrieval, &
@@ -949,6 +1148,7 @@ contains
 !$$$ end documentation block
     use kinds, only: i_kind,r_kind
     use clw_mod, only: ret_amsua
+    use clw_mod, only: retrieval_amsr2
     implicit none
 
     integer(i_kind)                   ,intent(in   ) :: nchanl
@@ -962,19 +1162,31 @@ contains
 
     integer(i_kind) :: i
     real(r_kind),dimension(nchanl) :: cclr
+    integer(i_kind) ::  kraintype_guess_retrieval
 
     do i=1,nchanl
        cclr(i)=radmod%cclr(i)
     end do
+    if( trim(radmod%rtype) == 'amsr2') then
+       call retrieval_amsr2(tsim_bc,nchanl,clw_guess_retrieval,kraintype_guess_retrieval,ierrret)
+       clw_guess_retrieval = max(zero,clw_guess_retrieval)
+       do i=1,nchanl
+          if (radmod%lcloud4crtm(i)<0) cycle
+          if ( (clwp_amsua-cclr(i)) > zero  .or. (clw_guess_retrieval-cclr(i)) > zero ) then
+             cld_rbc_idx(i)=zero
+          endif
+       end do
+    else   
 
-!   call ret_amsua(tb_obs,nchanl,tsavg5,zasat,clwp_amsua,ierrret)
-    call ret_amsua(tsim_bc,nchanl,tsavg5,zasat,clw_guess_retrieval,ierrret)
+!      call ret_amsua(tb_obs,nchanl,tsavg5,zasat,clwp_amsua,ierrret)
+       call ret_amsua(tsim_bc,nchanl,tsavg5,zasat,clw_guess_retrieval,ierrret)
 
-    do i=1,nchanl
-       if (radmod%lcloud4crtm(i)<0) cycle
-       if ((clwp_amsua-cclr(i))*(clw_guess_retrieval-cclr(i))<zero  &
-          .and. abs(clwp_amsua-clw_guess_retrieval)>=0.005_r_kind) cld_rbc_idx(i)=zero
-    end do
+       do i=1,nchanl
+          if (radmod%lcloud4crtm(i)<0) cycle
+          if ((clwp_amsua-cclr(i))*(clw_guess_retrieval-cclr(i))<zero  &
+             .and. abs(clwp_amsua-clw_guess_retrieval)>=0.005_r_kind) cld_rbc_idx(i)=zero
+       end do
+    endif
     return
 
   end subroutine radiance_ex_biascor_1
@@ -1027,19 +1239,17 @@ contains
 
   end subroutine radiance_ex_biascor_2
 
-!  subroutine radiance_ex_obserr_3(radmod,nchanl,clw_obs,clw_guess_retrieval,tnoise,tnoise_cld,error0)
   subroutine radiance_ex_obserr_gmi(radmod,nchanl,clw_obs,clw_guess_retrieval,tnoise,tnoise_cld,error0)
 !$$$  subprogram documentation block
 !                .      .    .
 ! subprogram:    radiance_ex_obserr_3
 !
-!   prgrmmr:    min-jeong kim      org: np23                date: 2018-08-10
+!   prgrmmr:    min-jeong kim      org: nasa/gmao                date: 2018-08-10
 !
 ! abstract:  This routine include extra radiance bias correction routines.
 !
 ! program history log:
-!   2015-09-20  zhu
-!   2016-10-27  zhu - add ATMS
+!   2020-01-13  mkim - add all-sky GMI 
 !
 !   input argument list:
 !
@@ -1088,13 +1298,88 @@ contains
 !  end subroutine radiance_ex_obserr_3
   end subroutine radiance_ex_obserr_gmi
 
+ subroutine radiance_ex_obserr_mhs(radmod,nchanl,clwp_amsua,clw_guess_retrieval, &
+                                tnoise,tnoise_cld,sea,error0)
+!$$$  subprogram documentation block
+!                .      .    .
+! subprogram:    radiance_ex_obserr_mhs
+!
+!   prgrmmr:    min-jeong kim      org: nasa/gmao                date: 2019-04-10
+!
+! abstract:  This routine includes extra observation error assignment routines.
+!
+! program history log:
+!   2019-04-10  mkim1
+!
+!   input argument list:
+!
+!   output argument list:
+!
+! attributes:
+!   language: f90
+!   machine:  ibm rs/6000 sp; SGI Origin 2000; Compaq/HP
+!
+!$$$ end documentation block
+    use kinds, only: i_kind,r_kind
+    implicit none
+
+    integer(i_kind),intent(in) :: nchanl
+    real(r_kind),intent(in) :: clwp_amsua,clw_guess_retrieval
+    real(r_kind),dimension(nchanl),intent(in):: tnoise,tnoise_cld
+    real(r_kind),dimension(nchanl),intent(inout) :: error0
+    type(rad_obs_type),intent(in) :: radmod
+    logical,         intent(in   ) :: sea
+
+    integer(i_kind) :: i
+    real(r_kind) :: clwtmp
+    real(r_kind),dimension(nchanl) :: cclr,ccld,tnoise_cldx
+
+    do i=1,nchanl
+       cclr(i)=radmod%cclr(i)
+       ccld(i)=radmod%ccld(i)
+    end do
+
+  if(.not. sea) then
+    do i=1,nchanl
+       if (radmod%lcloud4crtm(i)<0) cycle
+       clwtmp=half*(clwp_amsua+clw_guess_retrieval)
+       if(clwtmp <= cclr(i)) then
+          error0(i) = tnoise(i)
+       else if(clwtmp > cclr(i) .and. clwtmp < ccld(i)) then
+          error0(i) = tnoise(i) + (clwtmp-cclr(i))* &
+                      (tnoise_cld(i)-tnoise(i))/(ccld(i)-cclr(i))
+       else
+          error0(i) = tnoise_cld(i)
+       endif
+    end do
+  else
+    do i=1,nchanl
+       if (radmod%lcloud4crtm(i)<0) cycle
+       clwtmp=half*(clwp_amsua+clw_guess_retrieval)
+       tnoise_cldx(i)=tnoise_cld(i)*0.5
+       if(clwtmp <= cclr(i)) then
+          error0(i) = tnoise(i)
+       else if(clwtmp > cclr(i) .and. clwtmp < ccld(i)) then
+          error0(i) = tnoise(i) + (clwtmp-cclr(i))* &
+                      (tnoise_cldx(i)-tnoise(i))/(ccld(i)-cclr(i))
+       else
+          error0(i) = tnoise_cldx(i)
+       endif
+    end do
+  endif
+
+    return
+
+  end subroutine radiance_ex_obserr_mhs
+
+
 !  subroutine radiance_ex_biascor_3(radmod,nchanl,tsim_bc,tsavg5,zasat, &
   subroutine radiance_ex_biascor_gmi(radmod,clw_obs,clw_guess_retrieval,nchanl,cld_rbc_idx)
 !$$$  subprogram documentation block
 !                .      .    .
 ! subprogram:    radiance_ex_biascor_gmi
 !
-!   prgrmmr:    min-jeong kim      org: np23                date: 2085-08-10
+!   prgrmmr:    min-jeong kim      org: nasa/gmao                date: 2085-08-10
 !
 ! abstract:  This routine include extra radiance bias correction routines.
 !
@@ -1130,16 +1415,63 @@ contains
 
     do i=1,nchanl
        if (radmod%lcloud4crtm(i)<0) cycle
-       if (clw_obs .le. cclr(i) .and. clw_guess_retrieval .le. cclr(i) .and. abs(clw_obs-clw_guess_retrieval) < 0.001_r_kind) then
-            cld_rbc_idx(i)=one   !clear/clear
+       if (clw_obs <= cclr(i) .and. clw_guess_retrieval <= cclr(i) .and. abs(clw_obs-clw_guess_retrieval) < 0.001_r_kind) then
+           cld_rbc_idx(i)=one   !clear/clear
        else
-           cld_rbc_idx(i) = zero
+           cld_rbc_idx(i)=zero
        endif
     end do
     return
 
 !  end subroutine radiance_ex_biascor_3
   end subroutine radiance_ex_biascor_gmi
+
+  subroutine radiance_ex_biascor_mhs(radmod,tbc,nchanl,cld_rbc_idx)
+!$$$  subprogram documentation block
+!                .      .    .
+! subprogram:    radiance_ex_biascor_mhs
+!
+!   prgrmmr:    min-jeong kim      org: nasa/gmao                date: 2019-04-10
+!
+! abstract:  This routine include extra radiance bias correction routines.
+!
+! program history log:
+!   2019-04-10  mkim
+!
+!   input argument list:
+!
+!   output argument list:
+!
+! attributes:
+!   language: f90
+!   machine:  ibm rs/6000 sp; SGI Origin 2000; Compaq/HP
+!
+!$$$ end documentation block
+    use kinds, only: i_kind,r_kind
+   use constants, only: zero,one
+
+    implicit none
+
+    integer(i_kind)                   ,intent(in   ) :: nchanl
+    real(r_kind),dimension(nchanl)    ,intent(inout) :: cld_rbc_idx
+    real(r_kind),dimension(nchanl)    ,intent(in)    :: tbc  !omgbc
+    type(rad_obs_type)                ,intent(in)    :: radmod
+    integer(i_kind) :: i
+
+    do i=1,nchanl
+       if (radmod%lcloud4crtm(i)<0) cycle
+       if ( i .lt. 3 .and. abs(tbc(i)) .le. 5.0_r_kind ) then
+            cld_rbc_idx(i)=one   ! data near o-f=zero 
+       else if ( i .gt. 2 .and. abs(tbc(i)) .le. 2.0_r_kind ) then
+            cld_rbc_idx(i)=one   ! data near o-f=zero
+       else
+           cld_rbc_idx(i) = zero ! don't use data in BC coef. update
+       endif
+    end do
+
+    return
+
+  end subroutine radiance_ex_biascor_mhs
 
 
 end module radiance_mod

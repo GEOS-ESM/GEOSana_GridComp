@@ -125,9 +125,7 @@ module anisofilter_glb
   use gsi_metguess_mod, only: gsi_metguess_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
 
-  use anberror, only: lreadnorm
-!!$  use anisofilter, only: lreadnorm, &
-  use anisofilter, only: &
+  use anisofilter, only: lreadnorm, &
                          r015, &
                          qlth_temp0, qltv_temp0, qlth_wind0, qltv_wind0, &
                          scalex1, scalex2, scalex3, &

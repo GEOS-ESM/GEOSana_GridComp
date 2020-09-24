@@ -227,7 +227,9 @@ contains
     use gsi_bundlemod, only: gsi_bundledestroy
     use m_gsiBiases, only: bvars2d,bvars3d
     use m_gsiBiases, only: bkg_bias_model
+    use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_set
     use gsi_4dcouplermod, only: gsi_4dcoupler_putpert
+    use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_final
     use obsmod, only: iadate
     use mpeu_util, only: die
   
@@ -381,7 +383,9 @@ contains
              nymd, nhms
      call gsi_bundlecreate(xbundle,bundle(1),'Bias Estimate',iret)
      call bkg_bias_model(xbundle,iadate(4))
+     call gsi_4dcoupler_putpert_set (nymd,nhms,iret)
      call gsi_4dcoupler_putpert (xbundle,nymd,nhms,'tlm','bbias')
+     call gsi_4dcoupler_putpert_final (iret)
      call gsi_bundledestroy(xbundle,iret)
 !    
     return

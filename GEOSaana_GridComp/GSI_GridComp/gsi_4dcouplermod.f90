@@ -26,8 +26,12 @@ public GSI_4dCoupler_init_model_ad
 public GSI_4dCoupler_model_ad
 public GSI_4dCoupler_final_model_ad
 public GSI_4dCoupler_grtests
+public GSI_4dCoupler_getpert_set
 public GSI_4dCoupler_getpert
+public GSI_4dCoupler_getpert_unset
+public GSI_4dCoupler_putpert_set
 public GSI_4dCoupler_putpert
+public GSI_4dCoupler_putpert_final
 public GSI_4dCoupler_final_traj
 
 !
@@ -175,6 +179,17 @@ interface GSI_4dCoupler_getpert
    character(len=*),intent(in) :: filename   ! filename containing pert - set to NULL when not applicable
    end subroutine get_1pert_
    !-------------------------!
+   subroutine get_1pert_date_ (xx,nt,what,filename)
+   ! get perturbation from user's model and convert it to relevant gsi bundle
+   use kinds, only: i_kind,r_kind
+   use gsi_bundlemod, only: gsi_bundle
+   implicit none
+   type(gsi_bundle),intent(inout) :: xx
+   integer(i_kind), intent(in) :: nt         ! time index
+   character(len=*),intent(in) :: what       ! indicates whether tl or ad type perturbation
+   character(len=*),intent(in) :: filename   ! filename containing pert - set to NULL when not applicable
+   end subroutine get_1pert_date_
+   !-------------------------!
    subroutine get_Npert_ (xx,n,what,filename)
    ! get perturbation from user's model and convert it to relevant gsi bundle
    use kinds,only: i_kind
@@ -185,6 +200,39 @@ interface GSI_4dCoupler_getpert
    character(len=*),intent(in) :: what        ! indicates whether tl or ad type perturbation
    character(len=*),intent(in) :: filename(n) ! n-pert filenames
    end subroutine get_Npert_
+end interface
+
+interface GSI_4dCoupler_getpert_set
+   subroutine get_pert_set_ (nlat,nlon,lat2,lon2,nt)
+   use kinds,only: i_kind
+   implicit none
+   integer(i_kind),intent(in) :: nlat,nlon
+   integer(i_kind),intent(in) :: lat2,lon2
+   integer(i_kind),intent(in) :: nt
+   end subroutine get_pert_set_
+end interface
+
+interface GSI_4dCoupler_getpert_unset
+   subroutine get_pert_unset_
+   implicit none
+   end subroutine get_pert_unset_
+end interface
+
+interface GSI_4dCoupler_putpert_set
+   subroutine put_pert_set_ (nymd,nhms,status)
+   use kinds,only: i_kind
+   implicit none
+   integer(i_kind),intent(in) :: nymd,nhms
+   integer(i_kind),intent(out) :: status
+   end subroutine put_pert_set_
+end interface
+
+interface GSI_4dCoupler_putpert_final
+   subroutine put_pert_final_ (status)
+   use kinds,only: i_kind
+   implicit none
+   integer(i_kind),intent(out) :: status
+   end subroutine put_pert_final_
 end interface
 
 interface GSI_4dCoupler_putpert

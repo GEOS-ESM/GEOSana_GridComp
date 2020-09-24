@@ -1,6 +1,6 @@
 subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
      infile,lunout,obstype,nread,ndata,nodata,twind,sis, &
-     mype_root,mype_sub,npe_sub,mpi_comm_sub,nobs)
+     mype_root,mype_sub,npe_sub,mpi_comm_sub,nobs,dval_use)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    read_ahi                    read himawari-8 ahi data
@@ -21,6 +21,7 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
 !   2015-03-23 zaizhong cleaned up and finalized with the real sample data
 !   2015-09-17 Thomas   add l4densvar and thin4d to data selection procedure
 !   2016-03-11 j. guo   Fixed {dlat,dlon}_earth_deg in the obs data stream
+!   2018-05-21 j.jin    Added time-thinning. Moved the checking of thin4d into satthin.F90.
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -49,10 +50,12 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
   use kinds, only: r_kind,r_double,i_kind
   use satthin, only: super_val,itxmax,makegrids,map2tgrid,destroygrids, &
       checkob,finalcheck,score_crit
+  use satthin, only: radthin_time_info,tdiff2crit
+  use obsmod,  only: time_window_max
   use gridmod, only: diagnostic_reg,regional,nlat,nlon,txy2ll,tll2xy,rlats,rlons
   use constants, only: deg2rad,zero,one,rad2deg,r60inv,r60
   use radinfo, only: iuse_rad,jpch_rad,nusis
-  use gsi_4dvar, only: l4dvar,iwinbgn,winlen,l4densvar,thin4d
+  use gsi_4dvar, only: l4dvar,iwinbgn,winlen,l4densvar
   use deter_sfc_mod, only: deter_sfc
   use gsi_nstcouplermod, only: nst_gsi,nstinfo
   use gsi_nstcouplermod, only: gsi_nstcoupler_skindepth, gsi_nstcoupler_deter
@@ -74,10 +77,10 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
   integer(i_kind) ,intent(in   ) :: mype_sub
   integer(i_kind) ,intent(in   ) :: npe_sub
   integer(i_kind) ,intent(in   ) :: mpi_comm_sub
+  logical         ,intent(in)    :: dval_use
 
 ! Declare local parameters
   integer(i_kind),parameter:: nimghdr=13
-  integer(i_kind),parameter:: maxinfo=33
   integer(i_kind),parameter:: maxchanl=11
   real(r_kind),parameter:: r360=360.0_r_kind
   real(r_kind),parameter:: r180=180.0_r_kind
@@ -91,7 +94,7 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
 
   character(8) subset
 
-  integer(i_kind) nchanl,ilath,ilonh,ilzah,iszah,irec,next
+  integer(i_kind) nchanl,ilath,ilonh,ilzah,iszah,irec,next,maxinfo
   integer(i_kind) nmind,lnbufr,idate,ilat,ilon
   integer(i_kind) ireadmg,ireadsb,iret,nreal,nele,itt
   integer(i_kind) itx,i,k,isflg,kidsat,n,iscan,idomsfc
@@ -99,7 +102,7 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
   integer(i_kind),allocatable,dimension(:)::nrec
 
   real(r_kind) dg2ew,sstime,tdiff,t4dv,sfcr
-  real(r_kind) dlon,dlat,timedif,crit1,dist1
+  real(r_kind) dlon,dlat,crit1,dist1
   real(r_kind) dlon_earth,dlat_earth
   real(r_kind) dlon_earth_deg,dlat_earth_deg
   real(r_kind) pred
@@ -128,6 +131,8 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
 
   real(r_kind) disterr,disterrmax,dlon00,dlat00
   integer(i_kind) ntest
+  real(r_kind)    :: ptime,timeinflat,crit0
+  integer(i_kind) :: ithin_time,n_tbin,it_mesh
 
 !**************************************************************************
 ! Initialize variables
@@ -165,9 +170,14 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
   end do search
   if (.not.assim) val_img=zero
 
-
+  call radthin_time_info(obstype, jsatid, sis, ptime, ithin_time)
+  if( ptime > 0.0_r_kind) then
+     n_tbin=nint(2*time_window_max/ptime)
+  else
+     n_tbin=1
+  endif
 ! Make thinning grids
-  call makegrids(rmesh,ithin)
+  call makegrids(rmesh,ithin,n_tbin=n_tbin)
 
 
 ! Open bufr file.
@@ -178,6 +188,9 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
   if(jsatid == 'himawari8') kidsat = 173
 
 ! Allocate arrays to hold all data for given satellite
+
+  maxinfo=31
+  if(dval_use) maxinfo = maxinfo + 2
   nreal = maxinfo + nstinfo
   nele  = nreal   + nchanl
   allocate(data_all(nele,itxmax),nrec(itxmax))
@@ -270,13 +283,10 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
            call grdcrd1(dlon,rlons,nlon,1)
         endif
 
-        if (thin4d) then
-           crit1=0.01_r_kind
-        else
-           timedif = 6.0_r_kind*abs(tdiff)        ! range:  0 to 18
-           crit1=0.01_r_kind+timedif
-        endif
-        call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis)
+        crit0 = 0.01_r_kind
+        timeinflat=6.0_r_kind
+        call tdiff2crit(tdiff,ptime,ithin_time,timeinflat,crit0,crit1,it_mesh)
+        call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis,it_mesh=it_mesh)
         if(.not. iuse)cycle read_loop
 
 
@@ -395,8 +405,11 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
         data_all(29,itx)= ff10                        ! ten meter wind factor
         data_all(30,itx)= dlon_earth_deg              ! earth relative longitude (degrees)
         data_all(31,itx)= dlat_earth_deg              ! earth relative latitude (degrees)
-        data_all(32,itx) = val_img
-        data_all(33,itx) = itt
+
+        if(dval_use)then
+           data_all(maxinfo-1,itx) = val_img
+           data_all(maxinfo,itx) = itt
+        end if
 
         if ( nst_gsi > 0 ) then
            data_all(maxinfo+1,itx) = tref         ! foundation temperature
@@ -426,9 +439,13 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
            if(data_all(k+nreal,n) > tbmin .and. &
               data_all(k+nreal,n) < tbmax)nodata=nodata+1
         end do
-        itt=nint(data_all(maxinfo,n))
-        super_val(itt)=super_val(itt)+val_img
      end do
+     if(dval_use .and. assim)then
+       do n=1,ndata
+          itt=nint(data_all(maxinfo,n))
+          super_val(itt)=super_val(itt)+val_img
+       end do
+     end if
 
 ! Write final set of "best" observations to output file
      call count_obs(ndata,nele,ilat,ilon,data_all,nobs)

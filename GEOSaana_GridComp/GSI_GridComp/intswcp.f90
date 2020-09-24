@@ -24,6 +24,7 @@ use m_obsNode, only: obsNode
 use m_swcpNode, only: swcpNode
 use m_swcpNode, only: swcpNode_typecast
 use m_swcpNode, only: swcpNode_nextcast
+use m_obsdiagNode, only: obsdiagNode_set
 implicit none
 
 PRIVATE
@@ -81,10 +82,10 @@ subroutine intswcp_(swcphead,rval,sval)
   use kinds, only: r_kind,i_kind
   use obsmod, only: lsaveobsens,l_do_adjoint,luse_obsdiag
   use obsmod, only: l_wcp_cwm
-  use gridmod, only: latlon11,nsig
+  use gridmod, only: nsig
   use qcmod, only: nlnqc_iter,varqc_iter
-  use constants, only: zero,tpwcon,half,one,tiny_r_kind,cg_term,r3600
-  use jfunc, only: jiter,iter
+  use constants, only: zero,half,one,tiny_r_kind,cg_term,r3600
+  use jfunc, only: jiter
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
   use gsi_4dvar, only: ladtest_obs
@@ -185,9 +186,11 @@ subroutine intswcp_(swcphead,rval,sval)
     if(luse_obsdiag)then
        if (lsaveobsens) then
           grad = val*swcpptr%raterr2*swcpptr%err2
-          swcpptr%diags%obssen(jiter) = grad
+          !-- swcpptr%diags%obssen(jiter) = grad
+          call obsdiagNode_set(swcpptr%diags,jiter=jiter,obssen=grad)
        else
-          if (swcpptr%luse) swcpptr%diags%tldepart(jiter)=val
+          !-- if (swcpptr%luse) swcpptr%diags%tldepart(jiter)=val
+          if (swcpptr%luse) call obsdiagNode_set(swcpptr%diags,jiter=jiter,tldepart=val)
        endif
     end if
 

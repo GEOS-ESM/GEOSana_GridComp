@@ -47,6 +47,7 @@ module jfunc
 !   2014-05-07  pondeca - add facthowv
 !   2014-06-18  carley/zhu - add lcbas and tcamt
 !   2015-07-10  pondeca - add factcldch
+!   2018-05-19  eliu    - add control factors (factql,factqi, ....) for hydrometeors 
 !
 ! Subroutines Included:
 !   sub init_jfunc           - set defaults for cost function variables
@@ -82,7 +83,6 @@ module jfunc
 !   def nvals_len  - number of 2d state-vector variables * subdomain size (with buffer)
 !   def nval_levs  - number of 2d (x/y) control-vector variables
 !   def nval_len   - number of 2d control-vector variables * subdomain size (with buffer)
-!   def l_foto     - option for foto
 !   def print_diag_pcg - option for turning on GMAO diagnostics in pcgsoi
 !   def tsensible  - option to use sensible temperature as the control variable. applicable
 !                    to the 2dvar mode only
@@ -130,14 +130,15 @@ module jfunc
 ! set passed variables to public
   public :: nrclen,npclen,nsclen,ntclen,qoption,nval_lenz,tendsflag,tsensible,cwoption,varcw
   public :: switch_on_derivatives,jiterend,jiterstart,jiter,iter,niter,miter
-  public :: diurnalbc,bcoption,biascor,nval2d,dhat_dt,xhat_dt,l_foto,xhatsave,first
+  public :: diurnalbc,bcoption,biascor,nval2d,xhatsave,first
   public :: factqmax,factqmin,clip_supersaturation,last,yhatsave,nvals_len,nval_levs,iout_iter,nclen
+  public :: factql,factqi,factqr,factqs,factqg  
   public :: niter_no_qc,print_diag_pcg,lgschmidt,penorig,gnormorig,iguess
   public :: factg,factv,factp,factl,R_option,factw10m,facthowv,factcldch,diag_precon,step_start
   public :: pseudo_q2
   public :: varq
 
-  logical first,last,switch_on_derivatives,tendsflag,l_foto,print_diag_pcg,tsensible,lgschmidt,diag_precon
+  logical first,last,switch_on_derivatives,tendsflag,print_diag_pcg,tsensible,lgschmidt,diag_precon
   logical clip_supersaturation,R_option
   logical pseudo_q2
   integer(i_kind) iout_iter,miter,iguess,nclen,qoption,cwoption
@@ -150,11 +151,11 @@ module jfunc
   integer(i_kind),dimension(0:50):: niter,niter_no_qc
   real(r_kind) factqmax,factqmin,gnormorig,penorig,biascor(2),diurnalbc,factg,factv,factp,factl,&
                factw10m,facthowv,factcldch,step_start
+  real(r_kind) factql,factqi,factqr,factqs,factqg  
   integer(i_kind) bcoption
   real(r_kind),allocatable,dimension(:,:):: varq
   real(r_kind),allocatable,dimension(:,:):: varcw
   type(control_vector),save :: xhatsave,yhatsave
-  type(gsi_bundle),save :: xhat_dt,dhat_dt
 
 contains
 
@@ -193,7 +194,6 @@ contains
     last  = .false.
     switch_on_derivatives=.false.
     tendsflag=.false.
-    l_foto=.false.
     print_diag_pcg=.false.
     tsensible=.false.
     lgschmidt=.false.
@@ -203,6 +203,11 @@ contains
 
     factqmin=zero
     factqmax=zero
+    factql=zero
+    factqi=zero
+    factqr=zero
+    factqs=zero
+    factqg=zero
     clip_supersaturation=.false.
     factg=zero
     factv=zero

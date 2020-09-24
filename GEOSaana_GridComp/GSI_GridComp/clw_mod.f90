@@ -9,6 +9,7 @@
 ! program history log:
 !   2010-08-19 derber combine retrieval_mi,ret_ssmis,retrieval_amsre and part of setuprad
 !   2011-07-02 todling use general interface for intrisic FORTRAN math functions
+!   2020-01-13 mkim added mhs_si to assign scattering index for all-sky mhs DA
 !
 ! subroutines included:
 !   sub calc_clw        - calculates cloud liquid water (clw) for microwave channels over ocean (public)
@@ -38,7 +39,8 @@ implicit none
 ! set default to private
   private
 ! set routines used externally to public
-  public :: calc_clw, ret_amsua, gmi_37pol_diff
+  public :: calc_clw, ret_amsua, gmi_37pol_diff,mhs_si
+  public :: retrieval_amsr2
 
 contains
 
@@ -63,6 +65,7 @@ contains
 !               retrieval_gmi subroutine.
 !   2015-03-11  ejones- added call to retrieval_amsr2 subroutine
 !   2015-03-23  ejones- added call to retrieval_saphir subroutine
+!   2015-08-20  zhu  - set negative clw to be zero 
 !   2016-11-07  sienkiewicz - Additional constraint on AMSUA/ATMS ch 1,2 
 !                        for calculating CLW sensitivyt term to exclude 
 !                        invalid BT values  Leave CLW sensitivity term as 0. 
@@ -898,6 +901,7 @@ subroutine retrieval_amsr2(tb,nchanl,clw,kraintype,ierr)
 !   2014-11-15  ejones
 !   2015-10-02  ejones     - update for better retrieval of AMSR2 cloud
 !   2015-10-07  ejones     - add bias correction to TBs prior to CLW retrieval
+!   2017-01-10  j.jin      - Calculate rain type.
 !
 !   input argument list:
 !     tb      - Observed brightness temperature [K]
@@ -937,6 +941,7 @@ subroutine retrieval_amsr2(tb,nchanl,clw,kraintype,ierr)
   real(r_kind)::regr_coeff_clw(3),pred_var_clw(2),sys_bias(14),tb_use(14)
   real(r_kind)::a0_clw
   real(r_kind)::tb6v,tb6h,tb7v,tb7h,tb10v,tb10h,tb18v,tb18h,tb23v,tb23h,tb36v,tb36h,tb89v,tb89h
+  real(r_kind)::tb36_diff
 
   integer(i_kind)::i,idx,diff_var
 ! ---------- Initialize some variables ---------------------
@@ -947,6 +952,11 @@ subroutine retrieval_amsr2(tb,nchanl,clw,kraintype,ierr)
   tb6v=tb(1); tb6h=tb(2); tb7v=tb(3); tb7h=tb(4); tb10v=tb(5); tb10h=tb(6)
   tb18v=tb(7); tb18h=tb(8); tb23v=tb(9); tb23h=tb(10); tb36v=tb(11)
   tb36h=tb(12); tb89v=tb(13); tb89h=tb(14)
+! Only consider tb36_diff.
+  tb36_diff = tb36v - tb36h 
+  if (tb36_diff < 40.0_r_kind) then
+     kraintype=2
+  end if
 
   ! Brightness temperatures used for training CLW retrievals were
   ! simulated from ECMWF fields collocated with AMSR2 observations. The retrievals
@@ -1953,7 +1963,6 @@ subroutine ret_amsua(tb_obs,nchanl,tsavg5,zasat,clwp_amsua,ierrret,scat)
   integer(i_kind)                   ,intent(  out) :: ierrret 
   real(r_kind),optional             ,intent(  out) :: scat
 
-! real(r_kind)                    ::  tpwc_amsua
   real(r_kind),parameter:: r285=285.0_r_kind
   real(r_kind),parameter:: r284=284.0_r_kind
   real(r_kind),parameter:: r1000=1000.0_r_kind
@@ -1971,13 +1980,10 @@ subroutine ret_amsua(tb_obs,nchanl,tsavg5,zasat,clwp_amsua,ierrret,scat)
   if (tsavg5>t0c-one .and. tb_obs(1)<=r284 .and. tb_obs(2)<=r284  .and. &
       tb_obs(1)>zero .and. tb_obs(2)>zero) then
      clwp_amsua=cos(zasat)*(d0 + d1*log(r285-tb_obs(1)) + d2*log(r285-tb_obs(2))) 
-!    tpwc_amsua=cos(zasat)*(c0 + c1*log(r285-tb_obs(1)) + c2*log(r285-tb_obs(2)))
      ierrret = 0
      clwp_amsua=max(zero,clwp_amsua)
-!    tpwc_amsua=max(zero,tpwc_amsua)
   else
      clwp_amsua = r1000  
-!    tpwc_amsua = r1000  
      ierrret = 1
   endif
 
@@ -2017,17 +2023,57 @@ subroutine gmi_37pol_diff(tb37v,tb37h,tsim37v,tsim37h,clw,ierrret)
   integer(i_kind)                   ,intent(  out) :: ierrret
 
 ! Declare local variables
-  real(r_kind) :: a1_ch1, a1_ch2, b1_ch1, b1_ch2, c1_ch1, c1
 
      ierrret = 0
 
      clw = one - (tb37v-tb37h)/(tsim37v-tsim37h)
      clw=max(zero,clw)
-     if(tb37h .gt. tb37v)  then
+     if(tb37h > tb37v)  then
         ierrret = 1
         clw= r1000
      endif
 
 end subroutine gmi_37pol_diff
+
+subroutine mhs_si(tb89v,tb166v,tsimclr89v,tsimclr166v,clw,ierrret)
+!$$$  subprogram documentation block
+!                .      .    .                                       .    
+! subprogram: mhs_si 
+!
+!  prgmmr: Min-Jeong Kim
+!
+! abstract: calculates cloud amount index over ocean using scattering index
+!
+!   output argument list:
+!     clw  
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+!
+  use kinds, only: r_kind, i_kind
+  use constants, only: r1000, zero, half
+  implicit none
+
+  real(r_kind)                      ,intent(in   ) :: tb89v,tb166v
+  real(r_kind)                      ,intent(in   ) :: tsimclr89v,tsimclr166v
+  real(r_kind)                      ,intent(  out) :: clw
+  integer(i_kind)                   ,intent(  out) :: ierrret
+
+! Declare local variables
+  real(r_kind) :: si
+
+     ierrret = 0
+     si = (tb89v - tb166v) - (tsimclr89v-tsimclr166v)
+     clw=max(zero,si)
+
+!     if(tb37h .gt. tb37v)  then
+!        ierrret = 1
+!        clw= r1000
+!     endif
+
+end subroutine mhs_si
 
 end module clw_mod

@@ -1,3 +1,4 @@
+
 module m_cvgridLookup
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -66,8 +67,6 @@ module m_cvgridLookup
 
   integer(i_kind),parameter:: iHalo = 1
 
-!#define NDEBUG
-!#define DEBUG_TRACE
 #include "mytrace.H"
 #include "myassert.H"
 contains

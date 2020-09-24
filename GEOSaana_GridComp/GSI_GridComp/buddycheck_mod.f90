@@ -50,7 +50,8 @@ subroutine buddy_check_t(is,data,luse,mype,nele,nobs,muse,buddyuse)
 
   use gridmod, only: nsig,regional
   use guess_grids, only: nfldsig, hrdifsig,ges_lnprsl,&
-       geop_hgtl,ges_tsen,pt_ll
+       geop_hgtl,ges_tsen
+  use gridmod,only:pt_ll
   use constants, only: zero,one,r10
   use obsmod, only: bmiss,sfcmodel,time_offset  
   use m_dtime, only: dtime_setup, dtime_check, dtime_show
@@ -697,7 +698,7 @@ subroutine execute_buddy_check(mype,is,numobs,pevals,range,difmax,pebuddyuse)
 
        ! Do not use buddies who are not eligible
        if (buddyuse_global(j)==0 .or. vals_global(j,5) >= r100 .or. &
-          (abs(vals_global(i,1)-bmiss)<=tiny_r_kind) ) cycle inner 
+          (abs(vals_global(j,1)-bmiss)<=tiny_r_kind) ) cycle inner 
     
        ! Calculate horiz. and vertical distance between test innov. and potential buddy
        distance=gc_dist(mylat,mylon,vals_global(j,2),vals_global(j,3))  !units are meters (calc. via great circle method)      

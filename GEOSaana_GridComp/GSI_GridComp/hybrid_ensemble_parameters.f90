@@ -110,11 +110,10 @@ module hybrid_ensemble_parameters
 !      full_ensemble: if true, first ensemble member perturbed on first guess
 !                    if false, first member perturbed on ensemble mean as the rest of the menbers
 !      grid_ratio_ens: ratio of ensemble grid resolution to analysis resolution (default value is 1)
-!      enspreproc:      if .true., read in preprocessed ensemble members (in
-!                       files already subsetted for subdomains on each task).
 !      vvlocal:  logical variable, if .true., then horizontal localization length
 !                function of z, default = .false. 
 !      ensemble_path: path to ensemble members; default './'
+!      ens_fast_read: read ensemble in parallel; default '.false.'
 !      sst_staticB:   if .true. (default) uses only static part of B error covariance for SST
 !=====================================================================================================
 !
@@ -149,9 +148,10 @@ module hybrid_ensemble_parameters
 !   2015-01-22  Hu      - add flag i_en_perts_io to control reading ensemble perturbation.
 !   2015-02-11  Hu      - add flag l_ens_in_diff_time to force GSI hybrid use ensembles not available at analysis time
 !   2015-09-18  todling - add sst_staticB to control use of ensemble SST error covariance 
+!   2020-05-01  todling - allow for centering Bens around background/guess
 !
 ! subroutines included:
-!
+
 ! Variable Definitions:
 !   def l_hyb_ens          - logical switch to turn on hybrid ensemble 3dvar
 !   def uv_hyb_ens         - if true, then ensemble perturbation wind represented by u,v
@@ -218,7 +218,6 @@ module hybrid_ensemble_parameters
 !   def grid_ratio_ens:     - ratio of ensemble grid resolution to analysis resolution (default value is 1)
 !   def use_localization_grid - if true, then use extra lower res gaussian grid for horizontal localization
 !                                   (global runs only--allows possiblity for non-gaussian ensemble grid)
-!   def enspreproc           - flag to read (.true.) already subsetted ensemble data.
 !   def vvlocal             - logical switch for vertically varying horizontal localization length
 !   def i_en_perts_io       - flag to write out and read in ensemble perturbations in ensemble grid.   
 !                             This is to speed up RAP/HRRR hybrid runs because the
@@ -233,6 +232,10 @@ module hybrid_ensemble_parameters
 !                             =true: ensembles available time can be different
 !                                      from analysis time in hybrid analysis
 !   def ensemble_path        - path to ensemble members; default './'
+!   def ens_fast_read        - read ensemble in parallel; default '.false.'
+!   def bens_recenter        - center Bens around background/guess; default '.false.'
+!   def upd_ens_spread       - update ens spread with first guess
+!   def upd_ens_localization - update localization when upd_ens_spread=.t.
 !
 ! attributes:
 !   language: f90
@@ -280,7 +283,6 @@ module hybrid_ensemble_parameters
   public :: write_ens_sprd
   public :: nval_lenz_en
   public :: ntlevs_ens
-  public :: enspreproc
   public :: i_en_perts_io
   public :: l_ens_in_diff_time
   public :: ensemble_path
@@ -288,10 +290,14 @@ module hybrid_ensemble_parameters
   public :: en_perts,ps_bar
   public :: region_lat_ens,region_lon_ens
   public :: region_dx_ens,region_dy_ens
+  public :: ens_fast_read
   public :: sst_staticB
+  public :: bens_recenter
+  public :: upd_ens_spread
+  public :: upd_ens_localization
 
   logical l_hyb_ens,uv_hyb_ens,q_hyb_ens,oz_univ_static,sst_staticB
-  logical enspreproc
+  logical bens_recenter,upd_ens_spread,upd_ens_localization
   logical aniso_a_en
   logical full_ensemble,pwgtflg
   logical generate_ens
@@ -306,6 +312,7 @@ module hybrid_ensemble_parameters
   logical eqspace_ensgrid
   logical vvlocal
   logical l_ens_in_diff_time
+  logical ens_fast_read
   integer(i_kind) i_en_perts_io
   integer(i_kind) n_ens,nlon_ens,nlat_ens,jcap_ens,jcap_ens_test
   real(r_kind) beta_s0,s_ens_h,s_ens_v,grid_ratio_ens
@@ -390,7 +397,6 @@ subroutine init_hybrid_ensemble_parameters
   use_localization_grid=.false.
   use_gfs_ens=.true.         ! when global: default is to read ensemble from GFS
   eqspace_ensgrid=.false.
-  enspreproc=.false.
   vvlocal=.false.
   l_ens_in_diff_time=.false.
   n_ens=0
@@ -410,6 +416,10 @@ subroutine init_hybrid_ensemble_parameters
   ntlevs_ens=1               ! default for number of time levels for ensemble perturbations
   i_en_perts_io=0            ! default for en_pert IO. 0 is no IO
   ensemble_path = './'       ! default for path to ensemble members
+  ens_fast_read=.false.
+  bens_recenter=.false.      ! center ensemble cov around background/guess
+  upd_ens_spread=.false.     ! redefine ens spread (for jiter>1) by recentering ens around guess 
+  upd_ens_localization=.false.  ! update localization when upd_ens_spread=.t.
 
 end subroutine init_hybrid_ensemble_parameters
 

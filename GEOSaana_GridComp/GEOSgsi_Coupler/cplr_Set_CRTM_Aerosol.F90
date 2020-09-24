@@ -18,7 +18,7 @@ implicit none
 ! !ARGUMENTS:
 
   integer(i_kind) , intent(in)    :: km                ! number of levels
-  integer(i_kind) , intent(in)    :: na_dummy          ! to cope w/ NCAR's change: REVISIT
+  integer(i_kind) , intent(in)    :: na_dummy          ! to cope w/ NCAR''s change: REVISIT
   integer(i_kind) , intent(in)    :: na                ! number of aerosols
   character(len=*), intent(in)    :: aero_name(na)     ! [na]    GOCART aerosol names: du0001, etc.
   real(r_kind),     intent(in)    :: aero_conc(km,na)  ! [km,na] aerosol concentration (Kg/m2)
@@ -32,7 +32,7 @@ implicit none
 ! !REVISION HISTORY:
 !
 ! 23feb2011  da Silva  Initial version, FORTRAN-77 interface for GSI.
-! 07apr2012  todling   temporarily add na_dummy to cope w/ NCAR's odd change.
+! 07apr2012  todling   temporarily add na_dummy to cope w/ NCAR''s odd change.
 !
 !EOP
 !-----------------------------------------------------------------------------

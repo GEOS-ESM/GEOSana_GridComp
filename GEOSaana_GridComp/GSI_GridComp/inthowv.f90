@@ -25,6 +25,7 @@ use m_obsNode , only: obsNode
 use m_howvNode, only: howvNode
 use m_howvNode, only: howvNode_typecast
 use m_howvNode, only: howvNode_nextcast
+use m_obsdiagNode, only: obsdiagNode_set
 implicit none
 
 PRIVATE
@@ -63,7 +64,6 @@ subroutine inthowv(howvhead,rval,sval)
   use constants, only: half,one,tiny_r_kind,cg_term
   use obsmod, only: lsaveobsens, l_do_adjoint, luse_obsdiag
   use qcmod, only: nlnqc_iter,varqc_iter
-  use gridmod, only: latlon11
   use jfunc, only: jiter
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -112,9 +112,11 @@ subroutine inthowv(howvhead,rval,sval)
      if(luse_obsdiag)then
         if (lsaveobsens) then
            grad = val*howvptr%raterr2*howvptr%err2
-           howvptr%diags%obssen(jiter) = grad
+           !-- howvptr%diags%obssen(jiter) = grad
+           call obsdiagNode_set(howvptr%diags,jiter=jiter,obssen=grad)
         else
-           if (howvptr%luse) howvptr%diags%tldepart(jiter)=val
+           !-- if (howvptr%luse) howvptr%diags%tldepart(jiter)=val
+           if (howvptr%luse) call obsdiagNode_set(howvptr%diags,jiter=jiter,tldepart=val)
         endif
      endif
 

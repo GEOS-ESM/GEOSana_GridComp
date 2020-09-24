@@ -188,6 +188,7 @@
    public GSI_Time0
    public GSI_RefTime
    public GSI_FcsTime
+   public GSI_bkg_fname_tmpl
    public GSI_ensbkg_fname_tmpl
    public GSI_ensana_fname_tmpl
    public GSI_ensprgA_fname_tmpl
@@ -197,6 +198,7 @@
    public GSI_ferrB_fname_tmpl
    public GSI_ensread_blocksize
 
+   public PPMV2GpG
 !
 ! !REVISION HISTORY:
 !
@@ -246,10 +248,10 @@
    real, parameter     :: UNDEF_SSI_      = -9.9899991E33 
    real, parameter     :: UNDEF_SOIL_TEMP = 1.E+15
    real, parameter     :: UNDEF_SNOW_DEP  = 1.E+12
-   real, parameter     :: PPMV2DU         = 1.657E-6
+   real, parameter     :: PPMV2GpG        = 1.6571E-6         ! ((47.9982 g/mol)/((28.9644 g/mol))*1e-6(mol/mol)-> g/g
    real, parameter     :: KGpKG2PPBV      = (28./28.97)*1.E+9 ! mol/mol to ppbv
-   real, parameter     :: KGpKG2PPBVaero  = 1.E+9             ! kg/kg to ppbv
-   real, parameter     :: KGpKG2ppmvCO2   = 1.E+6             ! kg/kg to ppmv
+   real, parameter     :: KGpKG2PPBVaero  = 1.E+9             ! kg/kg to ppbv (mol/mol to ppbv)
+   real, parameter     :: KGpKG2ppmvCO2   = 1.E+6             ! kg/kg to ppmv (mol/mol to ppmv)
    real, parameter     :: kPa_per_Pa      = 0.001
    real, parameter     :: Pa_per_kPa      = 1000.
    logical, parameter  :: verbose         = .false.
@@ -257,12 +259,15 @@
    integer, save       :: nbkgfreq        = 1
    integer, save       :: nthTimeIndex    = 0
    integer, save       :: BKGfreq_hr,BKGfreq_mn,BKGfreq_sc
-   integer, save       :: ANAfreq_hr,ANAwndw_hr
+   integer, save       :: ANAfreq_hr,ANAfreq_mn,ANAfreq_sc
+   integer, save       :: ANAwndw_hr
    integer(i_kind), save :: MYIDATE(4)
    integer(i_kind), save :: MYHOURG = 0.
+   real(r_kind), save  :: BKGfrac_hr
 
    logical, save       :: doVflip = .true.
    character(len=ESMF_MAXSTR),save :: GSI_ExpId
+   character(len=ESMF_MAXSTR),save :: GSI_bkg_fname_tmpl
    character(len=ESMF_MAXSTR),save :: GSI_ensbkg_fname_tmpl
    character(len=ESMF_MAXSTR),save :: GSI_ensana_fname_tmpl
    character(len=ESMF_MAXSTR),save :: GSI_ensprgA_fname_tmpl
@@ -896,7 +901,8 @@ _ENTRY_(trim(Iam))
    
 ! local variables
 
-   integer(i_kind)  :: i, bkgbits, bkgbits_hr
+   real(r_kind)     :: bkgbits
+   integer(i_kind)  :: i
    integer(i_kind)  :: JOB_SGMT(2)
    integer(i_kind)  :: BKGfreq
    integer(i_kind)  :: ANAfreq
@@ -924,6 +930,7 @@ _ENTRY_(trim(Iam))
    BKGfreq_mn = mod(BKGfreq,10000)/100
    BKGfreq_sc = mod(BKGfreq,100)
    BKGfreq_sc = BKGfreq_hr*3600 + BKGFreq_mn*60 + BKGfreq_sc
+   BKGfrac_hr = BKGfreq_hr + real(BKGfreq_mn)/60
  
    call ESMF_ConfigGetAttribute(CF, RUN_DT, label='RUN_DT:', rc=STATUS)
         VERIFY_(STATUS)
@@ -939,6 +946,9 @@ _ENTRY_(trim(Iam))
         VERIFY_(STATUS)
 
    ANAfreq_hr = ANAfreq / 10000
+   ANAfreq_mn = mod(ANAfreq,10000)/100
+   ANAfreq_sc = mod(ANAfreq,100)
+   ANAfreq_sc = ANAfreq_hr*3600 + ANAFreq_mn*60 + ANAfreq_sc
 
    if ( mod(BKGfreq_sc,6*3600)==0) then
         nfldsig_all = nhr_assimilation*3600 / BKGfreq_sc
@@ -984,22 +994,24 @@ _ENTRY_(trim(Iam))
 #ifdef VERBOSE
    call tell(Iam,'nfldsig_all=',nfldsig_all)
    call tell(Iam,'nfldsfc_all=',nfldsfc_all)
-   call tell(Iam,'BKGfreq_hr =',BKGfreq_hr )
+   call tell(Iam,'BKGfrac_hr =',BKGfrac_hr )
 #endif
-   bkgbits = 0
+   bkgbits = 0.0
    do i = 1, nfldsig_all
       hrdifsig_all(i)  = bkgbits
-      bkgbits      = bkgbits + BKGfreq_hr
-#ifdef VERBOSE
-      call tell(Iam,'             i =',i)
-      call tell(Iam,'hrdifsig_all(i)=',hrdifsig_all(i))
-#endif
+      bkgbits      = bkgbits + bkgfrac_hr
+!_RT#ifdef VERBOSE
+      if (IamRoot) then
+         call tell(Iam,'             i =',i)
+         call tell(Iam,'hrdifsig_all(i)=',hrdifsig_all(i))
+      endif
+!_RT#endif
    enddo
 
-   bkgbits = 0
+   bkgbits = 0.0
    do i = 1, nfldsfc_all
       hrdifsfc_all(i)  = bkgbits
-      bkgbits      = bkgbits + BKGfreq_hr
+      bkgbits      = bkgbits + bkgfrac_hr
 #ifdef VERBOSE
       call tell(Iam,'             i =',i)
       call tell(Iam,'hrdifsfc_all(i)=',hrdifsfc_all(i))
@@ -1010,8 +1022,14 @@ _ENTRY_(trim(Iam))
    call ESMF_ConfigGetAttribute(CF, GSI_ensread_blocksize, label='ensemble_read_blocksize:', &
                                 default=4,rc=STATUS)
 
-!  Read in filename template for ensemble of backgounds
-!  ----------------------------------------------------
+!  Read in filename template for background files
+!  ----------------------------------------------
+   call ESMF_ConfigGetAttribute(CF, GSI_bkg_fname_tmpl, label='upper-air_bkg_filename:', &
+                                default='%s.bkg.eta.%y4%m2%d2_%h2z.nc4',rc=STATUS)
+        VERIFY_(STATUS)
+
+!  Read in filename template for ensemble of backgrounds
+!  -----------------------------------------------------
    call ESMF_ConfigGetAttribute(CF, GSI_ensbkg_fname_tmpl, label='ensemble_upabkg_filename:', &
                                 default='%s.bkg.eta.%y4%m2%d2_%h2z.nc4',rc=STATUS)
         VERIFY_(STATUS)
@@ -1783,7 +1801,7 @@ _ENTRY_(trim(Iam))
       endif
       if(associated(ozp)) then
          where ( ozp /= MAPL_UNDEF )
-                 ozp = ozp * PPMV2DU    ! convert ozone unit
+                 ozp = ozp * PPMV2GpG  ! convert from ppmv to g/g
          endwhere
       endif
       if(associated(cop)) then
@@ -1793,98 +1811,98 @@ _ENTRY_(trim(Iam))
       endif
       if(associated(co2p)) then
          where ( co2p /= MAPL_UNDEF )
-                 co2p = co2p * KGpKG2ppmvCO2  ! convert carbon dioxide unit
+                 co2p = co2p * KGpKG2ppmvCO2  ! convert carbon dioxide to ppmv
          endwhere
       endif
       if(associated(du001p)) then
          where ( du001p /= MAPL_UNDEF )
-                 du001p = du001p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 du001p = du001p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(du002p)) then
          where ( du002p /= MAPL_UNDEF )
-                 du002p = du002p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 du002p = du002p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
          print *, 'DEBUG doing the right thing ...'
       endif
       if(associated(du003p)) then
          where ( du003p /= MAPL_UNDEF )
-                 du003p = du003p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 du003p = du003p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(du004p)) then
          where ( du004p /= MAPL_UNDEF )
-                 du004p = du004p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 du004p = du004p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(du005p)) then
          where ( du005p /= MAPL_UNDEF )
-                 du005p = du005p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 du005p = du005p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(ss001p)) then
          where ( ss001p /= MAPL_UNDEF )
-                 ss001p = ss001p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 ss001p = ss001p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(ss002p)) then
          where ( ss002p /= MAPL_UNDEF )
-                 ss002p = ss002p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 ss002p = ss002p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(ss003p)) then
          where ( ss003p /= MAPL_UNDEF )
-                 ss003p = ss003p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 ss003p = ss003p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(ss004p)) then
          where ( ss004p /= MAPL_UNDEF )
-                 ss004p = ss004p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 ss004p = ss004p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(ss005p)) then
          where ( ss005p /= MAPL_UNDEF )
-                 ss005p = ss005p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 ss005p = ss005p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(dmsp)) then
          where ( dmsp /= MAPL_UNDEF )
-                 dmsp = dmsp * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 dmsp = dmsp * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(so2p)) then
          where ( so2p /= MAPL_UNDEF )
-                 so2p = so2p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 so2p = so2p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(so4p)) then
          where ( so4p /= MAPL_UNDEF )
-                 so4p = so4p * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 so4p = so4p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(msap)) then
          where ( msap /= MAPL_UNDEF )
-                 msap = msap * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 msap = msap * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(bcphobicp)) then
          where ( bcphobicp /= MAPL_UNDEF )
-                 bcphobicp = bcphobicp * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 bcphobicp = bcphobicp * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(bcphilicp)) then
          where ( bcphilicp /= MAPL_UNDEF )
-                 bcphilicp = bcphilicp * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 bcphilicp = bcphilicp * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(ocphobicp)) then
          where ( ocphobicp /= MAPL_UNDEF )
-                 ocphobicp = ocphobicp * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 ocphobicp = ocphobicp * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
       if(associated(ocphilicp)) then
          where ( ocphilicp /= MAPL_UNDEF )
-                 ocphilicp = ocphilicp * KGpKG2PPBVaero ! convert from kg/kg to g/kg
+                 ocphilicp = ocphilicp * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
    endif
@@ -2950,7 +2968,7 @@ _ENTRY_(trim(Iam))
    if(associated(dps)) dps = dps  * Pa_per_kPa
    if(GsiGridType==0) then
       if(associated(dhs)) dhs = grav * dhs
-      if(associated(doz)) doz = doz  / PPMV2DU
+      if(associated(doz)) doz = doz  / PPMV2GpG
       if(idco.and.associated(dcop)) then
          dcop = dcop  / KGpKG2PPBV
       endif
@@ -3693,7 +3711,7 @@ _ENTRY_(trim(Iam))
                       'fraction of sea ice             ' /)
    character(len=16), parameter :: inunits2d(nin2d) = (/  &
                                    'm**2/s**2       ',    &
-                                   'hPa             ',    &
+                                   'Pa              ',    &
                                    'K               ',    &
 !                                  '1               ',    &
 !                                  '1               ',    &
@@ -3730,7 +3748,7 @@ _ENTRY_(trim(Iam))
                                    'm/s             ',    &
                                    'K               ',    &
                                    'g/g             ',    &
-                                   'g/g             '    /)
+                                   'ppmv            '    /)
 
 !  Declare import 2d-fields (extra met-guess)
 !  ------------------------
@@ -3879,7 +3897,7 @@ _ENTRY_(trim(Iam))
                       'fraction of sea ice             ' /)
    character(len=16), parameter :: exunits2d(nex2d) = (/  &
                                    'm**2/s**2       ',    &
-                                   'hPa             ',    &
+                                   'Pa              ',    &
                                    'K               ',    &
                                    '1               ',    &
                                    '1               ',    &
@@ -3908,7 +3926,7 @@ _ENTRY_(trim(Iam))
                                    'm/s             ',    &
                                    'm/s             ',    &
                                    'K               ',    &
-                                   'hPa             ',    &
+                                   'Pa              ',    &
                                    'g/g             ',    &
                                    'g/g             '    /)
 
@@ -4279,7 +4297,7 @@ _ENTRY_(trim(Iam))
    call ESMF_TimeIntervalSet(FrqBKG, s=BKGfreq_sc, rc=STATUS)
      VERIFY_(STATUS)
 
-   call ESMF_TimeIntervalSet(FrqANA, h=ANAfreq_hr, rc=STATUS)
+   call ESMF_TimeIntervalSet(FrqANA, h=ANAfreq_sc, rc=STATUS)
      VERIFY_(STATUS)
 
    call ESMF_TimeIntervalSet(AnaOST, h=min_offset/60,m=mod(min_offset,60), rc=STATUS)

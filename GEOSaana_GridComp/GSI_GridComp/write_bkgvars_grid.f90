@@ -100,6 +100,9 @@ subroutine write_bkgvars2_grid
 !   2008-03-27  safford -- add subprogram doc block, rm unused vars and uses
 !   2010-06-18  todling -- generalized to show all variances; create ctl
 !   2010-10-20  pagowski - add cmaq
+!   2017-03-23  Hu      - add code to use hybrid vertical coodinate in WRF MASS
+!                           core
+!   2018-02-15  wu      - add code for fv3_regional
 !
 !   input argument list:
 !
@@ -112,12 +115,13 @@ subroutine write_bkgvars2_grid
 !$$$
   use kinds, only: r_kind,i_kind,r_single
   use mpimod, only: mype
-  use constants, only: zero,r1000,one_tenth
+  use constants, only: zero,r1000,one_tenth,r100
+  use guess_grids, only: get_ref_gesprs
   use gridmod, only: nlat,nlon,nsig
-  use gridmod, only: ak5,bk5,idvc5,&
-         regional,wrf_nmm_regional,nems_nmmb_regional,wrf_mass_regional,&
-         cmaq_regional,pt_ll,&
-         eta2_ll,pdtop_ll,eta1_ll,twodvar_regional
+  !use gridmod, only: ak5,bk5,idvc5,&
+         !regional,wrf_nmm_regional,nems_nmmb_regional,wrf_mass_regional,&
+         !cmaq_regional,pt_ll,fv3_regional,&
+         !eta2_ll,pdtop_ll,eta1_ll,twodvar_regional
   use control_vectors, only: nc3d,nc2d,mvars
   use control_vectors, only: cvars3d,cvars2d,cvarsmd
   use berror, only: dssv,dssvs
@@ -148,30 +152,7 @@ subroutine write_bkgvars2_grid
      call gather_stuff2(dssvs(1,1,nc2d+n),dg(1,1,nc2d+n),mype,0)
   end do
 
-! get some reference-like pressure levels
-  do k=1,nsig+1
-     if(regional) then
-        if (wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional) &
-           prs(k)=one_tenth* &
-                  (eta1_ll(k)*pdtop_ll + &
-                   eta2_ll(k)*(r1000-pdtop_ll-pt_ll) + &
-                   pt_ll)
-        if (wrf_mass_regional .or. twodvar_regional) &
-           prs(k)=one_tenth*(eta1_ll(k)*(r1000-pt_ll) + pt_ll)
-     else
-        if (idvc5==1 .or. idvc5==2) then
-           prs(k)=ak5(k)+(bk5(k)*r1000)
-        else if (idvc5==3) then
-           if (k==1) then
-              prs(k)=r1000
-           else if (k==nsig+1) then
-              prs(k)=zero
-           else
-              prs(k)=ak5(k)+(bk5(k)*r1000)! +(ck5(k)*trk)
-           end if
-        end if
-     endif
-  enddo
+  call get_ref_gesprs(prs)
 
   if (mype==0) then
      write(6,*) 'WRITE OUT NEW VARIANCES'
@@ -216,7 +197,7 @@ subroutine write_bkgvars2_grid
      write(lu,'(a,2x,e13.6)') 'UNDEF', 1.E+15 ! any other preference for this?
      write(lu,'(a,2x,i4,2x,a,2x,f5.1,2x,f9.6)') 'XDEF',nlon, 'LINEAR',   0.0, 360./nlon
      write(lu,'(a,2x,i4,2x,a,2x,f5.1,2x,f9.6)') 'YDEF',nlat, 'LINEAR', -90.0, 180./(nlat-1.)
-     write(lu,'(a,2x,i4,2x,a,100(1x,f10.5))')      'ZDEF',nsig, 'LEVELS', prs
+     write(lu,'(a,2x,i4,2x,a,100(1x,f10.5))')      'ZDEF',nsig, 'LEVELS', prs(1:nsig)
      write(lu,'(a,2x,i4,2x,a)')   'TDEF', 1, 'LINEAR 12:00Z04JUL1776 6hr' ! any date suffices
      write(lu,'(a,2x,i4)')        'VARS',nc3d+nc2d+mvars
      do n=1,nc3d

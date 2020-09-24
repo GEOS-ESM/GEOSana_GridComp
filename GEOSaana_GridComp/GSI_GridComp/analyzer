@@ -177,13 +177,14 @@
 #  11Aug2017 RT/MJK   - update BERROR to gmao24Jun2016_fp+oz_fix/MJK - since same for fields other than qi/ql/qr/qs
 #  13Dec2017 RT/MJK/Guo - update CRTM coeffs to REL-2.2.3-r60152_local-rev_2 (only GMI differs from previous upd)
 #  21Nov2018 RT/WM/WG/Guo - update CRTM coeffs to REL-2.2.3-r60152_local-rev_3; add RERROR Covs
+#  10Feb2020 Karpowicz/RT - update Rcov to 13jan2020: add O3 sensitive IR chans for hyperspectral obs
+#  20May2020 Todling/JG - update CRTM coeffs to point to fix_ncep20200513 (to allow for CrIS FSR)
 #-----------------------------------------------------------------------------------------------------
 
 use Env;                 # make env vars readily available
 use File::Basename;      # for basename(), dirname()
 use File::Copy "cp";     # for cp()
 use Getopt::Long;        # load module with GetOptions function
-use Shell qw(cat rm);    # cat and rm commands
 use Time::Local;         # time functions
 use FindBin;             # so we can find where this script resides
 
@@ -539,21 +540,23 @@ sub init {
       if ( $doHYB ) {
         if ( $doasens ) {
           if ( -e "$fvwork/atmens_asens.acq" ) {
-            $cmd = "acquire_atmens.csh $expid $nymd $nhms $fvwork/atmens_asens.acq";
-            print " $cmd\n";
-            $rc = System($cmd, "$log_ana","acquire_atmens.csh");
-            if ( $rc ) {
-               print "Failed to acquire ensemble, aborting ... \n";
-            }
-            $tau_fcst = `nmlread.py $rcname SETUP tau_fcst`; chomp($tau_fcst);
-            if ( $tau_fcst > 0 ) {
-               if ( -e "$fvwork/atmens_eprg.acq" ) {
-                  my ($nymd_fcst, $nhms_fcst) = ( tick($nymd,$nhms,($tau_fcst-6)*3600) ); # tick time tau-6 (since Xfb are stored 6-hr earlier)
-                  $cmd = "acquire_atmens.csh $expid $nymd_fcst $nhms_fcst $fvwork/atmens_eprg.acq";
-                  print " $cmd\n";
-                  $rc = System($cmd, "$log_ana","acquire_atmens.csh");
-                  if ( $rc ) {
-                     print "Failed to acquire ensemble, aborting ... \n";
+            if ( ! -d "$fvwork/atmens" ) {
+               $cmd = "acquire_atmens.csh $expid $nymd $nhms $fvwork/atmens_asens.acq";
+               print " $cmd\n";
+               $rc = System($cmd, "$log_ana","acquire_atmens.csh");
+               if ( $rc ) {
+                  print "Failed to acquire ensemble, aborting ... \n";
+               }
+               $tau_fcst = `nmlread.py $rcname SETUP tau_fcst`; chomp($tau_fcst);
+               if ( $tau_fcst > 0 ) {
+                  if ( -e "$fvwork/atmens_eprg.acq" ) {
+                     my ($nymd_fcst, $nhms_fcst) = ( tick($nymd,$nhms,($tau_fcst-6)*3600) ); # tick time tau-6 (since Xfb are stored 6-hr earlier)
+                     $cmd = "acquire_atmens.csh $expid $nymd_fcst $nhms_fcst $fvwork/atmens_eprg.acq";
+                     print " $cmd\n";
+                     $rc = System($cmd, "$log_ana","acquire_atmens.csh");
+                     if ( $rc ) {
+                        die ">>>> ERROR: Failed to acquire ensemble, aborting ... <<< \n";
+                     }
                   }
                }
             }
@@ -569,7 +572,7 @@ sub init {
                print " $cmd\n";
                $rc = System($cmd, "$log_ana","acquire_atmens.csh");
                if ( $rc ) {
-                  print "Failed to acquire ensemble, aborting ... \n";
+                  die ">>>> ERROR: Failed to acquire ensemble, aborting ... <<< \n";
                }
                $ensdir = "$fvwork/atmens";
                print "Running hybrid GSI, in replay mode ... \n";
@@ -642,7 +645,7 @@ sub init {
    if ( $ENV{CRTM_COEFFS} ) {
       Assignfn( "$CRTM_COEFFS","CRTM_Coeffs");
    } else {
-      Assignfn( "$fvInput/$myetc/fix_ncep20181120/REL-2.2.3-r60152_local-rev_3/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
+      Assignfn( "$fvInput/$myetc/fix_ncep20200513/REL-2.2.3-r60152_local-rev_4/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
    }
    Assignfn( "$fvhome/run/prepobs_errtable.global","errtable");
 
@@ -686,15 +689,22 @@ sub init {
        Assignfn( "$fvwork/gmao_global_cloudy_radiance_info.rc",       "cloudy_radiance_info.txt");
        Assignfn( "$fvwork/gmao_global_aeroinfo.rc",               "aeroinfo");
        if ( $nsig == 72 ) {
-         Assignfn( "$fvwork/gmao_global_anavinfo.rc",             "anavinfo");
+               cp( "$fvwork/gmao_global_anavinfo.rc",             "anavinfo");
        } else {
-         Assignfn( "$fvwork/gmao_global_anavinfo_l${nsig}.rc",    "anavinfo");
+               cp( "$fvwork/gmao_global_anavinfo_l${nsig}.rc",    "anavinfo");
        }
        Assignfn( "$fvwork/gmao_global_pcpinfo.rc",                 "pcpinfo");
        Assignfn( "$fvwork/gmao_global_coinfo.rc",                   "coinfo");
        Assignfn( "$fvwork/gmao_global_blacklist.rc",             "blacklist");
        Assignfn( "$fvwork/gmao_global_insituinfo.rc",           "insituinfo");
        Assignfn( "$fvwork/gmao_global_scaninfo.rc",               "scaninfo");
+       if ( -e "$fvwork/gmao_global_rad_time_thin.rc ") {
+          rename("anavinfo","anavinfo.hold");
+          $cmd = "cat `ls anavinfo.hold $fvwork/gmao_global_rad_time_thin.rc`>>anavinfo";
+          print " $cmd\n";
+          $rc_ignore = system($cmd);
+          if ( -e "anavinfo" ) {rm("anavinfo.hold")};
+       }
        if ( $doHYB ) {
           if( -e "$fvwork/gmao_global_hybens_info.x${nlon_ens}y${nlat_ens}l${nsig}.rc" ) {
              Assignfn( "$fvwork/gmao_global_hybens_info.x${nlon_ens}y${nlat_ens}l${nsig}.rc","hybens_info");
@@ -769,7 +779,7 @@ sub init {
       if( $ENV{RERROR} ) {
         $rerror = $ENV{RERROR}; chomp($rerror);
       } else {
-        $rerror = "$fvInput/$myetc/rerror_gmao/19nov2018/";
+        $rerror = "$fvInput/$myetc/rerror_gmao/13jan2020/";
       }
       chdir("$rerror");
       @rcovs = (`ls *_rcov.bin`);
@@ -784,7 +794,7 @@ sub init {
       $cmd = "cat `ls anavinfo.hold $fvwork/gmao_global_anavinfo_rcov.rc`>>anavinfo";
       print " $cmd\n";
       $rc_ignore = system($cmd);
-      if ( -e "anavinfo" ) {rm("anavinfo.hold")};
+      if ( -e "anavinfo" ) {unlink("anavinfo.hold")};
    }
 
 #  Initialize sat-bias file (link or prepare to create one)
@@ -832,7 +842,7 @@ sub init {
                Assignfn ( "$fvwork/satbang", "satbias_angle" );  # need for gsi.x
             }
        } else {
-            die ">>>> Unable to find satbang file ... \n <<<";
+            if (! $ENV{ANGLEBC} ) {die ">>>> Unable to find satbang file ... \n <<<";}
        }
        if ( -e "$fvwork/pcpbias" ) {
             Assignfn ( "$fvwork/pcpbias", "pcpbias_in");
@@ -1022,7 +1032,7 @@ sub setobs {
   print "pbfile = $pbfile size = $size_pb\n";
   if ( -z $pbfile ) { 
       print "Removing 0 length $pbfile\n";
-      rm("$pbfile"); 
+      unlink("$pbfile"); 
   }
 
   $cmd = "ln -s $fvwork Obsloc";
@@ -1043,7 +1053,7 @@ sub setup_4dvar {
 
 # Edit resource files for ADM/TLM
 # -------------------------------
-  rm("sed_file");
+  unlink("sed_file");
   open(SED_FILE,">sed_file") or
   die ">>> ERROR <<< cannot write sed_file";
   print  SED_FILE <<"EOF";
@@ -1056,7 +1066,7 @@ s/>>>NDAY<<</$ndays/1
 s/>>>NCSUFFIX<<</$ncsuffix/1
 EOF
 
-  rm("ccmrun.namelist");
+  unlink("ccmrun.namelist");
   $cmd = "sed -f sed_file ./ccmrun.namelist.tmpl > ./ccmrun.namelist";
   print " $cmd\n";
   $rc_ignore = system($cmd);
@@ -1178,7 +1188,7 @@ sub ana {
            my ($pnymd, $pnhms) = ( tick($nymd,$nhms,-48*3600) ); # tick time to previous day
            my $phh = substr($pnhms,0,2);
            if (-e "$DIURNAL_SATBIAS/$expid.ana.satbias.${pnymd}_${phh}z.txt" ) {
-               rm("$DIURNAL_SATBIAS/$expid.ana.satbias.${pnymd}_${phh}z.txt");
+               unlink("$DIURNAL_SATBIAS/$expid.ana.satbias.${pnymd}_${phh}z.txt");
            }
       }
 
@@ -1195,7 +1205,7 @@ sub ana {
            my ($pnymd, $pnhms) = ( tick($nymd,$nhms,-48*3600) ); # tick time to previous day
            my $phh = substr($pnhms,0,2);
            if (-e "$DIURNAL_SATBIAS/$expid.ana.satbiaspc.${pnymd}_${phh}z.txt" ) {
-               rm("$DIURNAL_SATBIAS/$expid.ana.satbiaspc.${pnymd}_${phh}z.txt");
+               unlink("$DIURNAL_SATBIAS/$expid.ana.satbiaspc.${pnymd}_${phh}z.txt");
            }
       }
 
@@ -1276,7 +1286,7 @@ sub ana {
          addxinc($nymd,$nhms);
          # in this case, GSI should not write out the full analysis ...
          # if, for some reason it does, get rid of it
-         if ( -e $anaout ) {rm("$anaout")};
+         if ( -e $anaout ) {unlink("$anaout")};
      }
      # now move all analysis increments to main work directory
      @lsxinc =  glob("*xinc.eta.*.$ncsuffix");
@@ -1348,23 +1358,25 @@ sub addxinc {
 
   my ( $this_nymdi, $this_nhmsi );
   my ( $this_nymde, $this_nhmse );
-  my ( $dtsec, $this_iter, $this_iter3, $this_hhi );
+  my ( $dtsec, $this_iter, $this_iter3, $this_hhmni );
 
   ($this_nymdi,$this_nhmsi) = tick($this_nymd,$this_nhms,-($aoffset_hr)*3600);
   ($this_nymde,$this_nhmse) = tick($this_nymd,$this_nhms,  $aoffset_hr *3600);
-  $dtsec = $dtasyn*3600;
+  
+  my $nm_obsbin = `nmlread.py $rcname SETUP nmn_obsbin`;
+  $dtsec = $nm_obsbin * 60;
 
 # Create directory to push used intermediate increments into
   $rc = system("/bin/mkdir -p interxinc" );
   die ">>> ERROR <<< cannot create interxinc " if ( $rc );
 
 # Handle initial time
-  $this_hhi  = substr($this_nhmsi,0,2);
+  $this_hhmni  = substr($this_nhmsi,0,4);
 # Define final increment filename
-  $ofile = "$expid.xinc.eta.${this_nymdi}_${this_hhi}z.$ncsuffix";chomp($ofile);
+  $ofile = "$expid.xinc.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ofile);
 # First iteration is simply a copy ...
   $this_iter = 1;
-  $ifile = "$expid.xinc.001.eta.${this_nymdi}_${this_hhi}z.$ncsuffix";chomp($ifile);
+  $ifile = "$expid.xinc.001.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ifile);
   print "Analyzer addxinc On ITER $this_iter: cp $ifile $ofile \n";
   cp("$ifile","$ofile"); 
   rename("$ifile","interxinc/$ifile");
@@ -1373,7 +1385,7 @@ sub addxinc {
   while ( $this_iter < $miter ) {
      $this_iter = $this_iter + 1;
      $this_iter3 = sprintf("%3.3d",$this_iter);
-     $ifile = "$expid.xinc.$this_iter3.eta.${this_nymdi}_${this_hhi}z.$ncsuffix";chomp($ifile);
+     $ifile = "$expid.xinc.$this_iter3.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ifile);
      if ( ! -e "$ifile"  ) {
         $errcode = 999;
         die ">>> ERROR <<< cannot find increment file $ifile " if ( $errcode );
@@ -1392,12 +1404,12 @@ sub addxinc {
   while ( $this_nymdi != $this_nymde || $this_nhmsi != $this_nhmse ) {
      ($this_nymdi,$this_nhmsi) = tick($this_nymdi,$this_nhmsi,$dtsec);
 
-     $this_hhi  = substr($this_nhmsi,0,2);
+     $this_hhmni  = substr($this_nhmsi,0,4);
 #    Define final increment filename
-     $ofile = "$expid.xinc.eta.${this_nymdi}_${this_hhi}z.$ncsuffix";chomp($ofile);
+     $ofile = "$expid.xinc.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ofile);
 #    First iteration is simply a copy ...
      $this_iter = 1;
-     $ifile = "$expid.xinc.001.eta.${this_nymdi}_${this_hhi}z.$ncsuffix";chomp($ifile);
+     $ifile = "$expid.xinc.001.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ifile);
      print "Analyzer addxinc On ITER $this_iter: cp $ifile $ofile \n";
      cp("$ifile","$ofile"); 
      rename("$ifile","interxinc/$ifile");
@@ -1406,7 +1418,7 @@ sub addxinc {
      while ( $this_iter < $miter ) {
         $this_iter = $this_iter + 1;
         $this_iter3 = sprintf("%3.3d",$this_iter);
-        $ifile = "$expid.xinc.$this_iter3.eta.${this_nymdi}_${this_hhi}z.$ncsuffix";chomp($ifile);
+        $ifile = "$expid.xinc.$this_iter3.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ifile);
         if ( ! -e "$ifile"  ) {
            $errcode = 999;
            die ">>> ERROR <<< cannot find increment file $ifile " if ( $errcode );
@@ -1818,7 +1830,7 @@ sub sac {
       my ($pnymd, $pnhms) = ( tick($nymd,$nhms,-48*3600) ); # tick time to previous day
       my $phh = substr($pnhms,0,2);
       if ( -e "$DIURNAL_SATBIAS/$expid.ana.satbang.${pnymd}_${phh}z.txt") {
-           rm("$DIURNAL_SATBIAS/$expid.ana.satbang.${pnymd}_${phh}z.txt");
+           unlink("$DIURNAL_SATBIAS/$expid.ana.satbang.${pnymd}_${phh}z.txt");
       }
   }
 
