@@ -7,12 +7,6 @@ set (GSIGC_SRCS
   GSI_GridCompMod.F90
   )
 
-
-set (SRCSX
-  m_gsiversion.F90
-  m_FletcherChecksum.F90
-  )
-
 set (SRCS_OBSVR
   convb_ps.f90
   convb_q.f90
@@ -31,11 +25,14 @@ set (SRCS_OBSVR
  )
   
 set (SRCS_UTIL
+  abstract_ensmod.f90
+  aero_guess_at_obs_locations.f90
   aircraftinfo.f90
   aircraftobsqc.f90
   aniso_ens_util.f90
   antcorr_application.f90
   blendmod.f90
+  class_get_pseudo_ensperts.f90
   cloud_efr_mod.f90
   compact_diffs.f90
   compute_fact10.f90
@@ -48,24 +45,27 @@ set (SRCS_UTIL
   fill_mass_grid2.f90
   fill_nmm_grid2.f90
   fpvsx_ad.f90
+  fv3_regional_interface.f90
   general_commvars_mod.f90
+  general_read_fv3atm.f90
   general_read_gfsatm.f90
+  general_read_nemsaero.f90
   general_read_nmmb.f90 
+  general_read_nmmb_radar.f90
   general_specmod.f90
   general_spectral_transforms.f90
   general_sub2grid_mod.f90
   general_transform.f90
   general_tll2xy_mod.f90
   general_write_gfsatm.f90
+  genex_mod.f90
   gengrid_vars.f90
   genqsat.f90
   get_derivatives.f90
   get_derivatives2.f90
+  get_gefs_for_regional.f90
   get_gefs_ensperts_dualres.f90
   get_nmmb_ensperts.f90
-  get_pseudo_ensperts.F90
-  get_wrf_mass_ensperts_netcdf.F90
-  get_wrf_nmm_ensperts.F90
   get_semimp_mats.f90
   getprs.f90
   getuv.f90
@@ -81,9 +81,9 @@ set (SRCS_UTIL
   gscond_ad.f90
   gsi_4dcouplermod.f90
   gsi_enscouplermod.f90
-  gsi_nstcouplermod.f90
   gsi_io.f90
   gsi_nemsio_mod.f90
+  gsi_nstcouplermod.f90
   guess_grids.F90
   half_nmm_grid2.f90
   hilbert_curve.f90
@@ -109,13 +109,14 @@ set (SRCS_UTIL
   mpimod.F90
   mpl_allreduce.F90
   mpl_bcast.f90
+  mrmsmod.f90
   native_endianness.f90
   netcdf_mod.f90
   ncepgfs_io.f90
   ncepgfs_ghg.f90
   ncepnems_io.f90
+  nltransf.f90
   nstio_module.f90
-  Nst_Var_ESMFMod.f90
   nlmsas_ad.f90
   omegas_ad.f90
   phil.f90
@@ -144,6 +145,7 @@ set (SRCS_UTIL
   sparsearr.f90
   state_vectors.f90
   stop1.f90
+  sumslightbias.f90
   tendsmod.f90
   timermod.f90
   tintrp2a.f90
@@ -158,35 +160,79 @@ set (SRCS_UTIL
   unfill_nmm_grid2.f90
   unhalf_nmm_grid2.f90
   wind_fft.f90
+  wrf_mass_guess_mod.f90
+  wrf_vars_mod.f90
   blockIO.c
-  ${SRCSX}
   )
 
 set (SRCS_OTHER
-  get_gefs_for_regional.f90
-  gsd_update_mod.f90
-  read_wrf_mass_files.F90
-  read_wrf_mass_guess.F90
-  read_wrf_nmm_files.F90
-  read_wrf_nmm_guess.F90
-  regional_io.f90
-  wrf_binary_interface.F90
-  wrf_mass_guess_mod.f90
-  wrf_netcdf_interface.F90
-  wrwrfmassa.F90
-  wrwrfnmma.F90
+  class_get_wrf_mass_ensperts.f90
+  class_get_wrf_nmm_ensperts.f90
+  class_read_wrf_mass_files.f90
+  class_read_wrf_mass_guess.f90
+  class_read_wrf_nmm_files.f90
+  class_read_wrf_nmm_guess.f90
+  class_regional_io.f90
+  class_wrf_binary_interface.f90
+  class_wrf_netcdf_interface.f90
+  class_wrwrfmassa.f90
+  class_wrwrfnmma.f90 
+  wrf_params_mod.f90
   )
 
 set (SRCS_OBSNODES
+  gsi_aeroOper.F90
+  gsi_cldchOper.F90
+  gsi_cldtotOper.F90
+  gsi_colvkOper.F90
+  gsi_dbzOper.F90
+  gsi_dwOper.F90
+  gsi_gpsbendOper.F90
+  gsi_gpsrefOper.F90
+  gsi_gustOper.F90
+  gsi_howvOper.F90
+  gsi_lcbasOper.F90
+  gsi_lightOper.F90
+  gsi_lwcpOper.F90
+  gsi_mitmOper.F90
+  gsi_mxtmOper.F90
+  gsi_o3lOper.F90
+  gsi_obOper.F90
+  gsi_obOperTypeManager.F90
+  gsi_ozOper.F90
+  gsi_pblhOper.F90
+  gsi_pcpOper.F90
+  gsi_pm10Oper.F90
+  gsi_pm2_5Oper.F90
+  gsi_pmslOper.F90
+  gsi_psOper.F90
+  gsi_pwOper.F90
+  gsi_qOper.F90
+  gsi_radOper.F90
+  gsi_rwOper.F90
+  gsi_spdOper.F90
+  gsi_sstOper.F90
+  gsi_swcpOper.F90
+  gsi_tOper.F90
+  gsi_tcamtOper.F90
+  gsi_tcpOper.F90
+  gsi_td2mOper.F90
+  gsi_uwnd10mOper.F90
+  gsi_visOper.F90
+  gsi_vwnd10mOper.F90
+  gsi_wOper.F90
+  gsi_wspd10mOper.F90
   m_aerolNode.F90
   m_aeroNode.F90
   m_cldchNode.F90
   m_colvkNode.F90
+  m_dbzNode.F90
   m_dwNode.F90
   m_gpsNode.F90
   m_gustNode.F90
   m_howvNode.F90
   m_lagNode.F90
+  m_lightNode.F90
   m_lcbasNode.F90
   m_lwcpNode.F90
   m_mitmNode.F90
@@ -223,7 +269,6 @@ set (SRCS_SOLVER
   adjtest_obs.f90
   adjust_cloudobs_mod.f90
   aeroinfo.f90
-  allsky_mod.f90
   anberror.f90
   anbkerror.f90
   anisofilter.f90
@@ -288,17 +333,20 @@ set (SRCS_SOLVER
   grtest.f90
   gsd_terrain_match_surfTobs.f90
   gsdcloudanalysis4NMMB.F90
+  gsdcloudanalysis4gfs.F90
   gsdcloudanalysis.F90
+  gsdcloudlib_pseudoq_mod.f90
+  gsd_update_mod.f90
   gsimod.F90
   gsisub.F90
   hybrid_ensemble_isotropic.F90
   inc2guess.f90
   init_jcdfi.f90
-  int3dvar.f90
   intall.f90
   intaod.f90
   intcldch.f90
   intco.f90
+  intdbz.f90
   intdw.f90
   intgps.f90
   intgust.f90
@@ -307,6 +355,7 @@ set (SRCS_SOLVER
   intjo.f90
   intlag.f90
   intlcbas.f90
+  intlight.f90
   intlwcp.f90
   intmitm.f90
   intmxtm.f90
@@ -341,6 +390,7 @@ set (SRCS_SOLVER
   lag_traj.f90
   lagmod.f90
   lanczos.F90
+  lightinfo.f90
   loglcbas_to_lcbas.f90
   logcldch_to_cldch.f90
   logvis_to_vis.f90
@@ -359,15 +409,13 @@ set (SRCS_SOLVER
   m_uniq.f90
   m_obsdiagNode.F90
   m_obsdiags.F90
-  m_obsHeadBundle.F90
   m_obsNode.F90
-#  m_obsNode_scalar2D.F90
   m_obsLList.F90
   m_obsNodeTypeManager.F90
+  m_revBens.F90
   mod_vtrans.f90
   model_ad.F90
   model_tl.F90
-#  model2control.f90
   normal_rh_to_q.f90
   obserr_allsky_mw.f90
   obs_ferrscale.F90
@@ -390,6 +438,7 @@ set (SRCS_SOLVER
   qnewton3.f90
   radiance_mod.f90
   read_aerosol.f90
+  read_abi.f90
   read_ahi.f90
   read_airs.f90
   read_amsre.f90
@@ -400,12 +449,15 @@ set (SRCS_SOLVER
   read_avhrr_navy.f90
   read_bufrtovs.f90
   read_co.f90
+  read_dbz_nc.f90
+  read_dbz_netcdf.f90
   read_files.f90
   read_fl_hdob.f90
   read_gfs_ozone_for_regional.f90
   read_goesimg.f90
   read_goesndr.f90
   read_goesimgr_skycover.f90
+  read_goesglm.f90
   read_gmi.f90
   read_gps.f90
   read_guess.F90
@@ -426,6 +478,7 @@ set (SRCS_SOLVER
   read_pcp.f90
   read_prepbufr.f90
   read_radar.f90
+  read_radar_wind_ascii.f90
   read_radarref_mosaic.f90
   read_rapidscat.f90
   read_saphir.f90
@@ -441,12 +494,16 @@ set (SRCS_SOLVER
   setupaod.f90
   setupbend.f90
   setupcldch.f90
+  setupcldtot.F90
   setupco.f90
+  setupdbz.f90
+  setupdbz_lib.f90
   setupdw.f90
   setupgust.f90
   setuphowv.f90
   setuplag.f90
   setuplcbas.f90
+  setuplight.f90
   setuplwcp.f90
   setupmitm.f90
   setupmxtm.f90
@@ -487,16 +544,17 @@ set (SRCS_SOLVER
   statsoz.f90
   statspcp.f90
   statsrad.f90
-  stp3dvar.f90
   stpaod.f90
   stpcalc.f90
   stpcldch.f90
   stpco.f90
+  stpdbz.f90
   stpdw.f90
   stpgps.f90
   stpgust.f90
   stphowv.f90
   stpjo.f90
+  stplight.f90
   stpjcmod.f90
   stpoz.f90
   stplcbas.f90
@@ -535,13 +593,27 @@ set (SRCS_SOLVER
   tpause.f90
   tpause_t.F90
   update_guess.f90
-  update_geswtend.f90
   write_all.F90
   write_bkgvars_grid.f90
   xhat_vordivmod.f90
   zrnmi_mod.f90
   ${SRCS_OBSNODES}
   )
+
+set (WRF_SRCS
+   cplr_get_pseudo_ensperts.f90
+   cplr_read_wrf_mass_guess.f90
+   cplr_regional_io.f90
+   cplr_wrwrfmassa.f90
+   cplr_get_wrf_mass_ensperts.f90
+   cplr_read_wrf_nmm_files.f90
+   cplr_wrf_binary_interface.f90
+   cplr_wrwrfnmma.f90
+   cplr_get_wrf_nmm_ensperts.f90
+   cplr_read_wrf_mass_files.f90
+   cplr_read_wrf_nmm_guess.f90
+   cplr_wrf_netcdf_interface.f90
+   )
 
 set (SRCS
   ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} prepbykx.f
@@ -621,10 +693,22 @@ endif ()
 
 set (SRCS_STUBS
   stub_ensmod.f90
+  stub_get_wrf_mass_ensperts.f90
   stub_nstmod.f90
-  stub_set_crtm_aerosol.f90
   stub_pertmod.F90
-  stub_timermod.f90
+  m_stubTimer.f90 
+  stub_get_pseudo_ensperts.f90 
+  stub_get_wrf_mass_ensperts.f90 
+  stub_get_wrf_nmm_ensperts.f90 
+  stub_read_wrf_mass_files.f90 
+  stub_read_wrf_mass_guess.f90 
+  stub_read_wrf_nmm_files.f90 
+  stub_read_wrf_nmm_guess.f90 
+  stub_regional_io.f90 
+  stub_wrf_binary_interface.f90 
+  stub_wrf_netcdf_interface.f90 
+  stub_wrwrfmassa.f90 
+  stub_wrwrfnmma.f90 
   )
 
 if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
