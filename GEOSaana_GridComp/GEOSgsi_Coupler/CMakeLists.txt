@@ -29,7 +29,7 @@ endif ()
 
 esma_add_library (${this}
   SRCS ${SRCS}
-  DEPENDENCIES GEOSagcmPert_GridComp GSI_GridComp Chem_Base nc_diag_write NCEP_crtm fvgcm MAPL_Base fvgcm
+  DEPENDENCIES GEOSagcmPert_GridComp GSI_GridComp Chem_Base nc_diag_write NCEP_crtm fvgcm MAPL fvgcm
   )
 
 target_compile_definitions (${this} PRIVATE GEOS_PERT G5PERTMOD SAVE_DYN_PROG_STATE)
