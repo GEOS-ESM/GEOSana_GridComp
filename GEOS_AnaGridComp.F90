@@ -4,7 +4,7 @@
 
 module GEOS_AnaGridCompMod
    use ESMF
-   use MAPL_Mod,  only:  ProxySetServices => MAPL_GenericSetServices
+   use MAPL,  only:  ProxySetServices => MAPL_GenericSetServices
    private
    public SetServices
 
@@ -31,7 +31,7 @@ module GEOS_AnaGridCompMod
 ! !USES:
 
   use ESMF
-  use MAPL_Mod
+  use MAPL
 
   use GEOSAana_GridCompMod, only : AanaSetServices => SetServices
 ! use GEOSOana_GridCompMod, only : OanaSetServices => SetServices

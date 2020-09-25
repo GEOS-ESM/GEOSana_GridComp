@@ -61,7 +61,7 @@
 
 #endif
 #ifdef DEBUG_METACOMP
-   use MAPL_Mod, only: MAPL_MetaCompPrint
+   use MAPL, only: MAPL_MetaCompPrint
 #endif
 
    use geos_pertState, only: pertState_TLMvect => TLMvect
@@ -230,8 +230,8 @@
    use ESMF, only: ESMF_ConfigGetAttribute
 
    use ESMF, only: ESMF_GridCompSetServices
-!!   use MAPL_Mod, only: MAPL_GenericSetServices
-   use MAPL_Mod, only: MAPL_am_I_root
+!!   use MAPL, only: MAPL_GenericSetServices
+   use MAPL, only: MAPL_am_I_root
    use kinds   , only: i_kind
    use timermod, only: timer_ini,timer_fnl
    use mpeu_util, only: tell,warn,perr,die
@@ -362,9 +362,9 @@ _MPCLOSE_()
    use ESMF, only: ESMF_StateCreate, ESMF_STATEINTENT_IMPORT, ESMF_STATEINTENT_EXPORT
    use ESMF, only: ESMF_StatePrint
    use ESMF, only: ESMF_ClockCreate
-!!   use MAPL_Mod, only: MAPL_GenericInitialize
-   use MAPL_Mod, only: WRITE_PARALLEL
-   use MAPL_Mod, only: MAPL_am_I_root
+!!   use MAPL, only: MAPL_GenericInitialize
+   use MAPL, only: WRITE_PARALLEL
+   use MAPL, only: MAPL_am_I_root
 
    use geos_pertState , only: pertState_setNeeded
    use GSI_GridCompMod, only: GSI_AgcmPertGrid
@@ -546,7 +546,7 @@ _MPCLOSE_()
 
   use ESMF     , only: ESMF_SUCCESS
   use ESMF     , only: ESMF_GridCompSet
-  use MAPL_Mod     , only: MAPL_am_I_root
+  use MAPL     , only: MAPL_am_I_root
   use kinds        , only: i_kind
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundleCreate
@@ -644,7 +644,7 @@ end subroutine pertmod_TLinit
    use ESMF, only: ESMF_SUCCESS
    use ESMF, only: ESMF_GridCompRun
    use ESMF, only: ESMF_ClockAdvance
-   use MAPL_Mod, only: MAPL_am_I_root
+   use MAPL, only: MAPL_am_I_root
 
    use geos_pertState, only: pertState_set	! set a pertState to a value or another pertState
    use geos_pertState, only: pertState_show	! show a pertState
@@ -954,7 +954,7 @@ end subroutine pertmod_ADinit
    use ESMF, only: ESMF_SUCCESS
    use ESMF, only: ESMF_GridCompRun
    use ESMF, only: ESMF_ClockAdvance
-   use MAPL_Mod, only: MAPL_am_I_root
+   use MAPL, only: MAPL_am_I_root
    use geos_pertState, only: pertState_set	! set a pertState to a value or another pertState
    use geos_pertState, only: pertState_show	! show a pertState
    use geos_pertState, only: pertState_getIFx	! get a pertState from yi
@@ -1118,7 +1118,7 @@ end subroutine pertmod_ADrun
   subroutine pertmod_ADfin(xo,yi,iymd,ihms,rc)
 
   use ESMF, only: ESMF_SUCCESS
-  use MAPL_Mod, only: MAPL_am_I_root
+  use MAPL, only: MAPL_am_I_root
   use kinds, only: i_kind
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundleDestroy
@@ -1182,7 +1182,7 @@ end subroutine pertmod_ADfin
    use ESMF, only: ESMF_ConfigDestroy
    use ESMF, only: myClock_destroy_ => ESMF_ClockDestroy
 
-!!   use MAPL_Mod, only: MAPL_GenericFinalize
+!!   use MAPL, only: MAPL_GenericFinalize
    use kinds, only: i_kind
    use timermod , only: timer_ini,timer_fnl
    use mpeu_util, only: tell,warn,perr,die
@@ -1378,7 +1378,7 @@ subroutine myClock_create_(myClock)
   use ESMF, only: ESMF_DIRECTION_REVERSE
   use ESMF, only: ESMF_ClockAdvance
   use ESMF, only: ESMF_Direction_Flag
-  use MAPL_Mod, only: MAPL_am_I_root
+  use MAPL, only: MAPL_am_I_root
 
   use kinds    , only: i_kind
   use mpeu_util, only: tell,warn,perr,die
@@ -1440,7 +1440,7 @@ subroutine myClock_show_(aClock,who,what,show)
   use ESMF, only: ESMF_CalKind_Flag
   use ESMF, only: ESMF_CALKind_GREGORIAN
   use ESMF, only: operator(==)
-  use MAPL_Mod, only: MAPL_AM_I_ROOT
+  use MAPL, only: MAPL_AM_I_ROOT
   use mpeu_util, only: tell,warn,perr,die
   implicit none
   type(ESMF_Clock),intent(in):: aClock

@@ -22,8 +22,7 @@
 ! !USES:
 
    use ESMF
-   use MAPL_Mod
-   use MAPL_CfioMod 
+   use MAPL
    use GSI_GridCompMod, only: GSI_SetServices => GSI_GridCompSetServices
    use GSI_GridCompMod, only: AANA_SetupSpecs => GSI_GridCompSetupSpecs
    use GSI_GridCompMod, only: AANA_SetAlarms  => GSI_GridCompSetAlarms

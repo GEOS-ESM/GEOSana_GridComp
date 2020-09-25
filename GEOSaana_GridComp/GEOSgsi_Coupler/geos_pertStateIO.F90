@@ -16,12 +16,7 @@
   use ESMF, only: ESMF_FieldBundle
   use ESMF, only: ESMF_FieldBundleGet
   use ESMF, only: ESMF_FieldGet
-  use MAPL_BaseMod
-  use MAPL_CommsMod
-
-  use MAPL_SimpleBundleMod
-  use MAPL_LatLonGridFactoryMod
-  use MAPL_GridManagerMod
+  use MAPL
 
   use GSI_GridCompMod, only: GSI_bkg_fname_tmpl
   use GSI_GridCompMod, only: GSI_fsens_fname_tmpl
@@ -306,9 +301,7 @@ end subroutine get_pert_unset_
 ! !USES:
 
       use ESMF
-      use MAPL_Mod
-      use MAPL_CFIOMod
-      use MAPL_ProfMod
+      use MAPL
 
       use GSI_GridCompMod, only: GSI_AgcmPertGrid
       use GSI_GridCompMod, only: GSI_ExpId
@@ -418,9 +411,7 @@ end subroutine get_pert_unset_
 ! !USES:
 
       use ESMF
-      use MAPL_Mod
-      use MAPL_CFIOMod
-      use MAPL_ProfMod
+      use MAPL
 
       use GSI_GridCompMod, only: GSI_AgcmPertGrid
       use GSI_GridCompMod, only: GSI_ExpId
@@ -599,9 +590,7 @@ end subroutine get_pert_unset_
 ! !USES:
 
       use ESMF
-      use MAPL_Mod
-      use MAPL_CFIOMod
-      use MAPL_ProfMod
+      use MAPL
 
       use GSI_GridCompMod, only: GSI_AgcmPertGrid
       use GSI_GridCompMod, only: GSI_ExpId
@@ -1263,9 +1252,7 @@ end subroutine get_pert_unset_
       use constants, only: zero
 
       use ESMF
-      use MAPL_Mod
-      use MAPL_CFIOMod
-      use MAPL_ProfMod
+      use MAPL
 
       use GSI_GridCompMod, only: GSI_AgcmPertGrid
       use GSI_GridCompMod, only: GSI_RefTime

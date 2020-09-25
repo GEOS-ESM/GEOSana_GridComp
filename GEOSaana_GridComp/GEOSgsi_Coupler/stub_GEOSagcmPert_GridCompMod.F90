@@ -132,11 +132,11 @@ subroutine setServices(gc,rc)
 
   use ESMF, only: ESMF_GridComp
   use ESMF, only: ESMF_SUCCESS
-  use MAPL_Mod, only: MAPL_GenericSetServices
-  use MAPL_Mod, only: MAPL_GridCompSetEntryPoint
-  use MAPL_Mod, only: MAPL_AM_I_ROOT
+  use MAPL, only: MAPL_GenericSetServices
+  use MAPL, only: MAPL_GridCompSetEntryPoint
+  use MAPL, only: MAPL_AM_I_ROOT
 #ifdef DEBUG_METACOMP
-  use MAPL_Mod, only: MAPL_MetaCompPrint
+  use MAPL, only: MAPL_MetaCompPrint
 #endif
 
   use ESMF, only: ESMF_METHOD_INITIALIZE
@@ -274,10 +274,10 @@ subroutine addSpecs_(gc, rc)
   use ESMF, only: ESMF_GridComp
   use ESMF, only: ESMF_KIND_R4
   use ESMF, only: ESMF_KIND_R8
-  use MAPL_Mod, only: MAPL_AddImportSpec
-  use MAPL_Mod, only: MAPL_AddExportSpec
-  use MAPL_Mod, only: MAPL_DimsHorzVert
-  use MAPL_Mod, only: MAPL_VLocationCenter
+  use MAPL, only: MAPL_AddImportSpec
+  use MAPL, only: MAPL_AddExportSpec
+  use MAPL, only: MAPL_DimsHorzVert
+  use MAPL, only: MAPL_VLocationCenter
   
   use mpeu_util, only: perr,die
   implicit none
@@ -495,9 +495,9 @@ subroutine show_(gc,rc,where)
     use ESMF , only: ESMF_MAXSTR
     use ESMF , only: ESMF_StateGet
     use ESMF , only: ESMF_SUCCESS
-    use MAPL_Mod , only: MAPL_MetaComp
-    use MAPL_Mod , only: MAPL_Get
-    use MAPL_Mod , only: MAPL_GetObjectFromGC
+    use MAPL , only: MAPL_MetaComp
+    use MAPL , only: MAPL_Get
+    use MAPL , only: MAPL_GetObjectFromGC
 
     implicit none
     type(ESMF_GridComp), intent(inout) :: GC     ! Gridded component 
@@ -581,7 +581,7 @@ subroutine Initialize(gc,import,export,clock,rc)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_Clock
   use ESMF, only: ESMF_SUCCESS
-  use MAPL_Mod, only: MAPL_GenericInitialize
+  use MAPL, only: MAPL_GenericInitialize
   use kinds   , only: i_kind
   use mpeu_util, only: perr,die
 
@@ -757,7 +757,7 @@ subroutine copy3dvar_(var,s,r,rc)
 
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL_Mod, only: ESMFL_StateGetPointerToData
+  use MAPL, only: ESMFL_StateGetPointerToData
   use kinds, only: i_kind
   use mpeu_util, only: tell,perr,die
   implicit none
@@ -809,7 +809,7 @@ subroutine Finalize(gc,import,export,clock,rc)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_Clock
   use ESMF, only: ESMF_SUCCESS
-  use MAPL_Mod, only: MAPL_GenericFinalize
+  use MAPL, only: MAPL_GenericFinalize
   use kinds   , only: i_kind
   implicit none
   type(ESMF_GridComp ),intent(inout):: gc
@@ -843,7 +843,7 @@ end subroutine Finalize
 subroutine inState_create_(template,rc)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL_Mod, only: ESMFL_StateGetPointerToData
+  use MAPL, only: ESMFL_StateGetPointerToData
   use kinds, only: i_kind
 
   implicit none
@@ -908,7 +908,7 @@ end subroutine inState_create_
 subroutine inState_destroy_(rc)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL_Mod, only: ESMFL_StateGetPointerToData
+  use MAPL, only: ESMFL_StateGetPointerToData
   use kinds, only: i_kind
 
   implicit none
@@ -1248,7 +1248,7 @@ end subroutine inState_setst_
 subroutine get3d_(x,state,vnm,rc)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL_Mod, only: ESMFL_StateGetPointerToData
+  use MAPL, only: ESMFL_StateGetPointerToData
   implicit none
   real(r_ESkind)  ,dimension(:,:,:),intent(out):: x
   type(ESMF_State),intent(inout):: state	! (in)
@@ -1281,7 +1281,7 @@ end subroutine get3d_
 subroutine add3d_(x,state,vnm,rc)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL_Mod, only: ESMFL_StateGetPointerToData
+  use MAPL, only: ESMFL_StateGetPointerToData
   implicit none
   real(r_ESkind)  ,dimension(:,:,:),intent(inout):: x
   type(ESMF_State),intent(inout):: state	! (in)
@@ -1314,7 +1314,7 @@ end subroutine add3d_
 subroutine set3d_(x,state,vnm,rc,alloc)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL_Mod, only: ESMFL_StateGetPointerToData
+  use MAPL, only: ESMFL_StateGetPointerToData
   implicit none
   real(r_ESkind)  ,dimension(:,:,:),intent(in):: x
   type(ESMF_State),intent(inout):: state	! copy x state%vnm
