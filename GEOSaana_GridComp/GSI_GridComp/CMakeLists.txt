@@ -64,7 +64,7 @@ set (SRCS_UTIL
   get_derivatives.f90
   get_derivatives2.f90
   get_gefs_for_regional.f90
-  get_gefs_ensperts_dualres.f90
+  get_gefs_ensperts_dualres.F90
   get_nmmb_ensperts.f90
   get_semimp_mats.f90
   getprs.f90
@@ -97,6 +97,7 @@ set (SRCS_UTIL
   m_dgeevx.F90
   m_rerank.f90
   m_stats.f90
+  m_stubTimer.f90 
   m_tick.F90
   mpeu_mpif.F90
   mpeu_util.F90
@@ -163,6 +164,20 @@ set (SRCS_UTIL
   wrf_mass_guess_mod.f90
   wrf_vars_mod.f90
   blockIO.c
+  # These files seem to be "needed" stubs
+  stub_ensmod.f90
+  stub_get_pseudo_ensperts.f90 
+  stub_get_wrf_mass_ensperts.f90 
+  stub_get_wrf_nmm_ensperts.f90 
+  stub_read_wrf_mass_files.f90 
+  stub_read_wrf_mass_guess.f90 
+  stub_read_wrf_nmm_files.f90 
+  stub_read_wrf_nmm_guess.f90 
+  stub_regional_io.f90 
+  stub_wrf_binary_interface.f90 
+  stub_wrf_netcdf_interface.f90 
+  stub_wrwrfmassa.f90 
+  stub_wrwrfnmma.f90 
   )
 
 set (SRCS_OTHER
@@ -542,6 +557,7 @@ set (SRCS_SOLVER
   statsco.f90
   statsconv.f90
   statsoz.f90
+  statslight.f90
   statspcp.f90
   statsrad.f90
   stpaod.f90
@@ -692,23 +708,9 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 endif ()
 
 set (SRCS_STUBS
-  stub_ensmod.f90
   stub_get_wrf_mass_ensperts.f90
   stub_nstmod.f90
   stub_pertmod.F90
-  m_stubTimer.f90 
-  stub_get_pseudo_ensperts.f90 
-  stub_get_wrf_mass_ensperts.f90 
-  stub_get_wrf_nmm_ensperts.f90 
-  stub_read_wrf_mass_files.f90 
-  stub_read_wrf_mass_guess.f90 
-  stub_read_wrf_nmm_files.f90 
-  stub_read_wrf_nmm_guess.f90 
-  stub_regional_io.f90 
-  stub_wrf_binary_interface.f90 
-  stub_wrf_netcdf_interface.f90 
-  stub_wrwrfmassa.f90 
-  stub_wrwrfnmma.f90 
   )
 
 if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
@@ -729,7 +731,7 @@ install(
    )
   
 esma_add_library (GSI_GridComp
-  SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
+   SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
   DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 esma_add_library (GSI_GridComp_with_stubs
