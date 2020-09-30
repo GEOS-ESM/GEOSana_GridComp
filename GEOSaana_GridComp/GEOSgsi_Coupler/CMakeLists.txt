@@ -6,13 +6,12 @@ set (SRCSO
   geos_StateIO.F90
   geos_pertmod.F90
   geos_nstmod.F90
-  gsi_fixture_GEOS.F90
+  geos_gsi_util.F90
   g5_pertmod.F90
   cplr_pertmod.F90
   cplr_ensemble.F90
   cplr_nst.F90
   cplr_timermod.F90
-  m_zeitTimer.F90
 #  stub_GEOSagcmPert_GridCompMod.F90
   )
 
@@ -30,7 +29,7 @@ endif ()
 
 esma_add_library (${this}
   SRCS ${SRCS}
-  DEPENDENCIES GEOSagcmPert_GridComp GSI_GridComp Chem_Base nc_diag_write NCEP_crtm fvgcm MAPL
+  DEPENDENCIES GEOSagcmPert_GridComp GSI_GridComp Chem_Base nc_diag_write NCEP_crtm fvgcm MAPL fvgcm
   )
 
 target_compile_definitions (${this} PRIVATE GEOS_PERT G5PERTMOD SAVE_DYN_PROG_STATE)

@@ -36,7 +36,7 @@
 ! !USES:
 
    use ESMF                  ! ESMF
-   use MAPL                  ! MAPL Generic
+   use MAPL_Mod              ! MAPL Generic
    use gsimod                ! GSI original interface
    use mpeu_util, only: StrTemplate         ! grads style templates
    use m_chars,   only: lowercase
@@ -48,6 +48,8 @@
    use gsi_bundlemod, only : GSI_BundleGetPointer
    use gsi_bundlemod, only : GSI_Bundle
    use gsi_bundlemod, only : GSI_BundlePrint
+   use MAPL_LatLonGridFactoryMod
+   use MAPL_GridManagerMod
 
 ! Access to GSI's global data segments
 

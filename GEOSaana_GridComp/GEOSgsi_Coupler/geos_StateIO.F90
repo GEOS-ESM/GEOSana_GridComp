@@ -11,8 +11,10 @@
 
 
   use ESMF, only: ESMF_MAXGRIDDIM
-  use MAPL
+  use MAPL_BaseMod
+  use MAPL_CommsMod
 
+  use MAPL_SimpleBundleMod
   use GSI_GridCompMod, only: GSI_bkg_fname_tmpl
   use GSI_GridCompMod, only: GSI_ensbkg_fname_tmpl
   use GSI_GridCompMod, only: GSI_ensana_fname_tmpl
@@ -228,7 +230,9 @@ end subroutine put_1State_
 ! !USES:
 
       use ESMF
-      use MAPL
+      use MAPL_Mod
+      use MAPL_CFIOMod
+      use MAPL_ProfMod
 
       use GSI_GridCompMod, only: GSI_ExpId
       use GSI_GridCompMod, only: GSI_RefTime
@@ -780,7 +784,9 @@ end subroutine put_1State_
       use m_StrTemplate, only: StrTemplate
 
       use ESMF
-      use MAPL
+      use MAPL_Mod
+      use MAPL_CFIOMod
+      use MAPL_ProfMod
 
       use GSI_GridCompMod, only: GSI_RefTime
       use GSI_GridCompMod, only: GSI_ExpId
@@ -952,7 +958,9 @@ end subroutine put_1State_
       use m_StrTemplate, only: StrTemplate
 
       use ESMF
-      use MAPL
+      use MAPL_Mod
+      use MAPL_CFIOMod
+      use MAPL_ProfMod
 
       use GSI_GridCompMod, only: GSI_RefTime
       use GSI_GridCompMod, only: GSI_ExpId

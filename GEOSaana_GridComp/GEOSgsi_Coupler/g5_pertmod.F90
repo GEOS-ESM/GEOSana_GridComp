@@ -14,7 +14,7 @@
 !
 ! !USES:
 
-   use MAPL     , only: MAPL_AM_I_ROOT
+   use MAPL_Mod , only: MAPL_AM_I_ROOT
    use kinds    , only: i_kind,r_kind
    use constants, only: R3600
 

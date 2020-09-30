@@ -65,7 +65,7 @@ subroutine set_
 
 use kinds,            only: i_kind, r_kind, r_single
 use constants,        only: zero
-use MAPL,             only: MAPL_UNDEF
+use MAPL_Mod,         only: MAPL_UNDEF
 use mpimod,           only: mpi_comm_world,ierror,mpi_rtype,mype
 use gsi_nstcouplermod,only: tref_full,dt_cool_full,dt_warm_full,z_c_full,z_w_full
 use satthin,          only: isli_full

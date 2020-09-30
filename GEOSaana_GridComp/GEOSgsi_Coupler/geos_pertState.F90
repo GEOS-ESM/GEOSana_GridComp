@@ -222,7 +222,7 @@ end function dotprod_2st_
 function dotprod_var_(xst,yst,vnm,hw) result(dot_)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL, only: ESMFL_StateGetPointerToData
+  use MAPL_Mod, only: ESMFL_StateGetPointerToData
   use kinds, only: r_single,r_quad,i_kind
   implicit none
   type(ESMF_State),target,intent(in):: xst
@@ -302,7 +302,7 @@ end function dotprod_vmask_
 function dotprod_2var_(xst,xnm,yst,ynm,hw) result(dot_)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL, only: ESMFL_StateGetPointerToData
+  use MAPL_Mod, only: ESMFL_StateGetPointerToData
   use kinds, only: r_single,r_quad,i_kind
   implicit none
   type(ESMF_State),target,intent(in):: xst
@@ -776,7 +776,7 @@ end subroutine show_
 subroutine show3dv_(spert, snm, who, which, rc)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL, only: ESMFL_StateGetPointerToData
+  use MAPL_Mod, only: ESMFL_StateGetPointerToData
   use mpeu_util, only: tell,perr,die
   use kinds    , only: i_kind
 
@@ -937,7 +937,7 @@ end subroutine setNeeded_
 subroutine mySetNeeded_(s,snm,rc)
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL, only: ESMFL_StateGetPointerToData
+  use MAPL_Mod, only: ESMFL_StateGetPointerToData
   use kinds, only: i_kind,r_kind
   use mpeu_util, only: tell,perr,die
   implicit none
@@ -1342,7 +1342,7 @@ subroutine set3d0_(s,snm,v,rc)
 ! subroutine interface:
 
   use ESMF, only: ESMF_State
-  use MAPL, only: ESMFL_StateGetPointerToData
+  use MAPL_Mod, only: ESMFL_StateGetPointerToData
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundleGetPointer
   use kinds, only: i_kind,r_kind
@@ -1417,7 +1417,7 @@ subroutine set3dv_(s,snm,r,rc)
 
   use ESMF, only: ESMF_State
   use ESMF, only: ESMF_SUCCESS
-  use MAPL, only: ESMFL_StateGetPointerToData
+  use MAPL_Mod, only: ESMFL_StateGetPointerToData
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundleGetPointer
   use kinds, only: i_kind,r_kind
@@ -1514,7 +1514,7 @@ subroutine set2d0_(s,snm,v,rc)
 ! subroutine interface:
 
   use ESMF, only: ESMF_State
-  use MAPL, only: ESMFL_StateGetPointerToData
+  use MAPL_Mod, only: ESMFL_StateGetPointerToData
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundleGetPointer
   use kinds, only: i_kind,r_kind
@@ -1587,7 +1587,7 @@ subroutine set2dv_(s,snm,r,rc)
 ! subroutine interface:
 
   use ESMF, only: ESMF_State
-  use MAPL, only: ESMFL_StateGetPointerToData
+  use MAPL_Mod, only: ESMFL_StateGetPointerToData
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundleGetPointer
   use kinds, only: i_kind,r_kind
@@ -1672,7 +1672,7 @@ end subroutine set2dv_
 
       use ESMF, only: ESMF_State
       use ESMF, only: ESMF_SUCCESS
-      use MAPL, only: ESMFL_StateGetPointerToData
+      use MAPL_Mod, only: ESMFL_StateGetPointerToData
 
       use gsi_bundlemod, only: gsi_bundle
       use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -2133,7 +2133,7 @@ end subroutine set2dv_
 
       use ESMF, only: ESMF_State
       use ESMF, only: ESMF_SUCCESS
-      use MAPL, only: ESMFL_StateGetPointerToData
+      use MAPL_Mod, only: ESMFL_StateGetPointerToData
 
       use constants, only: one,zero
       use gsi_bundlemod,only: gsi_bundle     ! GSI state vector
@@ -2627,8 +2627,8 @@ end subroutine set2dv_
    subroutine mygetdims_ ( im_world, jm_world, km_world )
    use GSI_GridCompMod, only: GSI_AgcmPertGrid
    use ESMF, only: ESMF_MAXGRIDDIM
-   use MAPL, only: MAPL_GridGet
-   use MAPL, only: MAPL_VRFY
+   use MAPL_Mod, only: MAPL_GridGet
+   use MAPL_Mod, only: MAPL_VRFY
    implicit none
    integer(i_kind), intent(out) :: im_world
    integer(i_kind), intent(out) :: jm_world
@@ -2648,8 +2648,8 @@ end subroutine set2dv_
 
    subroutine myscatter_ ( what, im_world, jm_world, km_world, vari, varo )
 !  NOTE: there is not need for Halo here ... this is going onto a "model" field
-   use MAPL, only: ArrayScatter
-   use MAPL, only: MAPL_VRFY
+   use MAPL_Mod, only: ArrayScatter
+   use MAPL_Mod, only: MAPL_VRFY
    use GSI_GridCompMod, only: GSI_AgcmPertGrid
    implicit none
    character(len=*),intent(in)    :: what
@@ -2681,8 +2681,8 @@ end subroutine set2dv_
 
    subroutine mygather_ ( what, im_world, jm_world, km_world, vari, varo )
 !  NOTE: there is not need for Halo here ... this is coming from a "model" field
-   use MAPL, only: ArrayGather
-   use MAPL, only: MAPL_VRFY
+   use MAPL_Mod, only: ArrayGather
+   use MAPL_Mod, only: MAPL_VRFY
    use GSI_GridCompMod, only: GSI_AgcmPertGrid
    implicit none
    character(len=*),        intent(in)    :: what
