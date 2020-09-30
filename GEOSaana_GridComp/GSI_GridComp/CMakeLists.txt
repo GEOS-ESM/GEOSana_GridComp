@@ -787,6 +787,7 @@ set (etc_txt_files
    etc/gmao_global_insituinfo.txt
    etc/gmao_global_ozinfo.txt
    etc/gmao_global_pcpinfo.txt
+   etc/gmao_global_rad_time_thin.txt
    etc/gmao_global_satinfo.txt
    etc/gmao_global_scaninfo.txt
    etc/gmao_global_tlapmean.txt
