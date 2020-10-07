@@ -33,11 +33,14 @@
 #define MYNAME	"cplr_pertmod"
 
 ! _PERTMOD_ let the user to choose between geos_pertmod or g5_pertmod
-#define _PERTMOD_ geos_pertmod
-#ifdef G5_PERTMOD
-#  undef  _PERTMOD_
-#  define _PERTMOD_ g5_pertmod
-#endif
+! MAT Commenting out. In CMake dependencies are solved *before* preprocessing
+!     so you can get a race condition easily here as this code might compile
+!     before a dependency
+!!!#define _PERTMOD_ geos_pertmod
+!!!#ifdef G5_PERTMOD
+!!!#  undef  _PERTMOD_
+!!!#  define _PERTMOD_ g5_pertmod
+!!!#endif
 
 !#define DEBUG_VERBOSE
 !#define DEBUG_TRACE
@@ -100,7 +103,11 @@ subroutine pertmod_setServices_(rc)
   use kinds, only: i_kind
   use mpeu_util, only: tell,perr,die,tell
   use gsi_4dvar, only: l4dvar
-  use _PERTMOD_, only: pertmod_setServices
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_setServices
+#else
+  use geos_pertmod, only: pertmod_setServices
+#endif
   implicit none
   integer(i_kind),optional,intent(out):: rc	! return status code
 
@@ -157,7 +164,11 @@ subroutine pertmod_initialize_(idmodel,rc)
 
   use kinds, only: i_kind
   use mpeu_util, only: tell,perr,die
-  use _PERTMOD_, only: pertmod_initialize
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_initialize
+#else
+  use geos_pertmod, only: pertmod_initialize
+#endif
   implicit none
 
   logical,optional,intent(in):: idmodel
@@ -214,7 +225,11 @@ subroutine pertmod_finalize_(rc)
 
   use kinds, only: i_kind
   use mpeu_util, only: tell,perr,die
-  use _PERTMOD_, only: pertmod_finalize
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_finalize
+#else
+  use geos_pertmod, only: pertmod_finalize
+#endif
   implicit none
   integer(i_kind),optional,intent(out):: rc	! return status code
 
@@ -268,7 +283,11 @@ subroutine pertmod_TLinit_(xini,xobs,iymd,ihms,ndtsec,rc)
   use gsi_bundlemod, only: gsi_bundleCreate
   use gsi_bundlemod, only: assignment(=)
   use constants, only: ZERO
-  use _PERTMOD_, only: pertmod_TLinit
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_TLinit
+#else
+  use geos_pertmod, only: pertmod_TLinit
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
   type(gsi_bundle),intent(in ):: xini	! a known state as a template
@@ -329,7 +348,11 @@ subroutine pertmod_TLrun_(p_xini,xobs,iymd,ihms,ntstep,rc)
 
   use kinds, only: i_kind
   use gsi_bundlemod, only: gsi_bundle
-  use _PERTMOD_, only: pertmod_TLrun
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_TLrun
+#else
+  use geos_pertmod, only: pertmod_TLrun
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
 
@@ -395,7 +418,11 @@ subroutine pertmod_TLfin_(xini,xobs,iymd,ihms,rc)
 
   use kinds, only: i_kind
   use gsi_bundlemod, only: gsi_bundle
-  use _PERTMOD_, only: pertmod_TLfin
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_TLfin
+#else
+  use geos_pertmod, only: pertmod_TLfin
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
 
@@ -459,7 +486,11 @@ subroutine pertmod_ADinit_(xini,xobs,iymd,ihms,ndtsec,rc)
   use gsi_bundlemod, only: assignment(=)
   use constants, only: ZERO
   use constants, only: R3600
-  use _PERTMOD_, only: pertmod_ADinit
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_ADinit
+#else
+  use geos_pertmod, only: pertmod_ADinit
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
   type(gsi_bundle),intent(out):: xini	! a state container to be defined as xobs
@@ -522,7 +553,11 @@ subroutine pertmod_ADrun_(xini,p_xobs,iymd,ihms,ntstep,rc)
 
   use kinds, only: i_kind
   use gsi_bundlemod, only: gsi_bundle
-  use _PERTMOD_, only: pertmod_ADrun
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_ADrun
+#else
+  use geos_pertmod, only: pertmod_ADrun
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
 
@@ -588,7 +623,11 @@ subroutine pertmod_ADfin_(xini,xobs,iymd,ihms,rc)
 
   use kinds, only: i_kind
   use gsi_bundlemod, only: gsi_bundle
-  use _PERTMOD_, only: pertmod_ADfin
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_ADfin
+#else
+  use geos_pertmod, only: pertmod_ADfin
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
 

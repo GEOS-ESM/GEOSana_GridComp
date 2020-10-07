@@ -33,4 +33,4 @@ esma_add_library (${this}
   DEPENDENCIES GEOSagcmPert_GridComp GSI_GridComp Chem_Base nc_diag_write NCEP_crtm fvgcm MAPL_Base
   )
 
-target_compile_definitions (${this} PRIVATE GEOS_PERT G5PERTMOD SAVE_DYN_PROG_STATE)
+target_compile_definitions (${this} PRIVATE GEOS_PERT)
