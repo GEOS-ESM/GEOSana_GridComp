@@ -10,6 +10,16 @@ correlated_observations::
 ! (3) present value settings for AIRS and IASI bring J/n considerable closer to 1/2
 !
 ! obtype   method  kreq      kmut  type   cov_file
+ cris-fsr_n20  2   0.1719     1.5325   sea    cris-fsr_104_v5_rcov.bin
+ cris-fsr_n20  2   0.1719     1.5325   land   cris-fsr_104_v5_rcov.bin
+ cris-fsr_n20  2   0.1719     1.5325   ice    cris-fsr_104_v5_rcov.bin
+ cris-fsr_n20  2   0.1719     1.5325   snow   cris-fsr_104_v5_rcov.bin
+ cris-fsr_n20  2   0.1719     1.5325   mixed  cris-fsr_104_v5_rcov.bin
+ cris-fsr_npp  2   0.1719     1.5325   sea    cris-fsr_104_v5_rcov.bin
+ cris-fsr_npp  2   0.1719     1.5325   land   cris-fsr_104_v5_rcov.bin
+ cris-fsr_npp  2   0.1719     1.5325   ice    cris-fsr_104_v5_rcov.bin
+ cris-fsr_npp  2   0.1719     1.5325   snow   cris-fsr_104_v5_rcov.bin
+ cris-fsr_npp  2   0.1719     1.5325   mixed  cris-fsr_104_v5_rcov.bin
  airs_aqua  2      0.338556  1.0   sea    airs_aqua_sea_rcov.bin
  airs_aqua  2      0.338556  1.0   land   airs_aqua_sea_rcov.bin
  airs_aqua  2      0.338556  1.0   ice    airs_aqua_sea_rcov.bin

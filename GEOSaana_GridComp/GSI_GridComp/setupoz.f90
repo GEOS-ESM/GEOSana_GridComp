@@ -1317,7 +1317,7 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
      endif
 
 !    toss the obs not recommended by the data provider
-     if (nint(data(iuse,i)) == 1000 ) then
+     if (nint(data(iuse,i)) == 10000 ) then
         varinv3=zero
         ratio_errors=zero
      endif

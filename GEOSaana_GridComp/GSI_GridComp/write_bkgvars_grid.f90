@@ -115,13 +115,9 @@ subroutine write_bkgvars2_grid
 !$$$
   use kinds, only: r_kind,i_kind,r_single
   use mpimod, only: mype
-  use constants, only: zero,r1000,one_tenth,r100
+  use constants, only: ten
   use guess_grids, only: get_ref_gesprs
   use gridmod, only: nlat,nlon,nsig
-  !use gridmod, only: ak5,bk5,idvc5,&
-         !regional,wrf_nmm_regional,nems_nmmb_regional,wrf_mass_regional,&
-         !cmaq_regional,pt_ll,fv3_regional,&
-         !eta2_ll,pdtop_ll,eta1_ll,twodvar_regional
   use control_vectors, only: nc3d,nc2d,mvars
   use control_vectors, only: cvars3d,cvars2d,cvarsmd
   use berror, only: dssv,dssvs
@@ -197,7 +193,7 @@ subroutine write_bkgvars2_grid
      write(lu,'(a,2x,e13.6)') 'UNDEF', 1.E+15 ! any other preference for this?
      write(lu,'(a,2x,i4,2x,a,2x,f5.1,2x,f9.6)') 'XDEF',nlon, 'LINEAR',   0.0, 360./nlon
      write(lu,'(a,2x,i4,2x,a,2x,f5.1,2x,f9.6)') 'YDEF',nlat, 'LINEAR', -90.0, 180./(nlat-1.)
-     write(lu,'(a,2x,i4,2x,a,100(1x,f10.5))')      'ZDEF',nsig, 'LEVELS', prs(1:nsig)
+     write(lu,'(a,2x,i4,2x,a,100(1x,f10.5))')      'ZDEF',nsig, 'LEVELS', ten*prs(1:nsig) ! prs is in cbar (convert to mb)
      write(lu,'(a,2x,i4,2x,a)')   'TDEF', 1, 'LINEAR 12:00Z04JUL1776 6hr' ! any date suffices
      write(lu,'(a,2x,i4)')        'VARS',nc3d+nc2d+mvars
      do n=1,nc3d

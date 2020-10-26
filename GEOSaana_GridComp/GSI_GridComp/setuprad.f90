@@ -222,6 +222,7 @@ contains
 !   2020-01-16  mkim    - add all-sky MHS 
 !   2020-01-17  j.jin   - add all-sky AMSR2 
 !   2020-02-26  todling - reset obsbin from hr to min
+!   2020-08-26  mkim    - adjusted MHS QC for all-sky
 !
 !  input argument list:
 !     lunin   - unit from which to read radiance (brightness temperature, tb) obs
@@ -1627,7 +1628,7 @@ contains
                        errf(i) = min(three*errf(i),ermax_rad(m))
                     endif
                  else if(radmod%rtype == 'mhs') then
-                    errf(i) = min(three*errf(i),ermax_rad(m))
+                    errf(i) = min(two*errf(i),ermax_rad(m))
                  else if (radmod%rtype/='amsua' .and. radmod%rtype/='atms' .and. radmod%rtype/='gmi' .and. radmod%rtype/='mhs' .and. radmod%lcloud4crtm(i)>=0) then
                     errf(i) = three*errf(i)    
                  else 

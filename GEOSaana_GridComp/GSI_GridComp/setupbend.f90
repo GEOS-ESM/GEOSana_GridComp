@@ -222,7 +222,7 @@ subroutine setupbend(obsLL,odiagLL, &
   real(r_kind),dimension(4) :: w4,dw4,dw4_TL
   
   integer(i_kind) ier,ilon,ilat,ihgt,igps,itime,ikx,iuse, &
-                  iprof,ipctc,iroc,isatid,iptid,ilate,ilone,ioff,igeoid
+                  iprof,ipctc,iroc,isatid,iptid,ilate,ilone,ioff,igeoid, iclass, iqfro
   integer(i_kind) i,j,k,kk,mreal,nreal,jj,ikxx,ibin
   integer(i_kind) mm1,nsig_up,ihob,istatus,nsigstart
   integer(i_kind) kprof,istat,k1,k2,nobs_out,top_layer_SR,bot_layer_SR,count_SR
@@ -318,6 +318,8 @@ subroutine setupbend(obsLL,odiagLL, &
   ilone=14     ! index of earth relative longitude (degrees)
   ilate=15     ! index of earth relative latitude (degrees)
   igeoid=16    ! index of geoid undulation (a value per profile, m) 
+  iclass=17    ! index of satellite classification
+  iqfro=18     ! index of initial quality table #
 
 ! Intialize variables
   nsig_up=nsig+nsig_ext ! extend nsig_ext levels above interface level nsig
@@ -992,6 +994,13 @@ subroutine setupbend(obsLL,odiagLL, &
         gps_alltail(ibin)%head%muse     = muse(i) ! logical
         gps_alltail(ibin)%head%cdiag    = cdiagbuf(i)
 
+!       Extra data slots for diagnostics - hardwired to a max of rdiag_extra_name(10) in genstats_gps.f90
+        gps_alltail(ibin)%head%n_rdiag_extra   = 2
+        gps_alltail(ibin)%head%rdiag_extra_name(1)   = "Satellite_Classification"
+        gps_alltail(ibin)%head%rdiag_extra_val(1)   = data(iclass,i)
+        gps_alltail(ibin)%head%rdiag_extra_name(2)   = "Quality_Flag"
+        gps_alltail(ibin)%head%rdiag_extra_val(2)   = data(iqfro,i)
+        
 !       Fill obs diagnostics structure
         if (luse_obsdiag) then
           call obsdiagNode_set(my_diag,wgtjo=(data(ier,i)*ratio_errors(i))**2, &

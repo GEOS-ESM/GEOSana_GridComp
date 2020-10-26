@@ -1314,7 +1314,7 @@ contains
 
 ! !USES: 
 
-  use constants, only: zero,one_tenth,r100,r1000,ten
+  use constants, only: zero,one_tenth,r100,r1000
   use gridmod, only: regional,twodvar_regional,cmaq_regional
   use gridmod, only: wrf_nmm_regional,nems_nmmb_regional,wrf_mass_regional,fv3_regional
   use gridmod, only: idvc5,ak5,bk5
@@ -1332,8 +1332,9 @@ contains
 ! !DESCRIPTION: get reference pressures
 !
 ! !REVISION HISTORY:
-!   2020-05-11  Todling  - bug fix for idvc5=1,2,3: ak5 are in cbar, thus 
-!                          needed multiply by 10 to be in mb
+!   2020-08-19  Todling  - bug fix for idvc5=1,2,3: prs for regional is returned
+!                          in cbar, and now, so is ref prs for global (it was 
+!                          in some funky unit.
 !
 ! !REMARKS:
 !   language: f90
@@ -1363,14 +1364,14 @@ contains
            prs(k)=one_tenth*(eta1_ll(k)*(r1000-pt_ll) + eta2_ll(k) + pt_ll)
      else
         if (idvc5==1 .or. idvc5==2) then
-           prs(k)=ten*ak5(k)+(bk5(k)*r1000)
+           prs(k)=ak5(k)+one_tenth*(bk5(k)*r1000)
         else if (idvc5==3) then
            if (k==1) then
-              prs(k)=r1000
+              prs(k)=one_tenth*r1000
            else if (k==nsig+1) then
               prs(k)=zero
            else
-              prs(k)=ten*ak5(k)+(bk5(k)*r1000)! +(ck5(k)*trk)
+              prs(k)=ak5(k)+one_tenth*(bk5(k)*r1000)! +(ck5(k)*trk)
            end if
         end if
      endif

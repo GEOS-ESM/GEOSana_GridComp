@@ -87,6 +87,8 @@
 
    integer,save :: mycount = 0
 
+   logical :: gsiMode = .false.
+
    integer(i_kind),parameter:: ROOT =0
    real(r_kind), parameter :: kPa_per_Pa = 0.001_r_kind
    real(r_kind), parameter :: Pa_per_kPa = 1000._r_kind
@@ -1323,7 +1325,7 @@ end subroutine get_pert_unset_
      character(len=*), parameter :: sens_vars='ts,delp,u,v,tv,sphu,ozone'
      character(len=*), parameter :: xinc_vars='ts,ps,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
      character(len=256) :: fname, ffname(1)
-     character(len=256) :: myvars
+     character(len=256) :: my_vars
      character(len=30)  :: GSIGRIDNAME
      type(ESMF_VM)           :: VM
      type(ESMF_FieldBundle),pointer  :: WBundle(:)
@@ -1370,7 +1372,7 @@ end subroutine get_pert_unset_
 
 !    Set file to be read
 !    -------------------
-     myvars=trim(sens_vars)
+     my_vars=trim(sens_vars)
      if(present(filename)) then
         fname = trim(filename)
         if(trim(fname)=='NULL') fname = GSI_fsens_fname_tmpl
@@ -1378,7 +1380,7 @@ end subroutine get_pert_unset_
         if(trim(fname)=='B')    fname = GSI_ferrB_fname_tmpl
         if(trim(fname(1:4))=='xinc') then
            write(fname,'(4a)')  trim(GSI_ExpId), '.', trim(filename), '.eta.%y4%m2%d2_%h2%n2z.nc4'
-           myvars= trim(xinc_vars)
+           my_vars= trim(xinc_vars)
         endif
      else 
         fname=fname_def
@@ -1408,9 +1410,9 @@ end subroutine get_pert_unset_
 
 !        Read perturbation from file into ESMF Bundle
 !        --------------------------------------------
-         call MAPL_CFIORead  ( ffname(1), This_RefTime, WBundle(1), & !only_vars=trim(my_vars), &
+         call MAPL_CFIORead  ( ffname(1), This_RefTime, WBundle(1), only_vars=trim(my_vars), &
                                TIME_IS_CYCLIC=.false., verbose=.false., &
-                               doParallel=.true., gsiMode=.true., rc=status )
+                               doParallel=.true., gsiMode=gsiMode, rc=status )
          VERIFY_(status)
 
 
@@ -1424,18 +1426,18 @@ end subroutine get_pert_unset_
 
 !          Read perturbation from file into ESMF Bundle
 !          --------------------------------------------
-           call MAPL_CFIORead  ( fname, GSI_FcsTime, WBundle(1), & !only_vars=trim(my_vars), &
+           call MAPL_CFIORead  ( fname, GSI_FcsTime, WBundle(1), only_vars=trim(my_vars), &
                                  TIME_IS_CYCLIC=.false., verbose=.false., &
-                                 doParallel=.true., gsiMode=.true., rc=status )
+                                 doParallel=.true., gsiMode=gsiMode, rc=status )
            VERIFY_(status)
 
         else
 
 !          Read perturbation from file into ESMF Bundle
 !          --------------------------------------------
-           call MAPL_CFIORead  ( fname, GSI_RefTime, WBundle(1), & !only_vars=trim(my_vars), &
+           call MAPL_CFIORead  ( fname, GSI_RefTime, WBundle(1), only_vars=trim(my_vars), &
                                  TIME_IS_CYCLIC=.false., verbose=.false., &
-                                 doParallel=.true., gsiMode=.true., rc=status )
+                                 doParallel=.true., gsiMode=gsiMode, rc=status )
            VERIFY_(status)
 
         endif
@@ -2014,22 +2016,27 @@ end subroutine get_pert_unset_
       character(len=*), parameter :: myname_ = myname//'*pert2gsi2d_'
 
       integer(i_kind) i,j,k,ierr
-      integer(i_kind) my_nlat,my_nlon
+      real(r_single), allocatable :: fld3d(:,:,:)
+      real(r_kind),   allocatable :: sub3d(:,:,:)
 
-      stat_ = 0
-      if (nlat_set>0 .and. nlon_set>0) then
-         my_nlon=nlon_set
-         my_nlat=nlat_set
-      else
-         my_nlon=nlon
-         my_nlat=nlat
-      endif
-
-      do j=1,slon2
-         do i=1,slat2
-            sub(i,j) = fld(j,i)
+      if (gsiMode) then
+         do j=1,slon2
+            do i=1,slat2
+               sub(i,j) = fld(j,i)
+            end do
          end do
-      end do
+         stat_ = 0
+      else
+          allocate(fld3d(size(fld,1),size(fld,2),nsig))
+          allocate(sub3d(size(sub,1),size(sub,2),nsig))
+          fld3d=zero; sub3d=zero
+          fld3d(:,:,1) = fld
+          call pert2gsi_old_ ( fld3d, sub3d, ierr )
+          sub(:,:) = sub3d(:,:,nsig)
+          deallocate(sub3d)
+          deallocate(fld3d)
+          stat_ = ierr
+      endif
 
       end subroutine pert2gsi2d_
 
@@ -2043,28 +2050,140 @@ end subroutine get_pert_unset_
 
       integer(i_kind) i,j,k,mm1,ierr
       integer(i_kind) imr,jnp,nl
-      integer(i_kind) my_nlat,my_nlon
 
-      stat_ = 0
-      if (nlat_set>0 .and. nlon_set>0) then
-         my_nlon=nlon_set
-         my_nlat=nlat_set
+      if (gsiMode) then
+          nl=nsig
+          if(size(fld,3)==1) nl=1
+          do k=1,nl
+             do j=1,slon2
+                do i=1,slat2
+                   sub(i,j,k) = fld(j,i,k)
+                end do
+             end do
+          enddo
+          stat_ = 0
       else
-         my_nlon=nlon
-         my_nlat=nlat
+          call pert2gsi_old_ ( fld, sub, ierr )
+          stat_ = ierr
       endif
 
-      nl=nsig
-      if(size(fld,3)==1) nl=1
-      do k=1,nl
-         do j=1,slon2
-            do i=1,slat2
-               sub(i,j,k) = fld(j,i,k)
+      end subroutine pert2gsi_
+
+      subroutine pert2gsi_old_ ( fld, sub, stat_ )
+
+      real(r_single), intent(in)  :: fld(:,:,:)
+      real(r_kind),   intent(out) :: sub(:,:,:)
+      integer(i_kind),intent(out) :: stat_
+
+      character(len=*), parameter :: myname_ = myname//'*pert2gsi_old_'
+
+      real(r_kind), allocatable :: work4d(:,:,:,:)   ! auxliar 4d array
+      real(r_kind), allocatable :: work3d(:,:,:)     ! auxliar 3d array
+      real(r_kind), allocatable :: work2d(:,:)       ! auxliar 2d array
+      real(r_kind), allocatable :: work(:)
+      integer(i_kind) i,j,k,mm1,ierr
+      integer(i_kind) imr,jnp,nl
+
+      mm1 = mype+1 
+      stat_ = 0
+      call mygetdims_(imr,jnp,nl)
+
+      allocate ( work3d(nlon,nlat,nsig), stat=ierr )
+        if ( ierr/=0 ) then
+            stat_ = 91
+            if(mype==ROOT) print*, trim(myname_), ': Alloc(work3d)'
+            return
+        end if
+      allocate ( work4d(imr,jnp,nl,1), stat=ierr )
+        if ( ierr/=0 ) then
+            stat_ = 91
+            if(mype==ROOT) print*, trim(myname_), ': Alloc(work4d)'
+            return
+        end if
+                                                                                                                           
+!     Gather GCM perturbations to root processor
+!     ------------------------------------------
+      call mygather_( which, imr, jnp, nl, fld, work4d(:,:,:,1) )
+
+!     Flip horizontal and vertical
+!     ----------------------------
+      if ( mype==ROOT ) then
+              call hflip3_ ( work4d, imr,jnp,nl )
+              if (imr/=nlon .or. jnp/=nlat ) then
+print*, ' WRONG PLACE TO BE ...';call flush(6)
+                  if (which=='adm') then
+                      work3d = zero
+                      call interpack_terpv_ad ( nlon,nlat,nsig,work3d,work3d, imr,jnp,nl,work4d(:,:,:,1), ierr )
+                  else if (which=='tlm') then
+                      work3d = zero
+                      call interpack_terpv    ( imr,jnp,nl,work4d(:,:,:,1),  nlon,nlat,nsig,work3d, ierr )
+                  else
+                      call die ( myname_,': invalid option' )
+                  endif
+              else
+                  work3d(:,:,:) = work4d(:,:,:,1)
+              endif
+           call SwapV_ ( work3d )
+      endif
+
+!     Swap work memory
+!     ----------------
+      deallocate ( work4d, stat=ierr )
+        if ( ierr/=0 ) then
+            stat_ = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(work4d)'
+            return
+        end if
+      allocate ( work(itotsub), stat=ierr )
+        if ( ierr/=0 ) then
+            stat_ = 91
+            if(mype==ROOT) print*, trim(myname_), ': Alloc(work)'
+            return
+        end if
+      allocate ( work2d(lat2,lon2), stat=ierr )
+        if ( ierr/=0 ) then
+            stat_ = 91
+            if(mype==ROOT) print*, trim(myname_), ': Alloc(work4d)'
+            return
+        end if
+
+!     Scatter to GSI subdomains
+!     -------------------------
+      do k=1,nsig
+         if (mype==ROOT) then
+             call reorder21(work3d(:,:,k),work)
+         endif
+         call mpi_scatterv(work,ijn_s,displs_s,mpi_rtype,&
+              work2d,ijn_s(mm1),mpi_rtype,root,mpi_comm_world,ierr)
+         do j=1,lon2
+            do i=1,lat2
+               sub(i,j,k) = work2d(i,j)
             end do
          end do
-      enddo
+      end do
 
-      end subroutine pert2gsi_
+!     Release work memory
+!     -------------------
+      deallocate ( work2d, stat=ierr )
+        if ( ierr/=0 ) then
+            stat_ = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(work4d)'
+            return
+        end if
+      deallocate ( work, stat=ierr )
+        if ( ierr/=0 ) then
+            stat_ = 99
+            if(mype==ROOT) print*, trim(myname_), ': delloc(work)'
+            return
+        end if
+      deallocate ( work3d, stat=ierr )
+        if ( ierr/=0 ) then
+            stat_ = 99
+            if(mype==ROOT) print*, trim(myname_), ': delloc(work3d)'
+            return
+        end if
+
+      end subroutine pert2gsi_old_
 
    end subroutine pgcm2gsi1_
 
