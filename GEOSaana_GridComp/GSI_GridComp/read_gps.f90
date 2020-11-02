@@ -100,7 +100,7 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 
 ! Declare local parameters  
   integer(i_kind),parameter:: maxlevs=500
-  integer(i_kind),parameter:: maxinfo=16
+  integer(i_kind),parameter:: maxinfo=18
   real(r_kind),parameter:: r10000=10000.0_r_kind
   real(r_kind),parameter:: r360=360.0_r_kind
 
@@ -132,18 +132,18 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
   real(r_kind) pcc,qfro,usage,dlat,dlat_earth,dlon,dlon_earth,freq_chk,freq
   real(r_kind) dlat_earth_deg,dlon_earth_deg
   real(r_kind) height,rlat,rlon,ref,bend,impact,roc,geoid,&
-               bend_error,ref_error,bend_pccf,ref_pccf
+               bend_error,ref_error,bend_pccf,ref_pccf,sclf,qfro_init
 
   real(r_kind),allocatable,dimension(:,:):: cdata_all
  
-  integer(i_kind),parameter:: n1ahdr=10
+  integer(i_kind),parameter:: n1ahdr=11
   real(r_double),dimension(n1ahdr):: bfr1ahdr
   real(r_double),dimension(50,maxlevs):: data1b
   real(r_double),dimension(50,maxlevs):: data2a
   real(r_double),dimension(maxlevs):: nreps_this_ROSEQ2
  
   data lnbufr/10/
-  data hdr1a / 'YEAR MNTH DAYS HOUR MINU PCCF ELRC SAID PTID GEODU' / 
+  data hdr1a / 'YEAR MNTH DAYS HOUR MINU PCCF ELRC SAID PTID GEODU SCLF' / 
   data nemo /'QFRO'/
   
 !***********************************************************************************
@@ -210,7 +210,8 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 ! Extract header information
         call ufbint(lnbufr,bfr1ahdr,n1ahdr,1,iret,hdr1a)
         call ufbint(lnbufr,qfro,1,1,iret,nemo)
-
+        qfro_init = qfro
+        
 ! observation time in minutes
         idate5(1) = bfr1ahdr(1) ! year
         idate5(2) = bfr1ahdr(2) ! month
@@ -222,6 +223,7 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
         said=bfr1ahdr(8)        ! Satellite identifier
         ptid=bfr1ahdr(9)        ! Platform transmitter ID number
         geoid=bfr1ahdr(10)      ! Geoid undulation
+        sclf=bfr1ahdr(11)         ! Satellite Classification (tranmitter type)
         call w3fs21(idate5,minobs)
 
 ! Locate satellite id in convinfo file
@@ -257,16 +259,16 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
  
 ! Check profile quality flags
         if ( ((said > 739).and.(said < 746)).or.(said == 820).or.(said == 786).or.&
-              (said == 825)) then  !CDAAC processing
+             ((said > 749).and.(said < 756)).or.(said == 825).or.(said == 44) ) then  !CDAAC processing
            if(pcc==zero) then
-              write(6,*)'READ_GPS:  bad profile said=',said,'ptid=',ptid,&
-                  ' SKIP this report'
+!             write(6,*)'READ_GPS:  bad profile said=',said,'ptid=',ptid,&
+!                 ' SKIP this report'
               cycle read_loop
            endif
         endif
 
-        if ((said == 4).or.(said == 3).or.(said == 421).or.(said == 440).or.&
-            (said == 821).or.(said == 5)) then ! GRAS SAF processing
+        if ((said == 4)  .or.(said == 3).or.(said == 421).or.(said == 440).or.&
+            (said == 821).or.(said == 5) ) then ! GRAS SAF processing
            call upftbv(lnbufr,nemo,qfro,mxib,ibit,nib)
            lone = .false.
              if(nib > 0) then
@@ -436,7 +438,9 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
               cdata_all(14,ndata)= dlon_earth_deg  ! earth relative longitude (degrees)
               cdata_all(15,ndata)= dlat_earth_deg  ! earth relative latitude (degrees)
               cdata_all(16,ndata)= geoid           ! geoid undulation (m)
-
+              cdata_all(17,ndata)= sclf              ! sat classification
+              cdata_all(18,ndata)= qfro_init    ! initial quality flag
+              
            else
               notgood = notgood + 1
            end if

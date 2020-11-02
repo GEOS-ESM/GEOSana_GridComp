@@ -87,6 +87,8 @@ module gridmod
 !   2017-03-23  Hu      - add code to get eta2_ll and aeta2_ll ready for hybrid vertical coodinate in WRF MASS CORE
 !   2017-08-31  Li      - add sfcnst_comb to handle surface and nsst combined file
 !   2018-02-15  wu      - add fv3_regional & grid_ratio_fv3_regional
+!   2019-03-05  martin  - add wgtfactlats for factqmin/factqmax scaling
+!   2019-04-19  martin  - add use_fv3_aero option to distingiush between NGAC and FV3-Chem
 !
 !                        
 !
@@ -136,8 +138,8 @@ module gridmod
   public :: rlon_min_dd,coslon,sinlon,rlons,ird_s,irc_s,periodic,idthrm5
   public :: cp5,idvm5,ncepgfs_head,idpsfc5,nlon_sfc,nlat_sfc
   public :: rlons_sfc,rlats_sfc,jlon1,ilat1,periodic_s,latlon1n1
-  public :: nsig2,wgtlats,corlats,rbs2,ncepgfs_headv,regional_time
-  public :: regional_fhr,region_dyi,coeffx,region_dxi,coeffy,nsig_hlf
+  public :: regional_fhr,region_dyi,coeffx,region_dxi,coeffy,nsig_hlf,regional_fmin
+  public :: nsig2,wgtlats,corlats,rbs2,ncepgfs_headv,regional_time,wgtfactlats
   public :: nlat_regional,nlon_regional,update_regsfc,half_grid,gencode
   public :: diagnostic_reg,nmmb_reference_grid,filled_grid
   public :: grid_ratio_nmmb,isd_g,isc_g,dx_gfs,lpl_gfs,nsig5,nmmb_verttype
@@ -147,6 +149,8 @@ module gridmod
   public :: jcap,jcap_b,hires_b,sp_a,grd_a
   public :: jtstart,jtstop,nthreads
   public :: use_gfs_nemsio
+  public :: fv3_full_hydro  
+  public :: use_fv3_aero
   public :: sfcnst_comb
   public :: use_readin_anl_sfcmask
   public :: jcap_gfs,nlat_gfs,nlon_gfs
@@ -183,6 +187,8 @@ module gridmod
   logical update_regsfc     !
   logical hires_b           ! .t. when jcap_b requires double FFT
   logical use_gfs_nemsio    ! .t. for using NEMSIO to real global first guess
+  logical fv3_full_hydro    ! .t. for using NEMSIO to real global first guess
+  logical use_fv3_aero      ! .t. for using FV3 Aerosols, .f. for NGAC
   logical sfcnst_comb       ! .t. for using combined sfc & nst file
   logical use_sp_eqspace    ! .t. use equally-space grid in spectral transforms
 
@@ -286,6 +292,7 @@ module gridmod
   real(r_kind),allocatable,dimension(:):: coslon  ! cos(grid longitudes (radians))
   real(r_kind),allocatable,dimension(:):: sinlon  ! sin(grid longitudes (radians))
   real(r_kind),allocatable,dimension(:):: wgtlats !  gaussian integration weights
+  real(r_kind),allocatable,dimension(:):: wgtfactlats !  gaussian integration weights if global, 1 if regional
   real(r_kind),allocatable,dimension(:):: corlats ! coriolis parameter by latitude
   real(r_kind),allocatable,dimension(:):: rbs2    ! 1./sin(grid latitudes))**2
 
@@ -308,7 +315,7 @@ module gridmod
   real(r_kind) dt_ll,pdtop_ll,pt_ll
 
   integer(i_kind) nlon_regional,nlat_regional
-  real(r_kind) regional_fhr
+  real(r_kind) regional_fhr,regional_fmin
   integer(i_kind) regional_time(6)
   integer(i_kind) jcap_gfs,nlat_gfs,nlon_gfs
 
@@ -397,6 +404,7 @@ contains
 !   2011-09-14  todling - add use_sp_eqspace to better control lat/lon grid case
 !   2016-08-28       li - tic591: add use_readin_anl_sfcmask for consistent sfcmask
 !                         between analysis grids and others
+!   2019-04-19  martin  - add use_fv3_aero option for NGAC vs FV3-Chem
 !
 ! !REMARKS:
 !   language: f90
@@ -474,6 +482,8 @@ contains
     nthreads = 1  ! initialize the number of threads
 
     use_gfs_nemsio  = .false.
+    fv3_full_hydro  = .false. 
+    use_fv3_aero  = .false.
     sfcnst_comb = .false.
     use_readin_anl_sfcmask = .false.
 
@@ -502,6 +512,7 @@ contains
     use mpeu_util, only: getindex
     use general_specmod, only: spec_cut
     use gsi_io, only: verbose
+    use gsi_metguess_mod, only: gsi_metguess_get
     implicit none
 
 ! !INPUT PARAMETERS:
@@ -542,6 +553,8 @@ contains
     integer(i_kind) i,k,inner_vars,num_fields
     integer(i_kind) n3d,n2d,nvars,tid,nth
     integer(i_kind) ipsf,ipvp,jpsf,jpvp,isfb,isfe,ivpb,ivpe
+    integer(i_kind) istatus,icw,iql,iqi
+    integer(i_kind) icw_cv,iql_cv,iqi_cv
     logical,allocatable,dimension(:):: vector
     logical print_verbose
 
@@ -561,6 +574,17 @@ contains
     n3d  =size(cvars3d)
     n2d  =size(cvars2d)
     nvars=size(cvars)
+
+    icw_cv = getindex(cvars3d(1:n3d),'cw')
+    iql_cv = getindex(cvars3d(1:n3d),'ql')
+    iqi_cv = getindex(cvars3d(1:n3d),'qi')
+    call gsi_metguess_get('var::cw', icw, istatus)
+    call gsi_metguess_get('var::ql', iql, istatus)
+    call gsi_metguess_get('var::qi', iqi, istatus)
+    fv3_full_hydro = ( iql>0    .and. iqi>0    .and. (.not. icw>0)   ) .and. &
+                     ( iql_cv>0 .and. iqi_cv>0 .and. (.not. icw_cv>0))
+
+    if (mype==0) write(6,*) myname, ' fv3_full_hydro ', fv3_full_hydro
 
 ! Allocate and initialize variables for mapping between global
 ! domain and subdomains
@@ -788,7 +812,7 @@ contains
     implicit none
 
     allocate(rlats(nlat),rlons(nlon),coslon(nlon),sinlon(nlon),&
-             wgtlats(nlat),rbs2(nlat),corlats(nlat))
+             wgtlats(nlat),rbs2(nlat),corlats(nlat),wgtfactlats(nlat))
     allocate(ak5(nsig+1),bk5(nsig+1),ck5(nsig+1),tref5(nsig))
     return
   end subroutine create_grid_vars
@@ -826,7 +850,7 @@ contains
 !-------------------------------------------------------------------------
     implicit none
 
-    deallocate(rlats,rlons,corlats,coslon,sinlon,wgtlats,rbs2)
+    deallocate(rlats,rlons,corlats,coslon,sinlon,wgtlats,wgtfactlats,rbs2)
     deallocate(ak5,bk5,ck5,tref5)
     if (allocated(cp5)) deallocate(cp5)
     if (allocated(dx_gfs)) deallocate(dx_gfs)
@@ -1366,7 +1390,8 @@ contains
        allocate(region_dyi(nlat,nlon),region_dxi(nlat,nlon))
        allocate(coeffy(nlat,nlon),coeffx(nlat,nlon))
 
-!   trasfer earth lats and lons to arrays region_lat, region_lon
+!  trasfer earth lats and lons to arrays region_lat, region_lon
+!  NOTE: The glat_an and glon_an are the latlon values for ensemble perturbation grid
 
        allocate(glat_an(nlon,nlat),glon_an(nlon,nlat))
        do k=1,nlon
@@ -1419,7 +1444,7 @@ contains
        write(filename,'("sigf",i2.2)') ihrmid
        open(lendian_in,file=filename,form='unformatted')
        rewind lendian_in
-       read(lendian_in) regional_time,regional_fhr,nlon_regional,nlat_regional,nsig, &
+       read(lendian_in) regional_time,regional_fhr,regional_fmin,nlon_regional,nlat_regional,nsig, &
                    dlmd,dphd,pt,pdtop,nmmb_verttype
  
        if(diagnostic_reg.and.mype==0) then

@@ -33,16 +33,24 @@ module m_obsdiagNode
 
 ! module interface:
   use kinds , only: i_kind,r_kind
-  use obsmod, only: obs_diag
-  use obsmod, only: obs_diags
   use mpeu_util, only: assert_,tell,warn,perr,die
-#define _obsNode_   obs_diag
-#define _obsLList_  obs_diags
   implicit none
 
   private
+
+  public:: obs_diag
+  public:: obs_diags
+  public:: fptr_obsdiagNode
+
         ! Primery behaviors:
   public:: obsdiagLList_reset   ! destructor + initializer
+  public:: obsdiagLList_appendNode
+  public:: obsdiagLList_rewind  ! rewind an obsdiagLList
+  public:: obsdiagLList_nextNode
+
+  public:: obsdiagLList_headNode
+  public:: obsdiagLList_tailNode
+
   public:: obsdiagLList_read    ! reader, for input
   public:: obsdiagLList_write   ! writer, for otuput
   public:: obsdiagLList_lsize   ! size inquiry
@@ -51,8 +59,9 @@ module m_obsdiagNode
   public:: obsdiagLList_checksum! size consistency checking
   public:: obsdiagLList_summary ! status report
 
-        interface obsdiagLList_reset; module procedure lreset_; end interface
-        interface obsdiagLList_read ; module procedure  lread_; end interface
+        interface obsdiagLList_reset ; module procedure  lreset_; end interface
+        interface obsdiagLList_rewind; module procedure lrewind_; end interface
+        interface obsdiagLList_read  ; module procedure   lread_; end interface
         interface obsdiagLList_checksum; module procedure &
           lchecksum_  , &
           lchecksum1_ , &
@@ -62,6 +71,14 @@ module m_obsdiagNode
         interface obsdiagLList_lsort  ; module procedure lsort_   ; end interface
         interface obsdiagLList_write  ; module procedure lwrite_  ; end interface
         interface obsdiagLList_summary; module procedure lsummary_; end interface
+
+        interface obsdiagLList_appendNode; module procedure obsNode_append_; end interface
+        interface obsdiagLList_nextNode  ; module procedure &
+          obsNode_next_, &
+          make_or_next_; end interface
+
+        interface obsdiagLList_headNode  ; module procedure lheadNode_  ; end interface
+        interface obsdiagLList_tailNode  ; module procedure ltailNode_  ; end interface
 
         ! Node lookup, secondary function with its searching component
   public:: obsdiagLookup_build  ! setup, its searching component
@@ -75,29 +92,79 @@ module m_obsdiagNode
   public:: obsdiagLList_dump
         interface obsdiagLList_dump; module procedure ldump_; end interface
 
-  public:: obsdiagNode_append
-        interface obsdiagNode_append; module procedure obsNode_append_; end interface
-  public:: obsdiagNode_first
-        interface obsdiagNode_first ; module procedure  obsNode_first_; end interface
-  public:: obsdiagNode_next
-        interface obsdiagNode_next  ; module procedure   obsNode_next_; end interface
+  !public:: obsdiagNode_append
+  !      interface obsdiagNode_append; module procedure obsNode_append_; end interface
+  !public:: obsdiagNode_first
+  !      interface obsdiagNode_first ; module procedure  obsNode_first_; end interface
+  !public:: obsdiagNode_next
+  !      interface obsdiagNode_next  ; module procedure   obsNode_next_; end interface
+  public:: obsdiagNode_init
+  public:: obsdiagNode_assert
+  public:: obsdiagNode_set
+  public:: obsdiagNode_get
+        interface obsdiagNode_init  ; module procedure obsNode_init_; end interface
+        interface obsdiagNode_assert; module procedure anode_assert_; end interface
+        interface obsdiagNode_set   ; module procedure obsNode_set_ ; end interface
+        interface obsdiagNode_get   ; module procedure obsNode_get_ ; end interface
 
-  !public:: fptr_obsdiagNode
+  type obs_diag
+     type(obs_diag), pointer :: next => NULL()
+     real(r_kind), pointer :: nldepart(:) => null()    ! (miter+1)
+     real(r_kind), pointer :: tldepart(:) => null()    ! (miter)
+     real(r_kind), pointer :: obssen(:)   => null()    ! (miter)
+     real(r_kind) :: wgtjo
+     real(r_kind) :: elat, elon         ! earth lat-lon for redistribution
+     integer(i_kind) :: idv,iob,ich     ! device, obs., and channel indices
+     logical, pointer :: muse(:)          => null()    ! (miter+1), according the setup()s
+     logical :: luse
+  end type obs_diag
 
-  type fptr_obsdiagNode
-    type(obs_diag),pointer:: node
+  type fptr_obsdiagNode         ! Fortran array element of a type(obs_diag) pointer
+    type(obs_diag),pointer:: ptr => null()
   end type fptr_obsdiagNode
 
-!#define NDEBUG
-!#define DEBUG_TRACE
-!#define DEBUG_VERBOSE
+  type:: obs_diags
+     integer(i_kind):: n_alloc=0
+     type(obs_diag), pointer :: head => NULL()
+     type(obs_diag), pointer :: tail => NULL()
+     type(fptr_obsdiagNode), allocatable, dimension(:):: lookup
+  end type obs_diags
 
 #include "myassert.H"
 #include "mytrace.H"
 
   character(len=*),parameter:: myname="m_obsdiagNode"
 
+#define _obsNode_   obs_diag
+#define _obsLList_  obs_diags
+
 contains
+subroutine lgotoNode_(headLL,thisNode)
+! Move the tail pointer to thisNode. 
+! It is assumed that given thisNode is one of nodes in the list.  Otherwise
+! this function would break the list.
+  implicit none
+  type(_obsLList_),target,intent(inout):: headLL
+  type(_obsNode_ ),target,intent(in   ):: thisNode
+  headLL%tail => thisNode
+end subroutine lgotoNode_
+
+function lheadNode_(headLL) result(here_)
+! Return the head node
+  implicit none
+  type(_obsNode_),pointer:: here_
+  type(_obsLList_),target,intent(in):: headLL
+  here_ => headLL%head
+end function lheadNode_
+
+function ltailNode_(headLL) result(here_)
+! Return the current tail node
+  implicit none
+  type(_obsNode_ ),pointer:: here_
+  type(_obsLList_),target,intent(in):: headLL
+  here_ => headLL%tail
+end function ltailNode_
+
 subroutine lwrite_(diagLL,iunit,luseonly,jiter,miter,jj_type,ii_bin,luseRange)
   use m_latlonRange  , only: latlonRange
   use m_latlonRange  , only: latlonRange_enclose
@@ -231,11 +298,8 @@ _EXIT_(myname_)
 return
 end subroutine ldump_
 
-subroutine lread_(diagLL,iunit,redistr,jiter,miter,jj_type,ii_bin,jread,leadNode,ignore_iter)
-!_DEBUG_USE_
+subroutine lread_(diagLL,iunit,redistr,jiter,miter,jj_type,ii_bin,jread,leadNode,jiter_expected)
 !_TIMER_USE_
-  use obsmod, only: lobserver
-  use obs_sensitivity, only: lobsensfc, lsensrecompute
   implicit none
   type(_obsLList_),intent(inout):: diagLL
   integer(kind=i_kind),intent(in   ):: iunit
@@ -245,18 +309,21 @@ subroutine lread_(diagLL,iunit,redistr,jiter,miter,jj_type,ii_bin,jread,leadNode
   integer(kind=i_kind),intent(in   ):: jj_type, ii_bin
   integer(kind=i_kind),intent(  out):: jread
   type(_obsNode_), pointer, intent(out):: leadNode
-  logical    ,optional,intent(in   ):: ignore_iter
+
+  integer(kind=i_kind),intent(in),optional:: jiter_expected
 
   character(len=*),parameter:: myname_=myname//"::lread_"
-  integer(kind=i_kind):: ki,kj,kobs,kiter,miter_read
+  integer(kind=i_kind):: ki,kj,kobs
+  integer(kind=i_kind):: kiter,miter_read
+        ! jiter : current iter count
+        ! miter : maximum iter size
+        ! kiter(read): current iter count as it was written
+        ! miter_read : maximum iter size as it was written
   integer(kind=i_kind):: kk,istat
   type(_obsNode_), pointer:: aNode
-  logical:: ignore_iter_
 _ENTRY_(myname_)
 !_TIMER_ON_(myname_)
 !call timer_ini(myname_)
-      ignore_iter_=.false.
-      if(present(ignore_iter)) ignore_iter_=ignore_iter
 
       call obsHeader_read_(iunit,ki,kj,kobs,kiter,miter_read,istat)
                 if(istat/=0) then
@@ -274,51 +341,21 @@ _ENTRY_(myname_)
         call perr(myname_,'     expecting jj =',jj_type)
         call perr(myname_,'        actual jj =',kj)
         call  die(myname_)
-#ifdef DEBUG_VERBOSE
-      else
-        call tell(myname_,'obsHeader_read_(), current jiter =',jiter)
-        call tell(myname_,'                 expecting miter =',miter)
-        call tell(myname_,'                    expecting ii =',ii_bin)
-        call tell(myname_,'                    expecting jj =',jj_type)
-        call tell(myname_,'                    actual miter =',miter_read)
-        call tell(myname_,'                    actual jiter =',kiter)
-        call tell(myname_,'                       actual ii =',ki)
-        call tell(myname_,'                       actual jj =',kj)
-        call tell(myname_,'                       lobsensfc =',lobsensfc)
-        call tell(myname_,'                  lsensrecompute =',lsensrecompute)
-        call tell(myname_,'                       lobserver =',lobserver)
-#endif
       endif
 
-    if(.not.ignore_iter_) then
-      if (lobsensfc.and..not.lsensrecompute) then       ! a backward iter
-        if(kiter/=miter) then
-          call perr(myname_,'obsHeader_read_(), unexpected header value, kiter =',kiter)
-          call perr(myname_,'                                  expecting miter =',miter)
-          call perr(myname_,'                                        lobsensfc =',lobsensfc)
-          call perr(myname_,'                                   lsensrecompute =',lsensrecompute)
-          call  die(myname_)
-        endif
-
-      else if (lobserver) then  ! a forward iter
-        if(kiter/=jiter-1) then
-          call perr(myname_,'obsHeader_read_(), unexpected header value, kiter =',kiter)
-          call perr(myname_,'                                expecting jiter-1 =',jiter-1)
-          call perr(myname_,'                                        lobserver =',lobserver)
-          call  die(myname_)
-        endif
-
-      else
-        if(kiter/=jiter) then   ! the same iter
-          call perr(myname_,'obsHeader_read_(), unexpected header value, kiter =',kiter)
-          call perr(myname_,'                                  expecting jiter =',jiter)
-          call perr(myname_,'                                        lobserver =',lobserver)
-          call  die(myname_)
+      if(present(jiter_expected)) then
+        if(jiter_expected>=0) then
+          if(kiter/=jiter_expected) then
+            call perr(myname_,'obsHeader_read_(), unexpected input jiter =',kiter)
+            call perr(myname_,'                         with input miter =',miter_read)
+            call perr(myname_,'                    expecting input jiter =',jiter_expected)
+            call perr(myname_,'                                    miter =',miter)
+            call perr(myname_,'                                    jiter =',jiter)
+            call  die(myname_)
+          endif
         endif
       endif
-    endif
-    jread=kiter
-
+      jread=kiter
 
       !-- construct an an_obsNode
       leadNode => null()
@@ -395,6 +432,12 @@ _ENTRY_(myname_)
 _EXIT_(myname_)
 return
 end subroutine lreset_
+subroutine lrewind_(diagLL)
+  implicit none
+  type(_obsLList_),target,intent(inout):: diagLL
+  diagLL%tail => null()
+return
+end subroutine lrewind_
 
 subroutine lchecksum_(diagLL,leadNode,itype,ibin,sorted)
 !$$$  subprogram documentation block
@@ -455,20 +498,6 @@ _ENTRY_(myname_)
 
    if(present(itype)) jtype=itype
    if(present(ibin))  jbin =ibin
-#ifdef DEBUG_TRACE
-  if(diagLL%n_alloc>0) then
-    jtype=0
-    jbin =0
-    if(present(itype)) jtype=itype
-    if(present(ibin )) jbin =ibin
-
-    if(nooo/=0.or.ndup/=0) then
-      write(stdout,'(a,2x,2i4,5i6,3i10,a)') stdout_lead(myname_,''),jtype,jbin,diagLL%n_alloc,mcount,nuse,nooo,ndup,ksum,' >>> WARNING <<<'
-    else
-      write(stdout,'(a,2x,2i4,5i6,3i10  )') stdout_lead(myname_,''),jtype,jbin,diagLL%n_alloc,mcount,nuse,nooo,ndup,ksum
-    endif
-  endif
-#endif /* DEBUG_TRACE */
 _EXIT_(myname_)
 return
 end subroutine lchecksum_
@@ -503,7 +532,7 @@ _ENTRY_(myname_)
   if(present(leadNode)) then
     ASSERT(size(diagLL)==size(leadNode))
     do i=1,size(diagLL)
-      call lchecksum_(diagLL(i),itype=itype,ibin=i,leadNode=leadNode(i)%node)
+      call lchecksum_(diagLL(i),itype=itype,ibin=i,leadNode=leadNode(i)%ptr)
     enddo
   else
     do i=1,size(diagLL)
@@ -561,11 +590,6 @@ subroutine lsummary_(diagLL,verbose)
   verbose_=.false.
   if(present(verbose)) verbose_=verbose
 _ENTRY_(myname_)
-#ifdef DEBUG_TRACE
-  _TRACEV_(myname_,' depth-of(diagLL) =',diagLL%n_alloc)
-  if(allocated(diagLL%lookup)) &
-  _TRACEV_(myname_,'    size(%lookup) =',size(diagLL%lookup))
-#endif
 
   if(verbose_) then
     tempLL = diagLL
@@ -589,6 +613,7 @@ function lsize_(diagLL) result(lobs_)
 end function lsize_
 
 function lcount_(diagLL,luseonly,recount,nuse,nooo,ndup,ksum,leadNode) result(lobs_)
+  use mpeu_util, only: assert_
   implicit none
   integer(kind=i_kind):: lobs_
   type(_obsLList_),   target, intent(in):: diagLL
@@ -620,7 +645,7 @@ _ENTRY_(myname_)
   !if(.not.recount_) recount_ = checksum_
 
   if(present(ksum)) then
-    ALWAYS_ASSERT(size(ksum)==size(kprev))
+    ALWAYS_ASSERT( size(ksum)==size(kprev) )
   endif
 
   if(.not.(luseonly_.or.recount_)) then
@@ -697,31 +722,80 @@ _EXIT_(myname_)
 return
 end function obsNode_first_
 
-function obsNode_next_(diagLL,atNode) result(next_)
+function obsNode_next_(diagLL) result(next_)
   implicit none
   type(_obsNode_ ), pointer      :: next_
   type(_obsLList_), target, intent(inout):: diagLL
-  type(_obsNode_ ), optional, pointer,intent(in):: atNode
 
   character(len=*),parameter:: myname_=myname//"::obsNode_next_"
 _ENTRY_(myname_)
-  next_ => diagLL%tail%next
-  if(present(atNode)) next_=>atNode%next
+  next_ => diagLL%head
+  if(associated(diagLL%tail)) next_ => diagLL%tail%next
   diagLL%tail => next_  ! update the tail-node
 _EXIT_(myname_)
 return
 end function obsNode_next_
 
+function make_or_next_(diagLL,create,idv,iob,ich,elat,elon,luse,miter) result(next_)
+  implicit none
+  type(_obsNode_ ), pointer      :: next_
+  type(_obsLList_), target, intent(inout):: diagLL
+
+  logical             , intent(in):: create     ! make or next
+  integer(kind=i_kind), intent(in):: idv,iob,ich
+  real   (kind=r_kind), intent(in):: elat,elon
+  logical             , intent(in):: luse
+  integer(kind=i_kind), intent(in):: miter
+
+  character(len=*),parameter:: myname_=myname//"::make_or_next_"
+  logical:: matched
+_ENTRY_(myname_)
+
+  if(create) then
+    allocate(next_)
+    call obsNode_append_(diagLL,next_)
+    call obsNode_init_(next_,idv,iob,ich,elat,elon,luse,miter)
+
+  else
+    next_ => diagLL%head
+    if(associated(diagLL%tail)) next_ => diagLL%tail%next
+    diagLL%tail => next_  ! update the tail-node
+
+    ! Check the next node against (idv,iob,ich)
+    matched = associated(next_)
+    if(matched) matched = next_%idv==idv .and. &
+                          next_%iob==iob .and. &
+                          next_%ich==ich
+
+    if(.not.matched) then
+      call   perr(myname_,"unexpected node, associated(next) =", associated(next_))
+      call   perr(myname_,"          expecting (idv,iob,ich) =", (/idv,iob,ich/))
+      call   perr(myname_,"                             elat =", elat)
+      call   perr(myname_,"                             elon =", elon)
+      if(associated(next_)) then
+        call perr(myname_,"               next%(idv,iob,ich) =", (/next_%idv,next_%iob,next_%ich/))
+        call perr(myname_,"                        next%elat =", next_%elat)
+        call perr(myname_,"                        next%elon =", next_%elon)
+        call perr(myname_,"                        next%luse =", next_%luse)
+        call perr(myname_,"                  size(next%muse) =", size(next_%muse))
+      endif
+      call die(myname_)
+    endif
+  endif ! (create)
+_EXIT_(myname_)
+return
+end function make_or_next_
+
 subroutine obsNode_append_(diagLL,targetNode)
         ! Link the next node of the list to the given targetNode.  The return
         ! result is a pointer associated to the same targetNode.
-  use jfunc, only: miter
+!--  use jfunc, only: miter
   implicit none
   type(_obsLList_), intent(inout):: diagLL
-  type(_obsNode_ ), target, intent(in):: targetNode
+  type(_obsNode_ ), pointer, intent(in):: targetNode
 
   character(len=*),parameter:: myname_=myname//"::obsNode_append_"
-  type(_obsNode_ ),pointer:: aNode
+!-- type(_obsNode_ ),pointer:: aNode
 _ENTRY_(myname_)
   if(.not.associated(diagLL%head)) then
                 ! this is a fresh starting -node- for this linked-list ...
@@ -742,20 +816,67 @@ _ENTRY_(myname_)
   endif
   if(associated(diagLL%tail)) diagLL%tail%next => null()
 
-  aNode => diagLL%tail
-  ASSERT(lbound(aNode%muse    ,1)==1.and.ubound(aNode%muse    ,1)==miter+1)
-  ASSERT(lbound(aNode%nldepart,1)==1.and.ubound(aNode%nldepart,1)==miter+1)
-  ASSERT(lbound(aNode%tldepart,1)==1.and.ubound(aNode%tldepart,1)==miter  )
-  ASSERT(lbound(aNode%obssen  ,1)==1.and.ubound(aNode%obssen  ,1)==miter  )
-  aNode => null()
+!--  aNode => diagLL%tail
+!--  ASSERT(lbound(aNode%muse    ,1)==1.and.ubound(aNode%muse    ,1)==miter+1)
+!--  ASSERT(lbound(aNode%nldepart,1)==1.and.ubound(aNode%nldepart,1)==miter+1)
+!--  ASSERT(lbound(aNode%tldepart,1)==1.and.ubound(aNode%tldepart,1)==miter  )
+!--  ASSERT(lbound(aNode%obssen  ,1)==1.and.ubound(aNode%obssen  ,1)==miter  )
+!--  aNode => null()
 
 _EXIT_(myname_)
 return
 end subroutine obsNode_append_
 
+subroutine obsNode_insert_(diagLL,targetNode)
+        ! Insert targetNode to diagLL's current location, mostly %tail.  At the
+        ! return, diagLL%tail is associated to targetNode.
+!--  use jfunc, only: miter
+  implicit none
+  type(_obsLList_), intent(inout):: diagLL
+  type(_obsNode_ ), pointer, intent(in):: targetNode
+
+  character(len=*),parameter:: myname_=myname//"::obsNode_insert_"
+  type(_obsNode_),pointer:: next_
+_ENTRY_(myname_)
+  if(.not.associated(diagLL%head)) then
+                ! This is a fresh start case: insert a node as append
+    diagLL%n_alloc = 1
+    diagLL%head => targetNode
+    diagLL%tail => diagLL%head            ! now the current node
+    diagLL%tail%next => null()            ! set %next to nothing there before
+
+  elseif(.not.associated(diagLL%tail)) then
+                ! This is a rewound case: insert a node as the new %head
+    next_ => diagLL%head
+    diagLL%n_alloc = diagLL%n_alloc +1
+    diagLL%head      => targetNode
+    diagLL%tail      => diagLL%head       ! now the current node
+    diagLL%tail%next => next_             ! set %next to the original %head
+
+  else
+                ! This is a normal case: insert a node in between %tail and
+                ! %tail%next.
+    next_ => diagLL%tail%next
+    diagLL%n_alloc = diagLL%n_alloc +1
+    diagLL%tail%next => targetNode
+    diagLL%tail      => diagLL%tail%next  ! now the current node.
+    diagLL%tail%next => next_             ! set %next to the original %tail%next
+        ! Note in the last stateument, targetNode%next has been implicitly modifed.
+  endif
+
+!--  associate(aNode => diagLL%tail)
+!--    ASSERT(lbound(aNode%muse    ,1)==1.and.ubound(aNode%muse    ,1)==miter+1)
+!--    ASSERT(lbound(aNode%nldepart,1)==1.and.ubound(aNode%nldepart,1)==miter+1)
+!--    ASSERT(lbound(aNode%tldepart,1)==1.and.ubound(aNode%tldepart,1)==miter  )
+!--    ASSERT(lbound(aNode%obssen  ,1)==1.and.ubound(aNode%obssen  ,1)==miter  )
+!--  end associate ! (aNode => diagLL%tail)
+
+_EXIT_(myname_)
+return
+end subroutine obsNode_insert_
+
 subroutine lsort_(diagLL,itype,ibin)
 !       lsort_: node-sort diagLL, to line-up nodes according to their keys
-!_DEBUG_USE_
 !_TIMER_USE_
 !  use timermod , only: timer_ini,timer_fnl
   !use mpeu_util, only: IndexSet
@@ -819,7 +940,6 @@ return
 end subroutine lsort_
 
 subroutine lbuild_(diagLL,leadNode,jiter)
-!_DEBUG_USE_
 !_TIMER_USE_
 !  use timermod , only: timer_ini,timer_fnl
   use mpeu_util, only: IndexSet
@@ -892,7 +1012,6 @@ _ENTRY_(myname_)
     lookup(1:n) = lookup(indx(1:n))
   end associate
 
-!#ifdef DEBUG_VERIFY
     idv_(1:n) = idv_(indx(1:n))
     iob_(1:n) = iob_(indx(1:n))
     ich_(1:n) = ich_(indx(1:n))
@@ -917,7 +1036,6 @@ _ENTRY_(myname_)
         call die(myname_)
       endif
     end associate
-!#endif
 
   deallocate(indx,idv_,iob_,ich_)
 
@@ -1082,7 +1200,7 @@ return
 end subroutine obsHeader_write_
 
 subroutine obsNode_check_(who,aNode)
-  use jfunc, only: miter        ! for debugging
+!--  use jfunc, only: miter        ! for debugging
   implicit none
   character(len=*),intent(in):: who
   type(_obsNode_),intent(in):: aNode
@@ -1103,10 +1221,10 @@ subroutine obsNode_check_(who,aNode)
 
   ASSERT(equival)
 
-  ASSERT(lbound(aNode%muse    ,1)==1.and.ubound(aNode%muse    ,1)==miter+1)
-  ASSERT(lbound(aNode%nldepart,1)==1.and.ubound(aNode%nldepart,1)==miter+1)
-  ASSERT(lbound(aNode%tldepart,1)==1.and.ubound(aNode%tldepart,1)==miter  )
-  ASSERT(lbound(aNode%obssen  ,1)==1.and.ubound(aNode%obssen  ,1)==miter  )
+!--  ASSERT(lbound(aNode%muse    ,1)==1.and.ubound(aNode%muse    ,1)==miter+1)
+!--  ASSERT(lbound(aNode%nldepart,1)==1.and.ubound(aNode%nldepart,1)==miter+1)
+!--  ASSERT(lbound(aNode%tldepart,1)==1.and.ubound(aNode%tldepart,1)==miter  )
+!--  ASSERT(lbound(aNode%obssen  ,1)==1.and.ubound(aNode%obssen  ,1)==miter  )
 
 return
 end subroutine obsNode_check_
@@ -1133,8 +1251,6 @@ _ENTRY_(myname_)
   aNode_%iob  =-1
   aNode_%ich  =-1
 
-  aNode_%indxglb    =-99999
-  aNode_%nchnperobs =-99999
   aNode_%muse    (:)= .false.
   aNode_%nldepart(:)=-huge(0._r_kind)
   aNode_%tldepart(:)= 0._r_kind
@@ -1145,6 +1261,178 @@ _ENTRY_(myname_)
 _EXIT_(myname_)
 return
 end function obsNode_alloc_
+
+subroutine obsNode_init_(anode,idv,iob,ich,elat,elon,luse,miter)
+  implicit none
+  type(_obsNode_),intent(inout):: anode
+  integer(kind=i_kind), intent(in):: idv,iob,ich
+  real   (kind=r_kind), intent(in):: elat,elon
+  logical, intent(in):: luse
+  integer(kind=i_kind), intent(in):: miter
+
+  character(len=*),parameter:: myname_=myname//"::obsNode_init_"
+_ENTRY_(myname_)
+
+  aNode%next => null()
+  anode%idv   = idv
+  anode%iob   = iob
+  anode%ich   = ich
+  aNode%elat  = elat
+  aNode%elon  = elon
+  anode%luse  = luse
+
+
+
+  aNode%wgtjo      =-huge(0._r_kind)
+
+  allocate(aNode%muse    (miter+1), &
+           aNode%nldepart(miter+1), &
+           aNode%tldepart(miter  ), &
+           aNode%obssen  (miter  )  )
+
+  aNode%muse    (:)= .false.
+  aNode%nldepart(:)=-huge(0._r_kind)
+  aNode%tldepart(:)= 0._r_kind
+  aNode%obssen  (:)= 0._r_kind
+
+  call obsNode_check_(myname_,aNode)
+_EXIT_(myname_)
+return
+end subroutine obsNode_init_
+
+subroutine anode_assert_(anode,idv,iob,ich,who,what)
+  implicit none
+  type(_obsNode_),intent(in):: anode
+  integer(kind=i_kind), intent(in):: idv,iob,ich
+  character(len=*),intent(in):: who
+  character(len=*),intent(in):: what
+
+  character(len=*),parameter:: myname_=myname//"::anode_assert_"
+  logical:: valid
+  character(len=:),allocatable:: what_
+_ENTRY_(myname_)
+  valid = &
+        anode%idv == idv .and. &
+        anode%iob == iob .and. &
+        anode%ich == ich
+
+  if(.not.valid) then
+    what_=repeat(" ",len(trim(what)))
+    call perr(who,trim(what)//", %(idv,iob,ich) =",(/anode%idv,anode%iob,anode%ich/))
+    call perr(who,     what_//"   (idv,iob,ich) =",(/      idv,      iob,      ich/))
+    call  die(who)
+  endif
+
+_EXIT_(myname_)
+return
+end subroutine anode_assert_
+
+subroutine obsNode_set_(anode, &
+        idv,iob,ich,elat,elon,luse,wgtjo, &
+        jiter,muse,nldepart,tldepart,obssen)
+  implicit none
+  type(_obsNode_),intent(inout):: anode
+  integer(kind=i_kind),optional,intent(in):: idv,iob,ich
+  real   (kind=r_kind),optional,intent(in):: elat,elon
+  logical             ,optional,intent(in):: luse
+  real   (kind=r_kind),optional,intent(in):: wgtjo
+
+  integer(kind=i_kind),optional,intent(in):: jiter
+  logical             ,optional,intent(in):: muse
+  real   (kind=r_kind),optional,intent(in):: nldepart
+  real   (kind=r_kind),optional,intent(in):: tldepart
+  real   (kind=r_kind),optional,intent(in):: obssen
+
+  character(len=*),parameter:: myname_=myname//"::obsNode_set_"
+_ENTRY_(myname_)
+
+  if(present(idv )) aNode%idv =idv
+  if(present(iob )) aNode%iob =iob
+  if(present(ich )) aNode%ich =ich
+  if(present(elat)) aNode%elat=elat
+  if(present(elon)) aNode%elon=elon
+  if(present(luse)) aNode%luse=luse
+
+  if(present(wgtjo )) aNode%wgtjo =wgtjo
+
+
+  if(present(jiter)) then
+    if(present(muse  ).or.present(nldepart)) then
+      ASSERT(jiter>=lbound(anode%muse    ,1))
+      ASSERT(jiter<=ubound(anode%muse    ,1))
+      ASSERT(jiter>=lbound(anode%nldepart,1))
+      ASSERT(jiter<=ubound(anode%nldepart,1))
+    endif
+    if(present(obssen).or.present(tldepart)) then
+      ASSERT(jiter>=lbound(anode%obssen  ,1))
+      ASSERT(jiter<=ubound(anode%obssen  ,1))
+      ASSERT(jiter>=lbound(anode%tldepart,1))
+      ASSERT(jiter<=ubound(anode%tldepart,1))
+    endif
+
+    if(present(muse    )) aNode%muse    (jiter) = muse
+    if(present(nldepart)) aNode%nldepart(jiter) = nldepart
+    if(present(tldepart)) aNode%tldepart(jiter) = tldepart
+    if(present(obssen  )) aNode%obssen  (jiter) = obssen
+  endif
+
+  !call obsNode_check_(myname_,aNode_)
+_EXIT_(myname_)
+return
+end subroutine obsNode_set_
+
+subroutine obsNode_get_(anode, &
+        idv,iob,ich,elat,elon,luse,wgtjo, &
+        jiter,muse,nldepart,tldepart,obssen)
+  implicit none
+  type(_obsNode_),intent(inout):: anode
+  integer(kind=i_kind),optional,intent(out):: idv,iob,ich
+  real   (kind=r_kind),optional,intent(out):: elat,elon
+  logical             ,optional,intent(out):: luse
+  real   (kind=r_kind),optional,intent(out):: wgtjo
+
+  integer(kind=i_kind),optional,intent(in ):: jiter
+  logical             ,optional,intent(out):: muse
+  real(kind=r_kind)   ,optional,intent(out):: nldepart
+  real(kind=r_kind)   ,optional,intent(out):: tldepart
+  real(kind=r_kind)   ,optional,intent(out):: obssen
+
+  character(len=*),parameter:: myname_=myname//"::obsNode_get_"
+_ENTRY_(myname_)
+
+  if(present(idv )) idv  = aNode%idv
+  if(present(iob )) iob  = aNode%iob
+  if(present(ich )) ich  = aNode%ich
+  if(present(elat)) elat = aNode%elat
+  if(present(elon)) elon = aNode%elon
+  if(present(luse)) luse = aNode%luse
+
+  if(present(wgtjo )) wgtjo  = aNode%wgtjo
+
+  if(present(jiter)) then
+    if(present(muse  ).or.present(nldepart)) then
+      ASSERT(jiter>=lbound(anode%muse    ,1))
+      ASSERT(jiter<=ubound(anode%muse    ,1))
+      ASSERT(jiter>=lbound(anode%nldepart,1))
+      ASSERT(jiter<=ubound(anode%nldepart,1))
+    endif
+    if(present(obssen).or.present(tldepart)) then
+      ASSERT(jiter>=lbound(anode%obssen  ,1))
+      ASSERT(jiter<=ubound(anode%obssen  ,1))
+      ASSERT(jiter>=lbound(anode%tldepart,1))
+      ASSERT(jiter<=ubound(anode%tldepart,1))
+    endif
+
+    if(present(muse    )) muse     = aNode%muse    (jiter)
+    if(present(nldepart)) nldepart = aNode%nldepart(jiter)
+    if(present(tldepart)) tldepart = aNode%tldepart(jiter)
+    if(present(obssen  )) obssen   = aNode%obssen  (jiter)
+  endif
+
+  !call obsNode_check_(myname_,aNode_)
+_EXIT_(myname_)
+return
+end subroutine obsNode_get_
 
 subroutine obsNode_read_(aNode,iunit,kiter,istat,redistr)
   implicit none
@@ -1180,7 +1468,7 @@ _ENTRY_(myname_)
   if(istat==0) then
     read(iunit,iostat=ier)
         if(ier/=0) then
-          call perr(myname_,'skipping read(%indxglb,%nchnperobs,%muse,...), iostat =',ier)
+          call perr(myname_,'skipping read(%nchanl,%muse,...), iostat =',ier)
           istat=-2
           _EXIT_(myname_)
           return
@@ -1188,15 +1476,13 @@ _ENTRY_(myname_)
 
   else
     read(iunit,iostat=ier)       &
-        aNode%indxglb,           &    ! = kindx
-        aNode%nchnperobs,        &    ! = mchanl
         aNode%muse    (1:kiter+1), &    ! = lmuse(1:kiter)
         aNode%nldepart(1:kiter+1), &    ! = znldepart(1:kiter)
         aNode%tldepart(1:kiter), &    ! = ztldepart(1:kiter)
         aNode%wgtjo,             &    ! = zwgtjo
         aNode%obssen  (1:kiter)       ! = zobssen(1:kiter)
         if(ier/=0) then
-          call perr(myname_,'read(%indxglb,%nchnperobs,%muse,...), iostat =',ier)
+          call perr(myname_,'read(%nchanl,%muse,...), iostat =',ier)
           istat=-3
           _EXIT_(myname_)
           return
@@ -1235,8 +1521,6 @@ _ENTRY_(myname_)
         endif
 
   write(iunit,iostat=istat)     &
-        aNode%indxglb,          &
-        aNode%nchnperobs,       &
         aNode%muse    (1:jiter+1),&
         aNode%nldepart(1:jiter+1),&
         aNode%tldepart(1:jiter),&
@@ -1244,7 +1528,7 @@ _ENTRY_(myname_)
         aNode%obssen(1:jiter)
 
         if(istat/=0) then
-          call perr(myname_,'write(%indxglb,%nchnperobs,%muse,...), iostat =',istat)
+          call perr(myname_,'write(%nchanl,%muse,...), iostat =',istat)
           _EXIT_(myname_)
           return
         endif

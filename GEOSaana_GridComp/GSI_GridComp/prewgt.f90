@@ -72,6 +72,7 @@ subroutine prewgt(mype)
 !   2014-02-05  mkim/todling - move cw overwrite w/ q to m_berror_stats
 !   2014-08-02  zhu     - set up new background error variance and correlation lengths of cw 
 !                         for all-sky radiance assimilation
+!   2020-07-14  todling- add adjustozhscl as optional
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -89,7 +90,7 @@ subroutine prewgt(mype)
        bw,wtxrs,inaxs,inxrs,nr,ny,nx,mr,ndeg,&
        nf,vs,be,dssv,norh,bl2,bl,init_rftable,hzscl,&
        pert_berr,bkgv_flowdep,slw,slw1,slw2,bkgv_write,nhscrf,&
-       adjustozvar
+       adjustozvar,adjustozhscl
   use m_berror_stats,only : berror_read_wgt
   use mpimod, only: nvar_id,levs_id
   use mpimod, only: mpi_comm_world,ierror,mpi_rtype
@@ -316,7 +317,7 @@ subroutine prewgt(mype)
         end do
      end do
   end do
-  if(nrf3_oz>0) hwll(:,:,nrf3_oz)=hwll(:,:,nrf3_oz)*three   !inflate scale
+  if(nrf3_oz>0.and.adjustozhscl>zero) hwll(:,:,nrf3_oz)=hwll(:,:,nrf3_oz)*adjustozhscl   !inflate scale
 
 ! surface pressure
   if(nrf2_ps>0) then

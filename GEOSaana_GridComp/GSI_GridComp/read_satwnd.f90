@@ -67,6 +67,8 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 !   2016-12-13  Lim     - Addition of GOES SWIR, CAWV and VIS winds into HWRF
 !   2017-08-22  Genkova - Testing Git / Add Goes-16 and JPSS SatID
 !                       - Read WMO pre-approved new BUFR Goes-16 AMVs (Goes-R)
+!   2018-06-13  Genkova - Goes-16 AMVs use ECMWF QC till new HAM late 2018
+!                         and OE/2 
 !
 !   
 !
@@ -108,7 +110,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   use convinfo, only: nconvtype, &
        icuse,ictype,icsubtype,ioctype, &
        ithin_conv,rmesh_conv,pmesh_conv,pmot_conv,ptime_conv, &
-       use_prepb_satwnd
+       use_prepb_satwnd, ec_amv_qc
 
   use gsi_4dvar, only: l4dvar,l4densvar,iwinbgn,winlen,time_4dvar,thin4d
   use deter_sfc_mod, only: deter_sfc_type,deter_sfc2
@@ -404,6 +406,20 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
                  itype=260
               endif
            endif
+        else if(trim(subset) == 'NC005091') then  ! VIIRS N-20 with new sequence
+! Commented out, because we need clarification for SWCM/hdrdat(9) from Yi Song
+! NOTE: Once it is confirmed that SWCM values are sensible, apply this logic and
+! replace lines 685-702
+        !       if(hdrdat(9) == one)  then                            ! VIIRS IR
+        !       winds
+        !          itype=260
+        !       endif
+!Temporary solution replacing the commented code above
+                 if(trim(subset) == 'NC005091')  then                 ! IR LW winds
+                    itype=260
+                 endif
+
+
         !GOES-R section of the 'if' statement over 'subsets' 
         else if(trim(subset) == 'NC005030' .or. trim(subset) == 'NC005031' .or. trim(subset) == 'NC005032' .or. &
                 trim(subset) == 'NC005034' .or. trim(subset) == 'NC005039') then
@@ -574,13 +590,13 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 
 !          Test for BUFR version using lat/lon mnemonics
            call ufbint(lunin,hdrdat_test,2,1,iret, 'CLAT CLON')
-           if ( hdrdat_test(1) > 100000000.0_r_kind .and. hdrdat_test(2) > 100000000.0_r_kind ) then
-               call ufbint(lunin,hdrdat,13,1,iret,hdrtr_v2) 
-               call ufbint(lunin,obsdat,4,1,iret,obstr_v2)
-           else
-               call ufbint(lunin,hdrdat,13,1,iret,hdrtr_v1) 
-               call ufbint(lunin,obsdat,4,1,iret,obstr_v1)
-           endif
+          if ( hdrdat_test(1) > 100000000.0_r_kind .and. hdrdat_test(2) > 100000000.0_r_kind ) then
+           call ufbint(lunin,hdrdat,13,1,iret,hdrtr_v2) 
+           call ufbint(lunin,obsdat,4,1,iret,obstr_v2)
+          else
+           call ufbint(lunin,hdrdat,13,1,iret,hdrtr_v1) 
+           call ufbint(lunin,obsdat,4,1,iret,obstr_v1)
+          endif
 
            ppb=obsdat(2)
            if (ppb > 100000000.0_r_kind .or. &
@@ -873,9 +889,59 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
                     endif
                  enddo
                endif
+! Extra block for VIIRS NOAA-20: Start
+           else if(trim(subset) == 'NC005091') then
+              if(hdrdat(1) >=r250 .and. hdrdat(1) <=r299 ) then  ! The range of satellite IDs
+                 c_prvstg='VIIRS'
+                 if(trim(subset) == 'NC005091')  then                 ! IR LW winds
+                    itype=260
+                    c_station_id='IR'//stationid
+                    c_sprvstg='IR'
+                    !write(6,*)'itype= ',itype
+                 endif
+
+!                 call ufbint(lunin,rep_array,1,1,iret, '{AMVAHA}')
+!                 irep_array = int(rep_array)
+!                 allocate( amvaha(4,irep_array))
+!                 call ufbint(lunin,amvaha,4,irep_array,iret, 'EHAM PRLC TMDBST
+!                 HOCT')
+!                 deallocate( amvaha )
+!
+!                 call ufbint(lunin,rep_array,1,1,iret, '{AMVIII}')
+!                 irep_array = int(rep_array)
+!                 allocate( amviii(12,irep_array))
+!                 call ufbrep(lunin,amviii,12,irep_array,iret, 'LTDS SCLF SAID
+!                 SIID CHNM SCCF ORBN SAZA BEARAZ EHAM PRLC TMDBST')
+!                 deallocate( amviii )
+
+                 call ufbint(lunin,rep_array,1,1,iret, '{AMVIVR}')
+                 irep_array = int(rep_array)
+                 allocate( amvivr(2,irep_array))
+                 call ufbrep(lunin,amvivr,2,irep_array,iret, 'TCOV CVWD')
+                 pct1 = amvivr(2,1)     ! use of pct1 (a new variable in the BUFR) is introduced by Nebuda/Genkova
+                 deallocate( amvivr )
+
+!                 call ufbrep(lunin,rep_array,1,1,iret, '{AMVCLD}')
+!                 irep_array = int(rep_array)
+!                 allocate( amvcld(12,irep_array))
+!                 ! MUCE --> MUNCEX within the new GOES16/17 and NOAA-20 VIIRS
+!                 sequence (I.Genkova, J.Whiting)
+!                 ! THIS CHANGE HAS NOT BEEN TESTED !!!
+!                 !call ufbrep(lunin,amvcld,12,irep_array,iret, 'FOST CDTP MUCE
+!                 VSAT TMDBST VSAT CDTP MUCE OECS CDTP HOCT COPT')
+!                 call ufbrep(lunin,amvcld,12,irep_array,iret, 'FOST CDTP MUNCEX
+!                 VSAT TMDBST VSAT CDTP MUNCEX OECS CDTP HOCT COPT')
+!                 deallocate( amvcld )
+
+                 call ufbseq(lunin,amvqic,2,4,iret, 'AMVQIC') ! AMVQIC:: GNAPS PCCF
+                 qifn = amvqic(2,2)  ! QI w/ fcst does not exist in this BUFR
+                 ee = amvqic(2,4) ! NOTE: GOES-R's ee is in [m/s]
+              endif
+! Extra block for VIIRS NOAA20: End
 ! Extra block for GOES-R winds: Start
            else if(trim(subset) == 'NC005030' .or. trim(subset) == 'NC005031' .or. trim(subset) == 'NC005032' .or. &  !IR(LW) / CS WV / VIS  GOES-R like winds        
                    trim(subset) == 'NC005034' .or. trim(subset) == 'NC005039' ) then                                  !CT WV  / IR(SW) GOES-R like winds        
+
               if(hdrdat(1) >=r250 .and. hdrdat(1) <=r299 ) then  ! the range of NESDIS satellite IDs
                                                                  ! The sample newBUFR has SAID=259 (GOES-15)
                                                                  ! When GOES-R SAID is assigned, pls check
@@ -964,6 +1030,18 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 		       if (pct1 > 0.50_r_kind) qm=15
 		    endif
                  endif
+
+! GOES-16 additional QC addopting ECMWF's approach(Katie Lean,14IWW)-start
+                if (EC_AMV_QC) then 
+                   if (qifn < 90_r_kind .or. qifn > r100 )   qm=15 ! stricter QI
+                   if (ppb < 150.0_r_kind) qm=15                   ! all high level
+                   if (itype==251 .and. ppb < 700.0_r_kind) qm=15  ! VIS
+                   if (itype==246 .and. ppb > 300.0_r_kind) qm=15  ! WVCA 
+                   dlon_earth=hdrdat(3)*deg2rad
+                   dlat_earth=hdrdat(2)*deg2rad
+                   call deter_sfc_type(dlat_earth,dlon_earth,t4dv,isflg,tsavg)
+                   if (isflg == 1 .and. ppb > 850.0_r_kind) qm=15  ! low over land
+                endif
 
                 ! winds rejected by qc dont get used
                 if (qm == 15) usage=r100
@@ -1233,6 +1311,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
               endif
               if (ptime >zero ) then
                  itime=int((tdiff+three)/ptime)+1
+                 if (itime >ntime) itime=ntime
                  if(pmot <one) then
 !                    call map3grids_tm(-1,pflag,presl_thin,nlevp,ntime,dlat_earth,dlon_earth,&
                     call map3grids_tm(-1,pflag,presl_thin,nlevp,dlat_earth,dlon_earth,&
@@ -1305,7 +1384,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
            cdata_all(8,iout)=rstation_id          ! station id 
            cdata_all(9,iout)=t4dv                 ! time
            cdata_all(10,iout)=nc                  ! index of type in convinfo file
-           cdata_all(11,iout)=qifn +1000.0_r_kind*qify   ! quality mark infor  
+           cdata_all(11,iout)=qifn +1000.0_r_kind*qify   ! quality indicator  
            cdata_all(12,iout)=qm                  ! quality mark
            cdata_all(13,iout)=obserr              ! original obs error
            cdata_all(14,iout)=usage               ! usage parameter

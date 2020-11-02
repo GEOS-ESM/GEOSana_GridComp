@@ -105,12 +105,11 @@ subroutine glbsoi
 !
 !$$$
   use kinds, only: r_kind,i_kind
-  use constants, only: rearth
   use mpimod, only: mype,npe
   use adjtest_obs, only: adtest_obs
   use jfunc, only: miter,jiter,jiterstart,jiterend,iguess,&
       write_guess_solution,R_option,&
-      tendsflag,xhatsave,yhatsave,create_jfunc,destroy_jfunc
+      xhatsave,yhatsave,create_jfunc,destroy_jfunc
   use anberror, only: anisotropic, &
       create_anberror_vars_reg,destroy_anberror_vars_reg,&
       create_anberror_vars,destroy_anberror_vars
@@ -122,8 +121,7 @@ subroutine glbsoi
   use balmod, only: create_balance_vars_reg,create_balance_vars, &
       destroy_balance_vars_reg,destroy_balance_vars,prebal,prebal_reg
   use compact_diffs, only: create_cdiff_coefs,inisph
-  use gridmod, only: nlat,nlon,nsig,rlats,regional,&
-      twodvar_regional,wgtlats
+  use gridmod, only: regional,twodvar_regional
   use guess_grids, only: nfldsig
   use obsmod, only: write_diag,perturb_obs,ditype,iadate
   use qcmod,only: njqc
@@ -152,12 +150,16 @@ subroutine glbsoi
   use timermod, only: timer_ini, timer_fnl
   use hybrid_ensemble_parameters, only: l_hyb_ens,destroy_hybens_localization_parameters
   use hybrid_ensemble_isotropic, only: create_ensemble,load_ensemble,destroy_ensemble, &
-       hybens_localization_setup,hybens_grid_setup
+       hybens_localization_setup,hybens_grid_setup,ens_iterate_update
+  use hybrid_ensemble_parameters, only: upd_ens_spread
   use gfs_stratosphere, only: destroy_nmmb_vcoords,use_gfs_stratosphere
   use aircraftinfo, only: aircraftinfo_write,aircraft_t_bc_pof,aircraft_t_bc,mype_airobst
+  use rapidrefresh_cldsurf_mod, only: i_gsdcldanal_type
+  use m_revBens, only: revBens_init,revBens_final
 
   use m_prad, only: prad_updatePredx    ! was -- prad_bias()
   use m_obsdiags, only: obsdiags_write
+  use gsi_io,only: verbose
 
   implicit none
 
@@ -169,7 +171,10 @@ subroutine glbsoi
   integer(i_kind) jiterlast
   real(r_kind) :: zgg,zxy
   character(len=12) :: clfile
+  logical print_verbose
 
+  print_verbose=.false.
+  if(verbose)print_verbose=.true.
 
 !*******************************************************************************************
 !
@@ -207,6 +212,23 @@ subroutine glbsoi
 ! Read observations and scatter
   call observer_set
 
+! cloud analysis
+  if(i_gsdcldanal_type==6 .or. i_gsdcldanal_type==3) then
+     call gsdcloudanalysis(mype)
+
+! Write output analysis files
+     call write_all(-1,mype)
+     call prt_guess('analysis')
+
+! Finalize observer
+     call observer_finalize
+
+! Finalize timer for this procedure
+     call timer_fnl('glbsoi')
+
+     return
+  endif
+
 ! Create/setup background error and background error balance
   if (regional)then
      call create_balance_vars_reg(mype)
@@ -243,6 +265,7 @@ subroutine glbsoi
 
 ! If l_hyb_ens is true, then read in ensemble perturbations
   if(l_hyb_ens) then
+     call revBens_init(miter)
      call load_ensemble
      call hybens_localization_setup
   end if
@@ -281,7 +304,12 @@ subroutine glbsoi
 ! Main outer analysis loop
   do jiter=jiterstart,jiterlast
 
-     if (mype==0) write(6,*)'GLBSOI: jiter,jiterstart,jiterlast,jiterend=', &
+!    If l_hyb_ens is true and update ens spread for each outer iterate
+     if(l_hyb_ens) then
+        if (upd_ens_spread.and.jiter>1) call ens_iterate_update(jiter)
+     end if
+
+     if (mype==0) write(6,'(a44,4i5)')'GLBSOI: jiter,jiterstart,jiterlast,jiterend=', &
         jiter,jiterstart,jiterlast,jiterend
 
 !    Set up right hand side of analysis equation
@@ -332,7 +360,7 @@ subroutine glbsoi
            call pcinfo
 
 !          Standard run
-           if (mype==0) write(6,*)'GLBSOI:  START pcgsoi jiter=',jiter
+           if (mype==0 .and. print_verbose) write(6,*)'GLBSOI:  START pcgsoi jiter=',jiter
            call pcgsoi
         end if
 
@@ -423,6 +451,7 @@ subroutine glbsoi
      if (norsp > 0) call destroy_smooth_polcas
   endif
 
+  call revBens_final
   if (l_hyb_ens) call destroy_hybens_localization_parameters
 
 ! Write updated bias correction coefficients

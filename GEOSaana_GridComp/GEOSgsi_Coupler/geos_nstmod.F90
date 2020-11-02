@@ -9,7 +9,7 @@ use kinds,       only : r_kind
 implicit none
 private
 public geos_nst_init
-public geos_nst_set
+public geos_nst_read
 public geos_nst_final
 
 interface geos_nst_init
@@ -17,7 +17,7 @@ interface geos_nst_init
 end interface
 !----------------------------------------
 
-interface geos_nst_set
+interface geos_nst_read
   module procedure set_
 end interface
 !----------------------------------------
@@ -34,7 +34,7 @@ subroutine init_
 use kinds,            only: i_kind, r_kind
 use mpimod,           only: mype
 use gsi_nstcouplermod,only: tref_full,dt_cool_full,dt_warm_full,z_c_full,z_w_full
-use gsi_nstcouplermod,only: nstinfo
+use gsi_nstcouplermod,only: nstinfo,nst_gsi
 use guess_grids,      only: nfldsfc,nfldnst,ntguesnst  
 use gridmod,          only: nlat,nlon
 use mpeu_util,        only: die, perr
@@ -48,10 +48,11 @@ implicit none
   if(.not.allocated(dt_warm_full)) allocate(dt_warm_full (nlat,nlon,nfldsfc))
   if(.not.allocated(tref_full))    allocate(tref_full    (nlat,nlon,nfldsfc))
 
-  nstinfo=4  ! number of fields appended to diag files
+  nstinfo=0
+  if(nst_gsi>0) nstinfo=4  ! number of fields appended to diag files
   if( ntguesnst < 1 .or. ntguesnst > nfldnst ) then
-      call perr('geos_nstinit','ntguesnst = ',ntguesnst)
-      call  die('geos_nstinit')
+      call perr('geos_nst_init','ntguesnst = ',ntguesnst)
+      call  die('geos_nst_init')
   endif
        
   if(mype==0) then
@@ -207,7 +208,7 @@ allocate(tdel_full(nlat,nlon,nfldsfc))
 
   subroutine apply_ls_mask_(var_full, spval)
   ! GEOS nst fields are computed over ocean ONLY. They are MAPL_UNDEF over lakes and inland water bodies.
-  ! gsi has a single mask for all water (ocean, lakes, etc.) -> islip.  Here nst fields are made consistent with gsi's isli 
+  ! gsi has a single mask for all water (ocean, lakes, etc.) -> islip.  Here nst fields are made consistent with gsi isli 
 
   real(r_single),intent(inout),dimension(:,:) :: var_full
   real,          intent(in)                   :: spval

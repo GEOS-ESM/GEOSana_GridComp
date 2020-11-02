@@ -41,6 +41,7 @@
   use m_interpack_ad, only : interpack_terpv_ad
 
   use mpeu_util, only: tell,perr,die
+  use GSI_GridCompMod, only: PPMV2GpG
 
       implicit none
 
@@ -174,7 +175,6 @@
       qv_GCMpert, ql_GCMpert, qi_GCMpert, o3_GCMpert  /)
 
    integer(i_kind),parameter:: ROOT =0
-   real(r_kind), parameter :: GG_per_PPMV= 1.657E-6_r_kind ! GSI Ozone is in GG
    real(r_kind), parameter :: kPa_per_Pa = 0.001_r_kind
    real(r_kind), parameter :: Pa_per_kPa = 1000._r_kind
    integer(i_kind),parameter:: GENERIC_ERROR = -9999
@@ -1823,7 +1823,7 @@ end subroutine set2dv_
           sub_ps(:,:)=0.
 
 	  	! adjoint-convert ozone unit in PPMV to GG
-	  if(nc>=1) sub_oz(:,:,:) = sub_oz(:,:,:) * GG_per_PPMV
+	  if(nc>=1) sub_oz(:,:,:) = sub_oz(:,:,:) * PPMV2GpG
 
 		! The forward operation is
 		!    cw   = (1 1)(QL) = QL+QI
@@ -1847,7 +1847,7 @@ end subroutine set2dv_
 	  enddo
 
 	  	! convert ozone unit in GG to PPMV
-	  if(nc>=1) sub_oz(:,:,:) = sub_oz(:,:,:) / GG_per_PPMV
+	  if(nc>=1) sub_oz(:,:,:) = sub_oz(:,:,:) / PPMV2GpG
 
 		! The forward operation is
 		!   (QL) = (1)(cw)
@@ -2345,7 +2345,7 @@ end subroutine set2dv_
 	  sub_dp(:,:,:) = 0.
 
 	  	! adjoint-convert ozone unit in GG to PPMV
-	  if(nc>=1) sub_oz(:,:,:) = sub_oz(:,:,:) / GG_per_PPMV
+	  if(nc>=1) sub_oz(:,:,:) = sub_oz(:,:,:) / PPMV2GpG
 
 		! The forward operation is
 		!   (QL) = (1)(cw)
@@ -2370,7 +2370,7 @@ end subroutine set2dv_
 	  sub_ps(:,:) = kPa_per_Pa * sub_ps(:,:)
 
 	  	! convert ozone unit in PPMV to GG
-	  if(nc>=1) sub_oz(:,:,:) = sub_oz(:,:,:) * GG_per_PPMV
+	  if(nc>=1) sub_oz(:,:,:) = sub_oz(:,:,:) * PPMV2GpG
 
 		! The forward operation is
 		!    cw   = (1 1)(QL) = QL+QI

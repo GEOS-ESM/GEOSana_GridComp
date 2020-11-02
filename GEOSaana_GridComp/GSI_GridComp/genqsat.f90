@@ -26,6 +26,7 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
 !   2010-12-17  pagowski - add cmaq
 !   2011-08-15  gu/todling - add pseudo-q2 options
 !   2014-12-03  derber - add additional threading
+!   2018-02-15  wu - add code for fv3_regional option
 !
 !   input argument list:
 !     tsen      - input sensibile temperature field (lat2,lon2,nsig)
@@ -56,13 +57,14 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
   use derivsmod, only:  qgues,dqdt,dqdrh,dqdp
   use jfunc, only:  pseudo_q2
   use gridmod, only:  wrf_nmm_regional,wrf_mass_regional,nems_nmmb_regional,aeta2_ll,regional,cmaq_regional
+  use gridmod, only:  fv3_regional
   use guess_grids, only: tropprs,ges_prslavg,ges_psfcavg
   implicit none
 
   logical                               ,intent(in   ) :: ice
+  integer(i_kind)                       ,intent(in   ) :: lat2,lon2,nsig,iderivative
   real(r_kind),dimension(lat2,lon2,nsig),intent(  out) :: qsat
   real(r_kind),dimension(lat2,lon2,nsig),intent(in   ) :: tsen,prsl
-  integer(i_kind)                       ,intent(in   ) :: lat2,lon2,nsig,iderivative
 
 
   integer(i_kind) k,j,i,kpres,k150
@@ -88,7 +90,8 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
            endif
         end do
     end if
-    if (wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional) then
+    if (wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional .or. &
+             fv3_regional) then
         kpres = nsig
         do k=1,nsig
            if (aeta2_ll(k)==zero) then
@@ -118,6 +121,7 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
      end do
      do i=1,lat2
         tdry = mint(i)
+        if( abs(tdry) < 1.0e-8_r_kind ) tdry = 1.0e-8_r_kind
         tr = ttp/tdry
         if (tdry >= ttp .or. .not. ice) then
            estmax(i) = psat * (tr**xa) * exp(xb*(one-tr))
@@ -132,8 +136,8 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
 
      do k = 1,nsig
         do i = 1,lat2
-
            tdry = tsen(i,j,k)
+           if( abs(tdry) < 1.0e-8_r_kind ) tdry = 1.0e-8_r_kind
            tr = ttp/tdry
            if (tdry >= ttp .or. .not. ice) then
               es = psat * (tr**xa) * exp(xb*(one-tr))
@@ -176,7 +180,7 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
                   idtupdate=.false.
                 end if
                 if(wrf_nmm_regional .or. nems_nmmb_regional.or.&
-                     cmaq_regional) then
+                     cmaq_regional .or. fv3_regional) then
 !       Decouple T and p at different levels for nmm core
                   if(k >= kpres)idpupdate = .false.
                   if(k >= k150 )idtupdate = .false.

@@ -101,6 +101,7 @@ module berror
 !   def fpsproj   - controls full nsig projection onto surface pressure
 !   def bkgv_write- logical to turn on/off generation of binary file with reweighted variances
 !   def adjustozvar - adjust ozone variance in stratosphere based on guess field
+!   def adjustozhscl - adjust ozone horizontal scales (i.e., scale by this factor)
 !
 ! attributes:
 !   language: f90
@@ -129,7 +130,7 @@ module berror
   public :: qvar3d,nr,nf,varprd,fpsproj,bkgv_flowdep,fut2ps
   public :: ndx,ndy,ndx2,nmix,nymx,nfg,nfnf,norm,nxem
   public :: vprecond
-  public :: adjustozvar
+  public :: adjustozvar,adjustozhscl
   public :: dssvs,dssv,bkgv_write,bkgv_rewgtfct,hswgt
   public :: hzscl,bw,pert_berr_fct,pert_berr,ndeg,norh,vs
   public :: bl,bl2,be,slw2,slw1,slw,mr,inaxs,wtxrs,wtaxs,nx,ny
@@ -154,6 +155,7 @@ module berror
 
   logical pert_berr,bkgv_flowdep,bkgv_write,adjustozvar
   real(r_kind) pert_berr_fct,bkgv_rewgtfct
+  real(r_kind) adjustozhscl
 
   logical,save :: fpsproj
   logical,save :: fut2ps
@@ -177,6 +179,7 @@ contains
 !   2012-05-14  wargan - add adjustozvar
 !   2013-10-26  todling - remove initialization of as and tsfc_sdv (see control_vector)
 !   2014-01-05  todling - knob to allow cw-cov to be overwritten w/ q-cov
+!   2020-07-14  todling - add adjustozhscl
 !
 !   input argument list:
 !
@@ -196,6 +199,7 @@ contains
     pert_berr = .false.
     bkgv_flowdep = .false.
     adjustozvar = .false.
+    adjustozhscl = three
     bkgv_write = .false.
     pert_berr_fct = zero
     bkgv_rewgtfct = zero

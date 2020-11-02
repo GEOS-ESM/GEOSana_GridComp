@@ -22,6 +22,7 @@
 
 #  11Mar2014 McCarty    - remove SSU ch 3 when AMSU-A Ch 14 appears
 #  20Nov2018 McCarty    - Add NOAA-20
+#  12Jan2020 Sienkiewicz - Add MetOp-C AMSU-A
 # NOAA-05 (tn)
 #=============
 # tirosn SSU ch 3 unusable
@@ -159,6 +160,10 @@ metop-a 20090115 120000  21001231 240000  amsua 1      14            # ch7 noisy
 # METOP-B
 #=========
 metop-b 20130213 000000  21001231 240000  amsua  1     14            # active for e512a_rt - known tech ok to be on
+
+# METOP-C   # using start data of data in regular data files - can modify this to reflect additional data availability
+#=========
+metop-c 20190917 000000  21001231 240000  amsua  1     14            # 
 
 
 # Downgrade & upgrade 14 to iuse=4

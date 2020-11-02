@@ -33,11 +33,14 @@
 #define MYNAME	"cplr_pertmod"
 
 ! _PERTMOD_ let the user to choose between geos_pertmod or g5_pertmod
-#define _PERTMOD_ geos_pertmod
-#ifdef G5_PERTMOD
-#  undef  _PERTMOD_
-#  define _PERTMOD_ g5_pertmod
-#endif
+! MAT Commenting out. In CMake dependencies are solved *before* preprocessing
+!     so you can get a race condition easily here as this code might compile
+!     before a dependency
+!!!#define _PERTMOD_ geos_pertmod
+!!!#ifdef G5_PERTMOD
+!!!#  undef  _PERTMOD_
+!!!#  define _PERTMOD_ g5_pertmod
+!!!#endif
 
 !#define DEBUG_VERBOSE
 !#define DEBUG_TRACE
@@ -161,7 +164,11 @@ subroutine pertmod_initialize_(idmodel,rc)
 
   use kinds, only: i_kind
   use mpeu_util, only: tell,perr,die
-  use _PERTMOD_, only: pertmod_initialize
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_initialize
+#else
+  use geos_pertmod, only: pertmod_initialize
+#endif
   implicit none
 
   logical,optional,intent(in):: idmodel
@@ -218,7 +225,11 @@ subroutine pertmod_finalize_(rc)
 
   use kinds, only: i_kind
   use mpeu_util, only: tell,perr,die
-  use _PERTMOD_, only: pertmod_finalize
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_finalize
+#else
+  use geos_pertmod, only: pertmod_finalize
+#endif
   implicit none
   integer(i_kind),optional,intent(out):: rc	! return status code
 
@@ -272,7 +283,11 @@ subroutine pertmod_TLinit_(xini,xobs,iymd,ihms,ndtsec,rc)
   use gsi_bundlemod, only: gsi_bundleCreate
   use gsi_bundlemod, only: assignment(=)
   use constants, only: ZERO
-  use _PERTMOD_, only: pertmod_TLinit
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_TLinit
+#else
+  use geos_pertmod, only: pertmod_TLinit
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
   type(gsi_bundle),intent(in ):: xini	! a known state as a template
@@ -333,7 +348,11 @@ subroutine pertmod_TLrun_(p_xini,xobs,iymd,ihms,ntstep,rc)
 
   use kinds, only: i_kind
   use gsi_bundlemod, only: gsi_bundle
-  use _PERTMOD_, only: pertmod_TLrun
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_TLrun
+#else
+  use geos_pertmod, only: pertmod_TLrun
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
 
@@ -399,7 +418,11 @@ subroutine pertmod_TLfin_(xini,xobs,iymd,ihms,rc)
 
   use kinds, only: i_kind
   use gsi_bundlemod, only: gsi_bundle
-  use _PERTMOD_, only: pertmod_TLfin
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_TLfin
+#else
+  use geos_pertmod, only: pertmod_TLfin
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
 
@@ -463,7 +486,11 @@ subroutine pertmod_ADinit_(xini,xobs,iymd,ihms,ndtsec,rc)
   use gsi_bundlemod, only: assignment(=)
   use constants, only: ZERO
   use constants, only: R3600
-  use _PERTMOD_, only: pertmod_ADinit
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_ADinit
+#else
+  use geos_pertmod, only: pertmod_ADinit
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
   type(gsi_bundle),intent(out):: xini	! a state container to be defined as xobs
@@ -526,7 +553,11 @@ subroutine pertmod_ADrun_(xini,p_xobs,iymd,ihms,ntstep,rc)
 
   use kinds, only: i_kind
   use gsi_bundlemod, only: gsi_bundle
-  use _PERTMOD_, only: pertmod_ADrun
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_ADrun
+#else
+  use geos_pertmod, only: pertmod_ADrun
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
 
@@ -592,7 +623,11 @@ subroutine pertmod_ADfin_(xini,xobs,iymd,ihms,rc)
 
   use kinds, only: i_kind
   use gsi_bundlemod, only: gsi_bundle
-  use _PERTMOD_, only: pertmod_ADfin
+#ifdef G5_PERTMOD
+  use g5_pertmod, only: pertmod_ADfin
+#else
+  use geos_pertmod, only: pertmod_ADfin
+#endif
   use mpeu_util, only: tell,perr,die
   implicit none
 
@@ -642,6 +677,22 @@ _EXIT_(myname_)
 end subroutine grtests_
 
 !------------------------------------------------------------------------------------
+subroutine get_pert_set_ (nlat,nlon,lat2,lon2,nt)
+   use kinds, only: i_kind
+   use geos_pertStateIO, only: pertState_get_set
+   implicit none
+   integer(i_kind), intent(in) :: nlat,nlon
+   integer(i_kind), intent(in) :: lat2,lon2
+   integer(i_kind), intent(in) :: nt
+   call pertState_get_set(nlat,nlon,lat2,lon2,nt)
+end subroutine get_pert_set_
+!------------------------------------------------------------------------------------
+subroutine get_pert_unset_
+   use geos_pertStateIO, only: pertState_get_unset
+   implicit none
+   call pertState_get_unset
+end subroutine get_pert_unset_
+!------------------------------------------------------------------------------------
 subroutine get_1pert_ (xx,what,filename)
 ! get perturbation from user''s model and convert it to relevant gsi bundle
 use gsi_bundlemod, only: gsi_bundle
@@ -656,6 +707,51 @@ _ENTRY_(myname_)
 call pertState_get(xx,what,filename)
 _EXIT_(myname_)
 end subroutine get_1pert_
+!------------------------------------------------------------------------------------
+subroutine get_1pert_date_ (xx,nt,what,filename)
+! get perturbation from user''s model and convert it to relevant gsi bundle
+use kinds, only: i_kind,r_kind
+use gsi_bundlemod, only: gsi_bundle
+use geos_pertStateIO, only: pertState_get
+use mpeu_util, only: tell
+implicit none
+type(gsi_bundle),intent(inout) :: xx
+integer(i_kind) ,intent(in) :: nt       ! time index
+character(len=*),intent(in) :: what     ! indicates whether tl or ad type perturbation
+character(len=*),intent(in) :: filename ! name of file containing pert
+  character(len=*),parameter:: myname_=MYNAME//"::get_1pert_date_"
+_ENTRY_(myname_)
+call pertState_get(xx,nt,what,filename)
+_EXIT_(myname_)
+end subroutine get_1pert_date_
+!------------------------------------------------------------------------------------
+subroutine put_pert_set_ (nymd,nhms,status)
+! 
+use kinds, only: i_kind
+use geos_pertStateIO, only: pertState_put_set
+implicit none
+integer(i_kind), intent(in)    :: nymd   ! date to write out field, as in, YYYYMMDD
+integer(i_kind), intent(in)    :: nhms   ! time to write out field, as in, HHMMSS
+integer(i_kind), intent(out)    :: status
+
+  character(len=*),parameter:: myname_=MYNAME//"::put_pert_set_"
+_ENTRY_(myname_)
+call pertState_put_set(nymd,nhms,status)
+_EXIT_(myname_)
+end subroutine put_pert_set_
+!------------------------------------------------------------------------------------
+subroutine put_pert_final_ (status)
+! 
+use kinds, only: i_kind
+use geos_pertStateIO, only: pertState_put_final
+implicit none
+integer(i_kind), intent(out)    :: status
+
+  character(len=*),parameter:: myname_=MYNAME//"::put_pert_final_"
+_ENTRY_(myname_)
+call pertState_put_final(status)
+_EXIT_(myname_)
+end subroutine put_pert_final_
 !------------------------------------------------------------------------------------
 subroutine put_1pert_ (xx,nymd,nhms,what,label)
 ! convert xx to the user''s model perturbation and write it out

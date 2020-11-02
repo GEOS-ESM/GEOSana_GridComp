@@ -1,12 +1,14 @@
 satlist::
 acos
 airs_aqua
+amsr2_gcom-w1
 amsre_hig_aqua
 amsre_low_aqua
 amsre_mid_aqua
 amsua_aqua
 amsua_metop-a
 amsua_metop-b
+amsua_metop-c
 amsua_n15
 amsua_n16
 amsua_n17
@@ -19,6 +21,7 @@ atms_npp
 atms_n20
 avhrr_metop-a
 avhrr_metop-b
+avhrr_metop-c
 avhrr_n17
 avhrr_n18
 avhrr_n19
@@ -50,11 +53,13 @@ hirs4_n19
 hsb_aqua
 iasi_metop-a
 iasi_metop-b
+iasi_metop-c
 imgr_g08
 imgr_g10
 imgr_g12
 mhs_metop-a
 mhs_metop-b
+mhs_metop-c
 mhs_n18
 mhs_n19
 mopitt
@@ -180,4 +185,6 @@ conv_q
 conv_gps
 conv_tcp
 conv_pw
+conv_spd
+conv_sst
 ::

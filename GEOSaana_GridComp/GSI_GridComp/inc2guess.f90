@@ -21,6 +21,7 @@ subroutine inc2guess(sval)
 !                       - cwmr now in met-guess
 !   2011-06-29  todling - no explict reference to internal bundle arrays
 !   2013-10-19  todling - all guess variables in met-guess
+!   2020-02-26  todling - reset obsbin from hr to min
 !
 !   input argument list:
 !     sval     - analysis increment in grid space
@@ -39,7 +40,7 @@ subroutine inc2guess(sval)
   use gridmod, only: lat2,lon2,nsig
   use guess_grids, only: nfldsig,hrdifsig,nfldsfc,sfct
   use state_vectors, only: svars3d,svars2d
-  use gsi_4dvar, only: nobs_bins, hr_obsbin
+  use gsi_4dvar, only: nobs_bins, mn_obsbin
   use xhat_vordivmod, only: xhat_vor,xhat_div
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -86,7 +87,7 @@ endif
   do it=1,nfldsig
      if (nobs_bins>1) then
         zt = hrdifsig(it)
-        ii = NINT(zt/hr_obsbin)+1
+        ii = NINT(zt*60/mn_obsbin)+1
      else
         ii = 1
      endif

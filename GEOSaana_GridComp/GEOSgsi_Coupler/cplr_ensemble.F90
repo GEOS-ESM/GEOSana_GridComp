@@ -1,4 +1,41 @@
-subroutine get_user_ens_(grd,member,ntindex,en_read,iret)
+module cplr_ensemble
+
+    use stub_ensmod, only: stubEnsemble => ensemble
+
+    implicit none
+    private
+    public :: ensemble
+    public :: ensemble_typemold
+
+    type, extends(stubEnsemble) :: ensemble
+      private
+      contains
+      procedure :: get_user_ens => get_geos_ens
+      procedure :: get_user_Nens => get_geos_Nens
+      procedure :: put_user_ens => put_geos_ens
+      procedure :: non_gaussian_ens_grid
+      procedure, nopass:: mytype => typename
+    end type ensemble
+
+    character(len=*),parameter:: myname="geos_ensmod"
+
+    type(ensemble),target:: mold_
+
+contains
+
+function ensemble_typemold()
+  implicit none
+  type(ensemble),pointer:: ensemble_typemold
+  ensemble_typemold => mold_
+end function ensemble_typemold
+
+function typename()
+  implicit none
+  character(len=:),allocatable:: typename
+  typename='['//myname//'::ensemble]'
+end function typename
+
+subroutine get_geos_ens(this,grd,member,ntindex,atm_bundle,iret)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    get_user_ens_    pretend atmos bkg is the ensemble
@@ -20,7 +57,7 @@ subroutine get_user_ens_(grd,member,ntindex,en_read,iret)
 !     member   - index for ensemble member
 !
 !   output argument list:
-!     en_read   - bundle w/ ensemble fields
+!     atm_bundle   - bundle w/ ensemble fields
 !     iret      - return code, 0 for successful read.
 !
 ! attributes:
@@ -38,8 +75,7 @@ use gsi_bundlemod, only: gsi_bundlecreate
 use gsi_bundlemod, only: gsi_bundledestroy
 use gsi_bundlemod, only: gsi_bundlegetpointer
 use gsi_metguess_mod, only: gsi_metguess_bundle
-use gsi_4dcouplermod, only: GSI_4dCoupler_getpert
-use gsi_4dvar, only: min_offset,l4densvar,ibdate,ens_fhrlevs
+use gsi_4dvar, only: min_offset,l4densvar,ibdate,ens_fmnlevs
 use gsi_4dvar, only: tau_fcst
 use geos_StateIO, only: State_get
 use obsmod, only: iadate
@@ -53,18 +89,18 @@ use compact_diffs, only: cdiff_initialized
 use compact_diffs, only: create_cdiff_coefs
 use compact_diffs, only: inisph
 use xhat_vordivmod, only: xhat_vordiv_calc2
-use geos_gsi_util, only: geos_gsi_divvor
 use timermod, only: timer_ini,timer_fnl
 implicit none
 !  Declare passed variables
+   class(ensemble)                      , intent(inout) :: this
    type(sub2grid_info)                   ,intent(in   ) :: grd
    integer(i_kind)                       ,intent(in   ) :: member
    integer(i_kind)                       ,intent(in   ) :: ntindex
    integer(i_kind)                       ,intent(  out) :: iret
-   type(gsi_bundle)                      ,intent(inout) :: en_read                      
+   type(gsi_bundle)                      ,intent(inout) :: atm_bundle                      
 
 !  Declare internal variables
-   character(len=*),parameter::myname='get_user_ens_'
+   character(len=*),parameter::myname='geos_get_ens_'
    character(len=40) evar
    integer(i_kind) nymd,nhms,istatus,ii,ier
    integer(i_kind) ida(8),jda(8)
@@ -72,12 +108,13 @@ implicit none
    real(r_kind) fha(5)
    real(r_kind),pointer,dimension(:,:  ) :: iptr2d
    real(r_kind),pointer,dimension(:,:,:) :: iptr3d
-   real(r_kind),pointer,dimension(:,:,:) :: xptr3d
    real(r_kind),pointer,dimension(:,:  ) :: optr2d
    real(r_kind),pointer,dimension(:,:,:) :: optr3d
-   real(r_kind),allocatable,dimension(:) :: elats,elons
    type(gsi_grid) grid
    type(gsi_bundle) flds
+
+!  associate( this => this ) ! eliminates warning for unused dummy argument needed for binding
+!  end associate
 
 !  Only works for non-dual resolution ...
    if(grd%nlat/=nlat.or.grd%nlon/=nlon) then
@@ -115,13 +152,13 @@ implicit none
       ida(5:6)=ibdate(4:5)
       jda(:)=0
       fha(:)=0.0
-      fha(2)=ens_fhrlevs(ntindex)-3.0_r_kind ! NCEP counts time from previous syn analysis
+      fha(3)=ens_fmnlevs(ntindex)-180.0_r_kind ! NCEP counts time from previous syn analysis (180min=3hr)
       call w3movdat(fha,ida,jda)
       nymd=jda(1)*10000+jda(2)*100+jda(3)
-      nhms=jda(5)*10000
+      nhms=jda(5)*10000+jda(6)*100
    else
       nymd = iadate(1)*10000 + iadate(2)*100 + iadate(3)
-      nhms = iadate(4)*10000
+      nhms = iadate(4)*10000 + iadate(5)*100
    endif
    call timer_ini('GetEns')
    call state_get(flds,grd,nymd,nhms,member,tau=tau_fcst)
@@ -130,8 +167,8 @@ implicit none
 !  take care of rank-2 fields
    do ii=1,nc2d
       evar=trim(cvars2d(ii)) ! in general output name same as input (but not always!)
-      call gsi_bundlegetpointer (flds   ,evar,iptr2d,istatus)
-      call gsi_bundlegetpointer (en_read,evar,optr2d,ier)
+      call gsi_bundlegetpointer (flds      ,evar,iptr2d,istatus)
+      call gsi_bundlegetpointer (atm_bundle,evar,optr2d,ier)
       if(istatus==0 .and. ier==0) then
          optr2d=iptr2d
       else
@@ -147,7 +184,7 @@ implicit none
 !  take care of rank-3 fields
    do ii=1,nc3d
       evar=trim(cvars3d(ii)) ! in general output name same as input (but not always!)
-      call gsi_bundlegetpointer (en_read,evar,optr3d,ier)
+      call gsi_bundlegetpointer (atm_bundle,evar,optr3d,ier)
       call gsi_bundlegetpointer (flds,evar,iptr3d,istatus)
       if(istatus==0 .and. ier==0) then
          optr3d=iptr3d
@@ -165,9 +202,9 @@ implicit none
 !  Clean up
    call gsi_bundledestroy(flds)
 
-end subroutine get_user_ens_
+end subroutine get_geos_ens
 
-subroutine get_user_Nens_(grd,members,ntindex,en_read,iret)
+subroutine get_geos_Nens(this,grd,members,ntindex,atm_bundle,iret)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    get_user_Nens_    pretend atmos bkg is the ensemble
@@ -190,8 +227,8 @@ subroutine get_user_Nens_(grd,members,ntindex,en_read,iret)
 !     members  - number of members to read at once
 !
 !   output argument list:
-!     en_read   - bundle w/ ensemble fields
-!     iret      - return code, 0 for successful read.
+!     atm_bundle  - bundle w/ ensemble fields
+!     iret        - return code, 0 for successful read.
 !
 ! attributes:
 !   language: f90
@@ -208,8 +245,7 @@ use gsi_bundlemod, only: gsi_bundlecreate
 use gsi_bundlemod, only: gsi_bundledestroy
 use gsi_bundlemod, only: gsi_bundlegetpointer
 use gsi_metguess_mod, only: gsi_metguess_bundle
-use gsi_4dcouplermod, only: GSI_4dCoupler_getpert
-use gsi_4dvar, only: min_offset,l4densvar,ibdate,ens_fhrlevs
+use gsi_4dvar, only: min_offset,l4densvar,ibdate,ens_fmnlevs
 use gsi_4dvar, only: tau_fcst
 use geos_StateIO, only: State_get
 use obsmod, only: iadate
@@ -223,18 +259,18 @@ use compact_diffs, only: cdiff_initialized
 use compact_diffs, only: create_cdiff_coefs
 use compact_diffs, only: inisph
 use xhat_vordivmod, only: xhat_vordiv_calc2
-use geos_gsi_util, only: geos_gsi_divvor
 use timermod, only: timer_ini,timer_fnl
 implicit none
 !  Declare passed variables
+   class(ensemble)                      , intent(inout) :: this
    type(sub2grid_info)                   ,intent(in   ) :: grd
    integer(i_kind)                       ,intent(in   ) :: members
    integer(i_kind)                       ,intent(in   ) :: ntindex
    integer(i_kind)                       ,intent(  out) :: iret
-   type(gsi_bundle)                      ,intent(inout) :: en_read(members)                      
+   type(gsi_bundle)                      ,intent(inout) :: atm_bundle(:)                      
 
 !  Declare internal variables
-   character(len=*),parameter::myname='get_user_Nens_'
+   character(len=*),parameter::myname='geos_get_Nens_'
    character(len=40) evar
    integer(i_kind) nymd,nhms,istatus,ii,ier
    integer(i_kind) ida(8),jda(8)
@@ -243,12 +279,13 @@ implicit none
    real(r_kind) fha(5)
    real(r_kind),pointer,dimension(:,:  ) :: iptr2d
    real(r_kind),pointer,dimension(:,:,:) :: iptr3d
-   real(r_kind),pointer,dimension(:,:,:) :: xptr3d
    real(r_kind),pointer,dimension(:,:  ) :: optr2d
    real(r_kind),pointer,dimension(:,:,:) :: optr3d
-   real(r_kind),allocatable,dimension(:) :: elats,elons
    type(gsi_grid) grid
    type(gsi_bundle),allocatable:: flds(:)
+
+!  associate( this => this ) ! eliminates warning for unused dummy argument needed for binding
+!  end associate
 
 !  Only works for non-dual resolution ...
    if(grd%nlat/=nlat.or.grd%nlon/=nlon) then
@@ -289,13 +326,13 @@ implicit none
       ida(5:6)=ibdate(4:5)
       jda(:)=0
       fha(:)=0.0
-      fha(2)=ens_fhrlevs(ntindex)-3.0_r_kind ! NCEP counts time from previous syn analysis
+      fha(3)=ens_fmnlevs(ntindex)-180.0_r_kind ! NCEP counts time from previous syn analysis (180min=3hr)
       call w3movdat(fha,ida,jda)
       nymd=jda(1)*10000+jda(2)*100+jda(3)
-      nhms=jda(5)*10000
+      nhms=jda(5)*10000+jda(6)*100
    else
       nymd = iadate(1)*10000 + iadate(2)*100 + iadate(3)
-      nhms = iadate(4)*10000
+      nhms = iadate(4)*10000 + iadate(5)*100
    endif
    call timer_ini('GetEns')
    call state_get(flds,grd,nymd,nhms,tau=tau_fcst)
@@ -305,8 +342,8 @@ implicit none
    do mm=1,members
       do ii=1,nc2d
          evar=trim(cvars2d(ii)) ! in general output name same as input (but not always!)
-         call gsi_bundlegetpointer (flds(mm)   ,evar,iptr2d,istatus)
-         call gsi_bundlegetpointer (en_read(mm),evar,optr2d,ier)
+         call gsi_bundlegetpointer (flds(mm)      ,evar,iptr2d,istatus)
+         call gsi_bundlegetpointer (atm_bundle(mm),evar,optr2d,ier)
          if(istatus==0 .and. ier==0) then
             optr2d=iptr2d
          else
@@ -324,8 +361,8 @@ implicit none
    do mm=1,members
       do ii=1,nc3d
          evar=trim(cvars3d(ii)) ! in general output name same as input (but not always!)
-         call gsi_bundlegetpointer (en_read(mm),evar,optr3d,ier)
-         call gsi_bundlegetpointer (flds(mm),evar,iptr3d,istatus)
+         call gsi_bundlegetpointer (atm_bundle(mm),evar,optr3d,ier)
+         call gsi_bundlegetpointer (flds(mm)      ,evar,iptr3d,istatus)
          if(istatus==0 .and. ier==0) then
             optr3d=iptr3d
          else
@@ -346,9 +383,9 @@ implicit none
    enddo
    deallocate(flds)
 
-end subroutine get_user_Nens_
+end subroutine get_geos_Nens
 
-subroutine put_gsi_ens_(grd,member,nt,pert,iret)
+subroutine put_geos_ens(this,grd,member,ntindex,pert,iret)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    put_gsi_ens_    write out an internally gen ens to file
@@ -389,14 +426,15 @@ use obsmod, only: iadate
 use gridmod, only: nlat,nlon
 implicit none
 !  Declare passed variables
-   integer(i_kind),    intent(in)   :: member ! member index
-   integer(i_kind),    intent(in)   :: nt     ! time index
+   class(ensemble),    intent(inout):: this
    type(sub2grid_info),intent(in)   :: grd
+   integer(i_kind),    intent(in)   :: ntindex! time index
+   integer(i_kind),    intent(in)   :: member ! member index
    type(gsi_bundle),   intent(inout):: pert
    integer(i_kind),    intent(out)  :: iret
 
 !  Declare internal variables
-   character(len=*),parameter::myname='put_gsi_ens_'
+   character(len=*),parameter::myname='geos_put_ens_'
    character(len=40) evar
    logical iamsingle
    integer(i_kind) nymd,nhms,isf,ivp,ipnt,ier,istatus
@@ -420,6 +458,9 @@ implicit none
                                                      'cw   ', 'oz   ',&
                                                      'qi   ', 'ql   ',&
                                                      'qr   ', 'qs   ' /)
+
+!  associate( this => this ) ! eliminates warning for unused dummy argument needed for binding
+!  end associate
 
    iret=0
    im=grd%lat2
@@ -635,19 +676,34 @@ implicit none
 !  Clean up
    call gsi_bundledestroy(flds)
 
-end subroutine put_gsi_ens_
+end subroutine put_geos_ens
 
-subroutine non_gaussian_ens_grid_ (elats,elons)
+subroutine non_gaussian_ens_grid (this,elats,elons)
 use mpimod, only: mype
 use kinds, only: i_kind,r_kind
 use constants, only: one,half
 use hybrid_ensemble_parameters, only: nlat_ens,nlon_ens
 ! Define a regular grid ... (not guassian as the routine name implies)
 implicit none
-real(r_kind),intent(out) :: elats(nlat_ens),elons(nlon_ens)
+class(ensemble), intent(inout) :: this
+real(r_kind),intent(out) :: elats(:),elons(:)
+!real(r_kind),intent(out) :: elats(nlat_ens),elons(nlon_ens)
+character(len=*),parameter :: myname_=myname//'non_gaussian_ens_grid'
 !
 real(r_kind) dlon,dlat,pi,pih
 integer(i_kind) i,j
+!
+!associate( this => this ) ! eliminates warning for unused dummy argument needed for binding
+!end associate
+!
+if (size(elats)/=nlat_ens.or.size(elons)/=nlon_ens) then
+   if(mype==0) then
+      write(6,*) myname_,': inconsistent ens nlat/nlon'
+      write(6,*) myname_,':  actual(vec) ', size(elats),size(elons)
+      write(6,*) myname_,': defined(vec) ', nlat_ens,nlon_ens
+   endif
+   call stop2(999)
+endif
 !
 pi=4.0_r_kind*atan(1.0_r_kind)
 dlon=(pi+pi)/float(nlon_ens)
@@ -660,4 +716,6 @@ do j=1,nlat_ens                   ! from -pi/2 to +pi/2
    elats(j)=(j-one)*dlat - pih
 end do
 
-end subroutine non_gaussian_ens_grid_
+end subroutine non_gaussian_ens_grid
+
+end module cplr_ensemble

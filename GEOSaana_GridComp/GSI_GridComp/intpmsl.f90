@@ -25,6 +25,7 @@ use m_obsNode , only: obsNode
 use m_pmslNode, only: pmslNode
 use m_pmslNode, only: pmslNode_typecast
 use m_pmslNode, only: pmslNode_nextcast
+use m_obsdiagNode, only: obsdiagNode_set
 implicit none
 
 PRIVATE
@@ -63,7 +64,6 @@ subroutine intpmsl(pmslhead,rval,sval)
   use constants, only: half,one,tiny_r_kind,cg_term
   use obsmod, only: lsaveobsens, l_do_adjoint, luse_obsdiag
   use qcmod, only: nlnqc_iter,varqc_iter
-  use gridmod, only: latlon11
   use jfunc, only: jiter
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -112,9 +112,11 @@ subroutine intpmsl(pmslhead,rval,sval)
      if(luse_obsdiag)then
         if (lsaveobsens) then
            grad = val*pmslptr%raterr2*pmslptr%err2
-           pmslptr%diags%obssen(jiter) = grad
+           !-- pmslptr%diags%obssen(jiter) = grad
+           call obsdiagNode_set(pmslptr%diags,jiter=jiter,obssen=grad)
         else
-           if (pmslptr%luse) pmslptr%diags%tldepart(jiter)=val
+           !-- if (pmslptr%luse) pmslptr%diags%tldepart(jiter)=val
+           if (pmslptr%luse) call obsdiagNode_set(pmslptr%diags,jiter=jiter,tldepart=val)
         endif
      endif
 

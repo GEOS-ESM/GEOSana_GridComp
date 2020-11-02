@@ -100,6 +100,8 @@ module mpeu_mpif
    public :: MPI_INFO_NULL
    public :: MPI_MODE_RDONLY
    public :: MPI_MODE_RDWR
+   public :: MPI_MODE_WRONLY
+   public :: MPI_MODE_CREATE
    public :: MPI_SEEK_SET
 !#endif
    public :: MPI_BYTE
@@ -150,6 +152,9 @@ include "mpif.h"
 !    23Feb09 - Jing Guo <Jing.Guo@nasa.gov>
 !     - Renamed to *.F90, by assuming the system mpif.h is
 !       compatible with free-format Fortran.
+!    22Feb17 - Todling - add dummy vars to satisfy EMC requirement
+!                        of all vars being used - this is counter
+!                        advanced FORTRAN interface practices.
 !EOP
 !_______________________________________________________________________
 
@@ -162,24 +167,32 @@ function type_r0_of_integer1(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*1,intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER1
 end function type_r0_of_integer1
 function type_r0_of_integer2(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*2,intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER2
 end function type_r0_of_integer2
 function type_r0_of_integer4(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*4,intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER4
 end function type_r0_of_integer4
 function type_r0_of_integer8(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*8,intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER8
 end function type_r0_of_integer8
 
@@ -187,18 +200,24 @@ function type_r0_of_real4(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*4,intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real4
 end function type_r0_of_real4
 function type_r0_of_real8(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*8,intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real8
 end function type_r0_of_real8
 function type_r0_of_real16(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*16,intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real16
 end function type_r0_of_real16
 
@@ -206,24 +225,32 @@ function type_r1_of_integer1(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*1,dimension(:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER1
 end function type_r1_of_integer1
 function type_r1_of_integer2(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*2,dimension(:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER2
 end function type_r1_of_integer2
 function type_r1_of_integer4(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*4,dimension(:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER4
 end function type_r1_of_integer4
 function type_r1_of_integer8(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*8,dimension(:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER8
 end function type_r1_of_integer8
 
@@ -231,18 +258,24 @@ function type_r1_of_real4(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*4,dimension(:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real4
 end function type_r1_of_real4
 function type_r1_of_real8(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*8,dimension(:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real8
 end function type_r1_of_real8
 function type_r1_of_real16(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*16,dimension(:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real16
 end function type_r1_of_real16
 
@@ -250,24 +283,32 @@ function type_r2_of_integer1(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*1,dimension(:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER1
 end function type_r2_of_integer1
 function type_r2_of_integer2(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*2,dimension(:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER2
 end function type_r2_of_integer2
 function type_r2_of_integer4(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*4,dimension(:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER4
 end function type_r2_of_integer4
 function type_r2_of_integer8(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*8,dimension(:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER8
 end function type_r2_of_integer8
 
@@ -275,18 +316,24 @@ function type_r2_of_real4(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*4,dimension(:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real4
 end function type_r2_of_real4
 function type_r2_of_real8(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*8,dimension(:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real8
 end function type_r2_of_real8
 function type_r2_of_real16(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*16,dimension(:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real16
 end function type_r2_of_real16
 
@@ -294,24 +341,32 @@ function type_r3_of_integer1(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*1,dimension(:,:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER1
 end function type_r3_of_integer1
 function type_r3_of_integer2(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*2,dimension(:,:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER2
 end function type_r3_of_integer2
 function type_r3_of_integer4(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*4,dimension(:,:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER4
 end function type_r3_of_integer4
 function type_r3_of_integer8(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   integer*8,dimension(:,:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_INTEGER8
 end function type_r3_of_integer8
 
@@ -319,18 +374,24 @@ function type_r3_of_real4(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*4,dimension(:,:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real4
 end function type_r3_of_real4
 function type_r3_of_real8(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*8,dimension(:,:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real8
 end function type_r3_of_real8
 function type_r3_of_real16(mold) result(mtype)
   implicit none
   integer(kind=MPI_IKIND):: mtype
   real*16,dimension(:,:,:),intent(in):: mold
+  integer(mpi_ikind):: dummymold
+  dummymold=kind(mold)
   mtype=MPI_real16
 end function type_r3_of_real16
 

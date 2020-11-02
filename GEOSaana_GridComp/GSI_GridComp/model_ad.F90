@@ -12,10 +12,11 @@ subroutine model_ad(xini,xobs,ldprt)
 ! !USES:
 
 use kinds, only: r_kind,i_kind
-use gsi_4dvar, only: nsubwin,nobs_bins,winlen,winsub,hr_obsbin
-use gsi_4dvar, only: iadateend,idmodel
+use gsi_4dvar, only: nsubwin,nobs_bins,winlen,winsub,mn_obsbin
+use gsi_4dvar, only: iadateend
+! use gsi_4dvar, only: idmodel
 use gsi_4dvar, only: liauon
-use constants, only: zero,r3600
+use constants, only: zero,r3600,r60
 use state_vectors, only: allocate_state,deallocate_state,dot_product
 use gsi_bundlemod, only: gsi_bundle
 use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -67,6 +68,7 @@ type(gsi_bundle), target, intent(inout) :: xini(nsubwin)   ! Adjoint state varia
 !  13Oct2010  Guo      - cleaned up idmodel related operations.  idmodel
 !			 mode of pertmod is now controled by its actual
 !			 implementation behind module gsi_4dcouplermod.
+!  2020-02-26  todling - reset obsbin from hr to min
 !
 !EOP
 !-----------------------------------------------------------------------
@@ -115,14 +117,14 @@ do n=1,nsubwin
 enddo
 
 ! Determine corresponding GSI time step parameters.
-! A GSI time step is a hr_obsbin time interval.
-ndt    = NINT(hr_obsbin*r3600/ndtpert)	! count of pertmod_TL time step in 1 hr_obsbin
+! A GSI time step is a mn_obsbin time interval.
+ndt    = NINT(mn_obsbin*r60/ndtpert)	! count of pertmod_TL time step in 1 mn_obsbin
 dt     = ndt*ndtpert			! one GSI time step in seconds
 tstep  = dt				! one GSI time step in seconds
 
 nstep  = NINT(winlen*r3600/tstep)	! e.g. 6
 nfrctl = NINT(winsub*r3600/tstep)	! e.g. 6
-nfrobs = NINT(hr_obsbin*r3600/tstep)	! e.g. 1
+nfrobs = NINT(mn_obsbin*r60/tstep)	! e.g. 1
 
 wt=0.
 if(iau_on_) then

@@ -29,6 +29,7 @@ module m_extOzone
 !   2015-09-17  Thomas  - add l4densvar and thin4d to data selection procedure
 !   2015-10-01  guo     - consolidate use of ob location (in deg)
 !   2016-09-19  guo     - moved function dfile_format() here from obsmod.F90.
+!   2018-05-21  j.jin   - added time-thinning. Moved the checking of thin4d into satthin.F90.  
 !   2018-05-25  wargan  - added OMPS and hooks for LIMS, UARS MLS, MIPAS
 !
 !   input argument list: see Fortran 90 style document below
@@ -44,6 +45,7 @@ module m_extOzone
 ! module interface:
 
   use kinds, only: i_kind,r_kind,r_double
+  use obsmod, only: time_window_max
   implicit none
   private     ! except
 
@@ -71,6 +73,8 @@ module m_extOzone
   real   (kind=r_kind), parameter:: badoz = 10000.0_r_kind
   real   (kind=r_kind), parameter:: r6    =     6.0_r_kind
   real   (kind=r_kind), parameter:: r360  =   360.0_r_kind
+  real   (kind=r_kind) :: ptime,timeinflat,crit0
+  integer(kind=i_kind) :: ithin_time,n_tbin,it_mesh
 
 contains
 function is_extOzone_(dfile,dtype,dplat,class)
@@ -270,6 +274,7 @@ subroutine read_(dfile,dtype,dplat,dsis, &      ! intent(in), keys for type mana
   use constants, only: zero
   use mpeu_util, only: die,perr,tell
   use mpimod, only: npe
+  use satthin, only: satthin_time_info => radthin_time_info
 !  use mpeu_util, only: mprefix,stdout
 !     nobs     - array of observations on each subdomain for each processor
 
@@ -316,6 +321,12 @@ subroutine read_(dfile,dtype,dplat,dsis, &      ! intent(in), keys for type mana
     call perr(myname_,'                dtype =',dtype)
     call perr(myname_,'                dplat =',dplat)
     call die (myname_)
+  endif
+  call satthin_time_info(dtype, dplat, dsis, ptime, ithin_time)
+  if( ptime > 0.0_r_kind) then
+     n_tbin=nint(2*time_window_max/ptime)
+  else
+     n_tbin=1
   endif
 
   select case(dtype)
@@ -448,7 +459,7 @@ subroutine oztot_ncInquire_( nreal,nchan,ilat,ilon, ithin,rmesh,maxrec)
      ilon=3
 
 !    Make thinning grids, and to define the total record size.
-     call satthin_makegrids(rmesh,ithin)
+     call satthin_makegrids(rmesh,ithin,n_tbin=n_tbin)
      maxrec=satthin_itxmax
 
 end subroutine oztot_ncInquire_
@@ -467,17 +478,17 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
   use netcdf, only: nf90_get_var
   use netcdf, only: nf90_close
 
-  use satthin, only: satthin_itxmax       => itxmax
   use satthin, only: satthin_makegrids    => makegrids
+  use satthin, only: satthin_tdiff2crit   => tdiff2crit
   use satthin, only: satthin_map2tgrid    => map2tgrid
   use satthin, only: satthin_finalcheck   => finalcheck
   use satthin, only: satthin_destroygrids => destroygrids
 
   use gridmod, only: nlat,nlon,regional,tll2xy,rlats,rlons
-  use gsi_4dvar, only: l4dvar,iwinbgn,winlen,l4densvar,thin4d
+  use gsi_4dvar, only: l4dvar,iwinbgn,winlen,l4densvar
   use obsmod, only: nloz_omi
 
-  use constants, only: deg2rad,zero,rad2deg,r60inv
+  use constants, only: deg2rad,zero,r60inv
 !  use mpeu_util, only: mprefix,stdout
 
   implicit none
@@ -519,7 +530,7 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
 
   real   (kind=r_kind):: dlon,dlon_earth,dlon_earth_deg
   real   (kind=r_kind):: dlat,dlat_earth,dlat_earth_deg
-  real   (kind=r_kind):: tdiff,sstime,t4dv,timedif,crit1,dist1,rsat
+  real   (kind=r_kind):: tdiff,sstime,t4dv,crit1,dist1,rsat
   integer(kind=i_kind):: idate5(5)
 
   real   (kind=r_double):: totoz, sza
@@ -539,7 +550,10 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
      call check(nf90_open(trim(dfile),nf90_nowrite,ncid),stat=ier)
 
      ! ignore if the file is not actually present.
-     if(ier/=nf90_noerr) go to 136
+     if(ier/=nf90_noerr) then
+        call satthin_destroygrids()
+        return
+     end if
 
      ! Get dimensions from OMI input file
      call check(nf90_inq_dimid(ncid, "nrec", nrecDimId),stat=ier)
@@ -547,7 +561,8 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
      ! ignore if the file header is empty
      if(ier/=nf90_noerr) then
         call check(nf90_close(ncid),stat=ier)
-        go to 136
+        call satthin_destroygrids()
+        return
      endif
 
      ! Get dimensions from OMI/TOMS input file
@@ -557,7 +572,8 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
      ! ignore if the file header is empty
      if(ier/=nf90_noerr .or. nmrecs==0) then
         call check(nf90_close(ncid),stat=ier)
-        go to 136
+        call satthin_destroygrids()
+        return
      endif
 
      ! Continue the input
@@ -620,7 +636,7 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
      call check(nf90_close(ncid))
      
      ! now screen the data and put them into the right places
-     do irec = 1, nmrecs
+     recloop: do irec = 1, nmrecs
         iy = iya(irec)
         im = ima(irec)
         idd = idda(irec)
@@ -648,7 +664,7 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
         
 !!!!        nmrecs=nmrecs+1
         !      Convert observation location to radians
-        if(abs(slats)>90._r_kind .or. abs(slons)>r360) go to 135  
+        if(abs(slats)>90._r_kind .or. abs(slons)>r360) cycle recloop
         if(slons< zero) slons=slons+r360
         if(slons==r360) slons=zero
         dlat_earth_deg = slats
@@ -658,7 +674,7 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
 
         if(regional)then
            call tll2xy(dlon_earth,dlat_earth,dlon,dlat,outside)
-           if(outside) go to 135
+           if(outside) cycle recloop
         else
            dlat = dlat_earth
            dlon = dlon_earth
@@ -678,12 +694,12 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
         sstime=real(nmind,r_kind)
         tdiff=(sstime-gstime)*r60inv
         if (l4dvar.or.l4densvar) then
-           if (t4dv<zero .OR. t4dv>winlen) go to 135
+           if (t4dv<zero .OR. t4dv>winlen) cycle recloop
         else
-           if(abs(tdiff) > twind) go to 135
+           if(abs(tdiff) > twind) cycle recloop
         end if
 
-        if (totoz > badoz ) goto 135
+        if (totoz > badoz ) cycle recloop
         
 ! Apply data screening based on quality flags
 ! Bit 10 (from the left) in TOQF represents row anomaly.  All 17 bits in toqf is
@@ -693,42 +709,39 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
         select case(dtype)
         case('omieff')
 
-           if (toqf .ne. 0 .and. toqf .ne. 1) go to 135 
+           if (toqf .ne. 0 .and. toqf .ne. 1) cycle recloop
  
 !       Remove obs at high solar zenith angles
-           if (sza > 84.0_r_kind) goto 135
+           if (sza > 84.0_r_kind) cycle recloop
 
 !       remove the bad scan position data: fovn beyond 25
            if (removeScans) then
-              if (fovn >=25_i_kind) goto 135
+              if (fovn >=25_i_kind) cycle recloop
            endif
-           if (fovn <=2_i_kind .or. fovn >=58_i_kind) goto 135
+           if (fovn <=2_i_kind .or. fovn >=58_i_kind) cycle recloop
 
 !       remove the data in which the C-pair algorithm ((331 and 360 nm) is used. 
-           if (alqf == 3_i_kind .or. alqf == 13_i_kind) goto 135
+           if (alqf == 3_i_kind .or. alqf == 13_i_kind) cycle recloop
 
         case('tomseff')
         ! The meaning of quality flags for TOMS version 8 is similar to that
         ! for SBUV:
         ! 0 - good data, 1 - good data with SZA > 84 deg
-           if (toqf /= 0) goto 135
+           if (toqf /= 0) cycle recloop
 
         case default
         end select
 
 !       thin OMI/TOMS data
 
-        if (thin4d) then 
-           timedif = zero 
-        else 
-           timedif = r6*abs(tdiff)        ! range:  0 to 18 
-        endif 
-        crit1 = 0.01_r_kind+timedif
+        crit0 = 0.01_r_kind 
+        timeinflat=r6
+        call satthin_tdiff2crit(tdiff,ptime,ithin_time,timeinflat,crit0,crit1,it_mesh)
         if (ithin /= 0) then
-           call satthin_map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,dsis)
-           if(.not. iuse)go to 135 
+           call satthin_map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,dsis,it_mesh=it_mesh)
+           if(.not. iuse)cycle recloop
            call satthin_finalcheck(dist1,crit1,itx,iuse)
-           if(.not. iuse)go to 135
+           if(.not. iuse)cycle recloop
            ndata=ndata+1
            nodata=ndata
         else
@@ -765,13 +778,11 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
 
 !!        ASSERT_(size(ozout,1)==37)
 
-135     continue
-     end do
+     end do recloop
 
      deallocate(iya,ima,idda,ihha,imina, &
           rseca,fovna,slatsa,slonsa,totoza, &
           toqfa,alqfa,szaa,aprioria,efficiencya)
-136  continue
 ! end
 !    End of loop over observations
 ! End of OMI block with efficiency factors in NetCDF format
@@ -781,6 +792,7 @@ subroutine oztot_ncread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
       nodata=min(ndata,maxobs)
 !      write(stdout,'(3a,3i8,f8.2)') mprefix('read_ozone'), &
 !         ' obstype,nmrecs,ndata,nodata,no/ndata = ',dtype,nmrecs,ndata,nodata,real(nodata)/ndata
+      return
 
 end subroutine oztot_ncread_
 !..................................................................................
@@ -823,7 +835,7 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
   use gridmod, only: nlat,nlon,regional,tll2xy,rlats,rlons
   use gsi_4dvar, only: l4dvar,iwinbgn,winlen,l4densvar
 
-  use constants, only: deg2rad,zero,rad2deg,one_tenth,r60inv
+  use constants, only: deg2rad,zero,one_tenth,r60inv
   use ozinfo, only: jpch_oz,nusis_oz,iuse_oz
   use mpeu_util, only: perr,die
 !  use mpeu_util, only: mprefix,stdout
@@ -850,7 +862,7 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
   integer(kind=i_kind):: nrecDimId,lonVarID,latVarID,yyVarID,mmVarID
   integer(kind=i_kind):: ddVarID,hhVarID,minVarID,ssVarID
   integer(kind=i_kind):: pressVarID
-  integer(kind=i_kind):: convVarID, qualVarID, errVarID, ozoneVarID
+  integer(kind=i_kind):: convVarID, errVarID, ozoneVarID
   integer(kind=i_kind):: levsDimID,levs
 
   integer(kind=i_kind), allocatable :: iya(:),ima(:),idda(:),ihha(:),imina(:),iseca(:)
@@ -862,9 +874,6 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
 
   real   (kind=r_kind):: slons0,slats0
   real   (kind=r_kind):: ppmv, pres, pob, obserr, usage
-  !real(kind=r_kind) tdiff,sstime,slons,slats,dlon,dlat,t4dv,timedif,crit1,dist1
-  !real(kind=r_kind) !slons0,slats0,rsat,solzen,solzenp,dlat_earth,dlon_earth
-  !real(kind=r_kind) !rsec, ppmv, prec, pres, pob, obserr, usage
 
   real   (kind=r_kind):: dlon,dlon_earth,dlon_earth_deg
   real   (kind=r_kind):: dlat,dlat_earth,dlat_earth_deg
@@ -885,17 +894,17 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
      call check(nf90_open(trim(dfile),nf90_nowrite,ncid),stat=ier)
 
      ! ignore if the file is not actually present.
-     if(ier/=nf90_noerr) return ! go to 170
+     if(ier/=nf90_noerr) return                 
 
-     ! Get dimensions from the input file
+     ! Get dimensions from OMI input file
      call check(nf90_inq_dimid(ncid, "nprofiles", nrecDimId),stat=ier)
 
      ! ignore if the file header is empty
      if(ier/=nf90_noerr) then
         call check(nf90_close(ncid),stat=ier)
-        return ! go to 170
+        return               
      endif
-     
+
      ! Get dimensions from the input file: # of profiles and # of levels
      nprofs=0
      call check(nf90_inquire_dimension(ncid, nrecDimId, len = nprofs),stat=ier)
@@ -903,13 +912,13 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
      ! ignore if the file header is empty
      if(ier/=nf90_noerr) then
         call check(nf90_close(ncid),stat=ier)
-        return ! go to 170
+        return                   
      endif
 
      if(nprofs==0) then
         nodata=0
         call check(nf90_close(ncid),stat=ier)
-        return ! go to 170
+        return               
      endif
 
      ! Continue the input
@@ -998,7 +1007,6 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
 
      ! close the data file
      call check(nf90_close(ncid))
-
      
      ! 'Unpack' the data
      nmrecs = 0
@@ -1007,11 +1015,11 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
         do ilev = 1, levs
            ! note that most of the quality control is done at the 
            ! pre-processing stage
-  !!         if (press(ilev) .gt. 262.0 .or. press(ilev) .lt. 0.1 ) cycle ! goto 145
-           if (ozone(ilev, iprof) .lt. -900.0) cycle ! goto 145 ! undefined
-           if (err(ilev, iprof) .lt. -900.0) cycle ! goto 145 ! undefined
+!!         if (press(ilev) > 262.0_r_kind .or. press(ilev) < 0.1_r_kind ) cycle ! undefined
+           if (ozone(ilev, iprof) < -900.0_r_kind) cycle            ! undefined
+           if (err(ilev, iprof) < -900.0_r_kind) cycle              ! undefined
            if (iuse_oz(ipos(ilev)) < 0) then
-              usage = 100._r_kind
+              usage = 10000._r_kind
            else
               usage = zero
            endif
@@ -1036,8 +1044,6 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
               dlon = dlon_earth
               call grdcrd1(dlat,rlats,nlat,1)
               call grdcrd1(dlon,rlons,nlon,1)
-              ! call grdcrd(dlat,1,rlats,nlat,1)
-              ! call grdcrd(dlon,1,rlons,nlon,1)
            endif
 
            idate5(1) = iya(iprof) !year
@@ -1090,7 +1096,6 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
               ozout(13,ndata)=ppmv                ! ozone mixing ratio in ppmv
            endif
            
-           ! 145        continue
         end do
      end do
 
@@ -1108,10 +1113,9 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
      !        ' obstype,nmrecs,ndata,nodata,no/ndata = ',dtype,nmrecs,ndata,nodata,real(nodata)/ndata
      
      if (ndata > maxobs) then 
-        call perr('read_ozone','Number of limb obs reached maxobs = ', maxobs)
         call perr(myname_,'Number of limb obs reached maxobs = ', maxobs)
-        call perr(myname_,'                           ndata = ', ndata)
-        call perr(myname_,'                          nodata = ', nodata)
+        call perr(myname_,'                            ndata = ', ndata)
+        call perr(myname_,'                           nodata = ', nodata)
         call die(myname_)
      endif
 
@@ -1145,7 +1149,7 @@ subroutine ozlev_bufrread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
   use gridmod, only: nlat,nlon,regional,tll2xy,rlats,rlons
   use gsi_4dvar, only: l4dvar,iwinbgn,winlen,l4densvar
 
-  use constants, only: deg2rad,zero,rad2deg,r60inv
+  use constants, only: deg2rad,zero,r60inv
   use ozinfo, only: jpch_oz,nusis_oz,iuse_oz
   use radinfo, only: dec2bin
 
@@ -1262,12 +1266,12 @@ subroutine ozlev_bufrread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
 !! This is the top of the profile loop
      ndata=0
      iprofs=0
-139  continue
+     obsloop: do 
      call readsb(lunin,iret)
      if (iret/=0) then           !JJJ, end of the subset
         call readmg(lunin,subset,jdate,iret)  !JJJ  open a new mg
-        if (iret/=0) goto 150    !JJJ, no more  mg,  EOF      
-        goto 139
+        if (iret/=0) exit obsloop    !JJJ, no more  mg,  EOF      
+        cycle obsloop
      endif
 
      do k=1,nloz
@@ -1283,14 +1287,14 @@ subroutine ozlev_bufrread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
      rsat = hdrmls(1); ksatid=rsat
 
      if(jsatid == 'aura')kidsat = 785
-     if (ksatid /= kidsat) go to 139
+     if (ksatid /= kidsat) cycle obsloop
 
      nmrecs=nmrecs+nloz
 
 !    Convert observation location to radians
      slats0= hdrmls(2)
      slons0= hdrmls(3)
-     if(abs(slats0)>90._r_kind .or. abs(slons0)>r360) go to 139
+     if(abs(slats0)>90._r_kind .or. abs(slons0)>r360) cycle obsloop
      if(slons0< zero) slons0=slons0+r360
      if(slons0==r360) slons0=zero
      dlat_earth_deg = slats0
@@ -1300,7 +1304,7 @@ subroutine ozlev_bufrread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
 
      if(regional)then
         call tll2xy(dlon_earth,dlat_earth,dlon,dlat,outside)
-        if(outside) go to 139
+        if(outside) cycle obsloop
      else
         dlat = dlat_earth
         dlon = dlon_earth
@@ -1321,7 +1325,7 @@ subroutine ozlev_bufrread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
         if (t4dv<zero .OR. t4dv>winlen) then
            write(6,*)'read_ozone: mls obs time idate5=',idate5,', t4dv=',&
               t4dv,' is outside time window, sstime=',sstime*r60inv
-           go to 139
+           cycle obsloop
         endif
      else
         sstime=real(nmind,r_kind)
@@ -1329,7 +1333,7 @@ subroutine ozlev_bufrread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
         if (abs(tdiff) > twind) then
            write(6,*)'read_ozone: mls obs time idate5=',idate5,', tdiff=',&
               tdiff,' is outside time window=',twind
-           go to 139
+           cycle obsloop
         endif
      end if
 
@@ -1347,9 +1351,9 @@ subroutine ozlev_bufrread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
 
      decimal=int(hdrmls(12))
      call dec2bin(decimal,binary_mls,18)
-     if (binary_mls(1) == 1 ) goto 139
+     if (binary_mls(1) == 1 ) cycle obsloop
 
-     if(hdrmls(11) >= 1.8_r_kind) go to 139
+     if(hdrmls(11) >= 1.8_r_kind) cycle obsloop
 
 !    extract pressure, ozone mixing ratio and precision
      call ufbrep(lunin,hdrmlsl2,4,nloz,iret,mlstrl2)
@@ -1406,8 +1410,7 @@ subroutine ozlev_bufrread_(dfile,dtype,dsis, ozout,nmrecs,ndata,nodata, &
         endif
      end do
 
-     go to 139
-150  continue   ! this is the bottom of the profile loop
+     end do obsloop
 !    End of o3lev bufr loop
 
      nodata=min(ndata,maxobs)   ! count of retained data

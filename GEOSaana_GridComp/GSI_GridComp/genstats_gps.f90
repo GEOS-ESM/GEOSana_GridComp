@@ -55,6 +55,10 @@ module m_gpsStats
       real(r_kind)    :: type               
 
       real(r_kind),dimension(:),pointer :: rdiag => NULL()
+      real(r_kind),dimension(10)        :: rdiag_extra_val
+      character(len=40), dimension(10)  :: rdiag_extra_name
+      integer(i_kind)                   :: n_rdiag_extra
+
       integer(i_kind) :: kprof
       logical         :: luse          !  flag indicating if ob is used in pen.
 
@@ -244,8 +248,10 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
 !
 !$$$
   use kinds, only: r_kind,i_kind,r_single
+  use m_obsdiagNode, only: obs_diag
+  use m_obsdiagNode, only: obsdiagNode_set
   use obsmod, only: nprof_gps,lobsdiag_forenkf
-  use obsmod, only: obs_diag,lobsdiagsave,luse_obsdiag
+  use obsmod, only: lobsdiagsave,luse_obsdiag
   use obsmod, only: binary_diag,netcdf_diag,dirname,ianldate
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
                           nc_diag_write, nc_diag_data2d
@@ -292,8 +298,7 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
   real(r_single), dimension(nsdim) :: dhx_dx_array
   
   type(obs_diag), pointer :: obsptr => NULL()
-
-  integer(i_kind) :: nnz, nind
+  integer(i_kind) :: nnz, nind, i
   type(gps_ob_type), pointer:: gpsptr
   type(gps_all_ob_type), pointer:: gps_allptr
   
@@ -488,7 +493,8 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
            if (associated(gpsptr)) then
               gpsptr%raterr2 = ratio_errors **2
               if(associated(obsptr) .and. luse_obsdiag)then
-                 obsptr%wgtjo=(ratio_errors*data_ier)**2
+                 !-- obsptr%wgtjo=(ratio_errors*data_ier)**2
+                 call obsdiagNode_set(obsptr,wgtjo=(ratio_errors*data_ier)**2)
               end if
            endif
         endif
@@ -524,8 +530,9 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
              if (associated(gpsptr)) then
                 gpsptr%raterr2 = ratio_errors **2
                 if(associated(obsptr) .and. luse_obsdiag)then
-                   obsptr%wgtjo=zero
-                   obsptr%muse(jiter)=.false.
+                   !-- obsptr%wgtjo=zero
+                   !-- obsptr%muse(jiter)=.false.
+                   call obsdiagNode_set(obsptr,wgtjo=zero,jiter=jiter,muse=.false.)
                 end if
              endif
           endif
@@ -555,8 +562,9 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
               if (associated(gpsptr)) then
                  gpsptr%raterr2 = ratio_errors **2
                  if(associated(obsptr) .and. luse_obsdiag)then
-                    obsptr%wgtjo=zero
-                    obsptr%muse(jiter)=.false.
+                    !-- obsptr%wgtjo=zero
+                    !-- obsptr%muse(jiter)=.false.
+                    call obsdiagNode_set(obsptr,wgtjo=zero,jiter=jiter,muse=.false.)
                  end if
               endif
           endif
@@ -602,8 +610,9 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
               if (associated(gpsptr)) then
                  gpsptr%raterr2 = ratio_errors **2
                  if(associated(obsptr) .and. luse_obsdiag)then
-                    obsptr%wgtjo=zero
-                    obsptr%muse(jiter)=.false.
+                    !-- obsptr%wgtjo=zero
+                    !-- obsptr%muse(jiter)=.false.
+                    call obsdiagNode_set(obsptr,wgtjo=zero,jiter=jiter,muse=.false.)
                  end if
               endif
            endif
@@ -777,6 +786,7 @@ subroutine contents_netcdf_diag_
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",           sngl(gps_allptr%rdiag(17))*sngl(gps_allptr%rdiag(5)) )
            call nc_diag_metadata("Obs_Minus_Forecast_unadjusted",         sngl(gps_allptr%rdiag(17))*sngl(gps_allptr%rdiag(5)) )
            call nc_diag_metadata("GPS_Type",                              sngl(gps_allptr%rdiag(20))   )
+           call nc_diag_metadata("Vertical_Grid_Location",                sngl(gps_allptr%rdiag(19))   )
            call nc_diag_metadata("Temperature_at_Obs_Location",           sngl(gps_allptr%rdiag(18))   )
            call nc_diag_metadata("Specific_Humidity_at_Obs_Location",     sngl(gps_allptr%rdiag(21))   )
 
@@ -786,6 +796,9 @@ subroutine contents_netcdf_diag_
               call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
            endif
 
+           do i=1, gps_allptr%n_rdiag_extra
+              call nc_diag_metadata(trim(gps_allptr%rdiag_extra_name(i)), sngl(gps_allptr%rdiag_extra_val(i)))
+           enddo    
 
 
 !           call nc_diag_data2d("T_Jacobian",                              gps_allptr%mmpoint%jac_t             )

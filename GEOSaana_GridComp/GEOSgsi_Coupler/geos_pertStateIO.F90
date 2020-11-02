@@ -20,18 +20,20 @@
   use MAPL_CommsMod
 
   use MAPL_SimpleBundleMod
+  use MAPL_LatLonGridFactoryMod
+  use MAPL_GridManagerMod
 
+  use GSI_GridCompMod, only: GSI_bkg_fname_tmpl
   use GSI_GridCompMod, only: GSI_fsens_fname_tmpl
   use GSI_GridCompMod, only: GSI_ferrA_fname_tmpl
   use GSI_GridCompMod, only: GSI_ferrB_fname_tmpl
 
   use kinds,       only : r_kind,r_single,i_kind
   use mpimod,      only : mype,mpi_rtype,mpi_comm_world
+  use mpimod,      only : nxpe,nype
   use gridmod,     only : strip
   use gridmod,     only : displs_s,ijn_s
   use gridmod,     only : nlat, nlon     ! no. lat/lon
-  use gridmod,     only : lat1, lon1     ! no. lat/lon on subdomain (no buffer)
-  use gridmod,     only : lat2, lon2     ! no. lat/lon on subdomain (buffer pnts on ends)
   use gridmod,     only : nsig           ! no. levels
   use gridmod,     only : iglobal        ! no. of horizontal points on global grid
   use gridmod,     only : ijn            ! no. of horiz. pnts for each subdomain (no buffer)
@@ -39,25 +41,43 @@
   use gridmod,     only : itotsub        ! no. of horizontal points of all subdomains combined
   use gridmod,     only : bk5         
   use gsi_bias,    only : reorder21,reorder12
+  use gsi_4dvar,   only : ibdate,l4densvar
+  use obsmod,      only : iadate
   use constants,   only : zero,one,tiny_r_kind
   use state_vectors,only: dot_product
 
   use m_interpack,    only : interpack_terpv
   use m_interpack_ad, only : interpack_terpv_ad
 
+  use m_StrTemplate, only: StrTemplate
+
   use mpeu_util, only: tell,warn,perr,die
+  use GSI_GridCompMod, only: PPMV2GpG
 
   implicit none
   private
+  public:: pertState_get_set
   public:: pertState_get
+  public:: pertState_get_unset
   public:: pertState_put
+  public:: pertState_put_set
+  public:: pertState_put_final
 
   interface pertState_get; module procedure &
     get_1pert_, &
+    get_1pert_date_, &
     get_Npert_; end interface
   interface pertState_put; module procedure &
     put_1pert_, &
     put_Npert_; end interface
+  interface pertState_put_set; module procedure &
+    set_gsi2pgcm0_; end interface
+  interface pertState_put_final; module procedure &
+    final_gsi2pgcm0_; end interface
+  interface pertState_get_set; module procedure &
+    get_pert_set_; end interface
+  interface pertState_get_unset; module procedure &
+    get_pert_unset_; end interface
 
   character(len=*),parameter :: myname="geos_pertStateIO"
 #include "MAPL_ErrLog.h"
@@ -67,12 +87,21 @@
 
    integer,save :: mycount = 0
 
+   logical :: gsiMode = .false.
+
    integer(i_kind),parameter:: ROOT =0
-   real(r_kind), parameter :: PPMV2DU    = 1.657E-6_r_kind
    real(r_kind), parameter :: kPa_per_Pa = 0.001_r_kind
    real(r_kind), parameter :: Pa_per_kPa = 1000._r_kind
    real(r_kind), parameter :: R3600      = 3600.0_r_kind
 
+   type(ESMF_FieldBundle)  :: WBundle
+
+   integer(i_kind) ::  nlon_set = -1
+   integer(i_kind) ::  nlat_set = -1
+   integer(i_kind) ::  lon2_set = -1
+   integer(i_kind) ::  lat2_set = -1
+   integer(i_kind) ::  nymd_set = -1
+   integer(i_kind) ::  nhms_set = -1
 contains
 !------------------------------------------------------------------------------------
 subroutine get_1pert_(xx,what,filename)
@@ -90,13 +119,55 @@ integer(i_kind):: ierr
 
   xx=zero
   call pgcm2gsi0_(xx,what,ierr,filename=filename)
-	if(ierr/=0) then
-	  call perr(myname_,'pgcm2gsi("'//trim(what)//'"), ierr =',ierr)
-	  call perr(myname_,'trouble reading analysis errors')
-	  call die(myname_)
-	endif
+ 	if(ierr/=0) then
+ 	  call perr(myname_,'pgcm2gsi("'//trim(what)//'"), ierr =',ierr)
+ 	  call perr(myname_,'trouble reading analysis errors')
+ 	  call die(myname_)
+ 	endif
 end subroutine get_1pert_
+!------------------------------------------------------------------------------------
+subroutine get_1pert_date_(xx,nt,what,filename)
+! get perturbation from user''s model and convert it to relevant gsi bundle
+use kinds, only: i_kind,r_kind
+use gsi_4dvar, only: ens_fmnlevs
+use constants, only: zero
+use gsi_bundlemod, only: gsi_bundle
+use gsi_bundlemod, only: assignment(=)
+implicit none
+type(gsi_bundle),intent(inout) :: xx
+integer(i_kind),intent(in)  :: nt
+character(len=*),intent(in) :: what     ! indicates whether tl or ad type perturbation
+character(len=*),intent(in) :: filename ! filename w/ perturbation
 
+character(len=*),parameter:: myname_=myname//'.get_1pert_'
+integer(i_kind):: nymd,nhms
+integer(i_kind):: ierr
+integer(i_kind) ida(8),jda(8)
+real(r_kind) fha(5)
+
+   ida(1:3)=ibdate(1:3)
+   ida(5:6)=ibdate(4:5)
+   jda(:)=0
+   fha(:)=0.0
+   if (l4densvar) then
+      fha(3)=ens_fmnlevs(nt)-180.0_r_kind ! NCEP counts time from previous syn analysis (180min=3hr)
+   else
+      nymd = iadate(1)*10000 + iadate(2)*100 + iadate(3)
+      nhms = iadate(4)*10000 + iadate(5)*100
+   endif
+   call w3movdat(fha,ida,jda)
+   nymd=jda(1)*10000+jda(2)*100+jda(3)
+   nhms=jda(5)*10000+jda(6)*100
+   if(mype==0) print *, myname_, ': will read perturbations at: ', nymd, ' ', nhms
+
+  xx=zero
+  call pgcm2gsi0_(xx,what,ierr,filename=filename)
+ 	if(ierr/=0) then
+ 	  call perr(myname_,'pgcm2gsi("'//trim(what)//'"), ierr =',ierr)
+ 	  call perr(myname_,'trouble reading analysis errors')
+ 	  call die(myname_)
+ 	endif
+end subroutine get_1pert_date_
 !------------------------------------------------------------------------------------
 subroutine put_1pert_(xx,nymd,nhms,what,label)
 ! convert xx to the user''s model perturbation and write it out
@@ -178,6 +249,161 @@ character(len=*),parameter:: myname_=myname//'.put_Npert_'
   enddo
 end subroutine put_Npert_
 !------------------------------------------------------------------------------------
+subroutine get_pert_set_ (nlat_in,nlon_in,lat2_in,lon2_in,nt)
+   use gsi_4dvar, only: ens_fmnlevs,l4densvar
+   implicit none
+   integer(i_kind), intent(in) :: lat2_in,lon2_in
+   integer(i_kind), intent(in) :: nlat_in,nlon_in
+   integer(i_kind), intent(in) :: nt
+
+   character(len=*),parameter:: myname_=myname//'.get_set_'
+   integer(i_kind) ida(8),jda(8)
+   real(r_kind) fha(5)
+
+   nlat_set=nlat_in
+   nlon_set=nlon_in
+   lat2_set=lat2_in
+   lon2_set=lon2_in
+
+   if (nt>0) then
+      ida(1:3)=ibdate(1:3)
+      ida(5:6)=ibdate(4:5)
+      jda(:)=0
+      fha(:)=0.0
+      if(l4densvar) then
+         fha(3)=ens_fmnlevs(nt)-180.0_r_kind ! NCEP counts time from previous syn analysis (180min=3hr)
+      else
+         fha(3)=ens_fmnlevs(nt)
+      endif
+      call w3movdat(fha,ida,jda)
+      nymd_set=jda(1)*10000+jda(2)*100+jda(3)
+      nhms_set=jda(5)*10000+jda(6)*100
+      if(mype==0) print *, myname_, ': will read perturbations at: ', nymd_set, ' ', nhms_set
+   endif
+
+end subroutine get_pert_set_
+!------------------------------------------------------------------------------------
+subroutine get_pert_unset_
+   implicit none
+   nymd_set=-1
+   nhms_set=-1
+   nlat_set=-1
+   nlon_set=-1
+   lat2_set=-1
+   lon2_set=-1
+end subroutine get_pert_unset_
+!------------------------------------------------------------------------------------
+
+!-------------------------------------------------------------------------
+!     NASA/GSFC, Global Modeling and Assimilation Office, Code 601.1     !
+!-------------------------------------------------------------------------
+!BOP
+!
+! !ROUTINE: set_gsi2pgcm0_:  Convert GSI increments to GCM perturbations
+!
+! !INTERFACE:
+
+      subroutine set_gsi2pgcm0_ ( nymd, nhms, stat )
+
+! !USES:
+
+      use ESMF
+      use MAPL_Mod
+      use MAPL_CFIOMod
+      use MAPL_ProfMod
+
+      use GSI_GridCompMod, only: GSI_AgcmPertGrid
+      use GSI_GridCompMod, only: GSI_ExpId
+      use GSI_GridCompMod, only: GSI_RefTime
+
+      use gsi_bundlemod, only: gsi_bundle
+      use gsi_bundlemod, only: assignment(=)
+
+      use m_StrTemplate, only: StrTemplate
+
+      implicit none
+
+! !INPUT PARAMETERS:
+                                                                                                                           
+      integer(i_kind),    intent(in)    :: nymd   ! date as in YYYYMMDD
+      integer(i_kind),    intent(in)    :: nhms   ! time as in HHMMSS
+
+! !OUTPUT PARAMETERS:
+
+      integer(i_kind),                 intent(out) :: stat
+
+! !DESCRIPTION: Set work bundle for writing output.
+!
+! !REVISION HISTORY:
+!
+!  03Mar2020  Todling   Broken up from original gsi2pgcm0_
+!
+!EOP
+!-----------------------------------------------------------------------
+
+     character(len=*), parameter :: myname_ = myname//'*set_gsi2pgcm0_'
+     character(len=*), parameter :: Iam = myname_
+     type(MAPL_CFIO)         :: cfio
+     type(ESMF_Clock)        :: Clock
+     type(ESMF_Time)         :: OutTime
+     type(ESMF_Time)         :: RefTime
+     type(ESMF_TimeInterval) :: TimeStep
+
+     character(len=255) fname,bkgfname,tmpl
+     character(len=ESMF_MAXSTR) :: etmpl
+     character(len=*), parameter :: only_vars='ps,ts,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     integer(i_kind) thistime(6)
+     integer(i_kind) rc,status,ierr
+     integer(i_kind) idim,jdim,kdim,i,j,k,i_dp,i_ps
+     integer nymd_ref,nhms_ref
+     real(r_kind)    dmodel,dgsi
+
+     stat = 0
+
+!    Define working bundle
+!    ---------------------
+     WBundle = ESMF_FieldBundleCreate ( name='Work Bundle', rc=status )
+               VERIFY_(status)
+     call ESMF_FieldBundleSet ( WBundle, grid=GSI_AgcmPertGrid, rc=status )
+     VERIFY_(status)
+
+!    Reference date/time
+!    -------------------
+     nymd_ref = 10000*ibdate(1)+ibdate(2)*100+ibdate(3)
+     nhms_ref = 10000*ibdate(4)+ibdate(5)*100
+     thistime(1) =     nymd_ref/10000
+     thistime(2) = mod(nymd_ref,10000)/100
+     thistime(3) = mod(nymd_ref,100)
+     thistime(4) =     nhms_ref/10000
+     thistime(5) = mod(nhms_ref,10000)/100
+     thistime(6) = mod(nhms_ref,100)
+
+!    set reference time
+!    ------------------
+     call ESMF_TimeSet( RefTime, YY =  thistime(1), &
+                                 MM =  thistime(2), &
+                                 DD =  thistime(3), &
+                                 H  =  thistime(4), &
+                                 M  =  thistime(5), &
+                                 S  =  thistime(6), rc=status ); VERIFY_(STATUS)
+
+!    Get memory for output bundle by reading inital bkg file
+!    NOTE: 1. this needs revision since not general enough
+!          2. filanme template wired-in for now
+!    -------------------------------------------------------
+
+     call StrTemplate ( bkgfname, GSI_bkg_fname_tmpl, 'GRADS', & 
+                        xid=trim(GSI_ExpId), nymd=nymd_ref, nhms=nhms_ref, &
+                        stat=status )
+          VERIFY_(STATUS)
+     call MAPL_CFIORead  ( trim(bkgfname), RefTime, WBundle, &
+                           TIME_IS_CYCLIC=.false., verbose=.true., &
+                           only_vars=only_vars, rc=status )
+!                          noread=.true., only_vars=only_vars, rc=status )
+          VERIFY_(status)
+
+
+     end subroutine set_gsi2pgcm0_
 
 !-------------------------------------------------------------------------
 !     NASA/GSFC, Global Modeling and Assimilation Office, Code 601.1     !
@@ -235,64 +461,30 @@ end subroutine put_Npert_
 !  12Jul2012  Todling   Now handling ts as well
 !  13Mar2014  Todling   Allow output of qi/ql
 !  03Mar2017  RT/JJin   Zero out field read in from template file
+!  03Mar2020  Todling   Move set/final out into own procedures
 !
 !EOP
 !-----------------------------------------------------------------------
 
      character(len=*), parameter :: myname_ = myname//'*gsi2pgcm0_'
      character(len=*), parameter :: Iam = myname_
-     type(ESMF_FieldBundle)  :: WBundle
      type(MAPL_SimpleBundle) :: xpert
      type(MAPL_CFIO)         :: cfio
      type(ESMF_Clock)        :: Clock
      type(ESMF_Time)         :: OutTime
+     type(ESMF_Time)         :: RefTime
      type(ESMF_TimeInterval) :: TimeStep
 
      character(len=255) fname,bkgfname,tmpl
+     character(len=ESMF_MAXSTR) :: etmpl
      character(len=*), parameter :: only_vars='ps,ts,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
      integer(i_kind) thistime(6)
      integer(i_kind) rc,status,ierr
      integer(i_kind) idim,jdim,kdim,i,j,k,i_dp,i_ps
+     integer nymd_ref,nhms_ref
      real(r_kind)    dmodel,dgsi
 
      stat = 0
-
-!    Define working bundle
-!    ---------------------
-     WBundle = ESMF_FieldBundleCreate ( name='Work Bundle', rc=status )
-               VERIFY_(status)
-     call ESMF_FieldBundleSet ( WBundle, grid=GSI_AgcmPertGrid, rc=status )
-     VERIFY_(status)
-
-!    Get memory for output bundle by reading inital bkg file
-!    NOTE: 1. this needs revision since not general enough
-!          2. filanme template wired-in for now
-!    -------------------------------------------------------
-     thistime(1) =     nymd/10000
-     thistime(2) = mod(nymd,10000)/100
-     thistime(3) = mod(nymd,100)
-     thistime(4) =     nhms/10000
-     thistime(5) = mod(nhms,10000)/100
-     thistime(6) = mod(nhms,100)
-
-!   initialize current time
-!   -----------------------
-     call ESMF_TimeSet( OutTime, YY =  thistime(1), &
-                                 MM =  thistime(2), &
-                                 DD =  thistime(3), &
-                                 H  =  thistime(4), &
-                                 M  =  thistime(5), &
-                                 S  =  thistime(6), rc=status ); VERIFY_(STATUS)
-
-     call StrTemplate ( bkgfname, '%s.bkg.eta.%y4%m2%d2_%h2z.nc4', 'GRADS', & 
-                        xid=trim(GSI_ExpId), nymd=nymd, nhms=nhms, &
-                        stat=status )
-          VERIFY_(STATUS)
-     call MAPL_CFIORead  ( trim(bkgfname), OutTime, WBundle, &
-                           TIME_IS_CYCLIC=.false., verbose=.true., &
-                           only_vars=only_vars, rc=status )
-!                          noread=.true., only_vars=only_vars, rc=status )
-          VERIFY_(status)
 
 !    Make sure read in vars are zeroed out just in case
 !    --------------------------------------------------
@@ -332,6 +524,23 @@ end subroutine put_Npert_
 #endif /* OLD_GEOS_PERT */ 
      if(mype==ROOT) write(6,'(2a,1p,e25.18)') trim(myname_), ': magnitude of output vector in analysis space ', dgsi
 
+!    Set ESMF-output date/time
+!    -------------------------
+     thistime(1) =     nymd/10000
+     thistime(2) = mod(nymd,10000)/100
+     thistime(3) = mod(nymd,100)
+     thistime(4) =     nhms/10000
+     thistime(5) = mod(nhms,10000)/100
+     thistime(6) = mod(nhms,100)
+
+!   initialize current time
+!   -----------------------
+     call ESMF_TimeSet( OutTime, YY =  thistime(1), &
+                                 MM =  thistime(2), &
+                                 DD =  thistime(3), &
+                                 H  =  thistime(4), &
+                                 M  =  thistime(5), &
+                                 S  =  thistime(6), rc=status ); VERIFY_(STATUS)
 !    Create clock set at reference time
 !    ----------------------------------
      call ESMF_TimeIntervalSet( TimeStep, h=0, m=0, s=0, rc=status )
@@ -344,9 +553,9 @@ end subroutine put_Npert_
 !    ----------------------
      mycount = mycount + 1
      if (present(filename)) then
-       write(tmpl,'(4a)')      trim(GSI_ExpId), '.', trim(filename), '.%y4%m2%d2_%h2z.nc4'
+       write(tmpl,'(4a)')      trim(GSI_ExpId), '.', trim(filename), '.%y4%m2%d2_%h2%n2z.nc4'
      else
-       write(tmpl,'(4a,i3.3,1a)') trim(GSI_ExpId), '.', trim(fnxgsi), '_', mycount, '.%y4%m2%d2_%h2z.nc4'
+       write(tmpl,'(4a,i3.3,1a)') trim(GSI_ExpId), '.', trim(fnxgsi), '_', mycount, '.%y4%m2%d2_%h2%n2z.nc4'
      endif
   
      call StrTemplate ( fname, tmpl, 'GRADS', xid=GSI_ExpId, nymd=nymd, nhms=nhms, &
@@ -373,15 +582,82 @@ end subroutine put_Npert_
          call die(myname_, 'feature not ready ...')
      endif
 
-!    Release GCM perturbation vector
-!    -------------------------------
 !    call MAPL_SimpleBundleDestroy ( xpert, rc=STATUS )  ! _RT is this a nullify?? it better be
-!         VERIFY_(STATUS)
-     call ESMF_FieldBundleDestroy ( WBundle, rc=STATUS )
+!        VERIFY_(STATUS)
+
+     end subroutine gsi2pgcm0_
+
+!-------------------------------------------------------------------------
+!     NASA/GSFC, Global Modeling and Assimilation Office, Code 601.1     !
+!-------------------------------------------------------------------------
+!BOP
+!
+! !ROUTINE: final_gsi2pgcm0_:  Finalizes put routine
+!
+! !INTERFACE:
+
+      subroutine final_gsi2pgcm0_ ( stat )
+
+! !USES:
+
+      use ESMF
+      use MAPL_Mod
+      use MAPL_CFIOMod
+      use MAPL_ProfMod
+
+      use GSI_GridCompMod, only: GSI_AgcmPertGrid
+      use GSI_GridCompMod, only: GSI_ExpId
+      use GSI_GridCompMod, only: GSI_RefTime
+
+      use gsi_bundlemod, only: gsi_bundle
+      use gsi_bundlemod, only: assignment(=)
+
+      use m_StrTemplate, only: StrTemplate
+
+      implicit none
+
+! !INPUT PARAMETERS:
+                                                                                                                           
+! !OUTPUT PARAMETERS:
+
+      integer(i_kind),                 intent(out) :: stat
+
+! !DESCRIPTION: Finalizes work-bundle used for output.
+!
+! !REVISION HISTORY:
+!
+!  03Mar2020  Todling   Broken up from original gsi2pgcm0_
+!
+!EOP
+!-----------------------------------------------------------------------
+
+     character(len=*), parameter :: myname_ = myname//'*final_gsi2pgcm0_'
+     character(len=*), parameter :: Iam = myname_
+     type(MAPL_SimpleBundle) :: xpert
+     type(MAPL_CFIO)         :: cfio
+     type(ESMF_Clock)        :: Clock
+     type(ESMF_Time)         :: OutTime
+     type(ESMF_Time)         :: RefTime
+     type(ESMF_TimeInterval) :: TimeStep
+
+     character(len=255) fname,bkgfname,tmpl
+     character(len=ESMF_MAXSTR) :: etmpl
+     character(len=*), parameter :: only_vars='ps,ts,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     integer(i_kind) thistime(6)
+     integer(i_kind) rc,status,ierr
+     integer(i_kind) idim,jdim,kdim,i,j,k,i_dp,i_ps
+     integer nymd_ref,nhms_ref
+     real(r_kind)    dmodel,dgsi
+
+     stat = 0
+
+!     Release GCM perturbation vector
+!     -------------------------------
+      call ESMF_FieldBundleDestroy ( WBundle, rc=STATUS )
           VERIFY_(STATUS)
 
 
-     end subroutine gsi2pgcm0_
+     end subroutine final_gsi2pgcm0_
 
 !-------------------------------------------------------------------------
 !     NASA/GSFC, Global Modeling and Assimilation Office, Code 601.1     !
@@ -443,6 +719,8 @@ end subroutine put_Npert_
 
 ! !USES:
 
+      use gridmod,       only: lat1, lon1     ! no. lat/lon on subdomain (no buffer)
+      use gridmod,       only: lat2, lon2     ! no. lat/lon on subdomain (buffer pnts on ends)
       use gsi_bundlemod, only: gsi_bundle
       use gsi_bundlemod, only: gsi_bundlegetpointer
       use gsi_bundlemod, only: assignment(=)
@@ -559,7 +837,7 @@ end subroutine put_Npert_
                  enddo
               enddo
            enddo
-           sub_oz = sub_oz / PPMV2DU
+           sub_oz = sub_oz / PPMV2GpG
       endif
       call gsi_bundlegetpointer(xx,'cw',  i_cw , istatus)
       if ( i_cw>0 ) then
@@ -979,7 +1257,7 @@ end subroutine put_Npert_
 ! !INTERFACE:
 
       subroutine pgcm2gsi0_ ( xx, which, stat, &
-                              filename, skiptraj, nymd_in, nhms_in )
+                              filename, nymd_in, nhms_in )
 
 ! !USES:
 
@@ -994,6 +1272,7 @@ end subroutine put_Npert_
       use GSI_GridCompMod, only: GSI_AgcmPertGrid
       use GSI_GridCompMod, only: GSI_RefTime
       use GSI_GridCompMod, only: GSI_FcsTime
+      use GSI_GridCompMod, only: GSI_ExpId
 
       use gsi_bundlemod, only: gsi_bundle
       use gsi_bundlemod, only: assignment(=)
@@ -1006,16 +1285,15 @@ end subroutine put_Npert_
 
       character(len=*),           intent(in)  :: which    ! adm or tlm
       character(len=*), optional, intent(in)  :: filename ! name of file w/ perturbation
-      logical,          optional, intent(in)  :: skiptraj ! allows skip of trajectory/ics 
-                                                                                                                           
+
 ! !OUTPUT PARAMETERS:
 
       type(gsi_bundle),         intent(inout) :: xx       ! GSI increment
 
       integer(i_kind),            intent(out) :: stat
 
-      integer(i_kind),optional,   intent(out) :: nymd_in
-      integer(i_kind),optional,   intent(out) :: nhms_in
+      integer(i_kind),optional,   intent(out) :: nymd_in  ! Date read in
+      integer(i_kind),optional,   intent(out) :: nhms_in  ! Time read in
 
 ! !DESCRIPTION: Convert GEOS-5 perturbation vector to GSI increment vector
 !               (as pgcm2gsi1_, but reads GCM perturbation from file)
@@ -1035,6 +1313,8 @@ end subroutine put_Npert_
 !  12Jul2012  Todling   Now handling ts as well
 !  10Oct2016  M.Kim     Handle ql, qi, qr, and qs 
 !  21May2017  Todling   Knobs to differentiate among different input vectors
+!  06May2020  Todling   Considerable rewrite to allow reading pert into vector
+!                       of arbitrary dim (not associated w/ analysis increment) 
 !
 !EOP
 !-----------------------------------------------------------------------
@@ -1042,77 +1322,131 @@ end subroutine put_Npert_
      character(len=*), parameter :: myname_ = myname//'*pgcm2gsi0_'
      character(len=*), parameter :: Iam = myname_
      character(len=*), parameter :: fname_def ='fsens.eta.nc4' ! full forecast sensitivity from ADM integration
-     character(len=*), parameter :: fnameA_def='ferrA.eta.nc4' ! error of forecast issued from analysis
-     character(len=*), parameter :: fnameB_def='ferrB.eta.nc4' ! error of forecast issued from background
-     character(len=*), parameter :: only_vars='ts,delp,u,v,tv,sphu,ozone'
-     character(len=256) :: fname
-     type(ESMF_FieldBundle)  :: WBundle
+     character(len=*), parameter :: sens_vars='ts,delp,u,v,tv,sphu,ozone'
+     character(len=*), parameter :: xinc_vars='ts,ps,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     character(len=256) :: fname, ffname(1)
+     character(len=256) :: my_vars
+     character(len=30)  :: GSIGRIDNAME
+     type(ESMF_VM)           :: VM
+     type(ESMF_FieldBundle),pointer  :: WBundle(:)
      type(MAPL_SimpleBundle) :: xpert
+     type(ESMF_Grid)         :: GSI_iGrid
+     type(ESMF_Time)         :: This_RefTime
+     type(LatLonGridFactory) :: ll_factory
 
-!    character(len=255) :: fname
      integer(i_kind) myimr,myjnp,mynl,mync
      integer(i_kind) ierr,yy,mm,dd,hh,mn,sec
      integer         rc,status
+     integer         THIS_TIME(6)
+     integer(i_kind) my_nlat,my_nlon
      real(r_kind)    dmodel,dgsi
 
      stat = 0
-     xx   = zero
+     if (nlat_set>0 .and. nlon_set>0) then
+        my_nlon=nlon_set
+        my_nlat=nlat_set
+     else ! this default is somewhat dangerous and could trip the unadvised,
+          ! but it avoids having to update older get calls w/ set/unset
+        my_nlon=nlon
+        my_nlat=nlat
+     endif
 
 !    Define working bundle
 !    ---------------------
-     WBundle = ESMF_FieldBundleCreate ( name='Work Bundle', rc=status )
-               VERIFY_(status)
-     call ESMF_FieldBundleSet ( WBundle, grid=GSI_AgcmPertGrid, rc=status )
+     call ESMF_VMGetCurrent(vm=VM, rc=STATUS)
+     VERIFY_(STATUS)
+     call MAPL_DefGridName (my_nlon,my_nlat,GSIGRIDNAME,MAPL_am_I_root())
+
+     ll_factory = LatLonGridFactory(grid_name=GSIGRIDNAME, nx=nxpe, ny=nype, &
+                 im_world=my_nlon, jm_world=my_nlat, lm = nsig, &
+                 pole='PC', dateline='DC', rc=status)
+     VERIFY_(status)
+     GSI_iGrid = grid_manager%make_grid(ll_factory,rc=status)
+     VERIFY_(STATUS)
+
+     allocate(WBundle(1))
+     WBundle(1) = ESMF_FieldBundleCreate ( name='Work Bundle', rc=status )
+                  VERIFY_(status)
+     call ESMF_FieldBundleSet ( WBundle(1), grid=GSI_iGrid, rc=status )
      VERIFY_(status)
 
 !    Set file to be read
 !    -------------------
+     my_vars=trim(sens_vars)
      if(present(filename)) then
         fname = trim(filename)
         if(trim(fname)=='NULL') fname = GSI_fsens_fname_tmpl
         if(trim(fname)=='A')    fname = GSI_ferrA_fname_tmpl
         if(trim(fname)=='B')    fname = GSI_ferrB_fname_tmpl
+        if(trim(fname(1:4))=='xinc') then
+           write(fname,'(4a)')  trim(GSI_ExpId), '.', trim(filename), '.eta.%y4%m2%d2_%h2%n2z.nc4'
+           my_vars= trim(xinc_vars)
+        endif
      else 
         fname=fname_def
      endif
 
-!    When tau_fcst is set, redefine reference time of field to
-!    be read in as that determined as current time ticked 
-!    forward by tau_fcst
-!    ---------------------------------------------------------
-     if ( tau_fcst>0 ) then
+     if (nymd_set>0 .and. nhms_set>=0 ) then
 
-!       Read perturbation from file into ESMF Bundle
-!       --------------------------------------------
-        call MAPL_CFIORead  ( fname, GSI_FcsTime, WBundle, only_vars=only_vars, &
-                           TIME_IS_CYCLIC=.false., verbose=.true., rc=status )
-        VERIFY_(status)
+!       Fill in filename template
+!       -------------------------
+        call StrTemplate ( ffname(1), fname, 'GRADS', &
+                           xid=trim(GSI_ExpId), nymd=nymd_set, nhms=nhms_set, &
+                           stat=status )
+                           VERIFY_(STATUS)
+
+         THIS_TIME(1) =     nymd_set/10000
+         THIS_TIME(2) = mod(nymd_set,10000)/100
+         THIS_TIME(3) = mod(nymd_set,100)
+         THIS_TIME(4) =     nhms_set/10000
+         THIS_TIME(5) = mod(nhms_set,10000)/100
+         THIS_TIME(6) = mod(nhms_set,100)
+         call ESMF_TimeSet(  This_RefTime, YY =  THIS_TIME(1), &
+                                           MM =  THIS_TIME(2), &
+                                           DD =  THIS_TIME(3), &
+                                           H  =  THIS_TIME(4), &
+                                           M  =  THIS_TIME(5), &
+                                           S  =  THIS_TIME(6), rc=status ); VERIFY_(STATUS)
+
+!        Read perturbation from file into ESMF Bundle
+!        --------------------------------------------
+         call MAPL_CFIORead  ( ffname(1), This_RefTime, WBundle(1), only_vars=trim(my_vars), &
+                               TIME_IS_CYCLIC=.false., verbose=.false., &
+                               doParallel=.true., gsiMode=gsiMode, rc=status )
+         VERIFY_(status)
+
 
      else
 
-!       Read perturbation from file into ESMF Bundle
-!       --------------------------------------------
-        call MAPL_CFIORead  ( fname, GSI_RefTime, WBundle, only_vars=only_vars, &
-                           TIME_IS_CYCLIC=.false., verbose=.true., rc=status )
-        VERIFY_(status)
+!       When tau_fcst is set, redefine reference time of field to
+!       be read in as that determined as current time ticked 
+!       forward by tau_fcst
+!       ---------------------------------------------------------
+        if ( tau_fcst>0 ) then
 
+!          Read perturbation from file into ESMF Bundle
+!          --------------------------------------------
+           call MAPL_CFIORead  ( fname, GSI_FcsTime, WBundle(1), only_vars=trim(my_vars), &
+                                 TIME_IS_CYCLIC=.false., verbose=.false., &
+                                 doParallel=.true., gsiMode=gsiMode, rc=status )
+           VERIFY_(status)
+
+        else
+
+!          Read perturbation from file into ESMF Bundle
+!          --------------------------------------------
+           call MAPL_CFIORead  ( fname, GSI_RefTime, WBundle(1), only_vars=trim(my_vars), &
+                                 TIME_IS_CYCLIC=.false., verbose=.false., &
+                                 doParallel=.true., gsiMode=gsiMode, rc=status )
+           VERIFY_(status)
+
+        endif
      endif
 
 !    Link Bundle to Simple-Bundle
 !    ----------------------------
-     xpert = MAPL_SimpleBundleCreate ( WBundle, rc=status )
+     xpert = MAPL_SimpleBundleCreate ( WBundle(1), rc=status )
              VERIFY_(status)
-
-!    Need to convert ESMF time to conventional time
-!    ----------------------------------------------
-     if (present(nymd_in)) then
-         call ESMF_TimeGet(GSI_RefTime, yy=YY, mm=MM, dd=DD, rc=status)
-         nymd_in = 10000*yy + 100*mm + dd
-     endif
-     if (present(nhms_in)) then
-         call ESMF_TimeGet(GSI_RefTime, h=HH, m=MN, s=SEC, rc=status)
-         nhms_in = 10000*hh + 100*mn + sec
-     endif
 
 !    Simply convert in GSI fields
 !    ----------------------------
@@ -1126,10 +1460,19 @@ end subroutine put_Npert_
 #endif /* OLD_GEOS_PERT */ 
     if(mype==ROOT) write(6,'(2a,1p,e25.18)') trim(myname_), ': magnitude of input vector in analysis space ', dgsi
 
-!    call MAPL_SimpleBundleDestroy ( xpert, rc=STATUS )  ! _RT is this a nullify?? it better be
-!         VERIFY_(STATUS)
-     call ESMF_FieldBundleDestroy ( WBundle, rc=STATUS )
+!    Need to convert ESMF time to conventional time
+!    ----------------------------------------------
+     if (present(nymd_in).and.present(nhms_in)) then
+         call ESMF_TimeGet(GSI_RefTime, yy=YY, mm=MM, dd=DD, h=HH, m=MN, s=SEC, rc=status)
+         nymd_in = 10000*yy + 100*mm + dd
+         nhms_in = 10000*hh + 100*mn + sec
+     endif
+
+     call MAPL_SimpleBundleDestroy ( xpert, rc=STATUS )  ! _RT is this a nullify?? it better be
           VERIFY_(STATUS)
+     call ESMF_FieldBundleDestroy ( WBundle(1), rc=STATUS )
+          VERIFY_(STATUS)
+     deallocate(WBundle)
 
      end subroutine pgcm2gsi0_
 
@@ -1151,7 +1494,8 @@ end subroutine put_Npert_
       use gsi_bundlemod,only: gsi_bundle     ! GSI state vector
       use gsi_bundlemod,only: gsi_bundlegetpointer
       use gsi_bundlemod,only: assignment(=)
- 
+
+      use gridmod,       only: lat2, lon2    ! no. lat/lon on subdomain (buffer pnts on ends)
       implicit none
 
 ! !INPUT PARAMETERS:
@@ -1192,8 +1536,10 @@ end subroutine put_Npert_
       real(r_kind),  allocatable, dimension(:,:)   :: sub_ps,sub_ts
       real(r_kind),  allocatable, dimension(:,:,:) :: aux3d
 
+      character(len=256) :: failvars
       integer(i_kind) i,j,k,ij,ijk,id,ng_d,ng_s
       integer(i_kind) i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_tsen,i_ts,i_ql,i_qi,i_qr,i_qs
+      integer(i_kind) slat2,slon2
       integer(i_kind) ierr,istatus,status
       logical         scaleit
 
@@ -1203,32 +1549,50 @@ end subroutine put_Npert_
            if(jgradf) scaleit = .false. ! input vector is a gradient, don''t scale vars
       endif
 
-      allocate (sub_tv  (lat2,lon2,nsig), sub_u (lat2,lon2,nsig),&
-                sub_v   (lat2,lon2,nsig), sub_q (lat2,lon2,nsig),&
-                sub_delp(lat2,lon2,nsig), sub_ps(lat2,lon2), &
-                sub_ts  (lat2,lon2), stat=ierr )
-        if ( ierr/=0 ) then
-            stat = 91
-            if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_)'
-            return
-        end if
+      if (lon2_set>0.and.lat2_set>0) then
+         slon2 = lon2_set
+         slat2 = lat2_set
+      else ! this default is somewhat dangerous and could trip the unadvised,
+           ! but it avoids having to update older get calls w/ set/unset
+         slon2 = lon2
+         slat2 = lat2
+      endif
+
+      ierr=0
 
 !     Gather from GCM/Scatter to GSI subdomains
 !     -----------------------------------------
       i_u = MAPL_SimpleBundleGetIndex ( xpert, 'u'   , 3, rc=status )
       i_v = MAPL_SimpleBundleGetIndex ( xpert, 'v'   , 3, rc=status )
       i_t = MAPL_SimpleBundleGetIndex ( xpert, 'tv'  , 3, rc=status )
-      i_p = MAPL_SimpleBundleGetIndex ( xpert, 'delp', 3, rc=status )
       i_q = MAPL_SimpleBundleGetIndex ( xpert, 'sphu', 3, rc=status )
       i_ts= MAPL_SimpleBundleGetIndex ( xpert, 'ts'  , 2, rc=status )
-      call pert2gsi_ ( xpert%r3(i_u)%qr4, sub_u   , ierr )
-      call pert2gsi_ ( xpert%r3(i_v)%qr4, sub_v   , ierr )
-      call pert2gsi_ ( xpert%r3(i_t)%qr4, sub_tv  , ierr )
-      call pert2gsi_ ( xpert%r3(i_p)%qr4, sub_delp, ierr )
-      call pert2gsi_ ( xpert%r3(i_q)%qr4, sub_q   , ierr )
+      if (i_u>0) then
+         allocate (sub_u(slat2,slon2,nsig), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi_ ( xpert%r3(i_u)%qr4, sub_u   , ierr )
+      endif
+      if (i_v>0) then
+         allocate (sub_v(slat2,slon2,nsig), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi_ ( xpert%r3(i_v)%qr4, sub_v   , ierr )
+      endif
+      if (i_t>0) then
+         allocate (sub_tv  (slat2,slon2,nsig), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi_ ( xpert%r3(i_t)%qr4, sub_tv  , ierr )
+      endif
+      if (i_q>0) then
+         allocate (sub_q   (slat2,slon2,nsig), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi_ ( xpert%r3(i_q)%qr4, sub_q   , ierr )
+      endif
+      if(which/='inc') then
+        i_p = MAPL_SimpleBundleGetIndex ( xpert, 'delp', 3, rc=status )
+        if(i_p>0) then
+           allocate(sub_delp(slat2,slon2,nsig))
+           call pert2gsi_ ( xpert%r3(i_p)%qr4, sub_delp, ierr )
+        endif
+      endif
       i_oz = MAPL_SimpleBundleGetIndex ( xpert, 'ozone', 3, quiet=.true., rc=status )
       if (i_oz>0) then
-         allocate (sub_oz  (lat2,lon2,nsig), stat=ierr )
+         allocate (sub_oz  (slat2,slon2,nsig), stat=ierr )
          if ( ierr/=0 ) then
             stat = 91
             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_oz)'
@@ -1238,7 +1602,7 @@ end subroutine put_Npert_
       endif
       i_cw = MAPL_SimpleBundleGetIndex ( xpert, 'qctot', 3, quiet=.true., rc=status )
       if (i_cw>0) then
-          allocate (sub_cw  (lat2,lon2,nsig), stat=ierr )
+          allocate (sub_cw  (slat2,slon2,nsig), stat=ierr )
           if ( ierr/=0 ) then
               stat = 91
               if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_cw)'
@@ -1248,7 +1612,7 @@ end subroutine put_Npert_
       endif
       i_ql = MAPL_SimpleBundleGetIndex ( xpert, 'qltot', 3, quiet=.true., rc=status )
       if (i_ql>0) then
-          allocate (sub_ql  (lat2,lon2,nsig), stat=ierr )
+          allocate (sub_ql  (slat2,slon2,nsig), stat=ierr )
           if ( ierr/=0 ) then
               stat = 91
               if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_ql)'
@@ -1258,7 +1622,7 @@ end subroutine put_Npert_
       endif
       i_qi = MAPL_SimpleBundleGetIndex ( xpert, 'qitot', 3, quiet=.true., rc=status )
       if (i_qi>0) then
-          allocate (sub_qi  (lat2,lon2,nsig), stat=ierr )
+          allocate (sub_qi  (slat2,slon2,nsig), stat=ierr )
           if ( ierr/=0 ) then
               stat = 91
               if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_qi)'
@@ -1268,7 +1632,7 @@ end subroutine put_Npert_
       endif
       i_qr = MAPL_SimpleBundleGetIndex ( xpert, 'qrtot', 3, quiet=.true., rc=status )
       if (i_qr>0) then
-          allocate (sub_qr  (lat2,lon2,nsig), stat=ierr )
+          allocate (sub_qr  (slat2,slon2,nsig), stat=ierr )
           if ( ierr/=0 ) then
               stat = 91
               if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_qr)'
@@ -1278,7 +1642,7 @@ end subroutine put_Npert_
       endif
       i_qs = MAPL_SimpleBundleGetIndex ( xpert, 'qstot', 3, quiet=.true., rc=status )
       if (i_qs>0) then
-          allocate (sub_qs  (lat2,lon2,nsig), stat=ierr )
+          allocate (sub_qs  (slat2,slon2,nsig), stat=ierr )
           if ( ierr/=0 ) then
               stat = 91
               if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_qs)'
@@ -1286,12 +1650,18 @@ end subroutine put_Npert_
           end if
           call pert2gsi_ ( xpert%r3(i_qs)%qr4, sub_qs , ierr )
       endif
-      xpert%r3(i_q)%qr4=zero
-      xpert%r3(i_q)%qr4(:,:,1)=xpert%r2(i_ts)%qr4 ! copy to level 1
-      allocate(aux3d(lat2,lon2,nsig))
-      call pert2gsi_ ( xpert%r3(i_q)%qr4, aux3d, ierr )
-      sub_ts=aux3d(:,:,nsig)                      ! level nsig will contain result give vertical swap
-      deallocate(aux3d)
+      if (i_ts>0) then
+         allocate (sub_ts(slat2,slon2), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi2d_ ( xpert%r2(i_ts)%qr4, sub_ts, ierr )
+      endif
+
+      if (which=='inc') then
+         i_p= MAPL_SimpleBundleGetIndex ( xpert, 'ps', 2, rc=status )
+         if (i_p>0) then
+            allocate (sub_ps(slat2,slon2), stat=istatus ); ierr=ierr+istatus
+            call pert2gsi2d_ ( xpert%r2(i_p)%qr4, sub_ps, ierr )
+         endif
+      endif
 
       if ( ierr/=0 ) then
           stat = 99
@@ -1301,176 +1671,272 @@ end subroutine put_Npert_
 
 !     Get poiners to GSI state-vector
 !     -------------------------------
-      ierr=0
-      call gsi_bundlegetpointer(xx,'u' ,  i_u,   istatus);ierr=ierr+istatus
-      call gsi_bundlegetpointer(xx,'v' ,  i_v,   istatus);ierr=ierr+istatus
-      call gsi_bundlegetpointer(xx,'tv',  i_t,   istatus);ierr=ierr+istatus
+      ierr=0; failvars=""
+      call gsi_bundlegetpointer(xx,'u' ,  i_u,   istatus)
+      if (istatus/=0) then
+          istatus=0
+          call gsi_bundlegetpointer(xx,'sf', i_u,istatus);ierr=ierr+istatus
+          if(ierr/=0) failvars = trim(failvars)//"sf:"
+      endif
+      call gsi_bundlegetpointer(xx,'v' ,  i_v,   istatus)
+      if (istatus/=0) then
+          istatus=0
+          call gsi_bundlegetpointer(xx,'vp', i_v,istatus);ierr=ierr+istatus
+          if(ierr/=0) failvars = trim(failvars)//"vp:"
+      endif
+      call gsi_bundlegetpointer(xx,'tv',  i_t,   istatus)
+      if (istatus/=0) then
+          istatus=0
+          call gsi_bundlegetpointer(xx,'t', i_t,istatus);ierr=ierr+istatus
+          if(ierr/=0) failvars = trim(failvars)//"t:"
+      endif
       call gsi_bundlegetpointer(xx,'q' ,  i_q,   istatus);ierr=ierr+istatus
+          if(ierr/=0) failvars = trim(failvars)//"q:"
       call gsi_bundlegetpointer(xx,'oz',  i_oz , istatus);ierr=ierr+istatus
-      call gsi_bundlegetpointer(xx,'cw',  i_cw , istatus);ierr=ierr+istatus
-      call gsi_bundlegetpointer(xx,'prse',i_prse,istatus);ierr=ierr+istatus
+          if(ierr/=0) failvars = trim(failvars)//"oz:"
       call gsi_bundlegetpointer(xx,'ps',  i_p,   istatus);ierr=ierr+istatus
-      call gsi_bundlegetpointer(xx,'tsen',i_tsen,istatus);ierr=ierr+istatus
+          if(ierr/=0) failvars = trim(failvars)//"ps:"
+      if (which /= 'inc') then
+         call gsi_bundlegetpointer(xx,'cw',  i_cw , istatus);ierr=ierr+istatus
+          if(ierr/=0) failvars = trim(failvars)//"cw:"
+         call gsi_bundlegetpointer(xx,'prse',i_prse,istatus);ierr=ierr+istatus
+          if(ierr/=0) failvars = trim(failvars)//"prse:"
+         call gsi_bundlegetpointer(xx,'tsen',i_tsen,istatus);ierr=ierr+istatus
+          if(ierr/=0) failvars = trim(failvars)//"tsen:"
+      endif
       call gsi_bundlegetpointer(xx,'sst', i_ts  ,istatus);ierr=ierr+istatus
-      call gsi_bundlegetpointer(xx,'ql',  i_ql , istatus)
-      call gsi_bundlegetpointer(xx,'qi',  i_qi , istatus)
-      call gsi_bundlegetpointer(xx,'qr',  i_qr , istatus)
-      call gsi_bundlegetpointer(xx,'qs',  i_qs , istatus)
       if(ierr/=0) then
-         write(6,*) myname_, ': trouble getting pointers'
-         call stop2(999)
+         write(6,*) myname_, 'Could not find var(s): ',trim(failvars)
+         call die (myname_, ': trouble getting pointers', ierr)
       endif
 
 !     Calculate perturbation ps for GSI
 !     ---------------------------------
-      if (which == 'adm') then
+      select case(which)
+        case('adm')
           if ( scaleit ) then
                call ps2delp_ad_ ( Pa_per_kPa ) 
           else
                call delp2ps_    ( one ) 
           endif
-      else if (which == 'tlm') then
+        case('tlm')
           call delp2ps_    ( kPa_per_Pa ) 
-      else
+        case('inc')
+          do j=1,slon2
+             do i=1,slat2
+                xx%r2(i_p)%q(i,j) = sub_ps(i,j) * kPa_per_Pa
+             enddo
+          enddo
+        case default
           call die ( myname_,': invalid option' )
+      end select
+
+      if (allocated(sub_ps)) then
+         deallocate (sub_ps, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_ps)'
+            return
+         end if
+      endif
+      if ( allocated(sub_delp) ) then
+          deallocate (sub_delp, stat=ierr )
+          if ( ierr/=0 ) then
+              stat = 99
+              if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_delp)'
+              return
+           end if
       endif
 
 !     Calculate all other perturbation for GSI
 !     ----------------------------------------
-      do k=1,nsig
-         do j=1,lon2
-            do i=1,lat2
-               xx%r3(i_u)%q(i,j,k) = sub_u (i,j,k)
-               xx%r3(i_v)%q(i,j,k) = sub_v (i,j,k)
-               xx%r3(i_t)%q(i,j,k) = sub_tv(i,j,k)
-               xx%r3(i_q)%q(i,j,k) = sub_q (i,j,k)
+      if (allocated(sub_tv)) then
+         do k=1,nsig
+            do j=1,slon2
+               do i=1,slat2
+                  xx%r3(i_t)%q(i,j,k) = sub_tv(i,j,k)
+               enddo
             enddo
          enddo
-      enddo
+         deallocate (sub_tv, stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 99
+             if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_tv)'
+             return
+         endif
+      endif
+      if (allocated(sub_q)) then
+         do k=1,nsig
+            do j=1,slon2
+               do i=1,slat2
+                  xx%r3(i_q)%q(i,j,k) = sub_q (i,j,k)
+               enddo
+            enddo
+         enddo
+         deallocate (sub_q, stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 99
+             if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_q)'
+             return
+         end if
+      endif
+      if (allocated(sub_u)) then
+         do k=1,nsig
+            do j=1,slon2
+               do i=1,slat2
+                  xx%r3(i_u)%q(i,j,k) = sub_u (i,j,k)
+               enddo
+            enddo
+         enddo
+         deallocate (sub_u, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_u)'
+            return
+         end if
+      endif
+      if (allocated(sub_v)) then
+         do k=1,nsig
+            do j=1,slon2
+               do i=1,slat2
+                  xx%r3(i_v)%q(i,j,k) = sub_v (i,j,k)
+               enddo
+            enddo
+         enddo
+         deallocate (sub_v, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_v)'
+            return
+         end if
+      endif
       if ( i_oz>0 .and. allocated(sub_oz) ) then
-           do k=1,nsig
-              do j=1,lon2
-                 do i=1,lat2
-                    xx%r3(i_oz)%q(i,j,k) = sub_oz (i,j,k)
-                 enddo
-              enddo
-           enddo
-           if (which == 'adm') then
-              if(scaleit) xx%r3(i_oz)%q  = xx%r3(i_oz)%q * PPMV2DU
-           else
-              xx%r3(i_oz)%q  = xx%r3(i_oz)%q * PPMV2DU
-           endif
+         do k=1,nsig
+            do j=1,slon2
+               do i=1,slat2
+                  xx%r3(i_oz)%q(i,j,k) = sub_oz (i,j,k)
+               enddo
+            enddo
+         enddo
+         if (which == 'adm') then
+            if(scaleit) xx%r3(i_oz)%q  = xx%r3(i_oz)%q * PPMV2GpG
+         else
+            xx%r3(i_oz)%q  = xx%r3(i_oz)%q * PPMV2GpG
+         endif
+         deallocate (sub_oz, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_oz)'
+            return
+         end if
       endif
       if ( i_cw>0 .and. allocated(sub_cw) ) then
-           do k=1,nsig
-              do j=1,lon2
-                 do i=1,lat2
-                    xx%r3(i_cw)%q(i,j,k) = sub_cw (i,j,k)
-                 enddo
-              enddo
-           enddo
-      endif
-      if ( i_ql>0 .and. allocated(sub_ql) ) then
-           do k=1,nsig
-              do j=1,lon2
-                 do i=1,lat2
-                    xx%r3(i_ql)%q(i,j,k) = sub_ql (i,j,k)
-                 enddo
-              enddo
-           enddo
-      endif
-      if ( i_qi>0 .and. allocated(sub_qi) ) then
-           do k=1,nsig
-              do j=1,lon2  
-                 do i=1,lat2
-                    xx%r3(i_qi)%q(i,j,k) = sub_qi (i,j,k)
-                 enddo
-              enddo
-           enddo
-      endif
-      if ( i_qr>0 .and. allocated(sub_qr) ) then
-           do k=1,nsig
-              do j=1,lon2  
-                 do i=1,lat2
-                    xx%r3(i_qr)%q(i,j,k) = sub_qr (i,j,k)
-                 enddo
-              enddo
-           enddo
-      endif
-      if ( i_qs>0 .and. allocated(sub_qs) ) then
-           do k=1,nsig
-              do j=1,lon2
-                 do i=1,lat2
-                    xx%r3(i_qs)%q(i,j,k) = sub_qs (i,j,k)
-                 enddo
-              enddo
-           enddo
-      endif
-      if ( which == 'tlm' ) then
-          call getprs_tl   (xx%r2(i_p)%q,xx%r3(i_t)%q,xx%r3(i_prse)%q)
-          call tv_to_tsen  (xx%r3(i_t)%q,xx%r3(i_q)%q,xx%r3(i_tsen)%q)
-      endif
-
-      do j=1,lon2
-         do i=1,lat2
-            xx%r2(i_ts)%q(i,j) = sub_ts(i,j)
+         do k=1,nsig
+            do j=1,slon2
+               do i=1,slat2
+                  xx%r3(i_cw)%q(i,j,k) = sub_cw (i,j,k)
+               enddo
+            enddo
          enddo
-      enddo
-
-      deallocate (sub_tv, sub_u, sub_v, sub_q, sub_delp, sub_ps, sub_ts, stat=ierr )
-        if ( ierr/=0 ) then
+         deallocate (sub_cw, stat=ierr )
+         if ( ierr/=0 ) then
             stat = 99
-            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_)'
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_cw)'
             return
-        end if
-      if ( allocated(sub_oz) ) then
-          deallocate (sub_oz, stat=ierr )
-            if ( ierr/=0 ) then
-                stat = 99
-                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_oz)'
-                return
-            end if
-       endif
-      if ( allocated(sub_cw) ) then
-          deallocate (sub_cw, stat=ierr )
-            if ( ierr/=0 ) then
-                stat = 99
-                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_cw)'
-                return
-            end if
+         end if
       endif
       if ( allocated(sub_ql) ) then
-          deallocate (sub_ql, stat=ierr )
-            if ( ierr/=0 ) then
-                stat = 99
-                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_ql)'
-                return
-            end if
-       endif
+         call gsi_bundlegetpointer(xx,'ql',  i_ql , istatus)
+         if ( i_ql>0 ) then
+             do k=1,nsig
+                do j=1,slon2
+                   do i=1,slat2
+                      xx%r3(i_ql)%q(i,j,k) = sub_ql (i,j,k)
+                   enddo
+                enddo
+             enddo
+             deallocate (sub_ql, stat=ierr )
+             if ( ierr/=0 ) then
+                 stat = 99
+                 if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_ql)'
+                 return
+             end if
+         endif
+      endif
       if ( allocated(sub_qi) ) then
-          deallocate (sub_qi, stat=ierr )
-            if ( ierr/=0 ) then
-                stat = 99 
-                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_qi)'
-                return
-            end if
-       endif
+         call gsi_bundlegetpointer(xx,'qi',  i_qi , istatus)
+         if ( i_qi>0 ) then
+            do k=1,nsig
+               do j=1,slon2  
+                  do i=1,slat2
+                      xx%r3(i_qi)%q(i,j,k) = sub_qi (i,j,k)
+                   enddo
+                enddo
+             enddo
+             deallocate (sub_qi, stat=ierr )
+             if ( ierr/=0 ) then
+                 stat = 99 
+                 if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_qi)'
+                 return
+             end if
+         endif
+      endif
       if ( allocated(sub_qr) ) then
-          deallocate (sub_qr, stat=ierr )
+         call gsi_bundlegetpointer(xx,'qr',  i_qr , istatus)
+         if ( i_qr>0 ) then
+            do k=1,nsig
+               do j=1,slon2  
+                  do i=1,slat2
+                     xx%r3(i_qr)%q(i,j,k) = sub_qr (i,j,k)
+                  enddo
+               enddo
+            enddo
+            deallocate (sub_qr, stat=ierr )
             if ( ierr/=0 ) then
                 stat = 99
                 if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_qr)'
                 return
             end if
-       endif
-      if ( allocated(sub_qs) ) then
-          deallocate (sub_qs, stat=ierr )
-            if ( ierr/=0 ) then
-                stat = 99
-                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_qs)'
-                return
-            end if
-       endif
+         endif
+     endif
+     if ( allocated(sub_qs) ) then
+        call gsi_bundlegetpointer(xx,'qs',  i_qs , istatus)
+        if ( i_qs>0 ) then
+           do k=1,nsig
+              do j=1,slon2
+                 do i=1,slat2
+                    xx%r3(i_qs)%q(i,j,k) = sub_qs (i,j,k)
+                 enddo
+              enddo
+           enddo
+           deallocate (sub_qs, stat=ierr )
+             if ( ierr/=0 ) then
+                 stat = 99
+                 if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_qs)'
+                 return
+             end if
+           endif
+     endif
+
+      if ( which == 'tlm' ) then
+          call getprs_tl   (xx%r2(i_p)%q,xx%r3(i_t)%q,xx%r3(i_prse)%q)
+          call tv_to_tsen  (xx%r3(i_t)%q,xx%r3(i_q)%q,xx%r3(i_tsen)%q)
+      endif
+
+      if (allocated(sub_ts)) then
+         do j=1,slon2
+            do i=1,slat2
+               xx%r2(i_ts)%q(i,j) = sub_ts(i,j)
+            enddo
+         enddo
+         deallocate (sub_ts, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_ts)'
+            return
+         end if
+      endif
+     
 
       CONTAINS
 
@@ -1483,29 +1949,29 @@ end subroutine put_Npert_
       integer(i_kind) i,j,k
         xx%r2(i_p)%q = zero
         do k=1,nsig
-           do j=1,lon2
-              do i=1,lat2
+           do j=1,slon2
+              do i=1,slat2
                  xx%r2(i_p)%q(i,j) = xx%r2(i_p)%q(i,j) + alpha * sub_delp(i,j,k)
               end do
            end do
         end do
-        allocate ( sub_aux(lat2,lon2,nsig+1) )
+        allocate ( sub_aux(slat2,slon2,nsig+1) )
            k=nsig+1
-           do j=1,lon2
-              do i=1,lat2
+           do j=1,slon2
+              do i=1,slat2
                  sub_aux(i,j,k) = zero
               end do
            end do
         do k=nsig,1,-1
-           do j=1,lon2
-              do i=1,lat2
+           do j=1,slon2
+              do i=1,slat2
                  sub_aux(i,j,k) = sub_aux(i,j,k+1) + alpha * sub_delp(i,j,k)
               end do
            end do
         end do
         do k=1,nsig+1
-           do j=1,lon2
-              do i=1,lat2
+           do j=1,slon2
+              do i=1,slat2
                  xx%r3(i_prse)%q(i,j,k) = sub_aux(i,j,k)
               end do
            end do
@@ -1519,11 +1985,11 @@ end subroutine put_Npert_
       real(r_kind), intent(in) :: alpha
       real(r_kind), allocatable :: sub_aux(:,:,:) 
       integer(i_kind) i,j,k
-        allocate ( sub_aux(lat2,lon2,nsig+1) )
+        allocate ( sub_aux(slat2,slon2,nsig+1) )
         sub_aux = zero
         do k=1,nsig
-           do j=1,lon2
-              do i=1,lat2
+           do j=1,slon2
+              do i=1,slat2
                  sub_aux(i,j,k+1) = sub_aux(i,j,k+1) - sub_delp(i,j,k)
                  sub_aux(i,j,k)   = sub_aux(i,j,k)   + sub_delp(i,j,k)
                  sub_delp(i,j,k)  = zero
@@ -1531,8 +1997,8 @@ end subroutine put_Npert_
            enddo
         enddo
         do k=1,nsig+1
-           do j=1,lon2
-              do i=1,lat2
+           do j=1,slon2
+              do i=1,slat2
                  xx%r3(i_prse)%q(i,j,k) = xx%r3(i_prse)%q(i,j,k) + alpha * sub_aux(i,j,k)
               enddo
            enddo
@@ -1541,6 +2007,39 @@ end subroutine put_Npert_
         deallocate ( sub_aux )
       end subroutine ps2delp_ad_
 
+      subroutine pert2gsi2d_ ( fld, sub, stat_ )
+
+      real(r_single), intent(in)  :: fld(:,:)
+      real(r_kind),   intent(out) :: sub(:,:)
+      integer(i_kind),intent(out) :: stat_
+
+      character(len=*), parameter :: myname_ = myname//'*pert2gsi2d_'
+
+      integer(i_kind) i,j,k,ierr
+      real(r_single), allocatable :: fld3d(:,:,:)
+      real(r_kind),   allocatable :: sub3d(:,:,:)
+
+      if (gsiMode) then
+         do j=1,slon2
+            do i=1,slat2
+               sub(i,j) = fld(j,i)
+            end do
+         end do
+         stat_ = 0
+      else
+          allocate(fld3d(size(fld,1),size(fld,2),nsig))
+          allocate(sub3d(size(sub,1),size(sub,2),nsig))
+          fld3d=zero; sub3d=zero
+          fld3d(:,:,1) = fld
+          call pert2gsi_old_ ( fld3d, sub3d, ierr )
+          sub(:,:) = sub3d(:,:,nsig)
+          deallocate(sub3d)
+          deallocate(fld3d)
+          stat_ = ierr
+      endif
+
+      end subroutine pert2gsi2d_
+
       subroutine pert2gsi_ ( fld, sub, stat_ )
 
       real(r_single), intent(in)  :: fld(:,:,:)
@@ -1548,6 +2047,35 @@ end subroutine put_Npert_
       integer(i_kind),intent(out) :: stat_
 
       character(len=*), parameter :: myname_ = myname//'*pert2gsi_'
+
+      integer(i_kind) i,j,k,mm1,ierr
+      integer(i_kind) imr,jnp,nl
+
+      if (gsiMode) then
+          nl=nsig
+          if(size(fld,3)==1) nl=1
+          do k=1,nl
+             do j=1,slon2
+                do i=1,slat2
+                   sub(i,j,k) = fld(j,i,k)
+                end do
+             end do
+          enddo
+          stat_ = 0
+      else
+          call pert2gsi_old_ ( fld, sub, ierr )
+          stat_ = ierr
+      endif
+
+      end subroutine pert2gsi_
+
+      subroutine pert2gsi_old_ ( fld, sub, stat_ )
+
+      real(r_single), intent(in)  :: fld(:,:,:)
+      real(r_kind),   intent(out) :: sub(:,:,:)
+      integer(i_kind),intent(out) :: stat_
+
+      character(len=*), parameter :: myname_ = myname//'*pert2gsi_old_'
 
       real(r_kind), allocatable :: work4d(:,:,:,:)   ! auxliar 4d array
       real(r_kind), allocatable :: work3d(:,:,:)     ! auxliar 3d array
@@ -1655,7 +2183,7 @@ print*, ' WRONG PLACE TO BE ...';call flush(6)
             return
         end if
 
-      end subroutine pert2gsi_
+      end subroutine pert2gsi_old_
 
    end subroutine pgcm2gsi1_
 
@@ -1774,7 +2302,7 @@ print*, ' WRONG PLACE TO BE ...';call flush(6)
     else
         do k=1,km_world  ! this would be a good place to swapV
            work2d=vari(:,:,k)
-           call ArrayScatter(varo(:,:,k), work2d, GSI_AgcmPertGrid, rc=status)   ! _RT: ideally this should be the AD of gather
+           call ArrayScatter(varo(:,:,k), work2d, GSI_AgcmPertGrid, rc=status)
                 VERIFY_(STATUS)
         enddo
     endif

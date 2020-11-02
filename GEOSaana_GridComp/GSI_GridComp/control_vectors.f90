@@ -27,6 +27,12 @@ module control_vectors
 !   2010-05-28  todling  - remove all nrf2/3_VAR-specific "pointers"
 !   2011-07-04  todling  - fixes to run either single or double precision
 !   2013-05-20  zhu      - add aircraft temperature bias correction coefficients as control variables
+!   2016-02-15  Johnson, Y. Wang, X. Wang - add variables to control reading
+!                                           state variables for radar DA. POC: xuguang.wang@ou.edu
+!   2019-03-14  eliu     - add logic to turn on using full set of hydrometeors
+!                          in obs operator and analysis 
+!   2019-07-11  Todling  - move WRF specific variables w_exist and dbz_exit to a new wrf_vars_mod.f90.
+!                        . move imp_physics and lupp to ncepnems_io.f90.
 !
 ! subroutines included:
 !   sub init_anacv   
@@ -58,6 +64,7 @@ module control_vectors
 !
 ! variable definitions:
 !   def n_ens     - number of ensemble perturbations (=0 except when hybrid ensemble option turned on)
+!   def lcalc_gfdl_cfrac - if T, calculate and use GFDL cloud fraction in obs operator 
 !
 ! attributes:
 !   language: f90
@@ -117,8 +124,11 @@ public nvars       ! total number of static plus motley fields
 public nrf_3d      ! when .t., indicates 3d-fields
 public as3d        ! normalized scale factor for background error 3d-variables
 public as2d        ! normalized scale factor for background error 2d-variables
+public be3d        ! normalized scale factor for ensemble background error 3d-variables
+public be2d        ! normalized scale factor for ensemble background error 2d-variables
 public atsfc_sdv   ! standard deviation of surface temperature error over (1) land (and (2) ice
 public an_amp0     ! multiplying factors on reference background error variances
+public lcalc_gfdl_cfrac ! when .t., calculate and use GFDL cloud fraction in obs operator 
 
 public nrf2_loc,nrf3_loc,nmotl_loc   ! what are these for??
 public ntracer
@@ -142,7 +152,7 @@ character(len=*),parameter:: myname='control_vectors'
 integer(i_kind) :: nclen,nclen1,nsclen,npclen,ntclen,nrclen,nsubwin,nval_len
 integer(i_kind) :: latlon11,latlon1n,lat2,lon2,nsig,n_ens
 integer(i_kind) :: nval_lenz_en
-logical :: lsqrtb
+logical,save :: lsqrtb,lcalc_gfdl_cfrac  
 
 integer(i_kind) :: m_vec_alloc, max_vec_alloc, m_allocs, m_deallocs
 
@@ -160,6 +170,9 @@ character(len=max_varname_length),allocatable,dimension(:) :: evars3d  ! 3-d fie
 character(len=max_varname_length),allocatable,dimension(:) :: cvarsmd  ! motley variable names
 real(r_kind)    ,allocatable,dimension(:) :: as3d
 real(r_kind)    ,allocatable,dimension(:) :: as2d
+real(r_kind)    ,allocatable,dimension(:) :: be3d
+real(r_kind)    ,allocatable,dimension(:) :: be2d
+real(r_kind)    ,allocatable,dimension(:) :: bemo ! not public; not needed
 real(r_kind)    ,allocatable,dimension(:) :: atsfc_sdv
 real(r_kind)    ,allocatable,dimension(:) :: an_amp0
 
@@ -287,8 +300,9 @@ character(len=256),allocatable,dimension(:):: utable
 character(len=20) var,source,funcof
 character(len=*),parameter::myname_=myname//'*init_anacv'
 integer(i_kind) luin,ii,ntot
+integer(i_kind) ioflag
 integer(i_kind) ilev, itracer
-real(r_kind) aas,amp
+real(r_kind) aas,amp,bes
 
 ! load file
 luin=get_lun()
@@ -311,7 +325,10 @@ close(luin)
 ! Count variables first
 nc3d=0; nc2d=0;mvars=0
 do ii=1,nvars
-   read(utable(ii),*) var, ilev, itracer, aas, amp, source, funcof
+   read(utable(ii),*,IOSTAT=ioflag) var, ilev, itracer, aas, amp, source, funcof, bes
+   if (ioflag/=0) then
+      read(utable(ii),*) var, ilev, itracer, aas, amp, source, funcof
+   endif
    if(trim(adjustl(source))=='motley') then
       mvars=mvars+1
    else
@@ -325,36 +342,44 @@ enddo
 
 allocate(nrf_var(nvars),cvars3d(nc3d),cvars2d(nc2d))
 allocate(as3d(nc3d),as2d(nc2d))
+allocate(be3d(nc3d),be2d(nc2d),bemo(mvars))
 allocate(cvarsmd(mvars))
 allocate(atsfc_sdv(mvars))
 allocate(an_amp0(nvars))
 
 ! want to rid code from the following ...
 nrf=nc2d+nc3d
-allocate(nrf_3d(nrf),nrf2_loc(nc2d),nrf3_loc(nc3d),nmotl_loc(mvars))
+allocate(nrf_3d(nrf),nrf2_loc(nc2d),nrf3_loc(nc3d),nmotl_loc(max(1,mvars)))
 
 ! Now load information from table
 nc3d=0;nc2d=0;mvars=0
 nrf_3d=.false.
 do ii=1,nvars
-   read(utable(ii),*) var, ilev, itracer, aas, amp, source, funcof
+   read(utable(ii),*,IOSTAT=ioflag) var, ilev, itracer, aas, amp, source, funcof, bes
+   if (ioflag/=0) then
+      read(utable(ii),*) var, ilev, itracer, aas, amp, source, funcof
+      bes=-one
+   endif
    if(trim(adjustl(source))=='motley') then
        mvars=mvars+1
        cvarsmd(mvars)=trim(adjustl(var))
        nmotl_loc(mvars)=ii
        atsfc_sdv(mvars)=aas
+       bemo(mvars)=bes
    else
       if(ilev==1) then
          nc2d=nc2d+1
          cvars2d(nc2d)=trim(adjustl(var))
          nrf2_loc(nc2d)=ii  ! rid of soon
          as2d(nc2d)=aas
+         be2d(nc2d)=bes
       else
          nc3d=nc3d+1
          cvars3d(nc3d)=trim(adjustl(var))
          nrf3_loc(nc3d)=ii  ! rid of soon
          nrf_3d(ii)=.true.
          as3d(nc3d)=aas
+         be3d(nc3d)=bes
       endif
    endif
    nrf_var(ii)=trim(adjustl(var))
@@ -378,6 +403,7 @@ if (mype==0) then
     write(6,*) myname_,': MOTLEY CONTROL VARIABLES ', cvarsmd
     write(6,*) myname_,': ALL CONTROL VARIABLES    ', nrf_var
 end if
+lcalc_gfdl_cfrac = .false.
 
 end subroutine init_anacv
 subroutine final_anacv
@@ -385,6 +411,7 @@ subroutine final_anacv
   deallocate(nrf_var)
   deallocate(nrf_3d,nrf2_loc,nrf3_loc,nmotl_loc)
   deallocate(as3d,as2d)
+  deallocate(be3d,be2d,bemo)
   deallocate(an_amp0)
   deallocate(atsfc_sdv)
   deallocate(cvarsmd)

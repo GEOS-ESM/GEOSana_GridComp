@@ -10,6 +10,7 @@ subroutine init_jcdfi
 !   2007-10-18  tremolet - initial code
 !   2009-08-17  lueken   - update documentation
 !   2011-08-01  lueken   - changed F90 to f90 (no machine logic)
+!   2020-02-26  todling - reset obsbin from hr to min
 !
 !   input argument list:
 !
@@ -24,7 +25,7 @@ subroutine init_jcdfi
 !----------------------------------------------------------------------
 
 use kinds, only: r_kind,i_kind
-use gsi_4dvar, only: nobs_bins, hr_obsbin
+use gsi_4dvar, only: nobs_bins, mn_obsbin
 use constants, only: zero, one, two, pi,r3600
 use mpimod, only: mype
 use jcmod, only: wgtdfi
@@ -39,7 +40,7 @@ integer(i_kind) :: nstdfi,jj,jn
 !----------------------------------------------------------------------
 
 tauc   = 6.0_r_kind*r3600
-rtdfi  = hr_obsbin *r3600
+rtdfi  = mn_obsbin *60.0_r_kind
 nstdfi = (nobs_bins-1)/2
 
 if (mype==0) then

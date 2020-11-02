@@ -1,4 +1,4 @@
-subroutine read_amsr2(mype,val_amsr2,ithin,rmesh,gstime,&
+subroutine read_amsr2(mype,val_amsr2,ithin,rmesh,jsatid,gstime,&
      infile,lunout,obstype,nread,ndata,nodata,twind,sis,&
      mype_root,mype_sub,npe_sub,mpi_comm_sub,nobs)
 
@@ -24,6 +24,17 @@ subroutine read_amsr2(mype,val_amsr2,ithin,rmesh,gstime,&
 !   2016-07-25  ejones   - made most allocatable arrays static
 !   2016-09-20  j. guo   - Refixed dlxx_earth_deg, for the new dlxx_earth_save(:).
 !   2017-01-03  todling  - treat save arrays as allocatable
+!   2017-04-01  j.jin    - Variational thinning for global DA.
+!                          If the original thinning box size < 100 km, then do another thinning.
+!                          The thinning mesh length is 145 km in the 2nd round thinning.  
+!                          In this case, the 1st round thinning is conduced with observations 
+!                          within the default (smaller) thinning mesh grids, and the 2nd round
+!                          thinning is done  with observations in larger thinning mesh grids where
+!                          there are less or no clouds (depending the maximum clw values). 
+!   2017-05-09  j.jin    - Set The grid box's length in 2nd round thinning to be 145 km.
+!   2018-10-11  j.jin    - Bin fovn number by 3.
+!                        - Calculate solar zenith angle.
+!   2018-05-21  j.jin    - added time-thinning. Moved the checking of thin4d into satthin.F90.
 ! 
 !
 ! input argument list:
@@ -56,11 +67,16 @@ subroutine read_amsr2(mype,val_amsr2,ithin,rmesh,gstime,&
   use kinds, only: r_kind,r_double,i_kind
   use satthin, only: super_val,itxmax,makegrids,map2tgrid,destroygrids, &
       checkob,finalcheck,score_crit
+  use satthin, only: radthin_time_info,tdiff2crit
+  use obsmod,  only: time_window_max
   use radinfo, only: iuse_rad,nusis,jpch_rad,amsr2_method 
+  use radinfo, only: radedge1,radedge2
+  use radinfo, only: radnstep, adp_anglebc
   use gridmod, only: diagnostic_reg,regional,nlat,nlon,rlats,rlons,&
       tll2xy
+  use constants, only: rearth
   use constants, only: deg2rad,zero,one,three,r60inv,two
-  use gsi_4dvar, only: l4dvar, iwinbgn, winlen, l4densvar, thin4d
+  use gsi_4dvar, only: l4dvar, iwinbgn, winlen, l4densvar
   use calc_fov_conical, only: instrument_init
   use deter_sfc_mod, only: deter_sfc_fov,deter_sfc
   use gsi_nstcouplermod, only: nst_gsi,nstinfo
@@ -69,12 +85,13 @@ subroutine read_amsr2(mype,val_amsr2,ithin,rmesh,gstime,&
   use m_sortind
   use mpimod, only: npe
 ! use radiance_mod, only: rad_obs_type
+  use clw_mod, only: retrieval_amsr2
 
   implicit none
 
 ! Input variables
   character(len=*) ,intent(in   ) :: infile
-  character(len=*) ,intent(in   ) :: obstype
+  character(len=*) ,intent(in   ) :: obstype,jsatid
   integer(i_kind)  ,intent(in   ) :: mype
   integer(i_kind)  ,intent(in   ) :: ithin
   integer(i_kind)  ,intent(in   ) :: lunout
@@ -96,7 +113,7 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
   integer(i_kind),parameter :: N_AMSRCH  =  14  ! only channels 1-14 processed
   integer(i_kind) :: said, bufsat = 122 !WMO sat id 
   integer(i_kind) :: siid, AMSR2_SIID = 478   !WMO instrument identifier 
-  integer(i_kind),parameter :: maxinfo    =  33
+  integer(i_kind),parameter :: maxinfo    =  34
 
 ! BUFR file sequencial number
   character(len=8)  :: subset
@@ -122,7 +139,7 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
   integer(i_kind),dimension(n_amsrch) :: kchamsr2
   real(r_kind)     :: sfcr
   real(r_kind)     :: dlon, dlat
-  real(r_kind)     :: timedif, dist1   
+  real(r_kind)     :: dist1   
   real(r_kind),allocatable,dimension(:,:):: data_all
   integer(i_kind),allocatable,dimension(:)::nrec
   integer(i_kind):: irec,next
@@ -140,10 +157,12 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
   real(r_kind),allocatable        :: relative_time_in_seconds(:)
 
   real(r_kind) :: dlat_earth_deg, dlon_earth_deg
+  real(r_kind) :: dlat_earth_rad, dlon_earth_rad
   real(r_kind),pointer :: t4dv,dlon_earth,dlat_earth,crit1
   real(r_kind),pointer :: sat_zen_ang,sat_az_ang    
   real(r_kind),pointer :: sun_zen_ang,sun_az_ang
   real(r_kind),pointer :: tbob(:)
+  real(r_kind)         :: crit1a
 
   integer(i_kind),pointer :: ifov,iscan,iorbn,inode    
 
@@ -152,6 +171,7 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
   integer(i_kind),target,allocatable,dimension(:) :: iscan_save
   integer(i_kind),target,allocatable,dimension(:) :: iorbn_save
   integer(i_kind),target,allocatable,dimension(:) :: inode_save
+  integer(i_kind),target,allocatable,dimension(:) :: it_mesh_save
   real(r_kind),target,allocatable,dimension(:) :: dlon_earth_save
   real(r_kind),target,allocatable,dimension(:) :: dlat_earth_save
   real(r_kind),target,allocatable,dimension(:) :: sat_zen_ang_save,sat_az_ang_save
@@ -180,25 +200,78 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
   real(r_double),dimension(4):: gcomspot_d
   real(r_double),dimension(13):: amsrspot_d               
   real(r_double),dimension(3,14):: amsrchan_d             
+  real(r_double),dimension(14)  :: ocean_frc
+! bin fovn 
+  integer,parameter:: npos_bin = 3
+  integer:: amsr2_nstep
+
+! ---- For sun zenith and glint angles  ----
+  integer(i_kind):: doy,mday(12),mon,m,mlen(12)
+  real(r_kind)   :: time_4_sun_glint_calc,clath_sun_glint_calc,clonh_sun_glint_calc
+  real(r_kind)   :: sun_zenith,sun_azimuth_ang
+  data  mlen/31,28,31,30,31,30, &
+             31,31,30,31,30,31/
+  real(r_kind)   :: sat_scan_ang,sat_altitude
 
   integer(i_kind) :: ireadsb, ireadmg 
   real(r_kind),parameter:: one_minute=0.01666667_r_kind
   real(r_kind),parameter:: minus_one_minute=-0.01666667_r_kind
 
+  real(r_kind)    :: ptime,timeinflat,crit0
+  integer(i_kind) :: ithin_time,n_tbin
+  integer(i_kind),pointer:: it_mesh => null()
+!--- For the second thinning ---
+  integer(i_kind) :: kraintype,ierrret
+  real(r_kind)    :: clw, clw_cutoff
+  integer(i_kind):: radedge_min,radedge_max
+! Distance from center of thinning box (0.5 at the center of the box.)
+  real(r_kind), parameter :: dist1_center=0.54
+  real(r_kind)    :: rmesh2
+  integer(i_kind) :: isb, iisb, nremove, idx_maxclw, nread_skip,nread_lp1
+  integer(i_kind) :: itx1, n1,n2,n2a, thinloop,nn_thinloop,itxmax2
+  real(r_kind),    allocatable, dimension(:)   :: maxclw_in_box, maxclw_in_box1
+  real(r_kind),    allocatable, dimension(:,:) :: data_all_new
+  integer(i_kind), allocatable, dimension(:)   :: thingrid1_itx
+  real(r_kind)    :: rmeshi
+  logical         :: l2nd_thin, varthin
 ! ----------------------------------------------------------------------
 ! Initialize variables
 
   call init_(kchanl,maxobs)
   do_noise_reduction = .true.
   if (amsr2_method == 0) do_noise_reduction = .false.
+! Orbit altitude  (m)
+  sat_altitude = 6.996e+5_r_kind
 
   ilon = 3
   ilat = 4
+! Possible variational thinning for global. Mannual set here for now.
+  varthin = .true.
+! Value for idx_maxclw will not be in the final writing out of data_all.
+  idx_maxclw = 32
+! The 2nd thinning
+  nn_thinloop=1
+  clw_cutoff=0.20_r_kind   ! CLW threshold value 2nd-round thinning.
+  if (varthin .and. (.not. regional) .and. rmesh < 100.0_r_kind) then
+     l2nd_thin = .true.
+     rmesh2 = 145
+  else 
+     l2nd_thin = .false.
+  endif
+  if( mype_sub==mype_root.and. l2nd_thin ) then
+     write(6,*) 'READ_AMSR2: rmesh=', rmesh
+     write(6,*) 'READ_AMSR2: l2nd_thin=true,  rmesh2=', rmesh2
+  endif
 
   if (nst_gsi > 0 ) then
      call gsi_nstcoupler_skindepth(obstype, zob)         ! get penetration depth (zob) for the obstype
   endif
 
+  m = 0
+  do mon=1,12 
+     mday(mon) = m 
+     m = m + mlen(mon) 
+  end do 
   ntest = 0
   nreal = maxinfo+nstinfo
   ndata = 0
@@ -222,17 +295,28 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
 ! We do not want such observations affecting the relative
 ! weighting between observations within a given thinning group.
 
+  radedge_min = 0
+  radedge_max = 1000
   assim=.false.
   search: do i=1,jpch_rad
-     if ((nusis(i)==sis) .and. (iuse_rad(i)>0)) then
-        assim=.true.
-        exit search
+    if (trim(nusis(i))==trim(sis)) then
+        radedge_min=radedge1(i)
+        amsr2_nstep = radnstep(i)
+        if ( radedge2(i) /= -1 ) radedge_max=radedge2(i)
+        if (iuse_rad(i)>=0) then
+           assim=.true.
+           exit search
+        endif
      endif
   end do search
   if (.not.assim) val_amsr2=zero
 
-! Make thinning grids
-  call makegrids(rmesh,ithin)
+  call radthin_time_info(obstype, jsatid, sis, ptime, ithin_time)
+  if( ptime > 0.0_r_kind) then
+     n_tbin=nint(2*time_window_max/ptime)
+  else
+     n_tbin=1
+  endif
 
   inode_save = 0
 
@@ -256,6 +340,7 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
         dlon_earth  => dlon_earth_save(iobs)
         dlat_earth  => dlat_earth_save(iobs)
         crit1       => crit1_save(iobs)
+        it_mesh     => it_mesh_save(iobs)
         ifov        => ifov_save(iobs)
         iscan       => iscan_save(iobs)
         iorbn       => iorbn_save(iobs)
@@ -285,8 +370,15 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
         iscan = amsrspot_d(13)
         
         ifov = nint(fovn)
+        if (.not. do_noise_reduction) then 
+           if(.not. adp_anglebc .or. amsr2_nstep <= 90) then
+              ifov  = ceiling(fovn/npos_bin)
+           endif
+           if (ifov  < radedge_min .or. ifov > radedge_max) cycle read_loop
+        endif
+
         sat_az_ang = amsrspot_d(10)
-        sat_zen_ang = 55.0_r_kind*deg2rad
+        sat_zen_ang = amsrspot_d(11)*deg2rad    ! satellite zenith/incidence angle(rad)
 
 
 !       Check obs time
@@ -315,12 +407,10 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
         else
            if (abs(tdiff)>twind) cycle read_loop  
         endif
-        if (thin4d) then
-           timedif = zero
-        else
-           timedif = 6.0_r_kind*abs(tdiff) ! range:  0 to 18 
-        endif
 
+        crit0 = 0.01_r_kind
+        timeinflat=6.0_r_kind
+        call tdiff2crit(tdiff,ptime,ithin_time,timeinflat,crit0,crit1,it_mesh)
 
 !     --- Check observing position -----
         clath= amsrspot_d(08)
@@ -345,8 +435,6 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
         dlat_earth = clath !* deg2rad
         dlon_earth = clonh !* deg2rad
 
-        crit1 = 0.01_r_kind+timedif
-
 !!       Retrieve bufr 3/4 : get amsrchan 
         call ufbrep(lnbufr,amsrchan_d,3,14,iret,'SCCF ACQF TMBR')   
 
@@ -367,6 +455,12 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
            endif
         end do
         if(kskip == kchanl .or. iskip == nchanl) cycle read_loop
+        if ( any(amsrchan_d(3,:) < 50.0_r_kind ) .or. &
+             any(amsrchan_d(3,:) > 350.0_r_kind) ) cycle read_loop
+!       Note: 'ALFR' is actually (ONE - LandFranction) in AMSR2 bufr files. 
+        call ufbrep(lnbufr,ocean_frc,1,14,iret,'ALFR')   
+!       skip coastal data.
+        if ( any(ocean_frc > 0.01_r_kind .and. ocean_frc < 0.99_r_kind ) ) cycle read_loop
 
         tbob_save(1,iobs)=amsrchan_d(3,1)
         tbob_save(2,iobs)=amsrchan_d(3,2)
@@ -385,29 +479,35 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
 
         nread=nread+kchanl
 
-        sun_zen_ang = gcomspot_d(3)     !solar azimuth angle
-        sun_el_ang = gcomspot_d(4)       !solar elevation angle
+!       sun_zen_ang = gcomspot_d(3)     !solar azimuth angle
+!       sun_el_ang = gcomspot_d(4)       !solar elevation angle
 
 !    Check observational info 
 
-        if( sun_el_ang < -180._r_kind .or. sun_el_ang > 180._r_kind )then
-           write(6,*)'READ_AMSR2:  ### ERROR IN READING BUFR DATA:', &
-              ' STRANGE OBS INFO(FOV,SOLAZI,SOEL):', ifov, sun_az_ang, sun_el_ang
-           cycle read_loop       
-        endif
+!       if( sun_el_ang < -180._r_kind .or. sun_el_ang > 180._r_kind )then
+!          write(6,*)'READ_AMSR2:  ### ERROR IN READING BUFR DATA:', &
+!             ' STRANGE OBS INFO(FOV,SOLAZI,SOEL):', ifov, sun_az_ang, sun_el_ang
+!          cycle read_loop       
+!       endif
 !    make solar azimuth angles from -180 to 180 degrees
-        if (sun_az_ang > 180.0_r_kind) then
-           sun_az_ang=sun_az_ang-360.0_r_kind
-        endif
+!       if (sun_az_ang > 180.0_r_kind) then
+!          sun_az_ang=sun_az_ang-360.0_r_kind
+!       endif
 
 !    calculate solar zenith angle (used in QC for sun glint)
-        sun_zen_ang = 90.0_r_kind - sun_el_ang
-
-!       check to make sure sun zenith is between 0 and 180
-        if (sun_zen_ang < 0.0_r_kind) then
-          sun_zen_ang=90.0_r_kind-sun_zen_ang
-        endif
-        sat_zen_ang = amsrspot_d(11)*deg2rad    ! satellite zenith/incidence angle(rad)
+!       j.jin. Oct 11, 2018.  The so called solar elevation angles in the source data are not 
+!       actual solar elevationa angles, which should be  90 - sun_zen_ang (deg).
+        clath_sun_glint_calc = clath
+        clonh_sun_glint_calc = clonh
+        if(clonh_sun_glint_calc > 180._r_kind) clonh_sun_glint_calc = clonh_sun_glint_calc - 360.0_r_kind
+        doy = mday( int(amsrspot_d(3)) ) + int(amsrspot_d(4))
+        if ((mod( int(amsrspot_d(2)),4)==0).and.( int(amsrspot_d(3)) > 2))  then
+           doy = doy + 1
+        end if
+        time_4_sun_glint_calc = amsrspot_d(5)+amsrspot_d(6)*r60inv+amsrspot_d(7)*r60inv*r60inv
+        call zensun(doy,time_4_sun_glint_calc,clath_sun_glint_calc,clonh_sun_glint_calc,sun_zenith,sun_azimuth_ang)
+        sun_zen_ang = 90.0_r_kind-sun_zenith
+        sun_az_ang = sun_azimuth_ang
 
         iobs=iobs+1
         if (iobs > maxobs) then
@@ -437,6 +537,7 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
      dlon_earth_save(1:num_obs)          = dlon_earth_save(sorted_index)
      dlat_earth_save(1:num_obs)          = dlat_earth_save(sorted_index)
      crit1_save(1:num_obs)               = crit1_save(sorted_index)
+     it_mesh_save(1:num_obs)             = it_mesh_save(sorted_index)
      ifov_save(1:num_obs)                = ifov_save(sorted_index)
      iscan_save(1:num_obs)               = iscan_save(sorted_index)
      iorbn_save(1:num_obs)               = iorbn_save(sorted_index)
@@ -469,98 +570,125 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
   endif ! do_noise_reduction
 
 !========================================================================================================================
+! If l2nd_thin=.True., perform 2nd round thinning with original observations.
+! The maximum clw values within the 1st round thinning grids associated with
+! these observations must be less than the clwcutoff value. In addiotn,
+! the 1st round thinned data in these grids will not retain in this case.
+  if(l2nd_thin) then
+     nn_thinloop = 2
+     allocate(thingrid1_itx(num_obs))
+     thingrid1_itx = -1
+  endif
+  if( do_noise_reduction ) nn_thinloop = 1
 
-! Complete thinning for AMSR2
-! Write header record to scratch file.  Also allocate array
-! to hold all data for given satellite
-  nreal  = maxinfo + nstinfo
-  nele   = nreal   + nchanl
-  allocate(data_all(nele,itxmax),nrec(itxmax))
-
-  nrec=999999
-  obsloop: do iobs = 1, num_obs
-
-     t4dv        => t4dv_save(iobs)
-     dlon_earth  => dlon_earth_save(iobs)
-     dlat_earth  => dlat_earth_save(iobs)
-     crit1       => crit1_save(iobs)
-     ifov        => ifov_save(iobs)
-     iscan       => iscan_save(iobs)
-     iorbn       => iorbn_save(iobs)
-     inode       => inode_save(iobs)
-     sat_zen_ang         => sat_zen_ang_save(iobs)
-     sat_az_ang          => sat_az_ang_save(iobs)
-     sun_zen_ang             => sun_zen_ang_save(iobs)
-     sun_az_ang          => sun_az_ang_save(iobs)
-     tbob                => tbob_save(1:nchanl,iobs)
-
-     if (do_noise_reduction) then
-        if (inode == 0) cycle obsloop   ! this indicate duplicated data
-     endif
-
-     dlat_earth_deg = dlat_earth
-     dlon_earth_deg = dlon_earth
-     dlat_earth     = dlat_earth*deg2rad
-     dlon_earth     = dlon_earth*deg2rad
-
-!    Regional case
-     if(regional)then
-        call tll2xy(dlon_earth,dlat_earth,dlon,dlat,outside)
-
-!       Check to see if in domain
-        if(outside) cycle obsloop
-
-!    Global case
+!===============================================================
+  thin_loop: do thinloop = 1, nn_thinloop
+     if(thinloop ==1) then
+        rmeshi = rmesh
+        nread_lp1=0
      else
-        dlat = dlat_earth
-        dlon = dlon_earth
-        call grdcrd1(dlat,rlats,nlat,1)
-        call grdcrd1(dlon,rlons,nlon,1)
+        rmeshi = rmesh2
      endif
+     nread = 0
+     nread_skip=0
+!=========================
+!    Make thinning grids
+     call makegrids(rmeshi,ithin,n_tbin=n_tbin)
 
-!   Check time
-    if (l4dvar) then
-        if (t4dv<zero .OR. t4dv>winlen) cycle obsloop
-    else
-        tdiff=t4dv+(iwinbgn-gstime)*r60inv
-        if(abs(tdiff) > twind) cycle obsloop
-    endif
+!    Complete thinning for AMSR2
+!    Write header record to a scratch file.  Also allocate array
+!    to hold all data for given satellite
+     nreal  = maxinfo + nstinfo
+     nele   = nreal   + nchanl
+     allocate(data_all(nele,itxmax),nrec(itxmax))
+     allocate(maxclw_in_box(itxmax))
+     if( thinloop == 1 )then
+        allocate(maxclw_in_box1(itxmax))
+        maxclw_in_box1 = 0.0_r_kind
+!       Assumming the 2nd round thinning box is the same as or larger than the 1st round thinning box. 
+        itxmax2 = itxmax*nn_thinloop
+        allocate(data_all_new(nele,itxmax2))
+     endif
+     maxclw_in_box = -999.0_r_kind
 
-!   Map obs to thinning grid
-    call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis)
-    if(.not. iuse) then
-      cycle obsloop
-    endif
 
-!   Check TBs again
-    iskip = 0
-    do l=1,nchanl
-        if(tbob(l)<tbmin .or. tbob(l)>tbmax)then
-           iskip = iskip + 1
-        end if
-    end do
-    kskip = 0
-    do l=1,kchanl
-        kch=kchamsr2(l)
-        if(tbob(kch)<tbmin .or. tbob(kch)>tbmax)then
-           kskip = kskip + 1
+     nrec=999999
+     obsloop: do iobs = 1, num_obs
+
+        t4dv        => t4dv_save(iobs)
+        dlon_earth  => dlon_earth_save(iobs)
+        dlat_earth  => dlat_earth_save(iobs)
+        crit1       => crit1_save(iobs)
+        it_mesh     => it_mesh_save(iobs)
+        ifov        => ifov_save(iobs)
+        iscan       => iscan_save(iobs)
+        iorbn       => iorbn_save(iobs)
+        inode       => inode_save(iobs)
+        sat_zen_ang         => sat_zen_ang_save(iobs)
+        sat_az_ang          => sat_az_ang_save(iobs)
+        sun_zen_ang             => sun_zen_ang_save(iobs)
+        sun_az_ang          => sun_az_ang_save(iobs)
+        tbob                => tbob_save(1:nchanl,iobs)
+
+        if (do_noise_reduction) then
+           if (inode == 0) cycle obsloop   ! this indicate duplicated data
         endif
-    end do
-    if(kskip == kchanl .or. iskip == nchanl) cycle obsloop
 
-!   if the obs is far from the grid box center, do not use it.
-    if(ithin /= 0) then
-       if(.not. regional .and. dist1 > 0.75_r_kind) cycle obsloop
-    endif
+        dlat_earth_deg = dlat_earth
+        dlon_earth_deg = dlon_earth
+        dlat_earth_rad = dlat_earth*deg2rad
+        dlon_earth_rad = dlon_earth*deg2rad
 
-    crit1 = crit1 + 10._r_kind * float(iskip)
-    call checkob(dist1,crit1,itx,iuse)
-    if(.not. iuse) then
-       cycle obsloop
-    endif
+!       Regional case
+        if(regional)then
+           call tll2xy(dlon_earth_rad,dlat_earth_rad,dlon,dlat,outside)
 
-!   Locate the observation on the analysis grid.  Get sst and
-!   land/sea/ice mask.
+!          Check to see if in domain
+           if(outside) cycle obsloop
+
+ !      Global case
+        else
+           dlat = dlat_earth_rad
+           dlon = dlon_earth_rad
+           call grdcrd1(dlat,rlats,nlat,1)
+           call grdcrd1(dlon,rlons,nlon,1)
+        endif
+!       Sum number of read obs before thinning step.  Note that this number will contain
+!       some observations that may be rejected later due to bad BTs.
+        nread=nread+kchanl
+
+
+!       Check time
+        if (l4dvar .or. l4densvar ) then
+           if (t4dv<zero .OR. t4dv>winlen) cycle obsloop
+        else
+           tdiff=t4dv+(iwinbgn-gstime)*r60inv
+           if(abs(tdiff) > twind) cycle obsloop
+        endif
+        crit1a=crit1
+
+!       Check TBs again
+        iskip = 0
+        do l=1,nchanl
+           if(tbob(l)<tbmin .or. tbob(l)>tbmax)then
+              iskip = iskip + 1
+           end if
+        end do
+        kskip = 0
+        do l=1,kchanl
+           kch=kchamsr2(l)
+           if(tbob(kch)<tbmin .or. tbob(kch)>tbmax)then
+              kskip = kskip + 1
+           endif
+        end do
+        if(kskip == kchanl .or. iskip == nchanl) cycle obsloop
+
+
+!       Map obs to thinning grid
+        call map2tgrid(dlat_earth_rad,dlon_earth_rad,dist1,crit1a,itx,ithin,itt,iuse,sis,it_mesh=it_mesh)
+
+!       Locate the observation on the analysis grid.  Get sst and
+!       land/sea/ice mask.
 
 !       isflg    - surface flag
 !                  0 sea
@@ -569,22 +697,56 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
 !                  3 snow
 !                  4 mixed
 
-    call deter_sfc(dlat,dlon,dlat_earth,dlon_earth,t4dv,isflg,idomsfc(1),sfcpct, &
-         ts,tsavg,vty,vfr,sty,stp,sm,sn,zz,ff10,sfcr)
+        call deter_sfc(dlat,dlon,dlat_earth_rad,dlon_earth_rad,t4dv,isflg,idomsfc(1),sfcpct, &
+             ts,tsavg,vty,vfr,sty,stp,sm,sn,zz,ff10,sfcr)
 
-!   Only keep obs over ocean    - ej
-    if(isflg /= 0) cycle obsloop
+!       Only keep obs over ocean    - ej
+        if(isflg /= 0) cycle obsloop
 
-    crit1 = crit1 + rlndsea(isflg)
-    call checkob(dist1,crit1,itx,iuse)
-    if(.not. iuse) then
-       cycle obsloop
-    endif
+        if ( .not. regional .and. nn_thinloop == 2 ) then
+           if( thinloop == 1 ) then
+              thingrid1_itx(iobs) = itx
+              nread_lp1 = nread_lp1 + kchanl
+!             Cloud information
+              call retrieval_amsr2(tbob,nchanl,clw,kraintype,ierrret)
+!             save the max clw in this thinning box
+              if(clw > maxclw_in_box(itx) )  maxclw_in_box(itx) = clw
+           else if (thinloop == 2 ) then
+              itx1 = thingrid1_itx(iobs)
+!             Not to process data if the max clw in 1st round thinning grid box .ge. clw_cutoff
+              if( maxclw_in_box1(itx1) >= clw_cutoff) then
+                 nread_skip = nread_skip + kchanl
+                 cycle obsloop
+              endif
+           endif
+        endif
 
-    call finalcheck(dist1,crit1,itx,iuse)
-    if(.not. iuse) then
-       cycle obsloop
-    endif
+        if(.not. iuse) then
+           cycle obsloop
+        endif
+
+!       if the obs is far from the grid box center, do not use it.
+        if(ithin /= 0 .and. thinloop == 1 ) then
+           if(.not. regional .and. dist1 > dist1_center) cycle obsloop
+        endif
+
+        crit1a = crit1a + 10._r_kind * float(iskip)
+        call checkob(dist1,crit1a,itx,iuse)
+        if(.not. iuse) then
+           cycle obsloop
+        endif
+
+        crit1a = crit1a + rlndsea(isflg)
+        call checkob(dist1,crit1a,itx,iuse)
+ 799    format(2x, a,2f15.5,i15,3x,L)
+        if(.not. iuse) then
+           cycle obsloop
+        endif
+
+        call finalcheck(dist1,crit1a,itx,iuse)
+        if(.not. iuse) then
+           cycle obsloop
+        endif
 
 !       interpolate NSST variables to Obs. location and get dtw, dtc, tz_tr
         if ( nst_gsi > 0 ) then
@@ -593,9 +755,11 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
            dtc   = zero
            tz_tr = one
            if ( sfcpct(0) > zero ) then
-             call gsi_nstcoupler_deter(dlat_earth,dlon_earth,t4dv,zob,tref,dtw,dtc,tz_tr)
+             call gsi_nstcoupler_deter(dlat_earth_rad,dlon_earth_rad,t4dv,zob,tref,dtw,dtc,tz_tr)
            endif
         endif
+!       calculate scan angles.
+        sat_scan_ang = asin( sin(sat_zen_ang)*rearth/(rearth+sat_altitude) )
 
         data_all(1,itx) = bufsat                     ! satellite ID
         data_all(2,itx) = t4dv                       ! time diff (obs - anal) (hours)
@@ -603,7 +767,7 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
         data_all(4,itx) = dlat                       ! grid relative latitude
         data_all(5,itx) = sat_zen_ang                ! satellite zenith angle (rad)
         data_all(6,itx) = sat_az_ang                 ! satellite azimuth angle
-        data_all(7,itx) = zero                       ! look angle (rad)
+        data_all(7,itx) = sat_scan_ang               ! look angle (rad)
         data_all(8,itx) = ifov                       ! scan position
         data_all(9,itx) = sun_zen_ang                ! solar zenith angle (deg)
         data_all(10,itx)= sun_az_ang                 ! solar azimuth angle (deg)
@@ -628,9 +792,9 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
         data_all(29,itx)= ff10                       ! ten meter wind factor
         data_all(30,itx)= dlon_earth_deg             ! earth relative longitude (degrees)
         data_all(31,itx)= dlat_earth_deg             ! earth relative latitude (degrees)
-
-        data_all(32,itx)= val_amsr2
-        data_all(33,itx)= itt
+        data_all(32,itx)= maxclw_in_box(itx)         ! max clw in the thinning box 
+        data_all(33,itx)= val_amsr2
+        data_all(34,itx)= itt
 
         if ( nst_gsi > 0 ) then
            data_all(maxinfo+1,itx) = tref                ! foundation temperature
@@ -646,11 +810,55 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
 
      enddo obsloop
 
-! If multiple tasks read input bufr file, allow each tasks to write out
-! information it retained and then let single task merge files together
+!    If multiple tasks read input bufr file, allow each tasks to write out
+!    information it retained and then let single task merge files together
 
-  call combine_radobs(mype_sub,mype_root,npe_sub,mpi_comm_sub,&
-     nele,itxmax,nread,ndata,data_all,score_crit,nrec)
+     call combine_radobs(mype_sub,mype_root,npe_sub,mpi_comm_sub,&
+        nele,itxmax,nread,ndata,data_all,score_crit,nrec)
+     if( mype_sub==mype_root) write(6,*) 'READ_AMSR2: after combine_obs, nread,ndata is ',nread,ndata
+     if (nn_thinloop ==2 .and. thinloop == 2 .and. mype_sub==mype_root) then
+        write(6,'(1x,a,i15,a,i15,a)') 'READ_AMSR2: # data skipped in the 2nd round thinning', nread_skip,' of (', nread_lp1,')'
+     endif
+     call destroygrids    ! Deallocate satthin arrays
+!=========================
+     if(nn_thinloop == 2) then
+        if(thinloop == 1) then
+           n1 = 0
+           do n = 1, ndata
+              if(data_all(idx_maxclw,n) >= clw_cutoff) then
+                 n1 = n1+1
+                 data_all_new(:,n1) = data_all(:,n)
+              endif
+           enddo
+           maxclw_in_box1 = maxclw_in_box
+           if( mype_sub == mype_root) write(6,*) 'READ_AMSR2: afer thinloop1, retained data n1 = ',n1
+        else
+           n2 = n1+ndata
+           n2a = n1+1
+           data_all_new(:,n2a:n2) = data_all(:,1:ndata)
+           if( mype_sub == mype_root) write(6,*) 'READ_AMSR2: afer thinloop2, retained data n2 = ',n2
+           ndata = n2
+        endif
+        deallocate(data_all,nrec)
+     endif
+     deallocate(maxclw_in_box)
+  enddo thin_loop
+!===============================================================
+  if( nn_thinloop == 1) then
+     data_all_new(:,1:ndata) = data_all(:, 1:ndata)
+     deallocate(data_all)
+  endif
+
+! Remove idx_maxclw in the final data_all(:,:)
+  nreal = nreal -1
+  nele  = nreal + nchanl
+  allocate(data_all(nele, ndata))
+  data_all(1:(idx_maxclw-1),1:ndata) = data_all_new(1:(idx_maxclw-1), 1:ndata)
+  data_all((idx_maxclw):nele,1:ndata) = data_all_new((idx_maxclw+1):(nele+1), 1:ndata)
+  if( allocated(data_all_new)) deallocate(data_all_new)
+  if( allocated(thingrid1_itx)) deallocate(thingrid1_itx)
+  if( allocated(maxclw_in_box1)) deallocate(maxclw_in_box1)
+!=========================================================================================================
 
 ! Allow single task to check for bad obs, update superobs sum,
 ! and write out data to scratch file for further processing.
@@ -675,8 +883,7 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
   endif
 
   call clean_
-  deallocate(data_all,nrec) ! Deallocate data arrays
-  call destroygrids    ! Deallocate satthin arrays
+  if( allocated(data_all) ) deallocate(data_all) ! Deallocate data arrays
   if(diagnostic_reg.and.ntest>0 .and. mype_sub==mype_root) &
      write(6,*)'READ_AMSR2:  ',&
         'mype,ntest=',mype,ntest
@@ -697,6 +904,7 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
   allocate(sun_zen_ang_save(maxobs),sun_az_ang_save(maxobs))
   allocate(t4dv_save(maxobs))
   allocate(crit1_save(maxobs))
+  allocate(it_mesh_save(maxobs))
   allocate(tbob_save(kchanl,maxobs))
 
   end subroutine init_
@@ -705,6 +913,7 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
 
   deallocate(tbob_save)
   deallocate(crit1_save)
+  deallocate(it_mesh_save)
   deallocate(t4dv_save)
   deallocate(sun_zen_ang_save,sun_az_ang_save)
   deallocate(sat_zen_ang_save,sat_az_ang_save)

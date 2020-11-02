@@ -84,6 +84,10 @@ subroutine update_guess(sval,sbias)
 !   2014-11-28  zhu     - move update of cw to compute_derived when cw is not 
 !                         state variable for all-sky radiance assimilation
 !   2015-07-10  pondeca  - add cldch
+!   2016-04-28  eliu    - revise update for cloud water 
+!   2016-06-23  lippi   - Add update for vertical velocity (w).
+!   2018-05-01  yang    - modify the constrains to C and V in g-space, or using NLTF transfermation to C/V
+!   2020-02-26  todling - reset obsbin from hr to min
 !
 !   input argument list:
 !    sval
@@ -103,7 +107,7 @@ subroutine update_guess(sval,sbias)
   use kinds, only: r_kind,i_kind
   use mpimod, only: mype
   use constants, only: zero,one,fv,max_varname_length,qmin,qcmin,tgmin,&
-                       r100,one_tenth
+                       r100,one_tenth,tiny_r_kind
   use jfunc, only: iout_iter,bcoption,tsensible,clip_supersaturation
   use gridmod, only: lat2,lon2,nsig,&
        regional,twodvar_regional,regional_ozone
@@ -111,10 +115,7 @@ subroutine update_guess(sval,sbias)
        nfldsig,hrdifsig,hrdifsfc,nfldsfc,dsfct
   use state_vectors, only: svars3d,svars2d
   use xhat_vordivmod, only: xhat_vor,xhat_div
-  use gsi_4dvar, only: nobs_bins, hr_obsbin
-  use radinfo, only: npred,jpch_rad,predx
-  use pcpinfo, only: npredp,npcptype,predxp
-  use aircraftinfo, only: aircraft_t_bc_pof,aircraft_t_bc,npredt,predt,ntail
+  use gsi_4dvar, only: nobs_bins, mn_obsbin
   use m_gsiBiases,only : bias_hour, bkg_bias_update, bkg_bias_correction
   use bias_predictors, only: predictors,update_bias_preds
   use gsi_bundlemod, only: gsi_bundle
@@ -126,8 +127,11 @@ subroutine update_guess(sval,sbias)
   use gsi_chemguess_mod, only: gsi_chemguess_get
   use mpeu_util, only: getindex
   use rapidrefresh_cldsurf_mod, only: l_gsd_limit_ocean_q,l_gsd_soilTQ_nudge
+  use rapidrefresh_cldsurf_mod, only: i_use_2mq4b,i_use_2mt4b
   use gsd_update_mod, only: gsd_limit_ocean_q,gsd_update_soil_tq,&
        gsd_update_th2,gsd_update_q2
+  use qcmod, only: pvis,pcldch,vis_thres,cldch_thres 
+  use obsmod, only: l_wcp_cwm
 
   implicit none
 
@@ -140,21 +144,26 @@ subroutine update_guess(sval,sbias)
   character(max_varname_length),allocatable,dimension(:) :: gases
   character(max_varname_length),allocatable,dimension(:) :: guess
   character(max_varname_length),allocatable,dimension(:) :: cloud
-  integer(i_kind) i,j,k,it,ij,ii,ic,id,ngases,nguess,istatus
+  integer(i_kind) i,j,k,it,ij,ii,ic,id,ngases,nguess,istatus,ier
   integer(i_kind) is_t,is_q,is_oz,is_cw,is_sst
   integer(i_kind) icloud,ncloud
   integer(i_kind) idq
-  logical sbbc
   real(r_kind) :: zt
+  real(r_kind) :: glow,ghigh
+
   real(r_kind),pointer,dimension(:,:  ) :: ptr2dinc =>NULL()
   real(r_kind),pointer,dimension(:,:  ) :: ptr2dges =>NULL()
   real(r_kind),pointer,dimension(:,:,:) :: ptr3dinc =>NULL()
-  real(r_kind),pointer,dimension(:,:,:) :: ptr3dinc1=>NULL()
-  real(r_kind),pointer,dimension(:,:,:) :: ptr3dinc2=>NULL()
   real(r_kind),pointer,dimension(:,:,:) :: ptr3dges =>NULL()
   real(r_kind),pointer,dimension(:,:,:) :: p_q      =>NULL()
   real(r_kind),pointer,dimension(:,:,:) :: p_tv     =>NULL()
   real(r_kind),pointer,dimension(:,:,:) :: ptr3daux =>NULL()
+  real(r_kind),pointer,dimension(:,:,:) :: ges_ql   =>NULL()
+  real(r_kind),pointer,dimension(:,:,:) :: ges_qi   =>NULL()
+  real(r_kind),pointer,dimension(:,:,:) :: ges_qr   =>NULL()
+  real(r_kind),pointer,dimension(:,:,:) :: ges_qs   =>NULL()
+  real(r_kind),pointer,dimension(:,:,:) :: ges_qg   =>NULL()
+  real(r_kind),pointer,dimension(:,:,:) :: ges_qh   =>NULL()
 
   real(r_kind),dimension(lat2,lon2)     :: tinc_1st,qinc_1st
 
@@ -178,6 +187,7 @@ subroutine update_guess(sval,sbias)
   endif
 
 ! Inquire about clouds
+
   call gsi_metguess_get('clouds::3d',ncloud,istatus)
   if (ncloud>0) then
      allocate(cloud(ncloud))
@@ -225,7 +235,7 @@ subroutine update_guess(sval,sbias)
   do it=1,nfldsig
      if (nobs_bins>1) then
         zt = hrdifsig(it)
-        ii = NINT(zt/hr_obsbin)+1
+        ii = NINT(zt*60/mn_obsbin)+1
      else
         ii = 1
      endif
@@ -234,7 +244,7 @@ subroutine update_guess(sval,sbias)
 ! GSD modification for moisture
      if(is_q>0) then
         if(l_gsd_limit_ocean_q) then
-           call gsd_limit_ocean_q(p_q)
+           call gsd_limit_ocean_q(p_q,it)
         endif
      endif
 
@@ -253,6 +263,12 @@ subroutine update_guess(sval,sbias)
                call upd_positive_fldr3_(ptr3dges,ptr3dinc,tgmin)
                cycle
            endif
+           if (trim(guess(ic))=='w') then
+               call gsi_bundlegetpointer (sval(ii),               guess(ic),ptr3dinc,istatus)
+               call gsi_bundlegetpointer (gsi_metguess_bundle(it),guess(ic),ptr3dges,istatus)
+               ptr3dges = ptr3dges + ptr3dinc
+               cycle
+           endif
            if (trim(guess(ic))=='tv') then
               cycle ! updating tv is trick since it relates to tsen and therefore q
                     ! since we don't know which comes first in met-guess, we
@@ -260,20 +276,7 @@ subroutine update_guess(sval,sbias)
            endif
            icloud=getindex(cloud,guess(ic))
            if(icloud>0) then
-              if(cloud(icloud)=='cw') then
-                 call gsi_bundlegetpointer (sval(ii), 'ql',ptr3dinc1,istatus)
-                 call gsi_bundlegetpointer (sval(ii), 'qi',ptr3dinc2,istatus)
-                 if(istatus == 0)  then     !for metges:cw, state vec:ql/qi/cw 
-                    call gsi_bundlegetpointer (gsi_metguess_bundle(it),'cw',ptr3dges, istatus)
-                    ptr3dges = ptr3dges+ptr3dinc1+ptr3dinc2
-                 else      ! for metges: cw=10,ql/qi=-1, state vec:cw only (such as original clr sky rad DA)
-                   ptr3dges = ptr3dges+ptr3dinc
-                   !let's split to ql/qi guess in GSI_Gridcomp because order of q, tv updates are tricky.
-                 endif    
-              else   !metges: ql (or qi)  , state vec:ql,qi,cw
-                   ptr3dges = ptr3dges+ptr3dinc
-              endif
-              ptr3dges = max(ptr3dges,qcmin)
+                 ptr3dges = max(ptr3dges+ptr3dinc,zero)
               cycle
            else  
               ptr3dges = ptr3dges + ptr3dinc
@@ -297,16 +300,61 @@ subroutine update_guess(sval,sbias)
            call gsi_bundlegetpointer (gsi_metguess_bundle(it),guess(ic),ptr2dges,istatus)
            ptr2dges = ptr2dges + ptr2dinc
            if (trim(guess(ic))=='gust')  ptr2dges = max(ptr2dges,zero)
-           if (trim(guess(ic))=='vis')   ptr2dges = max(min(ptr2dges,20000.0_r_kind),one_tenth)
+           if (trim(guess(ic))=='vis') then
+             if(abs(pvis)<tiny_r_kind) then
+! log transformation 
+               glow=one
+               ghigh=vis_thres
+             else
+! non-log transformation 
+               glow=(one**pvis-one)/pvis
+               ghigh=(vis_thres**pvis-one)/pvis
+               ptr2dges = max(min(ptr2dges,ghigh),glow)
+             endif
+           endif
+           if (trim(guess(ic))=='cldch') then
+             if(abs(pcldch)<tiny_r_kind) then
+! log transformation 
+               glow=one
+               ghigh=cldch_thres
+             else
+               glow=(one**pcldch -one)/pcldch
+               ghigh=(cldch_thres**pcldch-one)/pcldch
+               ptr2dges = max(min(ptr2dges,ghigh),glow)
+             endif
+           endif
+
            if (trim(guess(ic))=='wspd10m') ptr2dges = max(ptr2dges,zero)
            if (trim(guess(ic))=='pblh')  ptr2dges = max(ptr2dges,zero)
            if (trim(guess(ic))=='howv')  ptr2dges = max(ptr2dges,zero)
-           if (trim(guess(ic))=='tcamt') ptr2dges = max(min(ptr2dges,r100),zero) !Cannot have > 100% or < 0% cloud amount
+           if (trim(guess(ic))=='tcamt') ptr2dges = max(min(ptr2dges,r100),zero) !Cannot have>100% or <0% cloud amount
            if (trim(guess(ic))=='lcbas') ptr2dges = max(min(ptr2dges,20000.0_r_kind),one_tenth)
-           if (trim(guess(ic))=='cldch') ptr2dges = max(min(ptr2dges,20000.0_r_kind),one_tenth)
+
            cycle
         endif
      enddo
+     if (getindex(svars3d,'ql')>0 .and. getindex(svars3d,'qi')>0) then
+        ier=0
+        call gsi_bundlegetpointer (gsi_metguess_bundle(it),'cw',ptr3dges,istatus) ; ier=istatus                                                              
+        call gsi_bundlegetpointer (gsi_metguess_bundle(it),'ql',ges_ql,  istatus) ; ier=ier+istatus                                        
+        call gsi_bundlegetpointer (gsi_metguess_bundle(it),'qi',ges_qi,  istatus) ; ier=ier+istatus                                
+        if (ier==0) then
+           ptr3dges = ges_ql + ges_qi
+        endif
+        if ( l_wcp_cwm .and. &
+             getindex(svars3d,'qr')>0 .and. getindex(svars3d,'qs')>0 .and. &
+             getindex(svars3d,'qg')>0 .and. getindex(svars3d,'qh')>0) then
+           ier=0
+           call gsi_bundlegetpointer (gsi_metguess_bundle(it),'qr',ges_qr,  istatus) ; ier=istatus 
+           call gsi_bundlegetpointer (gsi_metguess_bundle(it),'qs',ges_qs,  istatus) ; ier=ier+istatus                        
+           call gsi_bundlegetpointer (gsi_metguess_bundle(it),'qg',ges_qg,  istatus) ; ier=ier+istatus                        
+           call gsi_bundlegetpointer (gsi_metguess_bundle(it),'qh',ges_qh,  istatus) ; ier=ier+istatus                        
+           if (ier==0) then
+              ptr3dges = ptr3dges + ges_qr + ges_qs + ges_qg + ges_qh
+           endif
+        endif
+
+     endif
 !    At this point, handle the Tv exception since by now Q has been updated 
 !    NOTE 1: This exceptions is unnecessary: all we need to do is put tsens in the
 !    state-vector instead of tv (but this will require changes elsewhere).
@@ -346,6 +394,7 @@ subroutine update_guess(sval,sbias)
      enddo
 ! update surface and soil    
      if (l_gsd_soilTQ_nudge ) then
+        qinc_1st=0_r_kind
         if(is_q>0) then
            do j=1,lon2
               do i=1,lat2
@@ -353,6 +402,7 @@ subroutine update_guess(sval,sbias)
               end do
            end do
         endif
+        tinc_1st=0_r_kind
         if(is_t > 0) then
            do j=1,lon2
               do i=1,lat2
@@ -360,23 +410,23 @@ subroutine update_guess(sval,sbias)
               end do
            end do
         endif
-        call  gsd_update_soil_tq(tinc_1st,is_t,qinc_1st,is_q)
+        call  gsd_update_soil_tq(tinc_1st,is_t,qinc_1st,is_q,it)
      endif  ! l_gsd_soilTQ_nudge
-     if (l_gsd_soilTQ_nudge .and. is_t>0) then
+     if (i_use_2mt4b > 0 .and. is_t>0) then
         do j=1,lon2
            do i=1,lat2
               tinc_1st(i,j)=p_tv(i,j,1)
            end do
         end do
-        call  gsd_update_th2(tinc_1st)
+        call  gsd_update_th2(tinc_1st,it)
      endif ! l_gsd_th2_adjust
-     if (l_gsd_soilTQ_nudge .and. is_q>0) then
+     if (i_use_2mq4b > 0 .and. is_q>0) then
         do j=1,lon2
            do i=1,lat2
               qinc_1st(i,j)=p_q(i,j,1)
            end do
         end do
-        call  gsd_update_q2(qinc_1st)
+        call  gsd_update_q2(qinc_1st,it)
      endif ! l_gsd_q2_adjust
 
   end do
@@ -389,7 +439,7 @@ subroutine update_guess(sval,sbias)
      do it=1,nfldsfc
         if (nobs_bins>1) then
            zt = hrdifsfc(it)
-           ii = NINT(zt/hr_obsbin)+1
+           ii = NINT(zt*60/mn_obsbin)+1
         else
            ii = 1
         endif

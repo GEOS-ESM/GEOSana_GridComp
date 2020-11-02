@@ -25,6 +25,7 @@ use m_obsNode , only: obsNode
 use m_mxtmNode, only: mxtmNode
 use m_mxtmNode, only: mxtmNode_typecast
 use m_mxtmNode, only: mxtmNode_nextcast
+use m_obsdiagNode, only: obsdiagNode_set
 implicit none
 
 PRIVATE
@@ -63,7 +64,6 @@ subroutine intmxtm(mxtmhead,rval,sval)
   use constants, only: half,one,tiny_r_kind,cg_term
   use obsmod, only: lsaveobsens, l_do_adjoint, luse_obsdiag
   use qcmod, only: nlnqc_iter,varqc_iter
-  use gridmod, only: latlon11
   use jfunc, only: jiter
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -112,9 +112,11 @@ subroutine intmxtm(mxtmhead,rval,sval)
      if(luse_obsdiag)then
         if (lsaveobsens) then
            grad = val*mxtmptr%raterr2*mxtmptr%err2
-           mxtmptr%diags%obssen(jiter) = grad
+           !-- mxtmptr%diags%obssen(jiter) = grad
+           call obsdiagNode_set(mxtmptr%diags,jiter=jiter,obssen=grad)
         else
-           if (mxtmptr%luse) mxtmptr%diags%tldepart(jiter)=val
+           !-- if (mxtmptr%luse) mxtmptr%diags%tldepart(jiter)=val
+           if (mxtmptr%luse) call obsdiagNode_set(mxtmptr%diags,jiter=jiter,tldepart=val)
         endif
      endif
 

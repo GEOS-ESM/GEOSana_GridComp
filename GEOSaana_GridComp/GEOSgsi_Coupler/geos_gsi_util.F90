@@ -65,7 +65,7 @@ contains
    real(r_double),intent(inout),dimension(:,:,:)::div,vor
 
 ! !DESCRIPTION: double precision interface to calc of vor/div using
-!               Jing's TRANSF routines.
+!               Jing''s TRANSF routines.
 !
 ! !REVISION HISTORY:
 !
@@ -135,7 +135,7 @@ contains
    real(r_single),intent(inout),dimension(:,:,:)::div,vor
 
 ! !DESCRIPTION: double precision interface to calc of vor/div using
-!               Jing's TRANSF routines.
+!               Jing''s TRANSF routines.
 !
 ! !REVISION HISTORY:
 !
