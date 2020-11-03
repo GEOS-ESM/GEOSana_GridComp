@@ -141,6 +141,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 !   2017-03-21  Su      - add option to thin conventional data in 4 dimension 
 !   2018-08-16  akella  - explicit KX definition for ships (formerly ID'd by subtype 522/523)
 !   2020-01-29  Sienkiewicz - allow obstypes marked as passive in convinfo to be thinned
+!   2020-10-27  sienkiewicz - update for BUFR drifting buoys, T29=564
+!
 
 !   input argument list:
 !     infile   - unit from which to read BUFR data
@@ -664,9 +666,10 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
         end if
         !* END new vad wind
 
-! identify drifting buoys - TYP=180/280 T29=562 and last three digits of SID between 500 and 999
+! identify drifting buoys - TYP=180/280 T29=562,564 and last three digits of SID between 500 and 999
 !  (see https://www.wmo.int/pages/prog/amp/mmop/wmo-number-rules.html)  Set kx to 199/299
-        if (id_drifter .and. (kx==180 .or. kx==280) .and. nint(hdr(3))==562) then
+        if (id_drifter .and. (kx==180 .or. kx==280) .and. (nint(hdr(3))==562 .or. &
+              nint(hdr(3))==564) ) then
            rstation_id=hdr(4)
            read(c_station_id,*,iostat=ios) iwmo
            if (ios == 0 .and. iwmo > 0) then
@@ -939,9 +942,10 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 
 
 !
-! identify drifting buoys - TYP=180/280 T29=562 and last three digits of SID between 500 and 999
+! identify drifting buoys - TYP=180/280 T29=562,564 and last three digits of SID between 500 and 999
 !  (see https://www.wmo.int/pages/prog/amp/mmop/wmo-number-rules.html)  Set kx to 199/299
-              if (id_drifter .and. (kx==180 .or. kx==280) .and.  nint(hdr(8))==562 ) then
+              if (id_drifter .and. (kx==180 .or. kx==280) .and. (nint(hdr(8))==562 .or. &
+                      nint(hdr(8))==564) ) then
                  rstation_id=hdr(1)
                  read(c_station_id,*,iostat=ios) iwmo
                  if (ios == 0 .and. iwmo > 0) then
