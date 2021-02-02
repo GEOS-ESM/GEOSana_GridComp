@@ -2540,12 +2540,19 @@ contains
                  call nc_diag_metadata("Obs_Time",              sngl(dtime-time_offset)             ) ! observation time (hours relative to analysis time)
 
                  call nc_diag_metadata("Scan_Position",         sngl(data_s(iscan_pos,n))           ) ! sensor scan position 
+                 if (gmi .and. i > 9 ) then  !GMI channels 10 - 13
+                    call nc_diag_metadata("Sat_Zenith_Angle",   sngl(data_s(ilzen_ang2,n)*rad2deg)  ) ! satellite zenith angle (degrees)
+                    call nc_diag_metadata("Sol_Zenith_Angle",   sngl(data_s(iszen_ang2,n))          ) ! solar zenith angle (degrees)
+                    call nc_diag_metadata("Sol_Azimuth_Angle",  sngl(data_s(isazi_ang2,n))          ) ! solar azimuth angle (degrees)
+                    call nc_diag_metadata("Scan_Angle",         sngl(data_s(iscan_ang2,n)*rad2deg)  ) ! scan angle
+                 else
                  call nc_diag_metadata("Sat_Zenith_Angle",      sngl(zasat*rad2deg)                 ) ! satellite zenith angle (degrees)
-                 call nc_diag_metadata("Sat_Azimuth_Angle",     sngl(data_s(ilazi_ang,n))           ) ! satellite azimuth angle (degrees)
                  call nc_diag_metadata("Sol_Zenith_Angle",      sngl(pangs)                         ) ! solar zenith angle (degrees)
                  call nc_diag_metadata("Sol_Azimuth_Angle",     sngl(data_s(isazi_ang,n))           ) ! solar azimuth angle (degrees)
+                    call nc_diag_metadata("Scan_Angle",         sngl(data_s(iscan_ang,n)*rad2deg)   ) ! scan angle
+                 endif
+                 call nc_diag_metadata("Sat_Azimuth_Angle",     sngl(data_s(ilazi_ang,n))           ) ! satellite azimuth angle (degrees)
                  call nc_diag_metadata("Sun_Glint_Angle",       sngl(sgagl)                         ) ! sun glint angle (degrees) (sgagl)
-                 call nc_diag_metadata("Scan_Angle",            sngl(data_s(iscan_ang,n)*rad2deg)   ) ! scan angle
 
 
                  call nc_diag_metadata("Water_Fraction",        sngl(surface(1)%water_coverage)     ) ! fractional coverage by water
