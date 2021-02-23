@@ -932,7 +932,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
            kx=hdr(5)
 
            if (.not.(aircraft_t_bc .and. acft_profl_file)) then
-              if(abs(hdr(3))>r90 .or. abs(hdr(2))>r360) cycle loop_readsb
+              if(abs(real(hdr(3),r_single))>r90 .or. abs(hdr(2))>r360) cycle loop_readsb
               if(hdr(2)== r360)hdr(2)=hdr(2)-r360
               if(hdr(2) < zero)hdr(2)=hdr(2)+r360
               dlon_earth_deg=hdr(2)
@@ -1766,7 +1766,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 !             extract aircraft profile information
               if (aircraft_t_bc .and. acft_profl_file) then
                  if (nint(obsdat(10,k))==7) cycle LOOP_K_LEVS
-                 if(abs(hdr3(2,k))>r90 .or. abs(hdr3(1,k))>r360) cycle LOOP_K_LEVS
+                 if(abs(real(hdr3(2,k),r_single))>r90 .or. abs(hdr3(1,k))>r360) cycle LOOP_K_LEVS
                  if(hdr3(1,k)== r360)hdr3(1,k)=hdr3(1,k)-r360
                  if(hdr3(1,k) < zero)hdr3(1,k)=hdr3(1,k)+r360
                  dlon_earth_deg=hdr3(1,k)
@@ -1802,7 +1802,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
               if(driftl)then
                  if(drfdat(1,k) >= r360)drfdat(1,k)=drfdat(1,k)-r360
                  if(drfdat(1,k) <  zero)drfdat(1,k)=drfdat(1,k)+r360
-                 if(abs(drfdat(2,k)) > r90 .or. drfdat(1,k) > r360 .or. drfdat(1,k) < zero)then
+                 if(abs(real(drfdat(2,k),r_single)) > r90 .or. drfdat(1,k) > r360 .or. drfdat(1,k) < zero)then
                     drfdat(2,k)=hdr(3)
                     drfdat(1,k)=hdr(2)
                  end if
