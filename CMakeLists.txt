@@ -8,7 +8,7 @@ set (alldirs
 esma_add_library(${this}
   SRCS GEOS_AnaGridComp.F90
   SUBCOMPONENTS ${alldirs}
-  DEPENDENCIES MAPL_Base
+  DEPENDENCIES MAPL
   INCLUDES ${INC_ESMF})
 
 
