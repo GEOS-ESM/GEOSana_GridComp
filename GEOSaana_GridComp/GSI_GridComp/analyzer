@@ -179,6 +179,7 @@
 #  21Nov2018 RT/WM/WG/Guo - update CRTM coeffs to REL-2.2.3-r60152_local-rev_3; add RERROR Covs
 #  10Feb2020 Karpowicz/RT - update Rcov to 13jan2020: add O3 sensitive IR chans for hyperspectral obs
 #  20May2020 Todling/JG - update CRTM coeffs to point to fix_ncep20200513 (to allow for CrIS FSR)
+#  30Nov2020 Guo/MC/MS - add program to rescale values in satbias_pc file for specified date/sis/channels
 #-----------------------------------------------------------------------------------------------------
 
 use Env;                 # make env vars readily available
