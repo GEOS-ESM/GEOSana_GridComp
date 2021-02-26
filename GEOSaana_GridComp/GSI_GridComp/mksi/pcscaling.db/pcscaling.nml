@@ -1,8 +1,16 @@
 &PCSCALING_NML
   pcscaling=.true.
-  verbose=.true.
+  verbose=.false.
   pcscales(:)=
-!   yyyymmddhh     isis   ichan   scale
-    2020020206  hirs3_n15   14     -1.
+!   yyyymmddhh     isis       ichan   scale
+    2009041518  amsua_n15       0.    1000.
+    2009041518  amsua_n16       0.    1000.
+    2009041518  amsua_n17       0.    1000.
+    2009041518  amsua_n18       0.    1000.
+    2009041518  amsua_metop-a   0.    1000.
+    2017030812  atms_npp        0.    1000.
+    2017030812  atms_n20        0.    1000.
+    2017080218  iasi_metop-b    0.    1000.
+    2020010206  cris-fsr_npp    0.    1000.
 
   /
