@@ -300,6 +300,7 @@ subroutine read_wgt(corz,corp,hwll,hwllp,vz,corsst,hsst,varq,qoption,varcw,cwopt
 !                       of cw for allsky radiance
 !       09Sept15 - Zhu - use centralized cloud_names_fwd and n_clouds_fwd to add 
 !                        flexibility for all-sky radiance assimilation
+!       03Mar2021 - Zhu - add pblh
 !EOP ___________________________________________________________________
 
    character(len=*),parameter :: myname_=myname//'::read_wgt'
@@ -504,7 +505,20 @@ subroutine read_wgt(corz,corp,hwll,hwllp,vz,corsst,hsst,varq,qoption,varcw,cwopt
       end if
    endif
 
-   ! need simliar general template for undefined 2d variables ...
+   ! corp, hwllp for undefined 2d variables
+   do n=1,size(cvars2d)
+      if ( .not.found2d(n) ) then
+         if ( n>0 ) then
+            if ( cvars2d(n)=='pblh' ) then
+               do i=1,nlat
+                  corp(i,n)=one
+                  hwllp(i,n)=0.5_r_kind*hwll(i,1,iq)
+               enddo
+            end if
+         endif
+         if ( mype==0 ) write(6,*) myname_, ': WARNING, using general Berror template for ', cvars2d(n)
+      endif
+   enddo
 
    deallocate(found3d,found2d)
 

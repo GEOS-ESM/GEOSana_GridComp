@@ -71,7 +71,7 @@ integer(i_kind) :: isps(nsvars)
 character(len=4), parameter :: mysvars(nsvars) = (/  &  ! vars from ST needed here
                                'u   ', 'v   ', 'prse', 'q   ', 'tsen' /)
 logical :: ls_u,ls_v,ls_prse,ls_q,ls_tsen
-real(r_kind),pointer,dimension(:,:)   :: sv_ps,sv_sst
+real(r_kind),pointer,dimension(:,:)   :: sv_ps,sv_sst,sv_pblh
 real(r_kind),pointer,dimension(:,:,:) :: sv_u,sv_v,sv_prse,sv_q,sv_tsen,sv_tv,sv_oz
 real(r_kind),pointer,dimension(:,:,:) :: sv_rank3
 
@@ -161,6 +161,7 @@ do jj=1,ntlevs_ens
    call gsi_bundlegetpointer (eval(jj),'q'   ,sv_q ,  istatus)
    call gsi_bundlegetpointer (eval(jj),'oz'  ,sv_oz , istatus)
    call gsi_bundlegetpointer (eval(jj),'sst' ,sv_sst, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblh' ,sv_pblh, istatus)
 
    call sqrt_beta_s_mult(wbundle_c)
    if(dual_res) then
@@ -197,6 +198,7 @@ do jj=1,ntlevs_ens
    call gsi_bundlegetvar ( wbundle_c, 'oz' , sv_oz,  istatus )
    call gsi_bundlegetvar ( wbundle_c, 'ps' , sv_ps,  istatus )
    call gsi_bundlegetvar ( wbundle_c, 'sst', sv_sst, istatus )
+   call gsi_bundlegetvar ( wbundle_c, 'pblh', sv_pblh, istatus )
 
 !  Since cloud-vars map one-to-one, take care of them together
    do ic=1,nclouds

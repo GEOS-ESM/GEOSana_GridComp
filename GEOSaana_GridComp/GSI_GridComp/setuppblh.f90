@@ -81,7 +81,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   use constants, only: zero,tiny_r_kind,one,half,wgtlim, &
             two,cg_term,pi,huge_single,r1000
   use jfunc, only: jiter,last,miter
-  use qcmod, only: dfact,dfact1,npres_print
+  use qcmod, only: dfact,dfact1,npres_print,vqc
   use convinfo, only: nconvtype,cermin,cermax,cgross,cvar_b,cvar_pg,ictype
   use convinfo, only: icsubtype
   use m_dtime, only: dtime_setup, dtime_check
@@ -109,7 +109,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
 
   real(r_kind) pblhges,dlat,dlon,ddiff,dtime,error
   real(r_kind) scale,val2,ratio,ressw2,ress,residual
-  real(r_kind) obserrlm,obserror,val,valqc
+  real(r_kind) obserrlm,obserror,val,valqc,var_jb
   real(r_kind) term,halfpi,rwgt
   real(r_kind) cg_pblh,wgross,wnotgross,wgt,arg,exp_arg,rat_err2
   real(r_kind) ratio_errors,tfact
@@ -120,7 +120,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
 
 
-  integer(i_kind) ier,ilon,ilat,ipblh,id,itime,ikx,imaxerr,iqc
+  integer(i_kind) ier,ilon,ilat,ipblh,id,itime,ikx,iqc,ilocaltime
   integer(i_kind) iuse,ihgt,ilate,ilone,istnelv
   integer(i_kind) i,nchar,nreal,k,ii,ikxx,nn,ibin,ioff,ioff0,jj
   integer(i_kind) l,mm1
@@ -129,8 +129,8 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical proceed
 
-  character(8) station_id
-  character(8),allocatable,dimension(:):: cdiagbuf
+  character(15) station_id
+  character(15),allocatable,dimension(:):: cdiagbuf
 
   logical:: in_curbin, in_anybin
   type(pblhNode),pointer:: my_head
@@ -142,7 +142,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   real(r_kind),allocatable,dimension(:,:,:) :: ges_z
   real(r_kind),allocatable,dimension(:,:,:) :: ges_pblh
 
-  equivalence(rstation_id,station_id)
+! equivalence(rstation_id,station_id)
 
   type(obsLList),pointer,dimension(:):: pblhhead
   pblhhead => obsLL(:)
@@ -170,7 +170,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   id=6        ! index of station id
   itime=7     ! index of observation time in data array
   ikxx=8      ! index of ob type
-  imaxerr=9   ! index of pblh max error
+  ilocaltime=9   ! index of pblh observation localtime
   iqc=10      ! index of qulaity mark
   iuse=11     ! index of use parameter
   ilone=12    ! index of longitude (degrees)
@@ -183,7 +183,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
 
 ! Check for missing data  !need obs value and error
   do i=1,nobs
-    if (abs(data(ipblh,i)-bmiss) .lt. 10.0_r_kind)  then
+    if (abs(data(ipblh,i)-bmiss) .lt. 10.0_r_kind .or. data(ipblh,i)<zero)  then
        muse(i)=.false.
        data(ipblh,i)=rmiss_single   ! for diag output
     end if
@@ -203,7 +203,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
         end if
      end do
   end do
-
+  var_jb=zero
 
 ! If requested, save select data for output to diagnostic file
   if(conv_diagsave)then
@@ -306,7 +306,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
         val2     = val*val
         exp_arg  = -half*val2
         rat_err2 = ratio_errors**2
-        if (cvar_pg(ikx) > tiny_r_kind .and. error > tiny_r_kind) then
+        if (vqc .and. (cvar_pg(ikx) > tiny_r_kind) .and. (error > tiny_r_kind)) then
            arg  = exp(exp_arg)
            wnotgross= one-cvar_pg(ikx)
            cg_pblh=cvar_b(ikx)
@@ -316,7 +316,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
            rwgt = wgt/wgtlim
         else
            term = exp_arg
-           wgt  = wgtlim
+           wgt  = one
            rwgt = wgt/wgtlim
         endif
         valqc = -two*rat_err2*term
@@ -373,6 +373,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
         my_head%time    = dtime
         my_head%b       = cvar_b(ikx)
         my_head%pg      = cvar_pg(ikx)
+        my_head%jb      = var_jb
         my_head%luse    = luse(i)
 
         if (luse_obsdiag) then
@@ -388,6 +389,7 @@ subroutine setuppblh(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
      if(conv_diagsave .and. luse(i))then
         ii=ii+1
         rstation_id = data(id,i)
+        write(station_id,*) int(data(id,i))
         err_input   = data(ier,i)
         err_adjst   = data(ier,i)
         if (ratio_errors*error>tiny_r_kind) then

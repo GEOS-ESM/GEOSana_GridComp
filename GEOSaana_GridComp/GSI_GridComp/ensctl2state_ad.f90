@@ -76,7 +76,7 @@ character(len=4), parameter :: mysvars(nsvars) = (/  &  ! vars from ST needed he
 logical :: ls_u,ls_v,ls_prse,ls_q,ls_tsen,ls_ql,ls_qi
 logical :: ls_qr,ls_qs,ls_qg,ls_qh
 logical :: ls_w,ls_dw
-real(r_kind),pointer,dimension(:,:)   :: rv_ps,rv_sst
+real(r_kind),pointer,dimension(:,:)   :: rv_ps,rv_sst,rv_pblh
 real(r_kind),pointer,dimension(:,:,:) :: rv_u,rv_v,rv_prse,rv_q,rv_tsen,rv_tv,rv_oz
 real(r_kind),pointer,dimension(:,:,:) :: rv_rank3,rv_w,rv_dw
 
@@ -197,8 +197,10 @@ do jj=1,ntlevs_ens
 
    call gsi_bundlegetpointer (eval(jj),'oz'  ,rv_oz , istatus)
    call gsi_bundlegetpointer (eval(jj),'sst' ,rv_sst, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblh' ,rv_pblh, istatus)
    call gsi_bundleputvar ( wbundle_c, 'oz',  rv_oz,  istatus )
    call gsi_bundleputvar ( wbundle_c, 'sst', rv_sst, istatus )
+   call gsi_bundleputvar ( wbundle_c, 'pblh', rv_pblh, istatus )
    if(wdw_exist)then
      call gsi_bundlegetpointer (eval(jj),'w' ,rv_w, istatus)
      call gsi_bundleputvar ( wbundle_c, 'w', rv_w, istatus )

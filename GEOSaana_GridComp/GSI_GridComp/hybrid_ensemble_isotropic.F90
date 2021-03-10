@@ -48,6 +48,7 @@ module hybrid_ensemble_isotropic
 !   2015-04-07  carley  - bug fix to allow grd_loc%nlat=grd_loc%nlon
 !   2016-05-13  parrish - remove beta12mult
 !   2018-02-15  wu      - add code for fv3_regional option
+!   2021-03-01  zhu     - add pblh
 !
 ! subroutines included:
 !   sub init_rf_z                         - initialize localization recursive filter (z direction)
@@ -1852,6 +1853,17 @@ end subroutine normal_new_factorization_rf_y
                 enddo
              enddo ! enddo n_ens
  
+          case('PBLH')
+
+             do n=1,n_ens
+                do j=1,jm
+                   do i=1,im
+                      cvec%r2(ipic)%q(i,j)=cvec%r2(ipic)%q(i,j) &
+                         +a_en(n)%r3(ipx)%q(i,j,1)*en_perts(n,ibin)%r2(ipic)%qr4(i,j)
+                   enddo
+                enddo
+             enddo ! enddo n_ens
+
        end select
 
     enddo
@@ -2011,6 +2023,17 @@ end subroutine normal_new_factorization_rf_y
                 enddo
              enddo ! enddo n_ens
 
+          case('PBLH')
+
+             do n=1,n_ens
+                do j=1,jm
+                   do i=1,im
+                      work_ens%r2(ipic)%q(i,j)=work_ens%r2(ipic)%q(i,j) &
+                         +a_en(n)%r3(ipx)%q(i,j,1)*en_perts(n,ibin)%r2(ipic)%qr4(i,j)
+                   enddo
+                enddo
+             enddo ! enddo n_ens
+
        end select
 
     enddo
@@ -2155,6 +2178,15 @@ end subroutine normal_new_factorization_rf_y
                    enddo
                 enddo
  
+             case('PBLH')
+
+                do j=1,jm
+                   do i=1,im
+                      a_en(n)%r3(ipx)%q(i,j,1)=a_en(n)%r3(ipx)%q(i,j,1) &
+                         +cvec%r2(ipic)%q(i,j)*en_perts(n,ibin)%r2(ipic)%qr4(i,j)
+                   enddo
+                enddo
+
           end select
        enddo
     enddo ! enddo n_ens
@@ -2303,6 +2335,15 @@ end subroutine normal_new_factorization_rf_y
                 enddo
 
              case('SST')
+
+                do j=1,jm
+                   do i=1,im
+                      a_en(n)%r3(ipx)%q(i,j,1)=a_en(n)%r3(ipx)%q(i,j,1) &
+                         +work_ens%r2(ipic)%q(i,j)*en_perts(n,ibin)%r2(ipic)%qr4(i,j)
+                   enddo
+                enddo
+
+             case('PBLH')
 
                 do j=1,jm
                    do i=1,im

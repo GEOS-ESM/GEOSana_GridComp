@@ -87,6 +87,7 @@ character(len=max_varname_length),allocatable,dimension(:) :: cvars2dpm  ! names
 
 real(r_kind),pointer,dimension(:,:)   :: rv_ps=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: rv_sst=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: rv_pblh=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: rv_u=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: rv_v=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: rv_prse=>NULL()
@@ -165,6 +166,7 @@ do jj=1,nsubwin
    call gsi_bundlegetpointer (rval(jj),'q'   ,rv_q ,  istatus)
    call gsi_bundlegetpointer (rval(jj),'oz'  ,rv_oz , istatus)
    call gsi_bundlegetpointer (rval(jj),'sst' ,rv_sst, istatus)
+   call gsi_bundlegetpointer (rval(jj),'pblh',rv_pblh, istatus)
 
 !  Convert RHS calculations for u,v to st/vp for application of
 !  background error
@@ -204,6 +206,7 @@ do jj=1,nsubwin
    call gsi_bundleputvar ( wbundle, 'ps', rv_ps,  istatus )
    call gsi_bundleputvar ( wbundle, 'oz', rv_oz,  istatus )
    call gsi_bundleputvar ( wbundle, 'sst',rv_sst, istatus )
+   call gsi_bundleputvar ( wbundle, 'pblh',rv_pblh, istatus )
 
    if (nclouds>0) then
       if (cw_to_hydro_ad) then

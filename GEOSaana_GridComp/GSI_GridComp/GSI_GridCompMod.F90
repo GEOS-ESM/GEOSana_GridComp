@@ -235,6 +235,7 @@
 !                      - Remove reference to vars not used here
 !   18Sep2012 Akella   - Add SwapJI2i_ to GSI_GridCompSwapJI_ for use in writing out TSKIN when doing NST analysis
 !   19Oct2013 Todling - metguess now holds background
+!   05Mar2021 Zhu     - Add pblh
 !
 !EOP
 !-------------------------------------------------------------------------
@@ -1186,6 +1187,7 @@ _ENTRY_(trim(Iam))
    ! import state upper air pointers
    real(r_single),dimension(:,:  ), pointer :: hsp  ! terrain
    real(r_single),dimension(:,:  ), pointer :: psp  ! surf. pressure
+   real(r_single),dimension(:,:  ), pointer :: pblhp  ! pbl height
    real(r_single),dimension(:,:,:), pointer :: up   ! u wind
    real(r_single),dimension(:,:,:), pointer :: vp   ! v wind
    real(r_single),dimension(:,:,:), pointer :: tp   ! virtual temp.
@@ -1252,6 +1254,7 @@ _ENTRY_(trim(Iam))
    real(r_single),dimension(:,:  ), pointer :: dts   ! skin/surface temperature
    real(r_single),dimension(:,:  ), pointer :: dhs   ! terrain
    real(r_single),dimension(:,:  ), pointer :: dps   ! surf pressure
+   real(r_single),dimension(:,:  ), pointer :: dpblh ! pbl height
    real(r_single),dimension(:,:,:), pointer :: ddp   ! del pressure
    real(r_single),dimension(:,:,:), pointer :: du    ! u wind
    real(r_single),dimension(:,:,:), pointer :: dv    ! v wind
@@ -1563,6 +1566,9 @@ _ENTRY_(trim(Iam))
          case ( 'PS' )
             call ESMFL_StateGetPointerToData(import, psp,trim(cvar), rc=STATUS)
             VERIFY_(STATUS)
+         case ( 'PBLH' )
+            call ESMFL_StateGetPointerToData(import, pblhp,trim(cvar), rc=STATUS)
+            VERIFY_(STATUS)
          case ( 'PHIS' )
             call ESMFL_StateGetPointerToData(import, hsp,trim(cvar), rc=STATUS)
             VERIFY_(STATUS)
@@ -1723,6 +1729,9 @@ _ENTRY_(trim(Iam))
             VERIFY_(STATUS)
          case ('ps')
             call ESMFL_StateGetPointerToData(export,  dps,  trim(cvar), alloc=.true., rc=STATUS)
+            VERIFY_(STATUS)
+         case ('PBLH')
+            call ESMFL_StateGetPointerToData(export,  dpblh,  trim(cvar), alloc=.true., rc=STATUS)
             VERIFY_(STATUS)
          case ('u')
             call ESMFL_StateGetPointerToData(export,    du, trim(cvar), alloc=.true., rc=STATUS)
@@ -2015,6 +2024,8 @@ _ENTRY_(trim(Iam))
               call GSI_GridCompSwapIJ_(tdelp,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
             case ('tref')
               call GSI_GridCompSwapIJ_(trefp ,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
+            case ('pblh')
+              call GSI_GridCompSwapIJ_(pblhp ,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
          end select
 #ifdef SFCverbose
          call guess_grids_stats(cvar, GSI_MetGuess_Bundle(it)%r2(ipnt)%q, mype)
@@ -2848,6 +2859,8 @@ _ENTRY_(trim(Iam))
           select case (cvar)
             case('ps')
                call GSI_GridCompSwapJI_(dps,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
+            case('pblh')
+               call GSI_GridCompSwapJI_(dpblh,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
             case('z')
                call GSI_GridCompSwapJI_(dhs,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
           end select
@@ -3672,10 +3685,11 @@ _ENTRY_(trim(Iam))
 
 !  Declare import 2d-fields
 !  ------------------------
-   integer, parameter :: nin2d=14
+   integer, parameter :: nin2d=15
    character(len=16), parameter :: insname2d(nin2d) = (/  &
                                    'phis            ',    &
                                    'ps              ',    &
+                                   'PBLH            ',    &
                                    'ts              ',    &
 !                                  'NCEP_VEGFRAC    ',    &
 !                                  'NCEP_VEGTYPE    ',    &
@@ -3694,6 +3708,7 @@ _ENTRY_(trim(Iam))
    character(len=32), parameter :: inlname2d(nin2d) = (/  &
                       'geopotential height             ', &
                       'surface pressure                ', &
+                      'planetary boundary layer height ', &
                       'skin temperature                ', &
 !                     'NCEP(CRTM-like) veg fraction    ', &
 !                     'NCEP(CRTM-like) veg type        ', &
@@ -3712,6 +3727,7 @@ _ENTRY_(trim(Iam))
    character(len=16), parameter :: inunits2d(nin2d) = (/  &
                                    'm**2/s**2       ',    &
                                    'Pa              ',    &
+                                   'm               ',    &
                                    'K               ',    &
 !                                  '1               ',    &
 !                                  '1               ',    &
@@ -3876,10 +3892,11 @@ _ENTRY_(trim(Iam))
 
 !  Declare export 2d-fields
 !  ------------------------
-   integer, parameter :: nex2d=8
+   integer, parameter :: nex2d=9
    character(len=16), parameter :: exsname2d(nex2d) = (/  &
                                    'phis            ',    &
                                    'ps              ',    &
+                                   'PBLH            ',    &
                                    'ts              ',    &
                                    'frland          ',    &
                                    'frlandice       ',    &
@@ -3889,6 +3906,7 @@ _ENTRY_(trim(Iam))
    character(len=32), parameter :: exlname2d(nex2d) = (/  &
                       'geopotential height             ', &
                       'surface pressure inc            ', &
+                      'pbl height inc                  ', &
                       'skin temperature inc            ', &
                       'fraction of land                ', &
                       'fraction of land ice            ', &
@@ -3898,6 +3916,7 @@ _ENTRY_(trim(Iam))
    character(len=16), parameter :: exunits2d(nex2d) = (/  &
                                    'm**2/s**2       ',    &
                                    'Pa              ',    &
+                                   'm               ',    &
                                    'K               ',    &
                                    '1               ',    &
                                    '1               ',    &

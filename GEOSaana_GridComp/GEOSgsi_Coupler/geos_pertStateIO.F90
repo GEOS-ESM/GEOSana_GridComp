@@ -337,6 +337,7 @@ end subroutine get_pert_unset_
 ! !REVISION HISTORY:
 !
 !  03Mar2020  Todling   Broken up from original gsi2pgcm0_
+!  07Mar2020  Zhu       Add pblh
 !
 !EOP
 !-----------------------------------------------------------------------
@@ -351,7 +352,7 @@ end subroutine get_pert_unset_
 
      character(len=255) fname,bkgfname,tmpl
      character(len=ESMF_MAXSTR) :: etmpl
-     character(len=*), parameter :: only_vars='ps,ts,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     character(len=*), parameter :: only_vars='ps,ts,PBLH,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
      integer(i_kind) thistime(6)
      integer(i_kind) rc,status,ierr
      integer(i_kind) idim,jdim,kdim,i,j,k,i_dp,i_ps
@@ -477,7 +478,7 @@ end subroutine get_pert_unset_
 
      character(len=255) fname,bkgfname,tmpl
      character(len=ESMF_MAXSTR) :: etmpl
-     character(len=*), parameter :: only_vars='ps,ts,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     character(len=*), parameter :: only_vars='ps,ts,PBLH,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
      integer(i_kind) thistime(6)
      integer(i_kind) rc,status,ierr
      integer(i_kind) idim,jdim,kdim,i,j,k,i_dp,i_ps
@@ -642,7 +643,7 @@ end subroutine get_pert_unset_
 
      character(len=255) fname,bkgfname,tmpl
      character(len=ESMF_MAXSTR) :: etmpl
-     character(len=*), parameter :: only_vars='ps,ts,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     character(len=*), parameter :: only_vars='ps,ts,PBLH,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
      integer(i_kind) thistime(6)
      integer(i_kind) rc,status,ierr
      integer(i_kind) idim,jdim,kdim,i,j,k,i_dp,i_ps
@@ -760,11 +761,11 @@ end subroutine get_pert_unset_
       real(r_kind),   allocatable, dimension(:,:,:) :: sub_oz,sub_cw
       real(r_kind),   allocatable, dimension(:,:,:) :: sub_qi,sub_ql
       real(r_kind),   allocatable, dimension(:,:,:) :: sub_qr,sub_qs
-      real(r_kind),   allocatable, dimension(:,:)   :: sub_ps,sub_ts
+      real(r_kind),   allocatable, dimension(:,:)   :: sub_ps,sub_ts,sub_pblh
       real(r_single), allocatable, dimension(:,:,:) :: aux3d
 
       integer(i_kind)  i,j,k,ijk,ij
-      integer(i_kind)  i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_tsen,i_ts
+      integer(i_kind)  i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_tsen,i_ts,i_pblh
       integer(i_kind)  i_qi,i_ql,i_qr,i_qs
       integer(i_kind)  ierr,ierr_adm,istatus,rc,status
       character(len=255) :: whatin
@@ -935,6 +936,20 @@ end subroutine get_pert_unset_
             enddo
          enddo
       endif
+      call gsi_bundlegetpointer(xx,'pblh', i_pblh, istatus)
+      if (i_pblh>0) then
+         allocate (sub_pblh(lat2,lon2), stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 91
+             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_pblh)'
+             return
+         end if
+         do j=1,lon2
+            do i=1,lat2
+               sub_pblh(i,j) = xx%r2(i_pblh)%q(i,j)
+            enddo
+         enddo
+      endif
 
 !     Calculate perturbation delp
 !     ---------------------------
@@ -998,6 +1013,16 @@ end subroutine get_pert_unset_
           xpert%r2(i_ts)%qr4=aux3d(:,:,nsig) ! level nsig will contain result give vertical swap
           deallocate(aux3d)
 
+          if (i_pblh>0) then
+             i_pblh = MAPL_SimpleBundleGetIndex ( xpert, 'PBLH'  , 2, rc=ierr )
+             sub_q=zero
+             sub_q(:,:,1)=sub_pblh       ! copy to level 1
+             allocate(aux3d(size(xpert%r3(i_q)%qr4,1),size(xpert%r3(i_q)%qr4,2),size(xpert%r3(i_q)%qr4,3)))
+             call gsi2pert_ ( sub_q, aux3d,  ierr )
+             xpert%r2(i_pblh)%qr4=aux3d(:,:,nsig) ! level nsig will contain result give vertical swap
+             deallocate(aux3d)
+          end if
+
       deallocate (sub_tv, sub_u, sub_v, sub_q, sub_delp, sub_ps, sub_ts, stat=ierr )
         if ( ierr/=0 ) then
             stat = 99
@@ -1052,7 +1077,14 @@ end subroutine get_pert_unset_
                 return
             end if
        endif
-
+       if ( allocated(sub_pblh) ) then
+          deallocate (sub_pblh, stat=ierr )
+            if ( ierr/=0 ) then
+                stat = 99
+                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblh)'
+                return
+            end if
+       endif
 
 
 
@@ -1323,7 +1355,7 @@ end subroutine get_pert_unset_
      character(len=*), parameter :: Iam = myname_
      character(len=*), parameter :: fname_def ='fsens.eta.nc4' ! full forecast sensitivity from ADM integration
      character(len=*), parameter :: sens_vars='ts,delp,u,v,tv,sphu,ozone'
-     character(len=*), parameter :: xinc_vars='ts,ps,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     character(len=*), parameter :: xinc_vars='ts,ps,PBLH,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
      character(len=256) :: fname, ffname(1)
      character(len=256) :: my_vars
      character(len=30)  :: GSIGRIDNAME
@@ -1524,6 +1556,7 @@ end subroutine get_pert_unset_
 !  28Oct2013  Todling   Rename p3d to prse
 !  12Jul2016  Todling   Slightly revisit handle for tracers
 !  08Oct2016  M.Kim     Allow for input of qr/qs
+!  06Mar2020  Zhu       Add pblh
 !
 !EOP
 !-----------------------------------------------------------------------
@@ -1533,12 +1566,12 @@ end subroutine get_pert_unset_
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_u,sub_v,sub_delp,sub_q,sub_tv
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_oz,sub_cw
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_ql,sub_qi,sub_qr,sub_qs
-      real(r_kind),  allocatable, dimension(:,:)   :: sub_ps,sub_ts
+      real(r_kind),  allocatable, dimension(:,:)   :: sub_ps,sub_ts,sub_pblh
       real(r_kind),  allocatable, dimension(:,:,:) :: aux3d
 
       character(len=256) :: failvars
       integer(i_kind) i,j,k,ij,ijk,id,ng_d,ng_s
-      integer(i_kind) i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_tsen,i_ts,i_ql,i_qi,i_qr,i_qs
+      integer(i_kind) i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_tsen,i_ts,i_ql,i_qi,i_qr,i_qs,i_pblh
       integer(i_kind) slat2,slon2
       integer(i_kind) ierr,istatus,status
       logical         scaleit
@@ -1654,6 +1687,11 @@ end subroutine get_pert_unset_
          allocate (sub_ts(slat2,slon2), stat=istatus ); ierr=ierr+istatus
          call pert2gsi2d_ ( xpert%r2(i_ts)%qr4, sub_ts, ierr )
       endif
+      i_pblh= MAPL_SimpleBundleGetIndex ( xpert, 'PBLH'  , 2, rc=status )
+      if (i_pblh>0) then
+         allocate (sub_pblh(lat2,lon2), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi2d_ ( xpert%r2(i_pblh)%qr4, sub_pblh, ierr )
+      end if
 
       if (which=='inc') then
          i_p= MAPL_SimpleBundleGetIndex ( xpert, 'ps', 2, rc=status )
@@ -1936,6 +1974,23 @@ end subroutine get_pert_unset_
             return
          end if
       endif
+
+      if (allocated(sub_pblh) ) then
+         call gsi_bundlegetpointer(xx,'pblh',i_pblh,istatus)
+         if (i_pblh>0) then
+            do j=1,lon2
+               do i=1,lat2
+                  xx%r2(i_pblh)%q(i,j) = sub_pblh(i,j)
+               enddo
+            enddo
+         end if
+         deallocate (sub_pblh, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblh)'
+            return
+         end if
+      end if
      
 
       CONTAINS

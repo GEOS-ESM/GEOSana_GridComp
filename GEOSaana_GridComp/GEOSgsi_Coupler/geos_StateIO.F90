@@ -456,19 +456,21 @@ end subroutine put_1State_
 !  15May2010  Todling   Update to use GSI_Bundle
 !  21Feb2011  Todling   Adapt to work with MAPL-SimpleBundle
 !  28Oct2013  Todling   Rename p3d to prse
+!  06Mar2020  Zhu       Add pblh
 !
 !EOP
 !-----------------------------------------------------------------------
 
       character(len=*), parameter :: myname_ = myname//'*gsi2pgcm_'
 
-      real(r_kind), allocatable, dimension(:,:,:) :: sub_tv,sub_u,sub_v,sub_q,sub_delp
+      real(r_kind), allocatable, dimension(:,:,:) :: sub_tv,sub_u,sub_v,sub_q,sub_delp,sub_pblh3
       real(r_kind), allocatable, dimension(:,:,:) :: sub_oz,sub_cw
       real(r_kind), allocatable, dimension(:,:,:) :: sub_qi,sub_ql,sub_qr,sub_qs
-      real(r_kind), allocatable, dimension(:,:)   :: sub_ps
+      real(r_kind), allocatable, dimension(:,:)   :: sub_ps,sub_pblh
+      real(4), allocatable, dimension(:,:,:) :: wktmp
 
       integer(i_kind)  i,j,k,kk,ijk,ij
-      integer(i_kind)  i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_dp
+      integer(i_kind)  i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_dp,i_pblh
       integer(i_kind)  i_qi,i_ql,i_qr,i_qs
       integer(i_kind)  ierr,istatus,rc,status
       character(len=255) :: whatin
@@ -611,6 +613,26 @@ end subroutine put_1State_
          sub_delp(:,:,k) = sub_ps ! just a trick to use gsi2pert_ w/o interface change
       enddo
 
+      call gsi_bundlegetpointer(xx,'pblh',  i_pblh , istatus)
+      if (i_pblh>0) then
+         allocate(sub_pblh(sg%lat2,sg%lon2), stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 91
+             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_pblh)'
+             return
+         end if
+         do j=1,sg%lon2
+            do i=1,sg%lat2
+               sub_pblh(i,j) = xx%r2(i_pblh)%q(i,j)
+            enddo
+         enddo
+         allocate(sub_pblh3(sg%lat2,sg%lon2,nsig), stat=ierr )
+         sub_pblh3=zero
+         do k=1,nsig
+            sub_pblh3(:,:,k) = sub_pblh ! just a trick to use gsi2pert_ w/o interface change
+         enddo
+      endif
+
 !     Gather from GSI subdomains/Scatter to GCM
 !     -----------------------------------------
       i_p = MAPL_SimpleBundleGetIndex ( xpert, 'ps'  , 2, rc=status )
@@ -648,6 +670,13 @@ end subroutine put_1State_
          i_qs= MAPL_SimpleBundleGetIndex ( xpert, 'qstot',3, rc=status )
          call gsi2pert_ ( sub_qs,   xpert%r3(i_qs)%qr4, ierr )
       endif
+      if (i_pblh>0) then
+         i_pblh= MAPL_SimpleBundleGetIndex ( xpert, 'PBLH',2, rc=status )
+         allocate(wktmp(sg%lat2,sg%lon2,nsig), stat=ierr )
+         wktmp = zero
+         call gsi2pert_ ( sub_pblh3,  wktmp, ierr )
+         xpert%r2(i_pblh)%qr4 = wktmp(:,:,1)
+      endif
 
 !     Build surface pressure perturbation - output purposes
 !     -----------------------------------------------------
@@ -670,6 +699,9 @@ end subroutine put_1State_
       if (allocated(sub_ql)) deallocate(sub_ql)
       if (allocated(sub_qr)) deallocate(sub_qr)
       if (allocated(sub_qs)) deallocate(sub_qs)
+      if (allocated(sub_pblh)) deallocate(sub_pblh)
+      if (allocated(sub_pblh3)) deallocate(sub_pblh3)
+      if (allocated(wktmp)) deallocate(wktmp)
 
       CONTAINS
 
@@ -1161,6 +1193,7 @@ end subroutine put_1State_
 !  20Feb2011  Todling   Adapt to work with MAPL-SimpleBundle
 !  30Nov2014  Todling   Add some variable exceptions (qi/ql/ph/ts)
 !  06May2020  Todling   Shuffled pointer check and alloc for increased flexibility
+!  06Mar2020  Zhu       Add pblh
 !
 !EOP
 !-----------------------------------------------------------------------
@@ -1171,11 +1204,11 @@ end subroutine put_1State_
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_u,sub_v,sub_q,sub_tv
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_oz,sub_ci,sub_cl
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_cr,sub_cs
-      real(r_kind),  allocatable, dimension(:,:)   :: sub_ps,sub_ph,sub_ts
+      real(r_kind),  allocatable, dimension(:,:)   :: sub_ps,sub_ph,sub_ts,sub_pblh
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_3d
 
       integer(i_kind) i,j,k,ij,ijk,id,ng_d,ng_s,ni,nj
-      integer(i_kind) i_u,i_v,i_t,i_q,i_oz,i_cw,i_ps,i_ts,i_tsen,i_ph
+      integer(i_kind) i_u,i_v,i_t,i_q,i_oz,i_cw,i_ps,i_ts,i_tsen,i_ph,i_pblh
       integer(i_kind) i_ci,i_cl,i_cr,i_cs
       integer(i_kind) j_cr,j_cs
       integer(i_kind) ierr,istatus,status
@@ -1200,6 +1233,7 @@ end subroutine put_1State_
       i_ps = MAPL_SimpleBundleGetIndex ( xpert, 'ps'   , 2, rc=status )
       i_ts = MAPL_SimpleBundleGetIndex ( xpert, 'ts'   , 2, rc=status )
       i_ph = MAPL_SimpleBundleGetIndex ( xpert, 'phis' , 2, rc=status )
+      i_pblh= MAPL_SimpleBundleGetIndex (xpert, 'PBLH' , 2, rc=status )
       if (i_u>0.and.i_v>0) then
          allocate(sub_u(sg%lat2,sg%lon2,nsig), stat=ierr )
          call pert2gsi_ ( xpert%r3(i_u)%qr4 , sub_u  , ierr )
@@ -1237,6 +1271,10 @@ end subroutine put_1State_
       if (i_ts>0) then
          allocate(sub_ts(sg%lat2,sg%lon2))
          call pert2gsi2d_ ( xpert%r2(i_ts)%qr4, sub_ts, ierr )
+      endif
+      if (i_pblh>0) then
+         allocate(sub_pblh(sg%lat2,sg%lon2))
+         call pert2gsi2d_ ( xpert%r2(i_pblh)%qr4, sub_pblh, ierr )
       endif
       if ( ierr/=0 ) then
           stat = 99
@@ -1426,6 +1464,18 @@ end subroutine put_1State_
             enddo
          endif
          deallocate(sub_ts)
+      endif
+
+      if (allocated(sub_pblh)) then
+         call gsi_bundlegetpointer(xx,'pblh',  i_pblh, ierr)
+         if (i_pblh>0) then
+            do j=1,sg%lon2
+               do i=1,sg%lat2
+                  xx%r2(i_pblh)%q(i,j)= sub_pblh(i,j)
+               enddo
+            enddo
+         endif
+         deallocate(sub_pblh)
       endif
 
 !     check on essential vars

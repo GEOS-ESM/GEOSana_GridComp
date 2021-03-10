@@ -36,15 +36,19 @@ module m_pblhNode
   type,extends(obsNode):: pblhNode
      !type(pblh_ob_type),pointer :: llpoint => NULL()
      type(obs_diag), pointer :: diags => NULL()
-     real(r_kind)    :: res           !  pblh residual
-     real(r_kind)    :: err2          !  pblh error squared
-     real(r_kind)    :: raterr2       !  square of ratio of final obs error
-                                      !  to original obs error
-     !real(r_kind)    :: time          !  observation time in sec
-     real(r_kind)    :: b             !  variational quality control parameter
-     real(r_kind)    :: pg            !  variational quality control parameter
-     real(r_kind)    :: wij(4)        !  horizontal interpolation weights
-     integer(i_kind) :: ij(4)         !  horizontal locations
+     real(r_kind)    :: res    =0._r_kind    !  pblh residual
+     real(r_kind)    :: err2   =0._r_kind    !  pblh error squared
+     real(r_kind)    :: raterr2=0._r_kind    !  square of ratio of final obs error
+                                             !  to original obs error
+     !real(r_kind)    :: time                !  observation time in sec
+     real(r_kind)    :: b      =0._r_kind    !  variational quality control parameter
+     real(r_kind)    :: pg     =0._r_kind    !  variational quality control parameter
+     real(r_kind)    :: jb     =0._r_kind    !  variational quality control parameter
+     real(r_kind)    :: wij(4) =0._r_kind    !  horizontal interpolation weights
+     real(r_kind)    :: ppertb =0._r_kind    !  random number adding to the obs
+     integer(i_kind) :: ij(4)  =0._r_kind    !  horizontal locations
+     integer(i_kind) :: kx     =0_i_kind     !  ob type
+
      !logical         :: luse          !  flag indicating if ob is used in pen.
 
      !integer(i_kind) :: idv,iob       ! device id and obs index for sorting
@@ -158,6 +162,9 @@ _ENTRY_(myname_)
                                 aNode%raterr2, &
                                 aNode%b      , &
                                 aNode%pg     , &
+                                aNode%jb     , &
+                                aNode%ppertb , &
+                                aNode%kx     , &
                                 aNode%wij    , &
                                 aNode%ij
                 if (istat/=0) then
@@ -191,6 +198,9 @@ _ENTRY_(myname_)
                                 aNode%raterr2, &
                                 aNode%b      , &
                                 aNode%pg     , &
+                                aNode%jb     , &
+                                aNode%ppertb , &
+                                aNode%kx     , &
                                 aNode%wij    , &
                                 aNode%ij
                 if (jstat/=0) then
