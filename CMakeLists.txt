@@ -10,5 +10,3 @@ esma_add_library(${this}
   SUBCOMPONENTS ${alldirs}
   DEPENDENCIES MAPL_Base
   INCLUDES ${INC_ESMF})
-
-
