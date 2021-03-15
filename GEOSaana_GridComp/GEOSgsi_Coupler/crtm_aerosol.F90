@@ -12,7 +12,7 @@ module crtm_aerosol
 
   use kinds, only: i_kind,r_kind
   use CRTM_Aerosol_Define, only: CRTM_Aerosol_type
-  use CRTM_Aerosol_Define, only: DUST_AEROSOL, SEASALT_SSAM_AEROSOL, &
+  use CRTM_Parameters    , only: DUST_AEROSOL, SEASALT_SSAM_AEROSOL, &
                                  SEASALT_SSCM1_AEROSOL, SEASALT_SSCM2_AEROSOL, &
                                  SEASALT_SSCM3_AEROSOL, SEASALT_SSCM3_AEROSOL, &
                                  BLACK_CARBON_AEROSOL, ORGANIC_CARBON_AEROSOL, &
