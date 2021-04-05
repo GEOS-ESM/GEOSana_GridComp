@@ -1347,12 +1347,6 @@ _ENTRY_(trim(Iam))
    endif
 #endif
 
-   call GSI_GridCompGetPointers_()
-   call GSI_GridCompCopyImportDyn2Internal_(L)
-   call GSI_GridCompComputeVorDiv_(L)
-   call GSI_GridCompCopyImportSfc2Internal_(L)
-   call GSI_GridCompGetNCEPsfcFromFile_(L)
-
 !  Set alarm
 !  ---------
 
@@ -1360,6 +1354,12 @@ _ENTRY_(trim(Iam))
 #ifdef VERBOSE
    call tell(Iam,"returned from GSI_GridCompSetAnaTime_()")
 #endif
+
+   call GSI_GridCompGetPointers_()
+   call GSI_GridCompCopyImportDyn2Internal_(L)
+   call GSI_GridCompComputeVorDiv_(L)
+   call GSI_GridCompCopyImportSfc2Internal_(L)
+   call GSI_GridCompGetNCEPsfcFromFile_(L)
 
 !  Set observations input
 !  ----------------------
