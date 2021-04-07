@@ -290,7 +290,9 @@ n15  19981101 000000  19990101 000000  amsua 11        4 5 6 7 8 9 10 11 12 13 1
 n15  19990101 060000  19990101 060000  amsua  0							# amsua: all noisy     
 n15  19990101 120000  20001029 240000  amsua 11        4 5 6 7 8 9 10 11 12 13 14   		# 
 n15  20001030 000000  20020331 240000  amsua 10        4 5 6 7 8 9 10 11 12 13   		# amsua: bad ch14 (ch11?)
-n15  20020401 000000  20141017 240000  amsua  9        4 5 6 7 8 9 10    12 13      		# amsua: bad ch11 & ch14 
+n15  20020401 000000  20090411 240000  amsua  9        4 5 6 7 8 9 10    12 13      		# amsua: bad ch11 & ch14 
+n15  20090412 000000  20090413 240000  amsua  0        	       	   	 			# amsua: passive
+n15  20090414 000000  20141017 240000  amsua  9        4 5 6 7 8 9 10    12 13			# active again 
 n15  20141018 000000  21001231 240000  amsua  8        4 5   7 8 9 10    12 13                  # amsua: bad ch6, 11, 14.  Ch6 disabled on
                                                                                                 #       1 Sept 2014 in MERRA2
                                                                                                 #   Note: performance of ch4&5 questionable after
@@ -362,7 +364,9 @@ n18  20051001 000000  20071116 120000  amsua 11        4 5 6 7 8 9 10 11 12 13 1
 ###                                                                                             # attempt to assimilate.  This should be set
 ###                                                                                             # to inactive should an issue arise (wm)
 n18  20051101 000000  20071116 120000  amsua 11        4 5 6 7 8 9 10 11 12 13 14               # (old note)added all 14 back (see iuse-4.tbl)
-n18  20071116 180000  20150922 240000  amsua 10        4 5 6 7 8   10 11 12 13 14               # amsua: 9 bad, added all 14 back
+n18  20071116 180000  20090413 240000  amsua 10        4 5 6 7 8   10 11 12 13 14    		# amsua: bad ch11 & ch14 
+n18  20090414 000000  20090415 240000  amsua  0        	       	   	 			# amsua: passive
+n18  20090416 000000  20150922 240000  amsua 10        4 5 6 7 8   10 11 12 13 14		# active again
 n18  20150923 000000  20151012 240000  amsua  9        4 5 6 7     10 11 12 13 14               # ch 8 too noisy, keep ch5 for now
 n18  20151013 000000  21001231 240000  amsua  8        4   6 7     10 11 12 13 14               # ch 5 noisier
 
@@ -380,7 +384,9 @@ n19  20091215 120000  20130705 240000  hirs4 10    2 3 4 5 6 7 8   10 11 12     
 n19  20130706 000000  21001231 240000  hirs4  0                                                 #  sounding channels noise increase - cloud screening
 ###                                                                                             #   for all channels will be impared, so disable all
 
-n19  20090414 000000  20091215 060000  amsua 11        4 5 6 7 8 9 10 11 12 13 14               # M2: redundant entry intentional.  Observations
+n19  20090414 000000  20090420 000000  amsua  0
+n19  20090421 000000  20091215 060000  amsua 11        4 5 6 7 8 9 10 11 12 13 14               # M2: redundant entry intentional.  Observations
+
 ###                                                                                             # exist prior to MERRA(1) start date.  Will
 ###                                                                                             # attempt to assimilate.  This should be set
 ###                                                                                             # to inactive should an issue arise (wm)
@@ -401,7 +407,9 @@ metop-a 20151117 000000  21001231 240000  hirs4  0                              
                                                                                                 #   so instrument is no longer usable
 
 metop-a 20070521 000000  20090115 060000  amsua 11        4 5 6 7 8 9 10 11 12 13 14            #
-metop-a 20090115 120000  20140829 240000  amsua 10        4 5 6   8 9 10 11 12 13 14            # ch7 noisy
+metop-a 20090115 120000  20090415 240000  amsua 10        4 5 6   8 9 10 11 12 13 14            # ch7 noisy
+metop-a 20090416 000000  20090417 240000  amsua  0
+metop-a 20090418 000000  20140829 240000  amsua 10        4 5 6   8 9 10 11 12 13 14            # ch7 noisy
 metop-a 20140830 000000  21001231 240000  amsua  9        4 5 6     9 10 11 12 13 14            # ch7,8 noisy
 
 metop-a 20070521 000000  20190414 240000  mhs    5  1 2 3 4 5              #
