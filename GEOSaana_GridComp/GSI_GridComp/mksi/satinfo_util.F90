@@ -20,6 +20,7 @@
       public :: getarec
       public :: locate
       public :: token_shift
+      public :: SP,DP
 
     integer,parameter :: STDIN = 5
     integer,parameter :: STDOUT= 6

@@ -1,0 +1,8 @@
+&PCSCALING_NML
+  pcscaling=.true.
+  verbose=.true.
+  pcscales(:)=
+!   yyyymmddhh     isis   ichan   scale
+    2020020206  hirs3_n15   14     -1.
+
+  /
