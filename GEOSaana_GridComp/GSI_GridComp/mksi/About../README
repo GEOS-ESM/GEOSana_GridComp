@@ -1,0 +1,72 @@
+>>>>>>>
+Usage: (under csh)
+
+  set NYMD=20000101; set NHMS=000000
+  echo "&setup	\
+  	nymd=$NYMD	\
+	nhms=$NHMS	\
+	satinfo_tmpl='satinfo.tmpl'	\
+	satinfo_outf='satinfo.txt'	\
+	dbname='./sidb'			/" | ./mksi.x
+
+where NAMELIST /setup/ contains (see "setup.nml" for additional
+information and an example),
+
+Required inputs:
+  nymd:		yyyymmdd, e.g. 20000101 for Jan. 1, 2000.
+  nhms:		hhmmss, e.g. 000000 for 00z
+
+I/O configuration:
+  satinfo_tmpl:	input satinfo template file ("satinfo.tmpl")
+  satinfo_outf:	output satinfo data file ("satinfo.txt")
+
+database configuration:
+  dbname:	directory containing satinfo database tables ("."):
+     availablechan_tbl:	periods of available (passive) channels ("available_channels.tbl")
+        activechan_tbl:	periods of active channels ("active_channels.tbl")
+       monitorchan_tbl:	periods of monitor channels ("monitor_channels.tbl", optional)
+
+  iuse meaning							tag		data source
+   -2 do not use                                             everything		"satinfo.tmpl"
+   -1 monitor if diagnostics produced                        available		"avaiabale_channels.tbl"
+    1 use data with complete quality control                 active		"active_channels.tbl"
+    2 use data with no airmass bias correction               obcClass-2		"iuseClass-2_channels.tbl"
+    3 use data with no angle dependent bias correction       obcClass-3		"iuseClass-2_channels.tbl"
+    4 use data with no bias correction                       obcClass-4		"iuseClass-2_channels.tbl"
+    0 monitor and use in QC only                             monitor		"monitor_channels.tbl"
+
+For additional information about the namelist/setup/, please consult setup.nml
+in the source directory, mksi/src/.
+
+>>>>>>>
+Variables defined in main.F90 and in mksi.fig:
+
+[..]	-- run time variables (as dashed boxes in mksi.fig).
+{..}	-- external ASCII files (round corner boxes in mksi.fig).
+*	-- marks of modified data in mksi.fig.
+
+_nm	-- satellite names, such as, n14, n15, aqua, etc.
+_sn	-- sensor names, such as hirs2, msu, ssu, etc.
+_ch	-- channel numbers, 2, 3, 4, etc.
+_si	-- tag of bundled sensor/instrument/satellite names.
+_iu	-- an inclusion flag of 1 (in-use) or -1 (not-in-use).
+
+[ymd:hms]	-- a date-time tag, e.g. (/20000101,120000/)
+
+{available_channels} -- a stem-leaves table of available (passive) channels.
+{active_channels}    -- a stem-leaves table of active channels.
+{monitor_channels}   -- a stem-leaves table of monitor channels.
+
+[xxxx_*]	-- available|active|monitor channels at [ymd:hms]
+{satinfo_tmpl}	-- the input satinfo table as a template
+[tmpl_*]	-- data variables of satinfo
+{satinfo_txt}	-- the output satinfo table  generated at [ymd:hms]
+
+
+>>>>>>>
+Build:
+
+1. In gsi/, do "./configure", to create a Makefile.conf for Makefile in
+  this directory, mksi/.
+2. In mksi/, do "make all" to build the excutable ./mksi.x, or do
+  "make test" to build and to make test of ./mksi.x.

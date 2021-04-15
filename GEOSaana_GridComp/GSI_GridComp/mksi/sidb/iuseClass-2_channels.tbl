@@ -1,0 +1,17 @@
+#-- iuseClass-n_channels.tbl
+#
+#-- This table list selected channels used for a given iuse flag
+#
+#-- Information here overrides entries given in all earlier channel tables.
+
+# Examples:
+# 
+#      <sat>     <from>           <to>         <sensor> <n -- channels -->
+	x99  99990101 000000  99991231 240000    abc     3   1 2 3
+	x99  99990101 000000  99991231 240000    xyz     2   2 3
+	x99  99990101 000000  99991231 240000    ijk     5   1 2 3 4 5
+	x99  99990101 000000  99991231 240000    qrs     3   3 4 5
+#
+
+#  01Sep2010 Guo	- Created as a place holder or a template
+

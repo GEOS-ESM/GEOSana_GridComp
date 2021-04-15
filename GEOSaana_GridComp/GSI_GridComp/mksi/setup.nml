@@ -1,0 +1,94 @@
+&setup
+! This is an example of NAMELIST/setup/ defined by mksi.x.
+! It is also used in Makefile by target 'test:' as a simple test.
+
+	! Mondatory parameters: specify the time.
+
+nymd=20021231
+nhms=  000000
+
+	! Recommended parameters, speicify the input satinfo
+	! template file and the output satinfo file.
+
+satinfo_tmpl  ='satinfo-merged.tmpl'	! template ["satinfo.tmpl"]
+satinfo_outf  ='satinfo-merged.txt'	! output ["satinfo.txt"]
+
+	! Optional parameters, specify the database about the
+	! satellite-sensor-channel activities.
+
+! dbname='./sidb'	! the database directory ["./sidb"]
+!   availablechan_tbl = 'available_channels.tbl'	! ["available_channels.tbl"]
+!      activechan_tbl =    'active_channels.tbl'	! [   "active_channels.tbl"]
+!     monitorchan_tbl =   'monitor_channels.tbl'	! [  "monitor_channels.tbl"]
+
+	! Optional parameter for debugging message control.
+!verbose=.true.				! [.false.]
+!nowarn =.true.				! [.false.]
+
+	! An optional parameter to control the version of the output
+	! format.  If it is turned to .true., the output format will be
+	! kept the same as the input format.
+!samever=.true.				! [.false.]
+
+	! Flags for not-used/available/monitor/active SIS with [default] values.
+
+!  NOTUSED_FLAG = -9	! [-9]
+!AVAILABLE_FLAG = -1	! [-1]
+!   ACTIVE_FLAG = +1	! [+1]
+!  MONITOR_FLAG =  0	! [ 0]
+
+/ ! end namelist/setup/
+
+!!$ The definitions and default values of all variables in NAMELIST/SETUP/
+!!$ of main.F90
+!
+!  integer :: nymd = -HUGE(nymd)
+!  integer :: nhms = -HUGE(nhms)
+!
+!  integer,parameter :: default_NOTUSED	  = -9
+!  integer,parameter :: default_AVAILABALE = -1
+!  integer,parameter :: default_MONITOR    = +0
+!  integer,parameter :: default_ACTIVE     = +1
+!
+!  character(len=*),parameter :: default_AVAILABLECHAN  = 'available_channels.tbl'
+!  character(len=*),parameter :: default_ACTIVECHAN     =    'active_channels.tbl'
+!  character(len=*),parameter :: default_MONITORCHAN    =   'monitor_channels.tbl'
+!
+!    ! optional parameters.  Default values can be used.
+!  character(len=PATHSIZE) :: satinfo_tmpl = "satinfo.tmpl"
+!  character(len=PATHSIZE) :: satinfo_outf = "satinfo.txt"
+!  character(len=PATHSIZE) :: dbname        ='./sidb'
+!  character(len=PATHSIZE) :: availablechan_tbl = default_AVAILABLECHAN
+!  character(len=PATHSIZE) ::    activechan_tbl = default_ACTIVECHAN
+!  character(len=PATHSIZE) ::   monitorChan_tbl = default_MONITORCHAN
+!
+!  logical :: verbose=.false.
+!  logical :: nowarn =.false.
+!  logical :: samever=.false.
+!
+!  integer ::   NOTUSED_FLAG = default_NOTUSED
+!  integer :: AVAILABLE_FLAG = default_AVAILABLE
+!  integer ::    ACTIVE_FLAG = default_ACTIVE
+!  integer ::   MONITOR_FLAG = default_MONITOR
+!
+!  integer :: itmpl
+!  integer :: iver
+!  integer :: ios
+!  logical :: warning
+!
+!  namelist/setup/ nymd,nhms,	&
+!    satinfo_tmpl,satinfo_outf,	&
+!    dbname,		&
+!      availablechan_tbl,&
+!      activechan_tbl,	&
+!      monitorchan_tbl,	&
+!    NOTUSED_FLAG,	&
+!    AVAILABLE_FLAG,	&
+!    ACTIVE_FLAG,	&
+!    MONITOR_FLAG,	&
+!    verbose,		&
+!    samever,		&
+!    nowarn
+!
+!!$
+!!$			

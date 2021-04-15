@@ -1,0 +1,94 @@
+met_guess::
+!var     level  crtm_use  desc                  orig_name
+  ps        1   -1         surface_pressure      ps
+  z         1   -1         geopotential_height   z
+  u        64    2         zonal_wind            u
+  v        64    2         meridional_wind       v
+  div      64   -1         divergence            div
+  vor      64   -1         vorticity             vor
+  tv       64    2         virtual_temperature   tv
+  q        64    2         specific_humidity     q
+  oz       64    2         ozone                 oz
+  cw       64   10         cloud_condensate      cw
+! for GSD ... needs Ming attention for real: whats diff between tsoil & tslb
+  th2m      1   -1         2meter_sensible_theta th2m
+  tskn      1   -1         skin_temperature      tskin
+  tsoil     1   -1         soil_temperature      tsoil
+  tslb      9   -1         soil_temperature      tsoil2
+  smoist    9   -1         soil_moisture         smois
+! for Zhu ...
+  gust      1   -1         wind_speed_gust       gust
+  vis       1   -1         visibility            vis
+  pblh      1   -1         pbl_height            pblh
+! for NMM ...
+  pint     65   -1         nmm_pint              pint
+  pd        1   -1         nmm_pd                dpres
+::
+
+state_derivatives::
+!var  level  src
+ ps   1      met_guess
+ u    64     met_guess  
+ v    64     met_guess
+ tv   64     met_guess
+ q    64     met_guess
+ oz   64     met_guess
+ cw   64     met_guess
+ prse 65     met_guess
+#sst  central  --> I don't this is needed
+::
+
+state_tendencies::
+!var  levels  source
+ prse 65      met_guess  
+ oz   64      met_guess
+ u    64      met_guess
+ v    64      met_guess
+ tv   64      met_guess
+ q    64      met_guess
+ cw   64      met_guess
+::
+
+state_vector::  
+!var     level  itracer source     funcof
+ u        64      0     met_guess    u
+ v        64      0     met_guess    v
+ tv       64      0     met_guess    tv
+ tsen     64      0     met_guess    tv,q
+ q        64      1     met_guess    q
+ oz       64      1     met_guess    oz
+ cw       64      1     met_guess    cw
+ prse     65      0     met_guess    prse
+ ps        1      0     met_guess    prse
+ sst       1      0     met_guess    sst
+! to use a global constant CO2 value, add an exclamation mark
+! or a pound sign before the letter co2 (comment out the line).
+!Or just delete the following line.
+ co2      64      1     chem_guess   co2
+::
+
+control_vector::
+!var     level  itracer as/tsfc_sdv  an_amp0   source  funcof
+ sf       64      0       0.60        -1.0     state    u,v
+ vp       64      0       0.60        -1.0     state    u,v
+ ps        1      0       0.75        -1.0     state    prse
+ t        64      0       0.75        -1.0     state    tv
+ q        64      1       0.75        -1.0     state    q
+ oz       64      1       0.75        -1.0     state    oz
+ sst       1      0       1.00        -1.0     state    sst
+ cw       64      1       1.00        -1.0     state    cw
+ stl       1      0       3.00        -1.0     motley   sst
+ sti       1      0       3.00        -1.0     motley   sst
+::
+
+! Following table shows the use of all four prescribed trace gas data.
+! To turn off any one of any combination of trace gas input, add "!"
+! in the first column of that trace gas name.  To use all default
+! trace gas profiles, just delete the following seven lines.
+chem_guess::
+!var     level  itracer crtm_use       type    orig_name
+!ch4      64      1       2             n/a    ch4
+ co2      64      1       0             n/a    co2
+!co       64      1       2             n/a    co
+!n2o      64      1       2             n/a    n2o
+::
