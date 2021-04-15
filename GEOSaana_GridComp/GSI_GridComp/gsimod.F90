@@ -39,7 +39,7 @@
   use radinfo, only: crtm_coeffs_path
   use ozinfo, only: diag_ozone,init_oz
   use aeroinfo, only: diag_aero, init_aero, init_aero_vars, final_aero_vars
-  use coinfo, only: diag_co,init_co
+  use tgasinfo, only: diag_tgas,init_tgas
   use convinfo, only: init_convinfo,npred_conv_max, &
                       id_bias_ps,id_bias_t,id_bias_spd, &
                       conv_bias_ps,conv_bias_t,conv_bias_spd, &
@@ -285,6 +285,7 @@
 !                              grid than mass background grid
 !  02-05-2014 todling   add parameter cwcoveqqcov (cw_cov=q_cov)
 !  02-24-2014 sienkiewicz added aircraft_t_bc_ext for GMAO external aircraft temperature bias correction
+!  04-21-2014 weir      replaced co settings with trace gas settings
 !  05-29-2014 Thomas    add lsingleradob logical for single radiance ob test
 !                       (originally of mccarty)
 !  10-04-2014 todling   revised meanning of paramter bcoption
@@ -349,7 +350,7 @@
 !     diag_conv-logical to turn off or on the diagnostic conventional file (true=on)
 !     diag_ozone - logical to turn off or on the diagnostic ozone file (true=on)
 !     diag_aero  - logical to turn off or on the diagnostic aerosol file (true=on)
-!     diag_co - logical to turn off or on the diagnostic carbon monoxide file (true=on)
+!     diag_tgas - logical to turn off or on the diagnostic trace gas file (true=on)
 !     write_diag - logical to write out diagnostic files on outer iteration
 !     lobsdiagsave - write out additional observation diagnostics
 !     ltlint       - linearize inner loop
@@ -462,7 +463,7 @@
        min_offset,pseudo_q2,&
        iout_iter,npredp,retrieval,&
        nst_gsi,nst_tzr,nstinfo,fac_dtl,fac_tsl,tzr_bufrsave,&
-       diag_rad,diag_pcp,diag_conv,diag_ozone,diag_aero,diag_co,iguess, &
+       diag_rad,diag_pcp,diag_conv,diag_ozone,diag_aero,diag_tgas,iguess, &
        write_diag,reduce_diag, &
        oneobtest,sfcmodel,dtbduv_on,ifact10,l_foto,offtime_data,&
        npred_conv_max,&
@@ -910,7 +911,7 @@
   call init_rad
   call init_oz
   call init_aero
-  call init_co
+  call init_tgas
   call init_convinfo
   call init_jfunc
   call init_berror
@@ -1121,7 +1122,7 @@
      diag_conv=.false.
      diag_ozone=.false.
      diag_aero=.false.
-     diag_co=.false.
+     diag_tgas=.false.
      diag_pcp=.false.
      use_limit = 0
   end if

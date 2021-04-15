@@ -17,6 +17,7 @@ module obs_sensitivity
 !   2010-08-19 lueken   - add only to module use;no machine code, so use .f90
 !   2011-03-29 todling  - add reference to pm2_5
 !   2012-04-15 todling  - add reference to gust, vis, pblh
+!   2014-04-01 weir     - generalize colvk to tgas
 !
 ! Subroutines Included:
 !   init_fc_sens  - Initialize computations
@@ -39,7 +40,7 @@ use obsmod, only: cobstype, nobs_type, obsdiags, obsptr, obscounts, &
                   i_spd_ob_type, i_srw_ob_type, i_rw_ob_type, i_dw_ob_type, &
                   i_sst_ob_type, i_pw_ob_type, i_pcp_ob_type, i_oz_ob_type, &
                   i_o3l_ob_type, i_gps_ob_type, i_rad_ob_type, i_tcp_ob_type, &
-                  i_lag_ob_type, i_colvk_ob_type, i_aero_ob_type, i_aerol_ob_type, &
+                  i_lag_ob_type, i_tgas_ob_type, i_aero_ob_type, i_aerol_ob_type, &
                   i_pm2_5_ob_type, i_gust_ob_type, i_vis_ob_type, i_pblh_ob_type
 use mpimod, only: mype
 use control_vectors, only: control_vector,allocate_cv,read_cv,deallocate_cv, &
@@ -249,7 +250,7 @@ cobtype(i_gps_ob_type)   ="gps  "
 cobtype(i_rad_ob_type)   ="rad  "
 cobtype(i_tcp_ob_type)   ="tcp  "
 cobtype(i_lag_ob_type)   ="lag  "
-cobtype(i_colvk_ob_type) ="colvk"
+cobtype(i_tgas_ob_type)  ="tgas"
 cobtype(i_aero_ob_type)  ="aero "
 cobtype(i_aerol_ob_type) ="aerol"
 cobtype(i_pm2_5_ob_type) ="pm2_5"

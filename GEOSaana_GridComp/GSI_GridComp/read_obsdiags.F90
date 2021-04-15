@@ -20,6 +20,7 @@ subroutine read_obsdiags(cdfile)
 !   2010-05-26  treadon  - add read_tcphead
 !   2011-05-18  todling  - aero, aerol, and pm2_5
 !   2011-09-20  hclin    - 1d wij for aero
+!   2014-08-01  weir     - replaced read_colvkhead with read_tgashead
 !
 !   input argument list:
 !     cdfile - filename to read data from
@@ -44,7 +45,7 @@ use obsmod, only: i_ps_ob_type,  i_t_ob_type,   i_w_ob_type,   i_q_ob_type, &
                   i_spd_ob_type, i_srw_ob_type, i_rw_ob_type,  i_dw_ob_type, &
                   i_sst_ob_type, i_pw_ob_type,  i_pcp_ob_type, i_oz_ob_type, &
                   i_o3l_ob_type, i_gps_ob_type, i_rad_ob_type, i_lag_ob_type,& 
-                  i_colvk_ob_type, i_tcp_ob_type, i_aero_ob_type, i_aerol_ob_type, &
+                  i_tgas_ob_type, i_tcp_ob_type, i_aero_ob_type, i_aerol_ob_type, &
                   i_pm2_5_ob_type
 
 
@@ -209,7 +210,7 @@ _TRACE_(myname,'looping through obshead pointers')
          if(jj==i_rad_ob_type) call read_radhead_ ()
          if(jj==i_tcp_ob_type) call read_tcphead_ ()
          if(jj==i_lag_ob_type) call read_laghead_ ()
-         if(jj==i_colvk_ob_type)  call read_colvkhead_ ()
+         if(jj==i_tgas_ob_type)  call read_tgashead_ ()
          if(jj==i_aero_ob_type)   call read_aerohead_ ()
          if(jj==i_aerol_ob_type)  call read_aerolhead_ ()
          if(jj==i_pm2_5_ob_type)  call read_pm2_5head_ ()
@@ -2406,11 +2407,11 @@ _EXIT_(myname_)
 end subroutine read_laghead_
 
 
-subroutine read_colvkhead_ ()
+subroutine read_tgashead_ ()
 !$$$  subprogram documentation block
 !                .      .    .                                       .
-! subprogram:    read_colvkhead_
-!   prgmmr:      tangborn 
+! subprogram:    read_tgashead_
+!   prgmmr:      weir
 !
 ! abstract: Read obs-specific data structure from file.
 !
@@ -2419,6 +2420,7 @@ subroutine read_colvkhead_ ()
 !   2008-11-25  todling - merged with NCEP-May-2008
 !   2009-01-28  todling - accommodate single level-type data
 !   2010-04-27  tangborn - created carbon monoxide version
+!   2014-08-01  weir     - generalized to trace gas version
 !
 !   input argument list:
 !
@@ -2430,123 +2432,131 @@ subroutine read_colvkhead_ ()
 !
 !$$$ end documentation block
 
-    use gridmod, only: nsig
-    use obsmod, only: colvkhead,colvktail
-    use obsmod, only: colvk_ob_type
+    use gridmod,  only: nsig
+    use obsmod,   only: tgashead, tgastail
+    use obsmod,   only: tgas_ob_type
     use m_obdiag, only: obdiag_locate
     use m_obdiag, only: ob_verify
+
     implicit none
 
-    real(r_kind),dimension(:),allocatable :: zres      ! residual
-    real(r_kind),dimension(:),allocatable :: zerr2     ! error squared
-    real(r_kind),dimension(:),allocatable :: zraterr2  ! square of ratio of final obs error
-                                                       ! to original obs error
-    real(r_kind),dimension(:,:),allocatable :: zak     ! 
-    real(r_kind),dimension(:)  ,allocatable :: zap     ! 
-    real(r_kind)    :: ztime                           ! observation time
-    real(r_kind)    :: zwij(8,nsig)                    ! horizontal interpolation weights
-    real(r_kind),dimension(:),allocatable :: zprs      ! delta pressure at mid layers at obs locations
-    integer(i_kind),dimension(:),allocatable :: zipos  !
-    integer(i_kind) :: zij(4)                          ! horizontal locations
-    logical         :: zluse                           ! flag indicating if ob is used in pen.
+    real(r_kind),    dimension(:),   allocatable :: zres                        ! residual
+    real(r_kind),    dimension(:),   allocatable :: zerr2                       ! error squared
+    real(r_kind),    dimension(:),   allocatable :: zraterr2                    ! square of ratio of final obs error
+                                                                                ! to original obs error
+    real(r_kind),    dimension(:,:), allocatable :: zak                         ! 
+    real(r_kind),    dimension(:),   allocatable :: zprs                        ! delta pressure at mid layers at obs locations
+    integer(i_kind), dimension(:),   allocatable :: zipos                       !
+    real(r_kind)    :: ztime                                                    ! observation time
+    real(r_kind)    :: zwij(4)                                                  ! horizontal interpolation weights
+    integer(i_kind) :: zij(4)                                                   ! horizontal locations
+    logical         :: zluse                                                    ! flag indicating if ob is used in pen.
 
-    integer(i_kind) :: j,k,mobs,jread,nlco,nlevp,iostat,istatus
+    integer(i_kind) :: j, k, mobs, jread, nchanl, npro, ierr
     logical         :: passed
-    type(colvk_ob_type),pointer:: my_node => NULL()
-    character(len=*),parameter:: myname_=myname//".read_colvkhead_"
+
+    type(tgas_ob_type), pointer   :: my_node => NULL()
+    character(len=*),   parameter :: myname_ =  myname // ".read_tgashead_"
 _ENTRY_(myname_)
 
-    read(iunit,iostat=iostat) mobs,jread
-    if(iostat/=0) call die(myname_,'read(mobs,jread), iostat =',iostat)
-    if(  jj/=jread) then
-      call perr(myname_,'unmatched ob type, (jj,jread,mobs) =',(/jj,jread,mobs/))
+    read(iunit,iostat=ierr) mobs, jread
+    if (ierr /= 0) call die(myname_, 'read(mobs,jread), ierr = ', ierr)
+    if (jj /= jread) then
+       call perr(myname_, 'unmatched ob type, (jj,jread,mobs) = ',             &
+                 (/jj,jread,mobs/))
        call stop2(212)
     end if
-    if(kobs<=0.or.mobs<=0) then
+    if (kobs <= 0 .or. mobs <= 0) then
 _EXIT_(myname_)
-      return
-    endif
+       return
+    end if
 
-    do kk=1,mobs
+    do kk = 1,mobs
+       read(iunit,iostat=ierr) nchanl, npro
+       allocate(zres(nchanl), zerr2(nchanl), zraterr2(nchanl), zipos(nchanl),  &
+                zak(nchanl,nsig), stat=ierr)
+       if (ierr /= 0) write(6,*) myname_ // ' failed to allocate ' //          &
+                                 'zpoint, ierr = ', ierr
 
-       read(iunit,iostat=iostat) nlco
-       nlevp=max(nlco,1)
-       allocate(zres(nlco),zerr2(nlco),zraterr2(nlco), &
-                zprs(nlevp),zipos(nlco),zak(nlco,nlco), zap(nlco), stat=istatus)
-       if (istatus/=0) write(6,*)'read_colvkhead:  allocate error for zco_point, istatus=',istatus
-
-       if(.not. associated(colvkhead(ii)%head))then
-          allocate(colvkhead(ii)%head,stat=ierr)
-          if(ierr /= 0)write(6,*)' fail to alloc colvkhead '
-          colvktail(ii)%head => colvkhead(ii)%head
+       if (.not. associated(tgashead(ii)%head)) then
+          allocate(tgashead(ii)%head, stat=ierr)
+          if (ierr /= 0) write(6,*) myname_ // ' failed to allocate ' //       &
+                                    'tgashead, ierr = ', ierr
+          tgastail(ii)%head => tgashead(ii)%head
        else
-          allocate(colvktail(ii)%head%llpoint,stat=ierr)
-          if(ierr /= 0)write(6,*)' fail to alloc colvktail%llpoint '
-          colvktail(ii)%head => colvktail(ii)%head%llpoint
+          allocate(tgastail(ii)%head%llpoint, stat=ierr)
+          if (ierr /= 0) write(6,*) myname_ // ' failed to allocate ' //       &
+                                    'tgastail%head%llpoint, ierr = ', ierr
+          tgastail(ii)%head => tgastail(ii)%head%llpoint
        end if
-       allocate(colvktail(ii)%head%res(nlco),colvktail(ii)%head%diags(nlco), &
-                colvktail(ii)%head%err2(nlco),colvktail(ii)%head%raterr2(nlco), &
-                colvktail(ii)%head%prs(nlevp),colvktail(ii)%head%ipos(nlco), &
-                colvktail(ii)%head%wij(8,nsig),&
-                colvktail(ii)%head%ak(nlco,nlco),colvktail(ii)%head%ap(nlco),stat=istatus)
-       if (istatus/=0) write(6,*)'read_colvkhead:  allocate error for co_point, istatus=',istatus
+       allocate(tgastail(ii)%head%res(nchanl),          &
+                tgastail(ii)%head%diags(nchanl),        &
+                tgastail(ii)%head%err2(nchanl),         &
+                tgastail(ii)%head%raterr2(nchanl),      &
+                tgastail(ii)%head%ipos(nchanl),         &
+                tgastail(ii)%head%avgker(nchanl,npro),  &
+                stat=ierr)
+       if (ierr /= 0) write(6,*) myname_ // ' failed to allocate ' //          &
+                                 'tgastail%head, ierr = ', ierr
 
-       my_node => colvktail(ii)%head
-       read(iunit,iostat=iostat) my_node%idv,my_node%iob
-                if(iostat/=0) then
-                  call die(myname_,'read(idv,iob), (iostat,type,ibin,mobs,iobs,nlco) =',(/iostat,jj,ii,mobs,kk,nlco/))
-                endif
-       read(iunit,iostat=iostat) zres,  zerr2, zraterr2, ztime, &
-                                 zluse, zwij, zij, zprs, zipos, &
-                                 zak, zap
-       if (iostat/=0) then
-          write(6,*)'read_colvkhead: error reading record',iostat
+       my_node => tgastail(ii)%head
+       read(iunit,iostat=ierr) my_node%idv, my_node%iob
+       if (ierr /= 0) then
+          call die(myname_, 'read(idv,iob), (ierr,type,ibin,mobs,iobs,' //     &
+                            'nchanl) = ', (/ierr,jj,ii,mobs,kk,nchanl/))
+       end if
+       read(iunit,iostat=ierr) zres, zerr2, zraterr2, ztime, zluse, zwij, zij, &
+                               zipos, zak
+       if (ierr /= 0) then
+          write(6,*) myname_ // ': error reading record, ierr = ', ierr
           call stop2(213)
        end if
-       colvktail(ii)%head%nlco     = nlco
-       colvktail(ii)%head%time     = ztime
-       colvktail(ii)%head%luse     = zluse
-       colvktail(ii)%head%wij      = zwij
-       colvktail(ii)%head%ij       = zij
+       tgastail(ii)%head%nchanl = nchanl
+       tgastail(ii)%head%npro   = npro
+       tgastail(ii)%head%time   = ztime
+       tgastail(ii)%head%luse   = zluse
+       tgastail(ii)%head%wij    = zwij
+       tgastail(ii)%head%ij     = zij
 
-       do k=1,nlco
-          colvktail(ii)%head%res(k)       = zres(k)
-          colvktail(ii)%head%err2(k)      = zerr2(k)
-          colvktail(ii)%head%raterr2(k)   = zraterr2(k)
-          colvktail(ii)%head%ipos(k)      = zipos(k)
-          colvktail(ii)%head%ap(k)        = zap(k)
-          do j=1,nlco
-             colvktail(ii)%head%ak(k,j)   = zak(k,j)
+       do k = 1,nchanl
+          tgastail(ii)%head%res(k)     = zres(k)
+          tgastail(ii)%head%err2(k)    = zerr2(k)
+          tgastail(ii)%head%raterr2(k) = zraterr2(k)
+          tgastail(ii)%head%ipos(k)    = zipos(k)
+          do j = 1,npro
+             tgastail(ii)%head%avgker(k,j) = zak(k,j)
           enddo
        enddo
-       do k=1,nlevp
-          colvktail(ii)%head%prs(k)       = zprs(k)
-       enddo
 
-       deallocate(zres,zerr2,zraterr2,zprs,zipos,stat=istatus)
-       if (istatus/=0) write(6,*)'read_colvkhead:  deallocate error for zco_point, istatus=',istatus
+       deallocate(zres, zerr2, zraterr2, zipos, zak, stat=ierr)
+       if (ierr /= 0) write(6,*) myname_ // ': deallocation error for ' //     &
+                                 'zpoint, ierr = ', ierr
 
-       if(.not. lobserver) then
-         do k=1,nlco+1
-           my_node%diags(k)%ptr => obdiag_locate(obsdiags(jj,ii),my_node%idv,my_node%iob,k,who=myname_)
-                if(.not.associated(my_node%diags(k)%ptr)) then
-                  call die(myname_,'obdiag_located(), '// &
-                    '(type,ibin,mobs,iobs,nlco,idv,iob,ich) =',&
-                    (/jj,ii,mobs,kk,nlco,my_node%idv,my_node%iob,k/))
+       if (.not. lobserver) then
+          do k = 1,nchanl
+             my_node%diags(k)%ptr                                              &
+                => obdiag_locate(obsdiags(jj,ii), my_node%idv, my_node%iob, k, &
+                                 who=myname_)
+                if (.not. associated(my_node%diags(k)%ptr)) then
+                    call die(myname_, 'obdiag_locate(), (type,ibin,mobs,' //   &
+                                      'iobs,nchanl,idv,iob,ich) = ',           &
+                             (/ jj, ii, mobs, kk, nchanl, my_node%idv,         &
+                                my_node%iob, k /))
                 end if
-         enddo
-          endif
-       enddo
+          end do
+       end if
+    end do
 
-    if(.not. lobserver) then
-      passed = ob_verify(colvkhead(ii),count=mobs,perr=.true.)
-        if(.not. passed) then
-          call perr(myname_,'ob_verify(), (type,ibin,mobs) =',(/jj,ii,mobs/))
-       call stop2(214)
+    if (.not. lobserver) then
+       passed = ob_verify(tgashead(ii), count=mobs, perr=.true.)
+       if (.not. passed) then
+          call perr(myname_, 'ob_verify(), (type,ibin,mobs) = ',               &
+                    (/jj,ii,mobs/))
+          call stop2(214)
+       end if
     end if
-    endif
 _EXIT_(myname_)
-end subroutine read_colvkhead_
+end subroutine read_tgashead_
 
 subroutine read_aerohead_ ()
 !$$$  subprogram documentation block

@@ -8,6 +8,7 @@ module adjtest_obs
 !
 ! program history log:
 !   2012-09-14  Rizvi, NCAR/NESL/MMM/DAS - initial code
+!   2014-08-01  weir - replaced colvk with tgas
 !
 ! subroutines included:
 !   sub adtest_obs
@@ -26,7 +27,7 @@ module adjtest_obs
   use obsmod, only: yobs, obs_handle, &
            t_ob_type,q_ob_type,w_ob_type,ps_ob_type,pw_ob_type, spd_ob_type, &
            rw_ob_type, dw_ob_type, srw_ob_type, tcp_ob_type, sst_ob_type, &
-           oz_ob_type, o3l_ob_type, gps_ob_type, colvk_ob_type, pm2_5_ob_type, rad_ob_type, &
+           oz_ob_type, o3l_ob_type, gps_ob_type, tgas_ob_type, pm2_5_ob_type, rad_ob_type, &
            gust_ob_type,vis_ob_type,pblh_ob_type
 
   use jfunc, only: jiter
@@ -222,7 +223,7 @@ subroutine get_lhs(yobs, lhs)
   type(oz_ob_type),    pointer  :: ozptr    ! 12. Ozone
   type(o3l_ob_type),   pointer  :: o3lptr   ! 12. Ozone
   type(gps_ob_type),   pointer  :: gpsptr   ! 13. GPS 
-  type(colvk_ob_type), pointer  :: colvkptr ! 14. CO 
+  type(tgas_ob_type),  pointer  :: tgasptr  ! 14. Trace gases
   type(pm2_5_ob_type), pointer  :: pm2_5ptr ! 15. pm2_5  
   type(rad_ob_type),   pointer  :: radptr   ! 16. Radiance 
   type(vis_ob_type),   pointer  :: visptr   ! 17. Conventional visibility
@@ -450,22 +451,22 @@ subroutine get_lhs(yobs, lhs)
 !  if(nobs > 0 .and. mype ==0) write(6,*)' for jiter= ',jiter,' got gps-obs ',nobs
 
 !--------------------------------------------------------------------------
-! Do co obs
+! Do trace gas obs
   nob = 0
 !-------------------------------------------------------------------------
-  colvkptr => yobs%colvk
-  do while (associated(colvkptr))
+  tgasptr => yobs%tgas
+  do while (associated(tgasptr))
 
-     if (colvkptr%luse) then
-        do k = 1, colvkptr%nlco
-           lhs = lhs + colvkptr%diags(k)%ptr%tldepart(jiter) * colvkptr%diags(k)%ptr%tldepart(jiter)
+     if (tgasptr%luse) then
+        do k = 1,tgasptr%nchanl
+           lhs = lhs + tgasptr%diags(k)%ptr%tldepart(jiter) * tgasptr%diags(k)%ptr%tldepart(jiter)
            nob = nob + 1
         end do ! k-loop
      end if
-     colvkptr => colvkptr%llpoint
+     tgasptr => tgasptr%llpoint
   end do
   call mpi_allreduce(nob,nobs,1,mpi_integer4,mpi_sum,mpi_comm_world,ierror)
-!  if(nobs > 0 .and. mype ==0) write(6,*)' for jiter= ',jiter,' got co-obs ',nobs
+!  if(nobs > 0 .and. mype ==0) write(6,*)' for jiter= ',jiter,' got tgas-obs ',nobs
 
 !--------------------------------------------------------------------------
 ! Do pm2_5 obs

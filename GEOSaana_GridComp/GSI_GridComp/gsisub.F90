@@ -59,6 +59,7 @@ subroutine gsisub(mype,init_pass,last_pass)
 !   2012-06-12  parrish - remove init_commvars (replaced in gsimod.F90 with general_commvars).
 !   2013-05-19  zhu     - add aircraft temperature bias correction
 !   2014-02-27  sienkiewicz - add additional aircraft bias option (external table)
+!   2014-04-21  weir    - replaced co settings with trace gas settings
 !
 !   input argument list:
 !     mype - mpi task id
@@ -84,7 +85,7 @@ subroutine gsisub(mype,init_pass,last_pass)
   use aeroinfo, only: aeroinfo_read
   use convinfo, only: convinfo_read
   use ozinfo, only: ozinfo_read
-  use coinfo, only: coinfo_read
+  use tgasinfo, only: tgasinfo_read
   use read_l2bufr_mod, only: radar_bufr_read_all
   use oneobmod, only: oneobtest,oneobmakebufr
   use aircraftinfo, only: aircraftinfo_read,aircraft_t_bc_pof,aircraft_t_bc,&
@@ -140,7 +141,7 @@ subroutine gsisub(mype,init_pass,last_pass)
      if (.not.twodvar_regional) then
         call radinfo_read
         call ozinfo_read
-        call coinfo_read
+        call tgasinfo_read
         call pcpinfo_read
         call aeroinfo_read
         if (aircraft_t_bc_pof .or. aircraft_t_bc .or. aircraft_t_bc_ext) &

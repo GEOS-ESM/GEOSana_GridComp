@@ -503,6 +503,7 @@ subroutine read_obs(ndata,mype)
 !                       - Added some -do- and -if- construct names, for easier
 !                         understanding of the code.
 !   2014-03-29  j.jin    - read gmi 1B data using subroutine read_tmi.
+!   2014-04-20  weir    - generalized read for co to read for trace gases
 !   2014-05-08  j.jin    - use subroutine read_gmi to read gmi data.
 !   2014-09-03  j.jin    - read GMI 1CR data (obstype='gmi').
 !   
@@ -679,8 +680,9 @@ subroutine read_obs(ndata,mype)
            .or. mls &
            ) then
           ditype(i) = 'ozone'
-       else if (obstype == 'mopitt') then
-          ditype(i) = 'co'
+       else if (obstype == 'mopitt' .or. obstype == 'acos' .or. &
+                obstype == 'flask') then
+          ditype(i) = 'tgas'
        else if (index(obstype,'pcp')/=0 )then
           ditype(i) = 'pcp'
        else if (obstype == 'gps_ref' .or. obstype == 'gps_bnd') then
@@ -1311,11 +1313,11 @@ subroutine read_obs(ndata,mype)
                 string='READ_OZONE'
              endif ozone_obstype_select
 
-!         Process co data
-          else if (ditype(i) =='co')then 
-             call read_co(nread,npuse,nouse,&
-                 infile,gstime,lunout,obstype,sis)
-             string='READ_CO'
+!         Process trace gas data
+          else if (ditype(i) == 'tgas') then 
+             call read_tgas(nread,npuse,nouse,platid,infile,gstime,lunout,&
+                  obstype,twind,sis,ithin,rmesh)
+             string='READ_TGAS'
 
 !         Process precipitation             
           else if (ditype(i) == 'pcp')then

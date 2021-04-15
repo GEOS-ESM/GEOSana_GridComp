@@ -103,7 +103,7 @@ RSRC =	gmao_airs_bufr.tbl		\
         gmao_global_aeroinfo.txt        \
         gmao_global_anavinfo.txt        \
 	gmao_global_blacklist.txt	\
-	gmao_global_coinfo.txt		\
+	gmao_global_tgasinfo.txt	\
 	gmao_global_convinfo.txt	\
         gmao_global_hybens_locinfo.l72.txt \
 	gmao_global_insituinfo.txt	\
@@ -366,8 +366,7 @@ SRCS_SOLVER =	$(wildcard \
 	chemmod.f90 \
         clw_mod.f90 \
 	cmaq_routines.f90 \
-        co_mop_ak.f90 \
-        coinfo.f90 \
+        tgasinfo.f90 \
 	combine_radobs.f90 \
 	compute_derived.f90 \
         compute_qvar3d.f90 \
@@ -412,7 +411,7 @@ SRCS_SOLVER =	$(wildcard \
 	int3dvar.f90 \
 	intall.f90 \
 	intaod.f90 \
-	intco.f90 \
+	inttgas.f90 \
 	intdw.f90 \
 	intgps.f90 \
 	intgust.f90 \
@@ -494,7 +493,7 @@ SRCS_SOLVER =	$(wildcard \
 	read_avhrr.f90 \
 	read_avhrr_navy.f90 \
 	read_bufrtovs.f90 \
-	read_co.f90 \
+	read_tgas.f90 \
 	read_files.f90 \
         read_fl_hdob.f90 \
         read_gfs_ozone_for_regional.f90 \
@@ -532,7 +531,7 @@ SRCS_SOLVER =	$(wildcard \
 	satthin.F90 \
 	setupaod.f90 \
 	setupbend.f90 \
-	setupco.f90 \
+	setuptgas.f90 \
 	setupdw.f90 \
 	setupgust.f90 \
 	setuplag.f90 \
@@ -562,14 +561,14 @@ SRCS_SOLVER =	$(wildcard \
         sqrtmin.f90 \
         ssmis_spatial_average_mod.f90 \
 	sst_retrieval.f90 \
-	statsco.f90 \
+	statstgas.f90 \
 	statsconv.f90 \
 	statsoz.f90 \
 	statspcp.f90 \
 	statsrad.f90 \
 	stp3dvar.f90 \
 	stpcalc.f90 \
-	stpco.f90 \
+	stptgas.f90 \
 	stpdw.f90 \
 	stpgps.f90 \
 	stpgust.f90 \

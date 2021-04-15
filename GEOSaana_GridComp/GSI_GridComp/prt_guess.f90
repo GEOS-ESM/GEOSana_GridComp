@@ -349,6 +349,8 @@ subroutine prt_guesschem(sgrep)
 ! program history log:
 !   2011-09-20  hclin -
 !   2013-11-16  todling - revisit return logic
+!   2015-06-12  weir - included trace gases in list, removed ntsig from
+!                      zloc(3*nvars+1) calculation
 !
 !   input argument list:
 !    sgrep  - prefix for write statement
@@ -388,7 +390,7 @@ subroutine prt_guesschem(sgrep)
 
   ntsig = ntguessig
 
-  call gsi_chemguess_get('aerosols::3d',nvars,istatus)
+  call gsi_chemguess_get('dim',nvars,istatus)
   if(istatus/=0.or.nvars==0) return
 
   if ( nvars > 0 ) then
@@ -398,7 +400,7 @@ subroutine prt_guesschem(sgrep)
      allocate(zmax(nvars))
      allocate(zavg(nvars))
      allocate(cvar(nvars))
-     call gsi_chemguess_get ('aerosols::3d',cvar,ier)
+     call gsi_chemguess_get ('gsinames',cvar,ier)
   endif
 
   ier = 0
@@ -408,7 +410,7 @@ subroutine prt_guesschem(sgrep)
         zloc(ii)             = sum   (ptr3d(2:lat1+1,2:lon1+1,1:nsig))
         zloc(nvars+ii)       = minval(ptr3d(2:lat1+1,2:lon1+1,1:nsig))
         zloc(2*nvars+ii)     = maxval(ptr3d(2:lat1+1,2:lon1+1,1:nsig))
-        zloc(3*nvars+1)      = real(lat1*lon1*nsig*ntsig,r_kind)
+        zloc(3*nvars+1)      = real(lat1*lon1*nsig,r_kind)
      endif
   enddo
 

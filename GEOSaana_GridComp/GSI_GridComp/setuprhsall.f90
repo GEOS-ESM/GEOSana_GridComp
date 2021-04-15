@@ -85,6 +85,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !                         PBL pseudo obs
 !   2013-10-19  todling - metguess now holds background
 !   2013-05-24      zhu - add ostats_t and rstats_t for aircraft temperature bias correction
+!   2014-04-21  weir    - added call for trace gas data
 !
 !   input argument list:
 !     ndata(*,1)- number of prefiles retained for further processing
@@ -117,7 +118,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   use aircraftinfo, only: aircraft_t_bc_pof,aircraft_t_bc,ostats_t,rstats_t,npredt,ntail
   use pcpinfo, only: diag_pcp
   use ozinfo, only: diag_ozone,mype_oz,jpch_oz,ihave_oz
-  use coinfo, only: diag_co,mype_co,jpch_co,ihave_co
+  use tgasinfo, only: diag_tgas,mype_tgas,jpch_tgas,ihave_tgas
   use mpimod, only: ierror,mpi_comm_world,mpi_rtype,mpi_sum
   use gridmod, only: nsig,twodvar_regional,wrf_mass_regional,nems_nmmb_regional
   use gsi_4dvar, only: nobs_bins,l4dvar
@@ -140,7 +141,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   use m_rhs, only: bwork  => rhs_bwork
   use m_rhs, only: aivals => rhs_aivals
   use m_rhs, only: stats    => rhs_stats
-  use m_rhs, only: stats_co => rhs_stats_co
+  use m_rhs, only: stats_tgas => rhs_stats_tgas
   use m_rhs, only: stats_oz => rhs_stats_oz
   use m_rhs, only: toss_gps_sub => rhs_toss_gps
 
@@ -188,13 +189,14 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   external:: setuppblh
   external:: statsconv
   external:: statsoz
+  external:: statstgas
   external:: statspcp
   external:: statsrad
   external:: stop2
   external:: w3tage
 
 ! Delcare local variables
-  logical rad_diagsave,ozone_diagsave,pcp_diagsave,conv_diagsave,llouter,getodiag,co_diagsave
+  logical rad_diagsave,ozone_diagsave,pcp_diagsave,conv_diagsave,llouter,getodiag,tgas_diagsave
   logical aero_diagsave
 
   character(80):: string
@@ -205,14 +207,14 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 
   integer(i_kind) lunin,nobs,nchanl,nreal,nele,&
        is,idate,i_dw,i_rw,i_srw,i_sst,i_tcp,i_gps,i_uv,i_ps,i_lag,&
-       i_t,i_pw,i_q,i_co,i_gust,i_vis,i_ref,i_pblh,iobs,nprt,ii,jj
+       i_t,i_pw,i_q,i_tgas,i_gust,i_vis,i_ref,i_pblh,iobs,nprt,ii,jj
   integer(i_kind) it,ier,istatus
 
   real(r_quad):: zjo
   real(r_kind),dimension(40,ndat):: aivals1
   real(r_kind),dimension(7,jpch_rad):: stats1
   real(r_kind),dimension(9,jpch_oz):: stats_oz1
-  real(r_kind),dimension(9,jpch_co):: stats_co1
+  real(r_kind),dimension(9,jpch_tgas):: stats_tgas1
   real(r_kind),dimension(npres_print,nconvtype,5,3):: bwork1
   real(r_kind),allocatable,dimension(:,:):: awork1
 
@@ -235,7 +237,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   pcp_diagsave  = write_diag(jiter) .and. diag_pcp
   conv_diagsave = write_diag(jiter) .and. diag_conv
   ozone_diagsave= write_diag(jiter) .and. diag_ozone .and. ihave_oz
-  co_diagsave   = write_diag(jiter) .and. diag_co    .and. ihave_co
+  tgas_diagsave = write_diag(jiter) .and. diag_tgas  .and. ihave_tgas
   aero_diagsave = write_diag(jiter) .and. diag_aero
 
   i_ps = 1
@@ -250,7 +252,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   i_sst= 10
   i_tcp= 11
   i_lag= 12
-  i_co = 13
+  i_tgas=13
   i_gust=14
   i_vis =15
   i_pblh=16
@@ -503,10 +505,10 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
                       obstype,isis,is,ozone_diagsave,init_pass)
               end if
 
-!          Set up co (mopitt) data
-           else if(ditype(is) == 'co')then 
-              call setupco(lunin,mype,stats_co,nchanl,nreal,nobs,&
-                   obstype,isis,is,co_diagsave,init_pass)
+!          Set up trace gas data
+           else if(ditype(is) == 'tgas')then 
+              call setuptgas(lunin,mype,stats_tgas,nchanl,nreal,nobs,&
+                   obstype,isis,is,tgas_diagsave,init_pass,last_pass)
 
 !          Set up GPS local refractivity data
            else if(ditype(is) == 'gps')then
@@ -575,7 +577,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   if (ihave_oz) call mpi_reduce(stats_oz,stats_oz1,size(stats_oz1),mpi_rtype,mpi_sum,mype_oz, &
        mpi_comm_world,ierror)
 
-  if (ihave_co) call mpi_reduce(stats_co,stats_co1,size(stats_co1),mpi_rtype,mpi_sum,mype_co, &
+  if (ihave_tgas) call mpi_reduce(stats_tgas,stats_tgas1,size(stats_tgas1),mpi_rtype,mpi_sum,mype_tgas, &
        mpi_comm_world,ierror)
 
 ! Collect conventional data statistics
@@ -603,8 +605,8 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !       Compute and print statistics for ozone
         if (mype==mype_oz .and. ihave_oz) call statsoz(stats_oz1,ndata)
 
-!       Compute and print statistics for carbon monoxide
-!????   if (mype==mype_co .and. ihave_co) call statsco(stats_co1,bwork1,awork1(1,i_co),ndata)
+!       Compute and print statistics for trace gases
+        if (mype==mype_tgas .and. ihave_tgas) call statstgas(stats_tgas1,ndata)
 
      endif
 

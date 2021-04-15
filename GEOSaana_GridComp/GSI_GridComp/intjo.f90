@@ -156,6 +156,8 @@ subroutine intjo_(yobs,rval,rbias,sval,sbias,ibin)
 !   2010-10-20  hclin    - added aod
 !   2011-02-20  zhu      - add intgust,intvis,intpblh calls
 !   2013-05-20  zhu      - add codes related to aircraft temperature bias correction 
+!   2014-04-24  weir     - added inttgas
+!   2014-08-01  weir     - removed intco (deprecated by inttgas)
 !
 !   input argument list:
 !     ibin
@@ -208,7 +210,7 @@ use intsstmod, only: intsst
 use intdwmod, only: intdw
 use intpcpmod, only: intpcp
 use intozmod, only: intoz
-use intcomod, only: intco
+use inttgasmod, only: inttgas
 use intpm2_5mod, only: intpm2_5
 use intlagmod, only: intlag
 use intgustmod, only: intgust
@@ -274,8 +276,8 @@ real(r_quad),dimension(max(1,nrclen)):: qpred
 ! RHS for ozone observations
   call intoz(yobs%oz,yobs%o3l,rval,sval)
 
-! RHS for carbon monoxide
-  call intco(yobs%colvk,rval,sval)
+! RHS for trace gas
+  call inttgas(yobs%tgas,rval,sval)
 
 ! RHS for pm2_5
   call intpm2_5(yobs%pm2_5,rval,sval)

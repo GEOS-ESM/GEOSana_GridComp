@@ -93,6 +93,7 @@ module obsmod
 !                        - removed type(aofp_obs_diag) from public entity list, which is not used
 !                          anywhere else, except in this module.  It might be needed to be public
 !                          in the future, but atleast not now.
+!   2014-01-31  weir     - generalize colvk to trace gas observation type
 ! 
 ! Subroutines Included:
 !   sub init_obsmod_dflts   - initialize obs related variables to default values
@@ -170,8 +171,8 @@ module obsmod
 !   def oztail       - sbuv ozone profile linked list tail
 !   def o3lhead      - ozone level data linked list head
 !   def o3ltail      - ozone level data linked list tail
-!   def colvkhead    - carbon monoxide level data linked list head 
-!   def colvktail    - carbon monoxide level data linked list tail 
+!   def tgashead     - trace gas level linked list head 
+!   def tgastail     - trace gas level data linked list tail 
 !   def aerohead     - aerosol profile linked list head
 !   def aerotail     - aerosol profile linked list tail
 !   def aerolhead    - aerosol level data linked list head
@@ -193,7 +194,7 @@ module obsmod
 !   def iout_q       - output unit for moisture stats
 !   def iout_uv      - output unit for wind stats
 !   def iout_oz      - output unit for ozone stats
-!   def iout_co      - output unit for co stats 
+!   def iout_tgas    - output unit for tgas stats 
 !   def iout_aero    - output unit for aerosol stats
 !   def iout_ps      - output unit for surface pressure stats
 !   def iout_pw      - output unit for precipitable water stats
@@ -288,34 +289,34 @@ module obsmod
   public :: dfile_format
 ! set passed variables to public
   public :: iout_pcp,iout_rad,iadate,write_diag,reduce_diag,oberrflg,ndat,dthin,dmesh,l_do_adjoint
-  public :: lsaveobsens,lag_ob_type,o3l_ob_type,oz_ob_type,colvk_ob_type,pcp_ob_type,dw_ob_type
+  public :: lsaveobsens,lag_ob_type,o3l_ob_type,oz_ob_type,tgas_ob_type,pcp_ob_type,dw_ob_type
   public :: sst_ob_type,srw_ob_type,spd_ob_type,rw_ob_type,gps_ob_type,gps_all_ob_type,tcp_ob_type
   public :: gust_ob_type,vis_ob_type,pblh_ob_type
   public :: rad_ob_type,q_ob_type,pw_ob_type,ps_ob_type,w_ob_type,t_ob_type
   public :: obs_handle,yobs,i_ps_ob_type,i_t_ob_type,i_w_ob_type,i_q_ob_type
   public :: i_spd_ob_type,i_srw_ob_type,i_rw_ob_type,i_dw_ob_type,i_sst_ob_type
   public :: i_gust_ob_type,i_vis_ob_type,i_pblh_ob_type
-  public :: i_pw_ob_type,i_pcp_ob_type,i_oz_ob_type,i_o3l_ob_type,i_colvk_ob_type,i_gps_ob_type
+  public :: i_pw_ob_type,i_pcp_ob_type,i_oz_ob_type,i_o3l_ob_type,i_tgas_ob_type,i_gps_ob_type
   public :: i_rad_ob_type,i_tcp_ob_type,i_lag_ob_type,obscounts,obsptr,nobs_type,obsdiags
   public :: cobstype,gpsptr,obs_diag,nprof_gps,gps_allhead,gps_allptr,time_offset,ianldate
-  public :: iout_oz,iout_co,dsis,ref_obs,obsfile_all,lobserver,perturb_obs,ditype,dsfcalc,dplat
+  public :: iout_oz,iout_tgas,dsis,ref_obs,obsfile_all,lobserver,perturb_obs,ditype,dsfcalc,dplat
   public :: time_window,dval,dtype,dfile,dirname,obs_setup,oberror_tune,offtime_data
   public :: lobsdiagsave,blacklst,hilbert_curve,lobskeep,time_window_max,sfcmodel,ext_sonde
   public :: perturb_fact,dtbduv_on,nsat1,mype_diaghdr,wptr,whead,psptr,pshead
   public :: qptr,qhead,tptr,thead,lobsdiag_allocated,pstail,ttail,wtail,qtail,spdtail
   public :: spdhead,srwtail,srwhead,rwtail,rwhead,dwtail,dwhead,ssttail,ssthead,pwtail
-  public :: pwhead,oztail,ozhead,o3ltail,o3lhead,colvktail,colvkhead,pcptail,pcphead,gpstail,gpshead
+  public :: pwhead,oztail,ozhead,o3ltail,o3lhead,tgastail,tgashead,pcptail,pcphead,gpstail,gpshead
   public :: gusttail,gusthead,vistail,vishead,pblhtail,pblhhead
   public :: aero_ob_head,aero_ob_type,aerohead,aerotail,i_aero_ob_type
   public :: aerol_ob_head,aerol_ob_type,aerolhead,aeroltail,i_aerol_ob_type
   public :: pm2_5_ob_head,pm2_5_ob_type,i_pm2_5_ob_type,pm2_5head,pm2_5tail
-  public :: radptr,radtail,radhead,lagtail,laghead,nloz_v8,nloz_v6,nloz_omi,nlco,nobskeep,gps_alltail
+  public :: radptr,radtail,radhead,lagtail,laghead,nloz_v8,nloz_v6,nloz_omi,nlmopitt,nlacos,nlflask,nobskeep,gps_alltail
   public :: radptrm,radtailm,radheadm
   public :: grids_dim,rmiss_single,nchan_total,tcpptr,tcphead,tcptail,mype_sst,mype_gps
   public :: mype_uv,mype_dw,mype_rw,mype_srw,mype_q,mype_tcp,mype_lag,mype_ps,mype_t
   public :: mype_pw,iout_rw,iout_dw,iout_srw,iout_sst,iout_pw,iout_t,iout_q,iout_tcp
   public :: iout_lag,iout_uv,iout_gps,iout_ps,spdptr,srwptr,rwptr,dwptr,sstptr,pwptr
-  public :: ozptr,o3lptr,coptr,pcpptr,lagptr,lread_obs_save,obs_input_common,lread_obs_skip
+  public :: ozptr,o3lptr,tgasptr,pcpptr,lagptr,lread_obs_save,obs_input_common,lread_obs_skip
   public :: aeroptr,aerolptr,pm2_5ptr
   public :: mype_gust,mype_vis,mype_pblh,iout_gust,iout_vis,iout_pblh,gustptr,visptr,pblhptr
   public :: ndat_times,lwrite_predterms,lwrite_peakwt
@@ -326,7 +327,7 @@ module obsmod
   public :: gust_ob_head,vis_ob_head,pblh_ob_head
   public :: pcp_ob_head,o3l_ob_head,gps_ob_head
   public :: lag_ob_head,srw_ob_head,pw_ob_head,oz_ob_head,rad_ob_head
-  public :: tcp_ob_head,colvk_ob_head
+  public :: tcp_ob_head,tgas_ob_head
   public :: mype_aero,iout_aero,nlaero
   public :: mype_pm2_5,iout_pm2_5
   public :: use_limit,lrun_subdirs
@@ -371,7 +372,7 @@ module obsmod
   integer(i_kind),parameter:: i_rad_ob_type=15    ! rad_ob_type
   integer(i_kind),parameter:: i_tcp_ob_type=16    ! tcp_ob_type
   integer(i_kind),parameter:: i_lag_ob_type=17    ! lag_ob_type
-  integer(i_kind),parameter:: i_colvk_ob_type= 18 ! colvk_ob_type
+  integer(i_kind),parameter:: i_tgas_ob_type=18   ! tgas_ob_type
   integer(i_kind),parameter:: i_aero_ob_type =19  ! aero_ob_type
   integer(i_kind),parameter:: i_aerol_ob_type=20  ! aerol_ob_type
   integer(i_kind),parameter:: i_pm2_5_ob_type=21  ! pm2_5_ob_type
@@ -743,41 +744,32 @@ module obsmod
      type(o3l_ob_type),pointer :: head => NULL()
   end type o3l_ob_head
 
-  type colvk_ob_type
-     type(colvk_ob_type),pointer :: llpoint => NULL()
-     type(aofp_obs_diag), dimension(:), pointer :: diags => NULL()
-     real(r_kind),dimension(:),pointer :: res => NULL()
-                                      !  co residual
-     real(r_kind),dimension(:),pointer :: err2 => NULL()
-                                      !  co error squared
-     real(r_kind),dimension(:),pointer :: raterr2 => NULL()
-                                      !  square of ratio of final obs error
-                                      !  to original obs error
-     real(r_kind)    :: time          !  observation time in sec
-     real(r_kind),dimension(:,:),pointer :: wij => NULL()
-                                      !  horizontal interpolation weights
-     real(r_kind),dimension(:),pointer :: prs => NULL()
-                                      !  pressure levels
-     real(r_kind),dimension(:,:),pointer :: ak  => NULL()   
-                                      ! MOPITT vertical averaging kernel
-     real(r_kind),dimension(:),pointer :: ap  => NULL()   
-                                      ! MOPITT a priori
-     real(r_kind),dimension(:),pointer   :: wkk1 => NULL()
-     real(r_kind),dimension(:),pointer   :: wkk2 => NULL()
-                                      ! vertical intropolation weights for MOPITT
+  type tgas_ob_type
+     type(tgas_ob_type),                  pointer :: llpoint => NULL()
+     type(aofp_obs_diag), dimension(:),   pointer :: diags   => NULL()
 
-     integer(i_kind),dimension(:),pointer :: ipos  => NULL()
-     integer(i_kind) :: nlco          ! number of levels for this profile
-     integer(i_kind) :: ij(4)         !  horizontal locations
-     integer(i_kind) :: idv,iob         ! device id and obs index for sorting
-     logical         :: luse          !  flag indicating if ob is used in pen.
+     real(r_kind),        dimension(:),   pointer :: res     => NULL()          ! residual
+     real(r_kind),        dimension(:),   pointer :: err2    => NULL()          ! error squared
+     real(r_kind),        dimension(:),   pointer :: raterr2 => NULL()          ! square of ratio of final obs error to original obs error
+     real(r_kind),        dimension(:,:), pointer :: avgker  => NULL()          ! averaging kernel
+     real(r_kind),        dimension(:,:), pointer :: avgwgt  => NULL()          ! averaging weights
+     integer(i_kind),     dimension(:),   pointer :: ipos    => NULL()
 
-  end type colvk_ob_type
+     real(r_kind)       :: time           ! observation time in sec
+     integer(i_kind)    :: nchanl         ! number of channels for this profile
+     integer(i_kind)    :: npro           ! number of elements for this profile
+     integer(i_kind)    :: idv, iob       ! device id and obs index for sorting
+     integer(i_kind)    :: ij(4)          ! horizontal locations
+     real(r_kind)       :: wij(4)         ! horizontal interpolation weights
+     logical            :: luse           ! flag indicating if ob is used in pen.
+     character(len=256) :: obstype        ! observation type of int/stp procedures
+  end type tgas_ob_type
 
-  type colvk_ob_head
-     integer(i_kind):: n_alloc=0
-     type(colvk_ob_type),pointer :: head => NULL()
-  end type colvk_ob_head
+  type tgas_ob_head
+     integer(i_kind) :: n_alloc = 0
+     type(tgas_ob_type), pointer :: head => NULL()
+  end type tgas_ob_head
+
 
   type aero_ob_type
      type(aero_ob_type),pointer :: llpoint => NULL()
@@ -1077,7 +1069,7 @@ module obsmod
      type(pcp_ob_type),pointer   :: pcp => NULL()
      type(tcp_ob_type),pointer   :: tcp => NULL()
      type(lag_ob_type),pointer   :: lag => NULL()
-     type(colvk_ob_type),pointer :: colvk => NULL()
+     type(tgas_ob_type),pointer  :: tgas => NULL()
      type(aero_ob_type),pointer  :: aero  => NULL()
      type(aerol_ob_type),pointer :: aerol => NULL()
      type(pm2_5_ob_type),pointer :: pm2_5  => NULL()
@@ -1155,9 +1147,9 @@ module obsmod
   type(lag_ob_head),dimension(:),pointer :: laghead
   type(lag_ob_head),dimension(:),pointer :: lagtail
   type(lag_ob_type),pointer :: lagptr => NULL()
-  type(colvk_ob_head),dimension(:),pointer :: colvkhead
-  type(colvk_ob_head),dimension(:),pointer :: colvktail
-  type(colvk_ob_type),pointer :: coptr => NULL()
+  type(tgas_ob_head),dimension(:),pointer :: tgashead
+  type(tgas_ob_head),dimension(:),pointer :: tgastail
+  type(tgas_ob_type),pointer :: tgasptr => NULL()
   type(gust_ob_head),dimension(:),pointer :: gusthead
   type(gust_ob_head),dimension(:),pointer :: gusttail
   type(gust_ob_type),pointer :: gustptr => NULL()
@@ -1184,11 +1176,11 @@ module obsmod
   integer(i_kind) grids_dim,nchan_total,ianldate
   integer(i_kind) ndat,ndat_types,ndat_times,nprof_gps
   integer(i_kind) lunobs_obs,nloz_v6,nloz_v8,nobskeep,nloz_omi
-  integer(i_kind) nlco,use_limit 
+  integer(i_kind) nlmopitt,nlacos,nlflask,use_limit 
   integer(i_kind) iout_rad,iout_pcp,iout_t,iout_q,iout_uv, &
                   iout_oz,iout_ps,iout_pw,iout_rw
   integer(i_kind) iout_dw,iout_srw,iout_gps,iout_sst,iout_tcp,iout_lag
-  integer(i_kind) iout_co,iout_gust,iout_vis,iout_pblh
+  integer(i_kind) iout_tgas,iout_gust,iout_vis,iout_pblh
   integer(i_kind) mype_t,mype_q,mype_uv,mype_ps,mype_pw, &
                   mype_rw,mype_dw,mype_srw,mype_gps,mype_sst, &
                   mype_tcp,mype_lag,mype_co,mype_gust,mype_vis,mype_pblh
@@ -1315,7 +1307,7 @@ contains
     iout_sst=213   ! conventional sst
     iout_tcp=214   ! synthetic tc-mslp
     iout_lag=215   ! lagrangian tracers
-    iout_co=216    ! co tracers
+    iout_tgas=216  ! tgas tracers
     iout_aero=217  ! aerosol product (aod)
     iout_gust=218  ! wind gust
     iout_vis=219   ! visibility
@@ -1348,7 +1340,10 @@ contains
     nloz_v6 = 12               ! number of "levels" in ozone version8 data
     nloz_v8 = 21               ! number of "levels" in ozone version6 data
     nloz_omi= 11               ! number of "levels" in OMI apriori profile
-    nlco    = 10               ! number of "levels" in MOPITT version 4 CO data
+
+    nlmopitt = 10              ! number of "levels" in MOPITT version 6 CO data
+    nlacos   = 20              ! number of "levels" in ACOS/GOSAT version 3.4 CO2 data
+    nlflask  = 1               ! number of "levels" in NOAA flask data
 
     lunobs_obs = 2             ! unit to which to write/read information
                                ! related to brightness temperature and 
@@ -1376,7 +1371,7 @@ contains
     cobstype(i_rad_ob_type)  ="radiance            " ! rad_ob_type
     cobstype(i_tcp_ob_type)  ="tcp (tropic cyclone)" ! tcp_ob_type
     cobstype(i_lag_ob_type)  ="lagrangian tracer   " ! lag_ob_type
-    cobstype(i_colvk_ob_type)="carbon monoxide     " ! colvk_ob_type
+    cobstype(i_tgas_ob_type) ="trace gases         " ! tgas_ob_type
     cobstype( i_aero_ob_type)="aerosol aod         " ! aero_ob_type
     cobstype(i_aerol_ob_type)="level aero aod      " ! aerol_ob_type
     cobstype( i_pm2_5_ob_type)="in-situ pm2_5 obs  " ! pm2_5_ob_type
@@ -1516,8 +1511,8 @@ contains
     ALLOCATE(gps_alltail(nobs_bins))
     ALLOCATE(laghead(nobs_bins))
     ALLOCATE(lagtail(nobs_bins))
-    ALLOCATE(colvkhead(nobs_bins))
-    ALLOCATE(colvktail(nobs_bins))
+    ALLOCATE(tgashead(nobs_bins))
+    ALLOCATE(tgastail(nobs_bins))
     ALLOCATE(gusthead(nobs_bins))
     ALLOCATE(gusttail(nobs_bins))
     ALLOCATE(vishead(nobs_bins))
@@ -1967,19 +1962,17 @@ contains
     end do
 
     do ii=1,nobs_bins
-       colvktail(ii)%head => colvkhead(ii)%head
-       do while (associated(colvktail(ii)%head))
-          colvkhead(ii)%head => colvktail(ii)%head%llpoint
-          deallocate(colvktail(ii)%head%res, colvktail(ii)%head%wij,&
-                     colvktail(ii)%head%err2,colvktail(ii)%head%raterr2, &
-                     colvktail(ii)%head%prs,colvktail(ii)%head%ipos, &
-                     colvktail(ii)%head%ak, colvktail(ii)%head%ap, &
-                     colvktail(ii)%head%wkk1,colvktail(ii)%head%wkk2, &
+       tgastail(ii)%head => tgashead(ii)%head
+       do while (associated(tgastail(ii)%head))
+          tgashead(ii)%head => tgastail(ii)%head%llpoint
+          deallocate(tgastail(ii)%head%res,     tgastail(ii)%head%err2,    &
+                     tgastail(ii)%head%raterr2, tgastail(ii)%head%ipos,    &
+                     tgastail(ii)%head%avgker,                             &
                      stat=istatus)
-          if (istatus/=0) write(6,*)'DESTROYOBS:  deallocate error for co arrays, istatus=',istatus
-          deallocate(colvktail(ii)%head,stat=istatus)
-          if (istatus/=0) write(6,*)'DESTROYOBS:  deallocate error for co, istatus=',istatus
-          colvktail(ii)%head => colvkhead(ii)%head
+          if (istatus/=0) write(6,*)'DESTROYOBS:  deallocate error for tgas arrays, istatus=',istatus
+          deallocate(tgastail(ii)%head,stat=istatus)
+          if (istatus/=0) write(6,*)'DESTROYOBS:  deallocate error for tgas, istatus=',istatus
+          tgastail(ii)%head => tgashead(ii)%head
        end do
     end do
 

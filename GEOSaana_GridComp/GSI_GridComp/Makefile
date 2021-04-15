@@ -226,8 +226,6 @@ clean:
 	clw_mod.f90 \
 	cloud_efr_mod.f90 \
 	cmaq_routines.f90 \
-	co_mop_ak.f90 \
-	coinfo.f90 \
 	combine_radobs.f90 \
 	compact_diffs.f90 \
 	compute_derived.f90 \
@@ -315,7 +313,6 @@ clean:
 	int3dvar.f90 \
 	intall.f90 \
         intaod.f90 \
-	intco.f90 \
 	intdw.f90 \
 	intgps.f90 \
 	intgust.f90 \
@@ -338,6 +335,7 @@ clean:
 	intsst.f90 \
 	intt.f90 \
 	inttcp.f90 \
+	inttgas.f90 \
 	intvis.f90 \
 	intw.f90 \
 	jcmod.f90 \
@@ -450,15 +448,14 @@ clean:
 	control2state_ad.f90 \
 	ensctl2state_ad.f90 \
 	state_vectors.f90 \
-	statsco.f90 \
 	statsconv.f90 \
 	statsoz.f90 \
 	statspcp.f90 \
 	statsrad.f90 \
+	statstgas.f90 \
 	stop1.f90 \
 	stp3dvar.f90 \
 	stpcalc.f90 \
-	stpco.f90 \
 	stpdw.f90 \
 	stpgps.f90 \
 	stpgust.f90 \
@@ -478,6 +475,7 @@ clean:
 	stpsst.f90 \
 	stpt.f90 \
 	stptcp.f90 \
+	stptgas.f90 \
 	stpvis.f90 \
 	stpw.f90 \
 	strong_bal_correction.f90 \
@@ -493,6 +491,7 @@ clean:
 	tendsmod.f90 \
 	test_obsens.f90 \
 	tcv_mod.f90 \
+	tgasinfo.f90 \
 	timermod.f90 \
 	tintrp2a.f90 \
 	tintrp3.f90 \
@@ -540,7 +539,6 @@ clean:
 	read_avhrr_navy.f90 \
 	read_atms.f90 \
 	read_bufrtovs.f90 \
-	read_co.f90 \
 	read_cris.f90 \
 	read_diag.f90 \
         read_fl_hdob.f90 \
@@ -566,9 +564,9 @@ clean:
 	read_ssmis.f90 \
 	read_superwinds.f90 \
 	read_tcps.f90 \
+	read_tgas.f90 \
 	read_tmi.f90 \
 	setupbend.f90 \
-	setupco.f90 \
 	setupdw.f90 \
 	setupgust.f90 \
 	setuplag.f90 \
@@ -588,6 +586,7 @@ clean:
 	setupsst.f90 \
 	setupt.f90 \
 	setuptcp.f90 \
+	setuptgas.f90 \
 	setupvis.f90 \
 	setupw.f90 \
 	sst_retrieval.f90 \
@@ -759,6 +758,7 @@ export: libgsi.a gsi.x prepbykx.x
 	$(CP) gmao_global_pcpinfo.txt  $(COREETC)/gmao_global_pcpinfo.rc
 	$(CP) gmao_global_satinfo.txt  $(COREETC)/gmao_global_satinfo.rc
 	$(CP) gmao_global_ozinfo.txt   $(COREETC)/gmao_global_ozinfo.rc
+	$(CP) gmao_global_tgasinfo.txt $(COREETC)/gmao_global_tgasinfo.rc
 	$(CP) gmao_global_convinfo.txt $(COREETC)/gmao_global_convinfo.rc
 	$(SED) -e "s^@DASPERL^$(DASPERL)^" < analyzer > $(COREBIN)/analyzer
 	chmod 755 $(COREBIN)/analyzer

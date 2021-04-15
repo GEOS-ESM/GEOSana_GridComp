@@ -50,7 +50,7 @@ ALLETC = gmao_airs_bufr.tbl \
          gmao_global_aeroinfo.txt \
          gmao_global_anavinfo.txt \
          gmao_global_blacklist.txt \
-         gmao_global_coinfo.txt \
+         gmao_global_tgasinfo.txt \
          gmao_global_convinfo.txt \
          gmao_global_hybens_betainfo.l72.txt \
          gmao_global_hybens_locinfo.l72.txt \

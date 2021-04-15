@@ -77,6 +77,7 @@ subroutine update_guess(sval,sbias)
 !   2014-02-12  Hu      - Adjust 2m Q based on 1st level moisture analysis increment  
 !   2014-02-15  kim     - revisit various options of cloud-related updates
 !   2014-04-13  todling - replace update bias code w/ call to routine in bias_predictors
+!   2014-04-24  weir    - removed lower bound for co since it is stored as a log
 !   2014-06-17  carley  - remove setting nguess=0 when use_reflectivity==true
 !   2014-10-07  todling - redefined meanning of bcoption; rename interface to bkg-bias-upd
 !
@@ -362,7 +363,12 @@ subroutine update_guess(sval,sbias)
         if (id>0) then
            call gsi_bundlegetpointer (sval(ii),                gases(ic),ptr3dinc,istatus)
            call gsi_bundlegetpointer (gsi_chemguess_bundle(it),gases(ic),ptr3dges,istatus)
-           call upd_positive_fldr3_(ptr3dges,ptr3dinc,tgmin)
+!          Removed positive lower bound for co since it is stored as a log (weir)
+!          call upd_positive_fldr3_(ptr3dges,ptr3dinc,tgmin)
+           ptr3dges = ptr3dges + ptr3dinc
+           if (gases(ic) /= 'co') then
+              ptr3dges = max(ptr3dges,tgmin)
+           endif
            cycle
         endif
         id=getindex(svars2d,gases(ic))

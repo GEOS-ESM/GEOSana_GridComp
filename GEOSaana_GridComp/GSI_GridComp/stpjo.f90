@@ -135,6 +135,7 @@ subroutine stpjo(yobs,dval,dbias,xval,xbias,sges,pbcjo,nstep)
 !   2010-10-15  pagowski - add stppm2_5 call 
 !   2011-02-24  zhu    - add gust,vis,pblh calls
 !   2013-05-23  zhu    - add bias correction contribution from aircraft T bias correction
+!   2014-08-01  weir    - replaced stpco call with stptgas call
 !
 !   input argument list:
 !     yobs
@@ -168,7 +169,7 @@ subroutine stpjo(yobs,dval,dbias,xval,xbias,sges,pbcjo,nstep)
   use obsmod, only: obs_handle, &
                   & i_ps_ob_type, i_t_ob_type, i_w_ob_type, i_q_ob_type, &
                   & i_spd_ob_type, i_srw_ob_type, i_rw_ob_type, i_dw_ob_type, &
-                  & i_sst_ob_type, i_pw_ob_type, i_oz_ob_type, i_colvk_ob_type, &
+                  & i_sst_ob_type, i_pw_ob_type, i_oz_ob_type, i_tgas_ob_type, &
                   & i_gps_ob_type, i_rad_ob_type, i_pcp_ob_type,i_tcp_ob_type, &
                   &i_pm2_5_ob_type, i_gust_ob_type, i_vis_ob_type, i_pblh_ob_type, &
                     nobs_type
@@ -187,7 +188,7 @@ subroutine stpjo(yobs,dval,dbias,xval,xbias,sges,pbcjo,nstep)
   use stpdwmod, only: stpdw
   use stppcpmod, only: stppcp
   use stpozmod, only: stpoz
-  use stpcomod, only: stpco
+  use stptgasmod, only: stptgas
   use stppm2_5mod, only: stppm2_5
   use stpgustmod, only: stpgust
   use stpvismod, only: stpvis
@@ -237,8 +238,8 @@ subroutine stpjo(yobs,dval,dbias,xval,xbias,sges,pbcjo,nstep)
     call stppw(yobs%pw,dval,xval,pbcjo(1,i_pw_ob_type),sges,nstep)
 
 !$omp section
-!   penalty, b, and c for ozone
-    call stpco(yobs%colvk,dval,xval,pbcjo(1,i_colvk_ob_type),sges,nstep)
+!   penalty, b, and c for trace gases
+    call stptgas(yobs%tgas,dval,xval,pbcjo(1,i_tgas_ob_type),sges,nstep)
 
 !$omp section
 !   penalty, b, and c for ozone

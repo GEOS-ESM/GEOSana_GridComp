@@ -16,6 +16,7 @@ module m_obdiag
 !   2010-04-27  tangborn - added carbon monoxide
 !   2010-05-26  treadon - add tcp_verify to ob_verify interface
 !   2011-05-18  todling - add aero, aerol, and pm2_5
+!   2014-08-01  weir - generalized co routines to tgas routines
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -78,7 +79,7 @@ module m_obdiag
     rad_verify_, &  ! 15
     tcp_verify_, &  ! 16
     lag_verify_, &  ! 17
-  colvk_verify_, &  ! 18
+   tgas_verify_, &  ! 18
    aero_verify_, &  ! 19
   aerol_verify_, &  ! 20
   pm2_5_verify_; end interface
@@ -1493,103 +1494,117 @@ _EXIT_(myname_)
   call timer_fnl(ob_verify_name)
 _EXIT_(myname_)
 end function oz_verify_
-function colvk_verify_(hd,count,perr) result(good)
-  use obsmod,only: colvk_ob_head
-  use obsmod,only: colvk_ob_type
-  use obsmod,only: obs_diag
+
+function tgas_verify_(hd, count, perr) result(good)
+  use obsmod,    only: tgas_ob_head
+  use obsmod,    only: tgas_ob_type
+  use obsmod,    only: obs_diag
   use mpeu_util, only: iperr => perr
-  use timermod, only: timer_ini,timer_fnl
+  use timermod,  only: timer_ini, timer_fnl
+
   implicit none
-  logical:: good
-  type(colvk_ob_head),intent(in) :: hd
-  integer(i_kind),optional,intent(in) :: count
-  logical,optional,intent(in) :: perr
 
-  character(len=*),parameter :: myname_=myname//'.co_verify_'
+  type(tgas_ob_head), intent(in) :: hd
+  integer(i_kind),    intent(in), optional :: count
+  logical,            intent(in), optional :: perr
 
-  logical:: perr_
-  type(colvk_ob_type),pointer:: my_node
-  type(obs_diag),pointer:: my_diag
-  integer(i_kind):: k,n
+  character(len=*),   parameter :: myname_ = myname // '.tgas_verify_'
+
+  logical         :: good, perr_
+  integer(i_kind) :: k, n
+
+  type(tgas_ob_type), pointer :: my_node
+  type(obs_diag),     pointer :: my_diag
+
 _ENTRY_(myname_)
   good = .true.
-  if(SKIP_VERIFY_) then
+
+  if (SKIP_VERIFY_) then
 _EXIT_(myname_)
-    return
-  endif
+     return
+  end if
   call timer_ini(ob_verify_name)
 
-  perr_=.false.
-  if(present(perr)) perr_=perr
+  perr_ = .false.
+  if (present(perr)) perr_ = perr
 
   my_node => hd%head    ! top
-  n=0
-  do while(associated(my_node))
-    n=n+1
+  n = 0
+  do while (associated(my_node))
+     n = n + 1
 
-    if(good) then
-                ! check #0
-      good = associated(my_node%diags)
-      if(.not.good .and. perr_) then
-        call iperr(myname_,'unassociated node%diags, @count =',n)
-        call iperr(myname_,'node%(idv,iob,nlco) =',(/my_node%idv,my_node%iob,my_node%nlco/))
-      endif
+!    check #0
+     if (good) then
+        good = associated(my_node%diags)
+        if (.not. good .and. perr_) then
+           call iperr(myname_, 'unassociated node%diags, @count = ', n)
+           call iperr(myname_, 'node%(idv,iob,nchanl) = ',                     &
+                      (/my_node%idv,my_node%iob,my_node%nchanl/))
+        end if
 
-                ! check #0.1
-      if(good) then
-        good = my_node%nlco+1 == size(my_node%diags)
-        if(.not.good .and. perr_) then
-          call iperr(myname_,'mismatching [%nlco,size(%diags)], @count =',n)
-          call iperr(myname_,'node%(idv,iob,nlco,size(%diags)) =', &
-                      (/my_node%idv,my_node%iob,my_node%nlco,size(my_node%diags)/))
-        endif
-      endif
+!       check #0.1
+        if (good) then
+           good = (my_node%nchanl == size(my_node%diags))
+           if (.not. good .and. perr_) then
+              call iperr(myname_, 'mismatching [%nchanl,size(%diags)], ' //    &
+                                  '@count = ', n)
+              call iperr(myname_,'node%(idv,iob,nchanl,size(%diags)) = ',      &
+                         (/ my_node%idv, my_node%iob, my_node%nchanl,          &
+                            size(my_node%diags) /))
+           end if
+        end if
 
-      if(good) then
-        do k=1,my_node%nlco+1
-          my_diag => my_node%diags(k)%ptr
+        if (good) then
+           do k = 1,my_node%nchanl
+              my_diag => my_node%diags(k)%ptr
 
-                ! check #1
-          good = associated(my_diag)
-          if(.not.good .and. perr_) then
-            call iperr(myname_,'unassociated node%diags(k)%ptr, @(count,k) =',(/n,k/))
-            call iperr(myname_,'node%(idv,iob,ich) =',(/my_node%idv,my_node%iob,k/))
-          endif
+!             check #1
+              good = associated(my_diag)
+              if (.not. good .and. perr_) then
+                 call iperr(myname_, 'unassociated node%diags(k)%ptr, ' //     &
+                                     '@(count,k) = ', (/n,k/))
+                 call iperr(myname_, 'node%(idv,iob,ich) = ',                  &
+                            (/my_node%idv,my_node%iob,k/))
+              end if
 
-                ! check #2
-          good = my_node%idv == my_diag%idv .and. &
-                 my_node%iob == my_diag%iob .and. &
-                         k   == my_diag%ich
-          if(.not.good .and. perr_) then
-            call iperr(myname_,'mismatching keys, @(count,k) =',(/n,k/))
-            call iperr(myname_,'node%(idv,iob,ich) =',(/my_node%idv,my_node%iob,k/))
-            call iperr(myname_,'diag%(idv,iob,ich) =',(/my_diag%idv,my_diag%iob,my_diag%ich/))
-          endif
-        enddo
-      endif
+!             check #2
+              good = my_node%idv == my_diag%idv .and. &
+                     my_node%iob == my_diag%iob .and. &
+                             k   == my_diag%ich
+              if (.not. good .and. perr_) then
+                 call iperr(myname_, 'mismatching keys, @(count,k) = ',         &
+                            (/n,k/))
+                 call iperr(myname_, 'node%(idv,iob,ich) = ',                   &
+                            (/my_node%idv,my_node%iob,k/))
+                 call iperr(myname_, 'diag%(idv,iob,ich) = ',                   &
+                            (/my_diag%idv,my_diag%iob,my_diag%ich/))
+              end if
+           end do
+        end if
 
-      if(.not.(good.or.present(count))) then
-        call iperr(myname_,'test failed, @count =',n)
-        call timer_fnl(ob_verify_name)
+        if (.not. (good .or. present(count))) then
+           call iperr(myname_, 'test failed, @count =', n)
+           call timer_fnl(ob_verify_name)
 _EXIT_(myname_)
-        return
-      endif
-    endif
+           return
+        end if
+     end if
 
-    my_node => my_node%llpoint  ! next
-  enddo
+     my_node => my_node%llpoint
+  end do
 
-                ! check #3, is done when some other test is already failed.
-  if(present(count)) then
-    if(n/=count) then
-      good=.false.
-      if(perr_) call iperr(myname_,'mismatching count, (expected,actual) =',(/count,n/))
-    endif
-  endif
+! check #3 (done when some other test has already failed)
+  if (present(count)) then
+     if (n /= count) then
+        good = .false.
+        if (perr_) call iperr(myname_, 'mismatching count, ' //                &
+                                       '(expected,actual) = ', (/count,n/))
+     end if
+  end if
+
   call timer_fnl(ob_verify_name)
 _EXIT_(myname_)
-end function colvk_verify_
-
+end function tgas_verify_
 
 function rad_verify_(hd,count,perr) result(good)
   use obsmod,only: rad_ob_head

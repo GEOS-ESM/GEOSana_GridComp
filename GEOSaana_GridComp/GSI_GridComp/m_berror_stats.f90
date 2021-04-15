@@ -11,6 +11,7 @@ module m_berror_stats
 ! program history log:
 !   2010-03-24  j guo   - added this document block
 !   2011-08-01  lueken  - changed F90 to f90 (no machine logic) and fix indentation
+!   2014-04-01  weir    - added some chem support
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -437,11 +438,12 @@ end subroutine read_bal
         if(n>0) then
            if(cvars3d(n)=='oz') then
               call setcoroz_(corz(:,:,n),mype)
+              call sethwlloz_(hwll(:,:,n),mype)
            else
               call setcorchem_(cvars3d(n),corz(:,:,n),ier)
+              call sethwllchem_(hwll(:,:,n),mype)
               if(ier/=0) cycle ! if this happens, code will crash later
            endif
-           call sethwlloz_(hwll(:,:,n),mype)
            call setvscalesoz_(vz(:,:,n))
         endif
         if(mype==0) write(6,*) myname_, ': WARNING, using general Berror template for ', cvars3d(n)
@@ -707,7 +709,9 @@ end subroutine setvscalesoz_
       integer(i_kind)                    ,intent(  out) :: rc      ! return error code
 
 ! !REVISION HISTORY:
-!    15Jul20010 - Todling - created from Guo's OZ routine
+!    15Jul2010 - Todling - created from Guo's OZ routine
+!    20Apr2015 - Weir    - relaced chemz with a constant, old approach
+!                          wasn't appropriate for CO
 !
 !EOP ___________________________________________________________________
 
@@ -793,7 +797,10 @@ end subroutine setvscalesoz_
        do n=1,npe
           asum=asum+work_chem1(k,n)
        end do
-       if (bsum>zero) chemz(k)=asum/bsum
+!      Not appropriate for co, just replacing with a constant, will revisit
+!      later (bweir)
+!      if (bsum>zero) chemz(k)=asum/bsum
+       chemz(k) = 1._r_kind
     enddo
 
 ! -- now this part is taken from prewgt().
@@ -808,4 +815,63 @@ end subroutine setvscalesoz_
     endif
 
 end subroutine setcorchem_
+
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+! NASA/GSFC, Global Modeling and Assimilation Office, 900.3, GEOS/DAS  !
+!BOP -------------------------------------------------------------------
+!
+! !IROUTINE: sethwllchem_ - a modeled hwll of chem
+!
+! !DESCRIPTION:
+!
+! !INTERFACE:
+
+   subroutine sethwllchem_(hwll, mype)
+
+      use kinds,     only: r_single, r_kind
+      use mpimod,    only: levs_id
+      use gridmod,   only: nnnn1o, nsig, nlon, nlat
+      use constants, only: two, three, pi, rearth_equator
+
+      implicit none
+
+      real(r_single),  intent(  out) :: hwll(nlat,nsig)
+      integer(i_kind), intent(in   ) :: mype
+
+! !REVISION HISTORY:
+!       20May14 - Weir    - Initial code, based on sethwlloz_
+!EOP ___________________________________________________________________
+
+      character(len=*), parameter :: myname_ = myname//'::sethwllchem_'
+
+      real(r_kind),     parameter :: r400    =   400._r_kind
+      real(r_kind),     parameter :: r800    =   800._r_kind
+      real(r_kind),     parameter :: r40000  = 40000._r_kind
+
+      integer(i_kind) :: k, k1
+      real(r_kind)    :: fact
+      real(r_kind)    :: s2u
+    
+      if (mype == 0) then
+         write(6,*) myname_, '(PREWGT): mype = ', mype
+      end if
+
+      s2u = (two*pi*rearth_equator)/nlon
+      do k = 1,nnnn1o
+         k1 = levs_id(k)
+         if (k1 > 0) then
+            if (mype == 0) write(6,*) myname_, '(PREWGT): mype = ', mype, k1
+!           make everything constant
+!           fact = real(k1,r_kind)**2._r_kind
+            fact = 1._r_kind
+            fact = r40000/(r400*nlon*fact)
+            hwll(:,k1) = s2u/fact
+         end if
+      end do
+
+      if (mype == 0) then
+         write(6,*) myname_, '(PREWGT): mype = ', mype, 'finish sethwllchem_'
+      end if
+
+   end subroutine sethwllchem_
 end module m_berror_stats
