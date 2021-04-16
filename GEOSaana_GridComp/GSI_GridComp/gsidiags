@@ -15,13 +15,15 @@
 #  25May2013 Todling  Implement parallelization 
 #  16Nov2013 Todling  Check all diag-types for consistency w/ obs-sys from MERRA2
 #  01Oct2014 Stassi   Unwired intrument-platform names: see gsidiags.rc
+#  09Dec2016 McCarty  Add support for nc4 diag concatenation
+#  13Feb2017 Todling  Set default for GSI binary output; revised env var names
+#  02Aug2018 McCarty  Integrated bin2txt processing for pyradmon usage
 #-----------------------------------------------------------------------------------------------------
 
 use Env;                 # make env vars readily available
 use File::Basename;      # for basename(), dirname()
 use File::Copy "cp";     # for cp()
 use Getopt::Long;        # load module with GetOptions function
-use Shell qw(cat rm);    # cat and rm commands
 use Time::Local;         # time functions
 use FindBin;             # so we can find where this script resides
 
@@ -131,6 +133,13 @@ sub init {
           }
       }
   }
+  
+  $binary_diag = 1;
+  $binary_diag = $ENV{GSI_BINARY_DIAG} if(defined $ENV{'GSI_BINARY_DIAG'});
+  $netcdf_diag = 0;
+  $netcdf_diag = $ENV{GSI_NETCDF_DIAG} if(defined $ENV{'GSI_NETCDF_DIAG'});
+  $diag2txt    = 0;
+  $diag2txt    = $ENV{GSI_DIAG2TXT} if(defined $ENV{'GSI_DIAG2TXT'}); 
 
 # Welcome message
 # ---------------
@@ -160,7 +169,7 @@ sub lndiag_files {
   my ( $todo ) = @_;
 
   my($echorc_x, $gsidiags_rc);
-  my(@loops, @satlist, @ozlist);
+  my(@loops, @satlist, @ozlist, @convlist);
   my($var,$var1,$var2,$miter,$totiter);
 
   print "Entering gsidiag todo = $todo \n";
@@ -193,6 +202,10 @@ sub lndiag_files {
   shift @ozlist until $ozlist[0];
   pop   @ozlist until $ozlist[-1];
 
+  @convlist = (split /\s+/, `$echorc_x -rc $gsidiags_rc convlist`);
+  shift @convlist until $convlist[0];
+  pop   @convlist until $convlist[-1];
+
   if ( $todo eq "set" ) {
     print " lndiag_files: Collecting diag files ... \n";
 
@@ -200,67 +213,40 @@ sub lndiag_files {
 # ------------------------------------------------------------------
   while ( ($loop,$diagtag) = each(%loops) ) {
     print "gsidiag: inside sat loop for case: $loop $diagtag \n";
-    handle_sat($loop,$diagtag,@satlist);
+    handle_obs($loop,$diagtag,1,@satlist);
+    handle_obs($loop,$diagtag,0,@convlist);
+    handle_obs($loop,$diagtag,0,@ozlist);
   } # <while>
 
-# Cat conventional data diagnostic files for each processor into single file
-# --------------------------------------------------------------------------
-  @convlist = qw(conv);
-  while ( ($loop,$diagtag) = each(%loops) ) {
-    print "gsidiag: inside conv loop for case: $loop $diagtag \n";
-    foreach $cls (@convlist) { 
-        $filecnt = 0;
-        foreach ( <pe*.${cls}_$loop> ) { $filecnt ++ };
-        next unless ($filecnt);
-        if ( $suffix ) {
-             $this_diag_file = "diag_${cls}_${diagtag}.${nymd}${hh}${suffix}";
-        } else {
-             $this_diag_file = "diag_${cls}_$loop.${nymd}${hh}";
-        }
-        $cmd = "cat `ls pe*.${cls}_$loop` > ${this_diag_file}";
-        print " ($filecnt files) $cmd\n";
-        $rc_ignore = system($cmd);
-        if ( -z "${this_diag_file}" ) {
-             rm("${this_diag_file}");
-        } else {
-             if ( $opt_catonly ) {
-             } else {
-               rename("${this_diag_file}","$fvwork/$expid.diag_${cls}_${diagtag}.${nymd}_${hh}z.bin");
-               $cmd = "/bin/rm pe*.${cls}_$loop";
-               print " ($filecnt files) $cmd\n";
-             }
-        }
-    }
-  }
-
-# Cat ozone data diagnostic files for each processor into single file
-# --------------------------------------------------------------------------
-  while ( ($loop,$diagtag) = each(%loops) ) {
-    print "gsidiag: inside ozone loop for case: $loop $diagtag \n";
-    foreach $ols (@ozlist) {
-        $filecnt = 0;
-        foreach ( <pe*.${ols}_$loop> ) { $filecnt ++ };
-        next unless ($filecnt);
-        if ( $suffix ) {
-             $this_diag_file = "diag_${ols}_${diagtag}.${nymd}${hh}${suffix}";
-        } else {
-             $this_diag_file = "diag_${ols}_$loop.${nymd}${hh}";
-        }
-        $cmd = "cat `ls pe*.${ols}_$loop` > ${this_diag_file}";
-        print " ($filecnt files) $cmd\n";
-        $rc_ignore = system($cmd);
-        if ( -z "${this_diag_file}" ) {
-             rm("${this_diag_file}");
-        } else {
-             if ( $opt_catonly ) {
-             } else {
-               rename("${this_diag_file}","$fvwork/$expid.diag_${ols}_${diagtag}.${nymd}_${hh}z.bin");
-               $cmd = "/bin/rm pe*.${ols}_$loop";
-               print " ($filecnt files) $cmd\n";
-             }
-        }
-    }
-  }
+## wm - ozone to still be done
+## Cat ozone data diagnostic files for each processor into single file
+## --------------------------------------------------------------------------
+#  while ( ($loop,$diagtag) = each(%loops) ) {
+#    print "gsidiag: inside ozone loop for case: $loop $diagtag \n";
+#    foreach $ols (@ozlist) {
+#        $filecnt = 0;
+#        foreach ( <pe*.${ols}_$loop> ) { $filecnt ++ };
+#        next unless ($filecnt);
+#        if ( $suffix ) {
+#             $this_diag_file = "diag_${ols}_${diagtag}.${nymd}${hh}${suffix}";
+#        } else {
+#             $this_diag_file = "diag_${ols}_$loop.${nymd}${hh}";
+#        }
+#        $cmd = "cat `ls pe*.${ols}_$loop` > ${this_diag_file}";
+#        print " ($filecnt files) $cmd\n";
+#        $rc_ignore = system($cmd);
+#        if ( -z "${this_diag_file}" ) {
+#             rm("${this_diag_file}");
+#        } else {
+#             if ( $opt_catonly ) {
+#             } else {
+#               rename("${this_diag_file}","$fvwork/$expid.diag_${ols}_${diagtag}.${nymd}_${hh}z.bin");
+#               $cmd = "/bin/rm pe*.${ols}_$loop";
+#               print " ($filecnt files) $cmd\n";
+#             }
+#        }
+#    }
+#  }
 
 
   } else { # clean up diag files
@@ -275,7 +261,7 @@ sub lndiag_files {
           @files = split(/\n/,$files_tmp);
           $filecnt=@files;  # how many files are there
           if ($filecnt > 0 ) {
-             if ( -e "diag_${sat}.${nymd}${hh}" ) { rm("diag_${sat}.${nymd}${hh}") };
+             if ( -e "diag_${sat}.${nymd}${hh}" ) { unlink("diag_${sat}.${nymd}${hh}") };
           }
     }
 
@@ -285,21 +271,25 @@ sub lndiag_files {
 
 }
 #....................................................................................
-sub handle_sat {
-  my ($loop,$diagtag,@satlist) = @_;
+sub handle_obs {
+  my ($loop,$diagtag,$do2txt,@satlist) = @_;
 
   my ($files_tmp);
   my ($newpid, $pid, @pidARR);
+
+    print "Load Balance MAX Processors: $MAX \n";
     foreach $sat (@satlist) {
 
         @pidARR = load_balance($MAX, @pidARR); # do not fork more than $MAX jobs
         defined($newpid=fork) or die ">> ERROR << Cannot fork: $!";
+        if ($newpid > 0) { print "ObsCat: Forking $sat at $newpid \n"; } ;
         unless ($newpid) {
 
            #---------------#
            # child process #
            #---------------#
-           onesat($sat,$loop,$diagtag);
+           if ($binary_diag) { oneobs_binary($sat,$loop,$diagtag,$do2txt);};
+           if ($netcdf_diag) { oneobs_netcdf($sat,$loop,$diagtag,$do2txt);};
            exit;
 
         } # unless
@@ -321,8 +311,8 @@ sub handle_sat {
 } # <handle_sat>
 
 #......................................................................
-sub onesat {
-        my ($sat, $loop, $diagtag) = @_;
+sub oneobs_binary {
+        my ($sat, $loop, $diagtag, $do2txt) = @_;
 
         my($files_tmp,$cmd,$rc_ignore);
         my($this_diag_file);
@@ -342,7 +332,7 @@ sub onesat {
            print " $cmd\n";
            $rc_ignore = system($cmd);
            if ( -z "${this_diag_file}" ) {
-                rm("${this_diag_file}");
+                unlink("${this_diag_file}");
            } else {
                 if ( $opt_catonly ) {
                 } else {
@@ -352,11 +342,65 @@ sub onesat {
                    }
                    $cmd = "/bin/rm @files";
                    print " $cmd\n";
+                   if ($do2txt and $diag2txt and not $netcdf_diag) {
+                      $cmd = "$diag2txt $fvwork/$expid.diag_${sat}_${diagtag}.${nymd}_${hh}z.bin";
+                      print " $cmd\n";
+                      $rc_ignore = system($cmd);
+                   } 
                 }
            }
        } # <files>
 
-} # <one_sat>
+} # <oneobs_binary>
+
+sub oneobs_netcdf {
+        my ($sat, $loop, $diagtag, $do2txt) = @_;
+
+        my($files_tmp,$cmd,$rc_ignore);
+        my($this_diag_file);
+        my($files);
+
+        $files_tmp = `ls pe*.${sat}_$loop.nc4`;
+        chomp($files_tmp);
+        @files = split(/\n/,$files_tmp);
+        $files=@files;  # how many files are there
+        if ($files > 0 ) {
+           if ( $suffix ) {
+                $this_diag_file = "diag_${sat}_${diagtag}.${nymd}${hh}${suffix}";
+           } else {
+                $this_diag_file = "diag_${sat}_$loop.${nymd}${hh}.nc4";
+           }
+	   if ($files > 1) {
+	       $cmd = "$FVROOT/bin/nc_diag_cat.x -o $this_diag_file @files";
+	       print " $cmd\n";
+	       $rc_ignore = system($cmd);
+	   } else {
+	       $cmd = "/bin/cp @files $this_diag_file";
+	       print " $cmd\n";
+	       $rc_ignore = system($cmd);	       
+	   }
+           if ( -z "${this_diag_file}" ) {
+                unlink("${this_diag_file}");
+           } else {
+                if ( $opt_catonly ) {
+                } else {
+                   rename("${this_diag_file}","$fvwork/$expid.diag_${sat}_${diagtag}.${nymd}_${hh}z.nc4");
+                   if( "$loop" eq "01" ) {
+                      Assignfn( "$fvwork/$expid.diag_${sat}_${diagtag}.${nymd}_${hh}z.bin","diag_${sat}.${nymd}${hh}");
+                   }
+                   $cmd = "/bin/rm @files";
+                   print " $cmd\n";
+                   if ($do2txt and $diag2txt) {
+                      $cmd = "$diag2txt -nc4 $fvwork/$expid.diag_${sat}_${diagtag}.${nymd}_${hh}z.nc4";
+                      print " $cmd\n";
+                      $rc_ignore = system($cmd);
+                   }   
+                }
+           }
+       } # <files>
+
+} # <oneobs_netcdf>
+
 #......................................................................
 sub d2ods {
   chdir("$fvwork");
@@ -559,16 +603,20 @@ NECESSARY ENVIRONMENT
 
 OPTIONAL ENVIRONMENT
 
-  FVROOT       location of build's bin
-  ARCH         machine architecture, such as, Linux, AIX, etc
-  FVHOME       location of binaries must be defined
-  FVWORK       working env must be defined
-  D2ODS        when set, converts GSI diag output files to ods
+  ARCH             machine architecture, such as, Linux, AIX, etc
+  D2ODS            when set, converts GSI diag output files to ods
+  FVROOT           location of build's bin
+  FVHOME           location of binaries must be defined
+  FVWORK           working env must be defined
+  GSI_BINARY_DIAG  on/off binary output (default: 1; on) 
+  GSI_NETCDF_DIAG  on/off netcdf output (default: 0; off)
+  GSI_DIAG2TXT     Execution path/flags to gsidiag_bin2txt.x
+                      (default: unset, do not run bin2txt)
 
 AUTHOR
 
      Ricardo Todling (Ricardo.Todling\@nasa.gov), NASA/GSFC/GMAO
-     Last modified: 06Nov2007      by: R. Todling
+     Last modified: 13Feb2017      by: R. Todling
 
 
 EOF

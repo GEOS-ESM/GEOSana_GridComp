@@ -16,6 +16,7 @@ subroutine dtast(work1,nlev,pbot,ptop,mesage,jiter,iout,pflag)
 !   2006-02-24  derber  - modify to take advantage of convinfo module
 !   2006-04-03  derber  - modify to print individual ob types
 !   2008-06-04  safford - rm unused var
+!   2016-12-20  pondeca - adjust output format for vis & cldch
 !
 !   input argument list:
 !     work1    - array containing innovation (o-g) sums
@@ -46,42 +47,33 @@ subroutine dtast(work1,nlev,pbot,ptop,mesage,jiter,iout,pflag)
   logical        ,dimension(nconvtype)                ,intent(in   ) :: pflag
   character(100)                                      ,intent(in   ) :: mesage
 
-  character(1),dimension(240):: cline
-  character(8) obstyp
-  character(4),dimension(3):: typx
-  character(14):: label
+  character(3),dimension(3):: typx
   integer(i_kind) i,ilin,j,imsg,k,nn
   integer(i_kind),dimension(nlev):: countall
   integer(i_kind),dimension(nlev,nconvtype,3):: count
   real(r_kind),dimension(nlev):: rmsall,biasall,ratall,qcratall
   real(r_kind),dimension(nlev):: rmsx,biasx,ratx,qcratx
   real(r_kind),dimension(nlev,nconvtype,3):: rms,bias,rat,qcrat
-  
+  logical vis_or_cldch 
 
-! Initialize variables
+  ! Initialize variables
   count=0; rms=zero; bias=zero; rat=zero; qcrat=zero 
-  typx(1)='    '
-  typx(2)='rej '
-  typx(3)='mon '
+  typx(1)='asm' ! used or assimilated
+  typx(2)='rej' ! rejected
+  typx(3)='mon' ! monitored
 
-! First, print message and level information
+  ! First, print message and level information
 
-  do k=1,240
-     cline(k) = '-'
-  end do
   imsg=max(1,index(mesage,'$')-1)
-  ilin=max(imsg,min(nlev*8+28,240))
-  write(iout,505) mesage(1:imsg)
+  ilin=max(imsg,min(nlev*9+34,240))
+  write(iout,'(a)') mesage(1:imsg)
   if (nlev > 1) then
-     write(iout,510)'                              ptop  ',(ptop(k),k=1,nlev)
-     write(iout,510)'     it     obs    type styp  pbot  ',(pbot(k),k=1,nlev)
+     write(iout,800) '',  '',   '',   '',   '',    'ptop',(ptop(k),k=1,nlev)
+     write(iout,800) 'it','obs','use','typ','styp','pbot',(pbot(k),k=1,nlev)
   end if
-  write(iout,500) (cline(i),i=1,ilin)
-500 format(240a1)
-505 format(a)
-510 format(a36,11(f6.1,1x),1x,f6.1)
+  write(iout,'(240(a1))') ('-',i=1,ilin)
 
-! Transfer to local work arrays.  Compute statistics
+  ! Transfer to local work arrays.  Compute statistics
   do j = 1,nconvtype
      if(pflag(j))then
         do i = 1,nlev
@@ -110,13 +102,13 @@ subroutine dtast(work1,nlev,pbot,ptop,mesage,jiter,iout,pflag)
      end if
   end do
 
-
-! Print statistics for single level obs (e.g., surface pressure)     
+  ! Print statistics for single level obs (e.g., surface pressure)     
   if (nlev == 1) then
+
+     vis_or_cldch=.false.
+
      write(iout,600) ptop(1),pbot(1)
-     write(iout,610)
-600  format(1x,'pressure levels (hPa)=',f6.1,1x,f6.1)
-610  format(5x,'it ',4x,'obs    type stype',4x,'count',6x,'bias',7x,'rms',6x,'cpen',5x,'qcpen')
+     write(iout,700) 'it','obs','use','typ','styp','count','bias','rms','cpen','qcpen'
      do nn=1,3
         countall(1)=0
         biasall(1)=zero
@@ -134,9 +126,12 @@ subroutine dtast(work1,nlev,pbot,ptop,mesage,jiter,iout,pflag)
               rmsall(1)=rmsall(1)+rms(1,i,nn)
               ratall(1)=ratall(1)+rat(1,i,nn)
               qcratall(1)=qcratall(1)+qcrat(1,i,nn)
-              write(obstyp,690) ictype(i),icsubtype(i)
-              write(label,100) jiter,trim(ioctype(i))
-              write(iout,700) label,typx(nn),obstyp,count(nlev,i,nn),biasx(1),rmsx(1),ratx(1),qcratx(1)
+              if (trim(ioctype(i))=='vis' .or. trim(ioctype(i))=='cldch') then
+                 write(iout,901) jiter,trim(ioctype(i)),typx(nn),ictype(i),icsubtype(i),count(nlev,i,nn),biasx(1),rmsx(1),ratx(1),qcratx(1)
+                 vis_or_cldch=.true.
+                else
+                 write(iout,701) jiter,trim(ioctype(i)),typx(nn),ictype(i),icsubtype(i),count(nlev,i,nn),biasx(1),rmsx(1),ratx(1),qcratx(1)
+              endif
            end if
         end do
         if(countall(1) > 0)then
@@ -144,16 +139,17 @@ subroutine dtast(work1,nlev,pbot,ptop,mesage,jiter,iout,pflag)
            rmsx(1)=sqrt(rmsall(1)/countall(1))
            ratx(1)=ratall(1)/countall(1)
            qcratx(1)=qcratall(1)/countall(1)
-           obstyp='all'
-           write(label,100) jiter,'   '
-           write(iout,700) label,typx(nn),obstyp,countall(1),biasx(1),rmsx(1),ratx(1),qcratx(1)
+           if (vis_or_cldch) then
+              write(iout,902) jiter,'',typx(nn),'all','',countall(1),biasx(1),rmsx(1),ratx(1),qcratx(1)
+             else
+              write(iout,702) jiter,'',typx(nn),'all','',countall(1),biasx(1),rmsx(1),ratx(1),qcratx(1)
+           endif
         end if
      end do
-690  format(i3.3,1x,i4.4)
-700  format(1x,a14,1x,a4,a8,1x,i9,1x,f9.4,1x,f9.4,1x,f9.4,1x,f9.4)
 
-! Print statistics for multi-level obs
-  else
+  ! Print statistics for multi-level obs
+  else ! if ( nlev == 1 )
+
      do nn=1,3
         countall=0
         biasall=zero
@@ -179,13 +175,11 @@ subroutine dtast(work1,nlev,pbot,ptop,mesage,jiter,iout,pflag)
                     qcratall(k)=qcratall(k)+qcrat(k,i,nn)
                  end if
               end do
-              write(obstyp,690) ictype(i),icsubtype(i)
-              write(label,100) jiter,trim(ioctype(i))
-              write(iout,720) label,typx(nn),obstyp,'count',(count(k,i,nn),k=1,nlev)
-              write(iout,800) label,typx(nn),obstyp,'bias',(biasx(k),k=1,nlev)
-              write(iout,800) label,typx(nn),obstyp,'rms',(rmsx(k),k=1,nlev)
-              write(iout,800) label,typx(nn),obstyp,'cpen',(ratx(k),k=1,nlev)
-              write(iout,800) label,typx(nn),obstyp,'qcpen',(qcratx(k),k=1,nlev)
+              write(iout,801) jiter,trim(ioctype(i)),typx(nn),ictype(i),icsubtype(i),'count',(count(k,i,nn),k=1,nlev)
+              write(iout,802) jiter,trim(ioctype(i)),typx(nn),ictype(i),icsubtype(i),'bias', (biasx(k),     k=1,nlev)
+              write(iout,802) jiter,trim(ioctype(i)),typx(nn),ictype(i),icsubtype(i),'rms',  (rmsx(k),      k=1,nlev)
+              write(iout,802) jiter,trim(ioctype(i)),typx(nn),ictype(i),icsubtype(i),'cpen', (ratx(k),      k=1,nlev)
+              write(iout,802) jiter,trim(ioctype(i)),typx(nn),ictype(i),icsubtype(i),'qcpen',(qcratx(k),    k=1,nlev)
            end if
         end do
         if(countall(nlev) > 0)then
@@ -201,20 +195,27 @@ subroutine dtast(work1,nlev,pbot,ptop,mesage,jiter,iout,pflag)
                  qcratx(k)=qcratall(k)/countall(k)
               end if
            end do
-           obstyp='all'
-           write(label,100) jiter,'   '
-           write(iout,720) label,typx(nn),obstyp,'count',(countall(k),k=1,nlev)
-           write(iout,800) label,typx(nn),obstyp,'bias',(biasx(k),k=1,nlev)
-           write(iout,800) label,typx(nn),obstyp,'rms',(rmsx(k),k=1,nlev)
-           write(iout,800) label,typx(nn),obstyp,'cpen',(ratx(k),k=1,nlev)
-           write(iout,800) label,typx(nn),obstyp,'qcpen',(qcratx(k),k=1,nlev)
+           write(iout,803) jiter,'',typx(nn),'all','','count',(countall(k),k=1,nlev)
+           write(iout,804) jiter,'',typx(nn),'all','','bias', (biasx(k),   k=1,nlev)
+           write(iout,804) jiter,'',typx(nn),'all','','rms',  (rmsx(k),    k=1,nlev)
+           write(iout,804) jiter,'',typx(nn),'all','','cpen', (ratx(k),    k=1,nlev)
+           write(iout,804) jiter,'',typx(nn),'all','','qcpen',(qcratx(k),  k=1,nlev)
         end if
-
      end do
-100  format('o-g ',i2.2,1x,a7)
-720  format(1x,a14,1x,a4,a8,1x,a5,1x,i7,1x,10(i6,1x),i7)
-800  format(1x,a14,1x,a4,a8,1x,a5,1x,f7.2,1x,10(f6.2,1x),f7.2)
-     
-  endif
+
+  endif ! if ( nlev == 1 )
+
+600  format(1x,'pressure levels (hPa)=',f6.1,1x,f6.1)
+700  format(1x,'o-g',1x,a2,  1x,a7,1x,a3,1x,a3,  1x,a4,  1x,a9, 1x,4(a9,  1x))
+701  format(1x,'o-g',1x,i2.2,1x,a7,1x,a3,1x,i3.3,1x,i4.4,1x,i9,1x, 4(f9.4,1x))
+702  format(1x,'o-g',1x,i2.2,1x,a7,1x,a3,1x,a3,  1x,a4,  1x,i9,1x, 4(f9.4,1x))
+800  format(1x,'o-g',1x,a2,  1x,a7,1x,a3,1x,a3,  1x,a4,  1x,a5,1x,12(f8.1,1x))
+801  format(1x,'o-g',1x,i2.2,1x,a7,1x,a3,1x,i3.3,1x,i4.4,1x,a5,1x,12(i8,  1x))
+802  format(1x,'o-g',1x,i2.2,1x,a7,1x,a3,1x,i3.3,1x,i4.4,1x,a5,1x,12(f8.2,1x))
+803  format(1x,'o-g',1x,i2.2,1x,a7,1x,a3,1x,a3,  1x,a4,  1x,a5,1x,12(i8,  1x))
+804  format(1x,'o-g',1x,i2.2,1x,a7,1x,a3,1x,a3,  1x,a4,  1x,a5,1x,12(f8.2,1x))
+901  format(1x,'o-g',1x,i2.2,1x,a7,1x,a3,1x,i3.3,1x,i4.4,1x,i9,1x, 2(f12.4,1x),2(f9.4,1x))
+902  format(1x,'o-g',1x,i2.2,1x,a7,1x,a3,1x,a3,  1x,a4,  1x,i9,1x, 2(f12.4,1x),2(f9.4,1x))
+
   return
 end subroutine dtast

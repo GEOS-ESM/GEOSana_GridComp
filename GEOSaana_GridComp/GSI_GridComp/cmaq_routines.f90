@@ -14,6 +14,7 @@ subroutine read_cmaq_files(mype)
 !
 ! program history log:
 !   2010-09-07  pagowski
+!   2015-09-17  Thomas  - add l4densvar to data selection procedure
 !   
 !   input argument list:
 !     mype     - pe number
@@ -31,7 +32,8 @@ subroutine read_cmaq_files(mype)
   use guess_grids, only: nfldsig,nfldsfc,ntguessig,ntguessfc,&
        ifilesig,ifilesfc,hrdifsig,hrdifsfc,create_gesfinfo
   use guess_grids, only: hrdifsig_all,hrdifsfc_all
-  use gsi_4dvar, only: l4dvar, iwinbgn, winlen, nhr_assimilation
+  use gsi_4dvar, only: l4dvar, iwinbgn, winlen, nhr_assimilation,&
+       l4densvar
   use gridmod, only: regional_time,regional_fhr
   use constants, only: zero,one,r60inv
   use obsmod, only: iadate,time_offset
@@ -92,18 +94,17 @@ subroutine read_cmaq_files(mype)
            nming2=nmings+60*hourg
            write(6,*)'read_cmaq_files:  sigma guess file, nming2 ',hourg,idateg,nming2
            t4dv=real((nming2-iwinbgn),r_kind)*r60inv
-           if (l4dvar) then
-              if (t4dv<zero .or. t4dv>winlen) go to 110
+           if (l4dvar.or.l4densvar) then
+              if (t4dv<zero .or. t4dv>winlen) cycle
            else
               ndiff=nming2-nminanl
-              if(abs(ndiff) > 60*nhr_half ) go to 110
+              if(abs(ndiff) > 60*nhr_half ) cycle
            endif
            
            iwan=iwan+1
            time_ges(iwan,1) = real((nming2-iwinbgn),r_kind)*r60inv
            time_ges(iwan+100,1)=i+r0_001
         end if
-110     continue
      end do
      
      time_ges(201,1)=one
@@ -402,10 +403,10 @@ subroutine read_cmaq_guess(mype)
         kv=kv+1
         do i=1,lon2
            do j=1,lat2
-              ges_u_it(j,i,k) = all_loc(j,i,ku)
-              ges_v_it(j,i,k) = all_loc(j,i,kv)
-              ges_tsen(j,i,k,it) = all_loc(j,i,kt)
-              ges_q_it(j,i,k) = all_loc(j,i,kq)
+              ges_u_it(j,i,k) = real(all_loc(j,i,ku),r_kind)
+              ges_v_it(j,i,k) = real(all_loc(j,i,kv),r_kind)
+              ges_tsen(j,i,k,it) = real(all_loc(j,i,kt),r_kind)
+              ges_q_it(j,i,k) = real(all_loc(j,i,kq),r_kind)
 !                convert guess mixing ratio to specific humidity
               ges_q_it(j,i,k) = ges_q_it(j,i,k)/(one+ges_q_it(j,i,k))
               ges_tv_it(j,i,k) = ges_tsen(j,i,k,it) * &
@@ -417,8 +418,8 @@ subroutine read_cmaq_guess(mype)
 
      do i=1,lon2
         do j=1,lat2
-           ges_z_it(j,i) = all_loc(j,i,kfis)
-           ges_ps_it(j,i)=r0_001*all_loc(j,i,kpsfc)! convert from Pa to cb
+           ges_z_it(j,i) = real(all_loc(j,i,kfis),r_kind)
+           ges_ps_it(j,i)=r0_001*real(all_loc(j,i,kpsfc),r_kind)! convert from Pa to cb
         end do
      end do
 
@@ -456,7 +457,7 @@ subroutine read_cmaq_guess(mype)
      
            do i=1,lon2
               do j=1,lat2
-                 pm2_5_guess(j,i,k)=pm2_5_guess(j,i,k)+all_loc(j,i,icount)
+                 pm2_5_guess(j,i,k)=pm2_5_guess(j,i,k)+real(all_loc(j,i,icount),r_kind)
               enddo
            enddo
         enddo

@@ -15,6 +15,8 @@ subroutine getprs(ps,prs)
 !   2008-09-05  lueken  - merged ed's changes into q1fy09 code
 !   2010-09-15  pagowski  - added cmaq
 !   2013-10-19  todling - metguess now holds background
+!   2017-03-23  Hu      - add code to use hybrid vertical coodinate in WRF MASS core
+!   2018-02-15  wu      - add code for fv3_regional
 !
 !   input argument list:
 !     ps       - surface pressure
@@ -32,7 +34,7 @@ subroutine getprs(ps,prs)
   use constants,only: zero,half,one_tenth,rd_over_cp,one
   use gridmod,only: nsig,lat2,lon2,ak5,bk5,ck5,tref5,idvc5
   use gridmod,only: wrf_nmm_regional,nems_nmmb_regional,eta1_ll,eta2_ll,pdtop_ll,pt_ll,&
-       regional,wrf_mass_regional,cmaq_regional,twodvar_regional
+       regional,wrf_mass_regional,cmaq_regional,twodvar_regional,fv3_regional
   use guess_grids, only: ntguessig
   use gsi_metguess_mod, only: gsi_metguess_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -66,11 +68,29 @@ subroutine getprs(ps,prs)
               end do
            end do
         end do
-     elseif (wrf_mass_regional .or. twodvar_regional) then
+     elseif (fv3_regional) then
+        do k=1,nsig+1
+           do j=1,lon2
+              do i=1,lat2
+                 prs(i,j,k)=eta1_ll(k)+ eta2_ll(k)*ps(i,j)
+              end do
+           end do
+        end do
+
+     elseif (twodvar_regional) then
         do k=1,nsig+1
            do j=1,lon2
               do i=1,lat2
                  prs(i,j,k)=one_tenth*(eta1_ll(k)*(ten*ps(i,j)-pt_ll) + pt_ll)
+              end do
+           end do
+        end do
+     elseif (wrf_mass_regional) then
+        do k=1,nsig+1
+           do j=1,lon2
+              do i=1,lat2
+                 prs(i,j,k)=one_tenth*(eta1_ll(k)*(ten*ps(i,j)-pt_ll) + &
+                                       eta2_ll(k) + pt_ll)
               end do
            end do
         end do
@@ -150,9 +170,9 @@ subroutine getprs_horiz(ps_x,ps_y,prs,prs_x,prs_y)
   
   use kinds,only: r_kind,i_kind
   use constants,only: zero
-  use gridmod,only: nsig,lat2,lon2,nlat,nlon
+  use gridmod,only: nsig,lat2,lon2
   use gridmod,only: regional,wrf_nmm_regional,nems_nmmb_regional,eta2_ll,&
-       cmaq_regional
+       cmaq_regional,fv3_regional
   use compact_diffs, only: compact_dlat,compact_dlon
   use general_sub2grid_mod, only: general_sub2grid,general_grid2sub
   use general_commvars_mod, only: s2g2
@@ -172,7 +192,8 @@ subroutine getprs_horiz(ps_x,ps_y,prs,prs_x,prs_y)
   allocate(hwork_g(s2g2%inner_vars,s2g2%nlat,s2g2%nlon,s2g2%kbegin_loc:s2g2%kend_alloc))
 
   if(regional)then
-     if(wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional) then
+     if(wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional&
+         .or. fv3_regional) then
         do k=1,nsig+1
            do j=1,lon2
               do i=1,lat2
@@ -260,7 +281,7 @@ subroutine getprs_tl(ps,t,prs)
   use constants,only: zero,one,rd_over_cp,half
   use gridmod,only: nsig,lat2,lon2,bk5,ck5,idvc5,tref5
   use gridmod,only: wrf_nmm_regional,nems_nmmb_regional,eta2_ll,eta1_ll,regional,wrf_mass_regional,cmaq_regional,&
-       twodvar_regional
+       twodvar_regional,fv3_regional
   use guess_grids, only: ntguessig
   use gsi_metguess_mod, only: gsi_metguess_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -278,7 +299,7 @@ subroutine getprs_tl(ps,t,prs)
 
   if (regional) then
      if(wrf_nmm_regional.or.nems_nmmb_regional.or.&
-          cmaq_regional) then
+        fv3_regional .or.  cmaq_regional) then
         do k=1,nsig+1
            do j=1,lon2
               do i=1,lat2
@@ -375,9 +396,9 @@ subroutine getprs_horiz_tl(ps_x,ps_y,prs,prs_x,prs_y)
 
   use kinds,only: r_kind,i_kind
   use constants,only: zero
-  use gridmod,only: nsig,lat2,lon2,nlat,nlon
+  use gridmod,only: nsig,lat2,lon2
   use gridmod,only: regional,wrf_nmm_regional,nems_nmmb_regional,eta2_ll,&
-       cmaq_regional
+       cmaq_regional,fv3_regional
   use compact_diffs, only: compact_dlat,compact_dlon
   use general_sub2grid_mod, only: general_sub2grid,general_grid2sub
   use general_commvars_mod, only: s2g2
@@ -397,7 +418,8 @@ subroutine getprs_horiz_tl(ps_x,ps_y,prs,prs_x,prs_y)
   allocate(hwork_g(s2g2%inner_vars,s2g2%nlat,s2g2%nlon,s2g2%kbegin_loc:s2g2%kend_alloc))
 
   if(regional)then
-     if(wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional) then
+     if(wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional&
+         .or. fv3_regional) then
         do k=1,nsig+1
            do j=1,lon2
               do i=1,lat2
@@ -487,7 +509,7 @@ subroutine getprs_ad(ps,t,prs)
   use kinds,only: r_kind,i_kind
   use gridmod,only: nsig,lat2,lon2,bk5,ck5,tref5,idvc5
   use gridmod,only: wrf_nmm_regional,nems_nmmb_regional,eta2_ll,regional,wrf_mass_regional,cmaq_regional,eta1_ll,&
-       twodvar_regional
+       twodvar_regional,fv3_regional
   use guess_grids, only: ntguessig 
   use constants,only: zero,half,one,rd_over_cp
   use gsi_metguess_mod, only: gsi_metguess_bundle
@@ -508,7 +530,7 @@ subroutine getprs_ad(ps,t,prs)
 
   if (regional) then
      if(wrf_nmm_regional.or.nems_nmmb_regional.or.&
-          cmaq_regional) then
+          cmaq_regional .or. fv3_regional) then
         do k=1,nsig+1
            do j=1,lon2
               do i=1,lat2
@@ -617,9 +639,9 @@ subroutine getprs_horiz_ad(ps_x,ps_y,prs,prs_x,prs_y)
 
   use kinds,only: r_kind,i_kind
   use constants,only: zero
-  use gridmod,only: nsig,lat2,lon2,nlat,nlon
+  use gridmod,only: nsig,lat2,lon2
   use gridmod,only: regional,wrf_nmm_regional,nems_nmmb_regional,eta2_ll,&
-       cmaq_regional
+       cmaq_regional,fv3_regional
   use compact_diffs, only: tcompact_dlat,tcompact_dlon
   use general_sub2grid_mod, only: general_sub2grid,general_grid2sub
   use general_commvars_mod, only: s2g2
@@ -641,7 +663,8 @@ subroutine getprs_horiz_ad(ps_x,ps_y,prs,prs_x,prs_y)
 
 ! Adjoint of horizontal derivatives
   if (regional) then
-     if(wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional) then
+     if(wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional&
+         .or. fv3_regional) then
         do k=1,nsig+1
            do j=1,lon2
               do i=1,lat2

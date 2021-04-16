@@ -8,6 +8,10 @@ module read_obsmod
 !
 ! program history log:
 !   2009-01-05  todling - add gsi_inquire
+!   2015-05-01  Liu Ling - Add call to read_rapidscat 
+!   2015-08-20  zhu  - add flexibility for enabling all-sky and using aerosol info in radiance 
+!                      assimilation. Use radiance_obstype_search from radiance_mod.  
+!   2017-05-12  Y. Wang and X. Wang - add dbz to be read in, POC: xuguang.wang@ou.edu
 !
 ! subroutines included:
 !   sub gsi_inquire   -  inquire statement supporting fortran earlier than 2003
@@ -104,7 +108,7 @@ subroutine gsi_inquire (lbytes,lexist,filename,mype)
   return
 end subroutine gsi_inquire
 
-subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
+subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    read_obs_check     inquire file presence and size
@@ -124,6 +128,11 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
 !                         Set satid=1 at start of subroutine to allow debug compile.
 !   2013-02-13  eliu     - add ssmis 
 !   2013-07-01  todling/guo - allow user to bypass this check (old bufr support)
+!   2014-10-01  ejones   - add gmi and amsr2
+!   2015-01-16  ejones   - add saphir
+!   2016-09-19  guo      - properly initialized nread, in case of for quick-return cases.
+!   2017-11-16  dutta    - adding KOMPSAT5 bufr i.d for reading the data.
+!   2019-03-27  h. liu   - add abi
 !                           
 !
 !   input argument list:
@@ -146,48 +155,61 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
   use obsmod, only: offtime_data
   use convinfo, only: nconvtype,ictype,ioctype,icuse
   use chemmod, only : oneobtest_chem,oneob_type_chem,&
-       code_pm25_bufr,code_pm25_prepbufr
+       code_pm25_ncbufr,code_pm25_anowbufr,code_pm10_ncbufr,code_pm10_anowbufr
 
   implicit none
 
-  logical         ,intent(inout) :: lexist
-  character(len=*),intent(in)    :: filename
-  character(len=*),intent(in)    :: jsatid
-  character(len=*),intent(in)    :: dtype
-  integer(i_kind) ,intent(in)    :: minuse
+  logical         ,intent(inout)  :: lexist
+  character(len=*),intent(in)     :: filename
+  character(len=*),intent(in)     :: jsatid
+  character(len=*),intent(in)     :: dtype
+  integer(i_kind) ,intent(in)     :: minuse
+  integer(i_kind) ,intent(inout)  :: nread
 
   integer(i_kind) :: lnbufr,idate,idate2,iret,kidsat
-  integer(i_kind) :: ireadsb,ireadmg,kx,nc
+  integer(i_kind) :: ireadsb,ireadmg,kx,nc,said
   real(r_double) :: satid,rtype
   character(8) subset
+  logical,parameter:: GMAO_READ=.false.
 
   satid=1      ! debug executable wants default value ???
   idate=0
+  nread=0; if(lexist) nread=1   ! in case of a quick return
 #ifdef _SKIP_READ_OBS_CHECK_
   return
 #endif
   if(trim(dtype) == 'tcp' .or. trim(filename) == 'tldplrso')return
+  if(trim(filename) == 'mitmdat' .or. trim(filename) == 'mxtmdat')return
+  if(trim(filename) == 'satmar')return
+  if(trim(dtype) == 'dbz' )return
+
 ! Use routine as usual
-  if(lexist)then
+
+  if(lexist .and. trim(dtype) /= 'tcp' )then
       lnbufr = 15
       open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
       call openbf(lnbufr,'IN',lnbufr)
       call datelen(10)
       call readmg(lnbufr,subset,idate,iret)
+      if(iret == 0)then
 
-!     Extract date and check for consistency with analysis date
-      if (idate<iadatebgn.or.idate>iadateend) then
-         if(offtime_data) then
-           write(6,*)'***read_obs_check analysis and data file date differ, but use anyway'
-         else
-            write(6,*)'***read_obs_check*** ',&
-              'incompatable analysis and observation date/time'
-         end if
-         write(6,*)'Analysis start  :',iadatebgn
-         write(6,*)'Analysis end    :',iadateend
-         write(6,*)'Observation time:',idate
-         if(.not.offtime_data) lexist=.false.
-      endif
+!        Extract date and check for consistency with analysis date
+         if (idate<iadatebgn.or.idate>iadateend) then
+            if(offtime_data) then
+              write(6,*)'***read_obs_check analysis and data file date differ, but use anyway'
+            else
+               write(6,*)'***read_obs_check*** ',&
+                 'incompatable analysis and observation date/time',trim(filename),trim(dtype)
+               lexist=.false.
+            end if
+            write(6,*)'Analysis start  :',iadatebgn
+            write(6,*)'Analysis end    :',iadateend
+            write(6,*)'Observation time:',idate
+        endif
+      else
+         write(6,*)'***read_obs_check*** iret/=0 for reading date for ',trim(filename),dtype,jsatid,iret
+         lexist=.false.
+      end if
       if(lexist)then
        if(jsatid == '')then
          kidsat=0
@@ -203,6 +225,8 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
          kidsat = 56 
        else if(jsatid == 'm10')then
          kidsat = 57 
+       else if(jsatid == 'm11')then
+         kidsat = 70 
        else if(jsatid == 'n08')then
          kidsat=200
        else if(jsatid == 'n09')then
@@ -227,6 +251,10 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
          kidsat=223
        else if(jsatid == 'npp')then
          kidsat=224
+       else if(jsatid == 'n20')then
+         kidsat=225
+       else if(jsatid == 'n21')then
+         kidsat=226
        else if(jsatid == 'f08')then
          kidsat=241
        else if(jsatid == 'f10')then
@@ -241,10 +269,14 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
          kidsat=248
        else if(jsatid == 'f16')then
          kidsat=249    
+       else if(jsatid == 'trmm')then
+         kidsat=282    
        else if(jsatid == 'f17')then
          kidsat=285                  
        else if(jsatid == 'f18')then  
          kidsat=286                  
+       else if(jsatid == 'f19')then  
+         kidsat=287                  
        else if(jsatid == 'g08' .or. jsatid == 'g08_prep')then
          kidsat=252
        else if(jsatid == 'g09' .or. jsatid == 'g09_prep')then
@@ -261,6 +293,10 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
          kidsat=258
        else if(jsatid == 'g15' .or. jsatid == 'g15_prep')then
          kidsat=259
+       else if(jsatid == 'g16' .or. jsatid == 'g16_prep')then
+         kidsat=270
+       else if(jsatid == 'g17' .or. jsatid == 'g17_prep')then
+         kidsat=271
        else if(jsatid == 'n05')then
          kidsat=705
        else if(jsatid == 'n06')then
@@ -273,13 +309,24 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
          kidsat = 783
        else if ( jsatid == 'aqua'  ) then
          kidsat = 784
-       else if ( jsatid == 'trmm'  ) then
-         kidsat = 282
-       else if ( jsatid == 'gpm'  ) then
-         kidsat = 292
+       else if ( jsatid == 'aura'  ) then
+         kidsat = 785
+       else if ( jsatid == 'gcom-w1' ) then
+         kidsat = 122
+! Temporary comment gpm out here; discrepancy between SAID in bufr file and
+! kidsat.
+!       else if ( jsatid == 'gpm' ) then
+!         kidsat = 288
+       else if ( jsatid == 'meghat' ) then
+         kidsat = 440
        else
          kidsat = 0
        end if
+
+       call closbf(lnbufr)
+       open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
+       call openbf(lnbufr,'IN',lnbufr)
+       call datelen(10)
 
        if(kidsat /= 0)then
         lexist = .false.
@@ -291,6 +338,7 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
              lexist=.true.
              exit satloop
            end if
+           nread = nread + 1
         end do satloop
        else if(trim(filename) == 'prepbufr')then  ! RTod: wired-in filename is not a good idea
          lexist = .false.
@@ -305,7 +353,40 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
              end if
            end do
           end do 
+          nread = nread + 1
          end do fileloop
+        else if(trim(filename) == 'wcpbufr')then
+         lexist = .false.
+         file2loop: do while(ireadmg(lnbufr,subset,idate2) >= 0)
+          do while(ireadsb(lnbufr)>=0)
+           call ufbint(lnbufr,rtype,1,1,iret,'TYP')
+           kx=nint(rtype)
+           do nc=1,nconvtype
+             if(trim(ioctype(nc)) == trim(dtype) .and. kx == ictype(nc) .and. icuse(nc) > minuse)then
+               lexist = .true.
+               exit file2loop
+             end if
+           end do
+          end do
+          nread = nread + 1
+         end do file2loop
+       else if(trim(filename) == 'gps_ref' .or.  trim(filename) == 'gps_bnd')then
+         lexist = .false.
+         gpsloop: do while(ireadmg(lnbufr,subset,idate2) >= 0)
+           if(ireadsb(lnbufr)==0)then 
+              call ufbint(lnbufr,satid,1,1,iret,'SAID') 
+           end if 
+ 
+           said=nint(satid) 
+           if(((said > 739) .and.(said < 746)).or.(said == 820) .or. (said == 825) .or. &
+               (said == 786).or. (said == 4)  .or.(said == 3).or. &
+               ( GMAO_READ  .and. said == 5)  .or. &
+               (said == 421).or. (said == 440).or.(said == 821)) then
+             lexist=.true. 
+             exit gpsloop 
+           end if 
+           nread = nread + 1
+         end do gpsloop
        else if(trim(filename) == 'prepbufr_profl')then  
          lexist = .false.
          airploop: do while(ireadmg(lnbufr,subset,idate2) >= 0)
@@ -334,27 +415,46 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
              end if
            end do
           end do
+          nread = nread + 1
          end do airploop
-       else if(trim(filename) == 'satwnd')then
+       else if(trim(filename) == 'satwndbufr')then
          lexist = .false.
          loop: do while(ireadmg(lnbufr,subset,idate2) >= 0)
+!        5 GOES-R AMVs (NC005030, NC005031, NC005032, NC005034 and NC005039)
+!        are added as the GOES-R bufr file provide do not contain other winds.
+!        May not be necessary with the operational satwnd BUFR
             if(trim(subset) == 'NC005010' .or. trim(subset) == 'NC005011' .or.&
                trim(subset) == 'NC005070' .or. trim(subset) == 'NC005071' .or.&
                trim(subset) == 'NC005044' .or. trim(subset) == 'NC005045' .or.&
                trim(subset) == 'NC005046' .or. trim(subset) == 'NC005064' .or.&
-               trim(subset) == 'NC005065' .or. trim(subset) == 'NC005066') then 
+               trim(subset) == 'NC005065' .or. trim(subset) == 'NC005066' .or.& 
+               trim(subset) == 'NC005030' .or. trim(subset) == 'NC005031' .or.& 
+               trim(subset) == 'NC005032' .or. trim(subset) == 'NC005034' .or.&
+               trim(subset) == 'NC005039' .or. trim(subset) == 'NC005091' .or.&
+               trim(subset) == 'NC005067' .or. trim(subset) == 'NC005068' .or. trim(subset) == 'NC005069' &
+               ) then
                lexist = .true.
                exit loop
             endif
+            nread = nread + 1
          end do loop
        else if(trim(filename) == 'oscatbufr')then
          lexist = .false.
          oscatloop: do while(ireadmg(lnbufr,subset,idate2) >= 0)
-            if(trim(subset) == 'NC012255') then                                         
+            if(trim(subset) == 'NC012255') then
                lexist = .true.
                exit oscatloop
             endif
          end do oscatloop
+       else if(trim(filename) == 'rapidscatbufr')then
+         lexist = .false.
+         rapidscatloop: do while(ireadmg(lnbufr,subset,idate2) >= 0)
+            if(trim(subset) == 'NC012255') then
+               lexist = .true.
+               exit rapidscatloop
+            endif
+            nread = nread + 1
+         end do rapidscatloop
        else if(trim(filename) == 'hdobbufr')then
          lexist = .false.
          loop_hdob: do while(ireadmg(lnbufr,subset,idate2) >= 0)
@@ -362,13 +462,14 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
                lexist = .true.
                exit loop_hdob
             endif
+            nread = nread + 1
          end do loop_hdob
        else if(trim(dtype) == 'pm2_5')then
           if (oneobtest_chem .and. oneob_type_chem=='pm2_5') then
              lexist=.true.
           else
              lexist = .false.
-             fileloopanow:do while(ireadmg(lnbufr,subset,idate2) >= 0)
+             fileloopanow_pm2_5:do while(ireadmg(lnbufr,subset,idate2) >= 0)
                 do while(ireadsb(lnbufr)>=0)
                    if (subset == 'ANOWPM') then
                       call ufbint(lnbufr,rtype,1,1,iret,'TYP')
@@ -377,10 +478,10 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
                           (subset == 'NC008032' ) ) then
                       call ufbint(lnbufr,rtype,1,1,iret,'TYPO')
                       kx=nint(rtype)
-                      if (kx/=code_pm25_bufr) then
+                      if (kx/=code_pm25_ncbufr) then
                          cycle
                       else
-                         kx=code_pm25_prepbufr
+                         kx=code_pm25_anowbufr
                       endif
                    else
                       cycle
@@ -390,11 +491,12 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
                       if(trim(ioctype(nc)) == trim(dtype) .and. &
                            kx == ictype(nc) .and. icuse(nc) > minuse)then
                          lexist = .true.
-                         exit fileloopanow
+                         exit fileloopanow_pm2_5
                       end if
                    end do
                 end do
-             enddo fileloopanow
+                nread = nread + 1
+             enddo fileloopanow_pm2_5
           endif
 
           if (lexist) then
@@ -403,6 +505,40 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse)
              write(6,*)'did not find pm2_5 in anow bufr'
           endif
            
+       else if(trim(dtype) == 'pm10')then
+          lexist = .false.
+          fileloopanow_pm10:do while(ireadmg(lnbufr,subset,idate2) >= 0)
+             do while(ireadsb(lnbufr)>=0)
+                if (subset == 'NC008033') then
+                   call ufbint(lnbufr,rtype,1,1,iret,'TYPO')
+                   kx=nint(rtype)
+                   IF (kx/=code_pm10_ncbufr) then
+                      cycle
+                   else
+                      kx=code_pm10_anowbufr
+                   endif
+                else
+                   cycle
+                endif
+
+                do nc=1,nconvtype
+                   if(trim(ioctype(nc)) == trim(dtype) .and. &
+                        kx == ictype(nc) .and. icuse(nc) > minuse)then
+                      lexist = .true.
+                      exit fileloopanow_pm10
+                   end if
+                end do
+             end do
+             nread = nread + 1
+          enddo fileloopanow_pm10
+
+          if (lexist) then
+             write(6,*)'found pm10 in anow bufr'
+          else
+             write(6,*)'did not find pm10 in anow bufr'
+          endif
+
+
        end if
       end if
 
@@ -496,15 +632,45 @@ subroutine read_obs(ndata,mype)
 !                          do spatial averaging for noise reduction) 
 !   2013-06-01  zhu     - add mype_airobst to handle aircraft temperature bias correction 
 !   2013-08-08  s.liu     - add read NASA_LaRC_cloud product
-!   2013-09-18  j.jin    - add call read_tmi to read TMI 1B11 bufr data.
 !   2013-10-25  todling - reposition ltosi and others to commvars
+!   2014-01-01  xli     - add option to read NSST marine BUFR data file nsstbufr (on the
+!                         top of prepbufr and modsbufr)
 !   2014-02-03  guo     - Hid processing (read) of non-EMC ozone obstypes
 !                         through module m_extOzone, separated from read_ozone.
 !                       - Added some -do- and -if- construct names, for easier
 !                         understanding of the code.
-!   2014-03-29  j.jin    - read gmi 1B data using subroutine read_tmi.
-!   2014-05-08  j.jin    - use subroutine read_gmi to read gmi data.
-!   2014-09-03  j.jin    - read GMI 1CR data (obstype='gmi').
+!   2014-06-19  carley/zhu - Add tcamt and lcbas
+!   2014-11-12  carley  - Add call to read goes imager sky cover data for tcamt
+!   2014-12-03  derber - modify for no radiance cases and read processor for
+!                        surface fields
+!   2015-01-16  ejones  - added saphir, gmi, and amsr2 handling
+!   2015-03-23  zaizhong ma - add Himawari-8 ahi
+!   2015-05-30  li     - modify for no radiance cases but sst (nsstbufr) and read processor for
+!                        surface fields (use_sfc = .true. for data type of sst),
+!                        to use deter_sfc in read_nsstbufr.f90)
+!   2015-07-10  pondeca - add cloud ceiling height (cldch)
+!   2015-08-12  pondeca - add capability to read min/maxT obs from ascii file
+!   2015-08-20  zhu     - use centralized radiance info from radiance_mod to specify
+!                         all-sky and aerosol usages in radiance assimilation
+!   2015-09-04  J. Jung - Added mods for CrIS full spectral resolution (FSR)
+!   2015-10-19  lippi   - Added logic to read l2rw or rw radial winds.
+!   2016-03-02  s.liu/carley - remove use_reflectivity and use i_gsdcldanal_type
+!   2016-04-28  J. Jung - added logic for RARS and direct broadcast data from NESDIS/UW.
+!   2016-05-05  pondeca - add 10-m u-wind and v-wind (uwnd10m, vwnd10m)
+!   2016-09-19  Guo     - replaced open(obs_input_common) with "call unformatted_open(obs_input_common)"
+!   2017-05-12  Y. Wang and X. Wang - add multi-interface to read in dBZ (nc) and radial velocity (ascii)
+!   2016-12-14  lippi   - Fixed bug of using observations twice when both
+!                         l2rwbufr and radarbufr are in the OBS_INPUT table.
+!                         Changed the dsis entries for l2rwbufr and radarbufr to
+!                         l2rw and l3rw respectively. Also make use of nml
+!                         option vadwnd_l2rw_qc. 
+!   2017-08-31  Li      - move gsi_nstcoupler_init & gsi_nstcoupler_set to getsfc in sathin.F90
+!                       - move gsi_nstcoupler_final from create_sfc_grids to here
+!   2017-12-05  Wargan  - added OMPS ozone
+!   2018-01-23 Apodaca  - add GOES/GLM lightning data
+!   2018-07-09 Todlng   - move gsi_nstcoupler_final to destroy_sfc (consistency)
+!   2019-01-15  Li      - add to handle mbuoyb
+!   2019-03-27  h. liu   - add abi
 !   
 !
 !   input argument list:
@@ -526,26 +692,47 @@ subroutine read_obs(ndata,mype)
     use general_commvars_mod, only: ltosi,ltosj
     use obsmod, only: iadate,ndat,time_window,dplat,dsfcalc,dfile,dthin, &
            dtype,dval,dmesh,obsfile_all,ref_obs,nprof_gps,dsis,ditype,&
-           oberrflg,perturb_obs,lobserver,lread_obs_save,obs_input_common,reduce_diag
+           perturb_obs,lobserver,lread_obs_save,obs_input_common, &
+           reduce_diag,nobs_sub,dval_use
+    use gsi_nstcouplermod, only: nst_gsi
+!   use gsi_nstcouplermod, only: gsi_nstcoupler_set
+    use qcmod, only: njqc,vadwnd_l2rw_qc
     use gsi_4dvar, only: l4dvar
     use satthin, only: super_val,super_val1,superp,makegvals,getsfc,destroy_sfc
     use mpimod, only: ierror,mpi_comm_world,mpi_sum,mpi_rtype,mpi_integer,npe,&
          setcomm
     use constants, only: one,zero
     use converr, only: converr_read
+    use converr_ps, only: converr_ps_read
+    use converr_q, only: converr_q_read
+    use converr_t, only: converr_t_read
+    use converr_uv, only: converr_uv_read
+    use converr_pw, only: converr_pw_read
+    use convb_ps,only: convb_ps_read
+    use convb_q,only:convb_q_read
+    use convb_t,only:convb_t_read
+    use convb_uv,only:convb_uv_read
     use guess_grids, only: ges_prsl,geop_hgtl,ntguessig
-    use radinfo, only: nusis,iuse_rad,jpch_rad,diag_rad,nst_gsi
-    use insitu_info, only: mbuoy_info,read_ship_info
+    use radinfo, only: nusis,iuse_rad,jpch_rad,diag_rad
+    use insitu_info, only: mbuoy_info,mbuoyb_info,read_ship_info
     use aeroinfo, only: nusis_aero,iuse_aero,jpch_aero,diag_aero
     use ozinfo, only: nusis_oz,iuse_oz,jpch_oz,diag_ozone
     use pcpinfo, only: npcptype,nupcp,iusep,diag_pcp
     use convinfo, only: nconvtype,ioctype,icuse,diag_conv,ithin_conv
     use chemmod, only : oneobtest_chem,oneob_type_chem,oneobschem
+    use lightinfo, only: nlighttype,iuse_light,diag_light
     use aircraftinfo, only: aircraft_t_bc,aircraft_t_bc_pof,aircraft_t_bc_ext,mype_airobst
-    use gsi_nstcouplermod, only: gsi_nstcoupler_set
+    use gsi_io, only: mype_io
+    use rapidrefresh_cldsurf_mod, only: i_gsdcldanal_type
+    use radiance_mod, only: rad_obs_type,radiance_obstype_search
 
     use m_extOzone, only: is_extOzone
     use m_extOzone, only: extOzone_read
+    use mpeu_util, only: warn
+    use gsi_unformatted, only: unformatted_open
+
+    use mrmsmod,only: l_mrms_sparse_netcdf
+
     implicit none
 
 !   Declare passed variables
@@ -556,34 +743,39 @@ subroutine read_obs(ndata,mype)
     integer(i_llong),parameter:: lenbuf=8388608_i_llong  ! lenbuf=8*1024*1024
 
 !   Declare local variables
-    logical :: lexist,ssmis,amsre,sndr,hirs,avhrr,lexistears,use_prsl_full,use_hgtl_full,gmi_gpm
-    logical :: use_sfc,nuse,use_prsl_full_proc,use_hgtl_full_proc,seviri,mls
-    logical,dimension(ndat):: belong,parallel_read,ears_possible
-    logical :: modis
+    logical :: lexist,ssmis,amsre,sndr,hirs,avhrr,lexistears,lexistdb,use_prsl_full,use_hgtl_full
+    logical :: use_sfc,nuse,use_prsl_full_proc,use_hgtl_full_proc,seviri,mls,abi
+    logical,dimension(ndat):: belong,parallel_read,ears_possible,db_possible
+    logical :: modis,use_sfc_any
     logical :: acft_profl_file
     character(10):: obstype,platid
-    character(15):: string,infile
+    character(22):: string
+    character(120):: infile
     character(20):: sis
     integer(i_kind) i,j,k,ii,nmind,lunout,isfcalc,ithinx,ithin,nread,npuse,nouse
     integer(i_kind) nprof_gps1,npem1,krsize,len4file,npemax,ilarge,nlarge,npestart
     integer(i_llong) :: lenbytes
-    integer(i_kind):: npetot,npeextra,mmdat
+    integer(i_kind):: npetot,npeextra,mmdat,nodata
     integer(i_kind):: iworld,iworld_group,next_mype,mm1,iix
-    integer(i_kind):: mype_root,lll,llb
-    integer(i_kind):: minuse,lunsave
+    integer(i_kind):: mype_root
+    integer(i_kind):: minuse,lunsave,maxproc,minproc
     integer(i_kind),dimension(ndat):: npe_sub,npe_sub3,mpi_comm_sub,mype_root_sub,npe_order
-    integer(i_kind),dimension(ndat):: mpi_comm_sub_r1,mpi_comm_sub_r2
     integer(i_kind),dimension(ndat):: ntasks1,ntasks
+    integer(i_kind),dimension(ndat):: read_rec1,read_rec
+    integer(i_kind),dimension(ndat):: read_ears_rec1,read_ears_rec
+    integer(i_kind),dimension(ndat):: read_db_rec1,read_db_rec
     integer(i_kind),dimension(ndat,3):: ndata1
-    integer(i_kind),dimension(npe,ndat):: mype_work
+    integer(i_kind),dimension(npe,ndat):: mype_work,nobs_sub1
     integer(i_kind),dimension(npe,ndat):: mype_sub
     integer(i_kind),allocatable,dimension(:):: nrnd
-    integer(i_kind):: nmls_type
+    integer(i_kind):: nmls_type,mype_io_sfc
     integer(i_kind):: iread,ipuse,iouse
 
     real(r_kind) gstime,val_dat,rmesh,twind,rseed
     real(r_kind),allocatable,dimension(:) :: prslsm,hgtlsm,work1
     real(r_kind),allocatable,dimension(:,:,:):: prsl_full,hgtl_full
+
+    type(rad_obs_type) :: radmod
 
     data lunout / 81 /
     data lunsave  / 82 /
@@ -593,6 +785,9 @@ subroutine read_obs(ndata,mype)
 !   Set analysis time and allocate/initialize arrays and variables
     call w3fs21(iadate,nmind)
     gstime=real(nmind,r_kind)
+    allocate(nobs_sub(npe,ndat))
+    nobs_sub = 0
+    nobs_sub1 = 0
 
     call makegvals
     do ii=1,ndat
@@ -605,10 +800,19 @@ subroutine read_obs(ndata,mype)
     npem1=npe-1
     nprof_gps1=0
 
-!    if(oberrflg .or. perturb_obs) then
+    if(njqc) then
+       call converr_ps_read(mype)
+       call converr_q_read(mype)
+       call converr_t_read(mype)
+       call converr_uv_read(mype)
+       call converr_pw_read(mype)
+       call convb_ps_read(mype)
+       call convb_q_read(mype)
+       call convb_t_read(mype)
+       call convb_uv_read(mype)
+    else
        call converr_read(mype)
-!    endif
-
+    endif
 
 !   Optionally set random seed to perturb observations
     if (perturb_obs) then
@@ -629,7 +833,11 @@ subroutine read_obs(ndata,mype)
     ii=0
     ref_obs = .false.    !.false. = assimilate GPS bending angle
     ears_possible = .false.
+    db_possible = .false.
     nmls_type=0
+    read_rec1 = 0
+    read_ears_rec1=0
+    read_db_rec1=0
     do i=1,ndat
        obstype=dtype(i)                   !     obstype  - observation types to process
        amsre= index(obstype,'amsre') /= 0
@@ -639,8 +847,8 @@ subroutine read_obs(ndata,mype)
        avhrr = index(obstype,'avhrr') /= 0
        modis = index(obstype,'modis') /= 0
        seviri = index(obstype,'seviri') /= 0
+       abi = index(obstype,'abi') /= 0
        mls = index(obstype,'mls') /= 0
-       gmi_gpm = index(obstype,'gmi') /= 0
        if(obstype == 'mls20' ) nmls_type=nmls_type+1
        if(obstype == 'mls22' ) nmls_type=nmls_type+1
        if(obstype == 'mls30' ) nmls_type=nmls_type+1
@@ -651,31 +859,42 @@ subroutine read_obs(ndata,mype)
        if (obstype == 't'  .or. obstype == 'uv' .or. &
            obstype == 'q'  .or. obstype == 'ps' .or. &
            obstype == 'pw' .or. obstype == 'spd'.or. &
-           obstype == 'sst'.or. obstype == 'srw'.or. &
+           obstype == 'sst'.or. &
            obstype == 'tcp'.or. obstype == "lag".or. &
            obstype == 'dw' .or. obstype == 'rw' .or. &
            obstype == 'mta_cld' .or. obstype == 'gos_ctp' .or. &
            obstype == 'rad_ref' .or. obstype=='lghtn' .or. &
-           obstype == 'larccld' .or. obstype == 'pm2_5' .or. &
+           obstype == 'larccld' .or. obstype == 'pm2_5' .or. obstype == 'pm10' .or. &
            obstype == 'gust' .or. obstype=='vis' .or. &
-           obstype == 'pblh') then
+           obstype == 'pblh' .or. obstype=='wspd10m' .or. &
+           obstype == 'td2m' .or. obstype=='mxtm' .or. &
+           obstype == 'mitm' .or. obstype=='pmsl' .or. &
+           obstype == 'howv' .or. obstype=='tcamt' .or. &
+           obstype=='lcbas' .or. obstype=='cldch' .or. obstype == 'larcglb' .or. &
+           obstype=='uwnd10m' .or. obstype=='vwnd10m' .or. obstype=='dbz' ) then
           ditype(i) = 'conv'
-       else if( hirs   .or. sndr      .or.  seviri .or. &
+       else if (obstype == 'swcp' .or. obstype == 'lwcp') then
+          ditype(i) = 'wcp'
+       else if( hirs   .or. sndr      .or.  seviri .or. abi .or.        &
                obstype == 'airs'      .or. obstype == 'amsua'     .or.  &
                obstype == 'msu'       .or. obstype == 'iasi'      .or.  &
                obstype == 'amsub'     .or. obstype == 'mhs'       .or.  &
                obstype == 'hsb'       .or. obstype == 'goes_img'  .or.  &
-               avhrr .or.                                               &
+               obstype == 'ahi'       .or. avhrr                  .or.  &
                amsre  .or. ssmis      .or. obstype == 'ssmi'      .or.  &
                obstype == 'ssu'       .or. obstype == 'atms'      .or.  &
-               obstype == 'cris'      .or. obstype == 'tmi'       .or.  &
-               gmi_gpm  ) then
+               obstype == 'cris'      .or. obstype == 'cris-fsr'  .or.  &
+               obstype == 'amsr2'     .or.  &
+               obstype == 'gmi'       .or. obstype == 'saphir'   ) then
           ditype(i) = 'rad'
        else if (is_extOzone(dfile(i),obstype,dplat(i))) then
           ditype(i) = 'ozone'
        else if (obstype == 'sbuv2' &
            .or. obstype == 'omi' &
+           .or. obstype == 'ompstc8' &
+           .or. obstype == 'ompsnp' &
            .or. obstype == 'gome' &
+           .or. index(obstype, 'omps') /= 0 &
            .or. mls &
            ) then
           ditype(i) = 'ozone'
@@ -687,6 +906,8 @@ subroutine read_obs(ndata,mype)
           ditype(i) = 'gps'
        else if ( index(obstype,'aod') /= 0 ) then
           ditype(i) = 'aero'
+       else if (obstype == 'goes_glm') then
+          ditype(i) = 'light'
        else
           write(6,*)'READ_OBS:  ***ERROR*** - unknown ob type ',trim(obstype)
        end if
@@ -724,6 +945,11 @@ subroutine read_obs(ndata,mype)
           do j=1,jpch_aero
              if(trim(dsis(i)) == trim(nusis_aero(j)) .and. iuse_aero(j) > minuse)nuse=.true.
           end do
+        else if(ditype(i) == 'light')then
+          if(diag_light .and. .not. reduce_diag)minuse=-2
+          do j=1,nlighttype
+             if(iuse_light(j) > minuse) nuse=.true.
+          end do
        else
           nuse=.true.
        end if
@@ -756,7 +982,9 @@ subroutine read_obs(ndata,mype)
 !               parallel_read(i)= .true.  
              else if(seviri)then
                 parallel_read(i)= .true.
-             else if(obstype == 'cris' )then
+             else if(abi)then
+                parallel_read(i)= .true.
+             else if(obstype == 'cris' .or. obstype == 'cris-fsr')then
                 parallel_read(i)= .true.
              else if(avhrr)then
                 parallel_read(i)= .true.
@@ -764,37 +992,91 @@ subroutine read_obs(ndata,mype)
                 parallel_read(i)= .true.
              else if(obstype == 'goes_img' )then
                 parallel_read(i)= .true.
+             else if(obstype == 'ahi' )then
+                parallel_read(i)= .true.
              else if(obstype == 'hsb' )then
                 parallel_read(i)= .true.
              else if(obstype == 'ssmi' )then
                 parallel_read(i)= .true.
              else if(obstype == 'ssu' )then
                 parallel_read(i)= .true.
+             else if(obstype == 'amsr2')then    
+!                parallel_read(i)= .true.     ! turn parallel read off for spatial averaging
+             else if(obstype == 'gmi')then
+!                parallel_read(i)= .true.     ! turn parallel read off for spatial averaging
+!   Parallel read for SAPHIR not currently working. Leave parallel read off.
+!             else if(obstype == 'saphir')then
+!                parallel_read(i)= .true.
+
              end if
            end if
           end if
-          ears_possible(i) = ditype(i) == 'rad'  .and.       & 
-                  (obstype == 'amsua' .or.  obstype == 'amsub' .or.  & 
-                   obstype == 'mhs') .and. (dplat(i) == 'n17' .or. & 
-                   dplat(i) == 'n18' .or. dplat(i) == 'n19' .or. &
+! direct broadcast from EUMETSAT (EARS)
+          ears_possible(i) = ditype(i) == 'rad'  .and. & 
+                  (obstype == 'amsua' .or. obstype == 'amsub' .or. & 
+                   obstype == 'mhs'   .or. obstype == 'hirs3' .or. &
+                   obstype == 'cris'  .or. obstype == 'cris-fsr' .or. &
+                   obstype == 'iasi'  .or. obstype == 'atms') .and. &
+                  (dplat(i) == 'n17' .or. dplat(i) == 'n18' .or. & 
+                   dplat(i) == 'n19' .or. dplat(i) == 'npp' .or. &
+                   dplat(i) == 'n20' .or. &
                    dplat(i) == 'metop-a' .or. dplat(i) == 'metop-b' .or. &
                    dplat(i) == 'metop-c') 
+! direct broadcast from NESDIS/UW
+          db_possible(i) = ditype(i) == 'rad'  .and.       & 
+                  (obstype == 'amsua' .or.  obstype == 'amsub' .or.  & 
+                   obstype == 'mhs' .or. obstype == 'atms' .or. &
+                   obstype == 'cris' .or. obstype == 'cris-fsr' .or. &
+                   obstype == 'iasi') .and. &
+                  (dplat(i) == 'n17' .or. dplat(i) == 'n18' .or. & 
+                   dplat(i) == 'n19' .or. dplat(i) == 'npp' .or. &
+                   dplat(i) == 'n20' .or. &
+                   dplat(i) == 'metop-a' .or. dplat(i) == 'metop-b' .or. &
+                   dplat(i) == 'metop-c') 
+
 !   Inquire data set to deterimine if input data available and size of dataset
           ii=ii+1
           if (ii>npem1) ii=0
           if(mype==ii)then
              call gsi_inquire(lenbytes,lexist,trim(dfile(i)),mype)
-             call read_obs_check (lexist,trim(dfile(i)),dplat(i),dtype(i),minuse)
+             call read_obs_check (lexist,trim(dfile(i)),dplat(i),dtype(i),minuse,read_rec1(i))
              
+!   If no data set starting record to be 999999.  Note if this is not large
+!   enough code should still work - just does a bit more work.
+
+             if(.not. lexist)read_rec1(i) = 999999
              len4file=lenbytes/4
              if (ears_possible(i))then
 
                 call gsi_inquire(lenbytes,lexistears,trim(dfile(i))//'ears',mype)
-                call read_obs_check (lexistears,trim(dfile(i))//'ears',dplat(i),dtype(i),minuse)
+                call read_obs_check (lexistears,trim(dfile(i))//'ears',dplat(i),dtype(i),minuse, &
+                    read_ears_rec1(i))
 
+!   If no data set starting record to be 999999.  Note if this is not large
+!   enough code should still work - just does a bit more work.
+
+                if(.not. lexistears)read_ears_rec1(i) = 999999
                 lexist=lexist .or. lexistears
                 len4file=len4file+lenbytes/4
+             else
+               read_ears_rec1(i) = 999999
              end if
+             if (db_possible(i))then
+
+                call gsi_inquire(lenbytes,lexistdb,trim(dfile(i))//'_db',mype)
+                call read_obs_check (lexistdb,trim(dfile(i))//'_db',dplat(i),dtype(i),minuse, &
+                    read_db_rec1(i))
+
+!   If no data set starting record to be 999999.  Note if this is not large
+!   enough code should still work - just does a bit more work.
+
+                if(.not. lexistdb)read_db_rec1(i) = 999999
+                lexist=lexist .or. lexistdb
+                len4file=len4file+lenbytes/4
+             else
+               read_db_rec1(i) = 999999
+             end if
+
  
              if(lexist) then
 !      Initialize number of reader tasks to 1.  For the time being
@@ -822,6 +1104,9 @@ subroutine read_obs(ndata,mype)
 
 !   Distribute optimal number of reader tasks to all mpi tasks
     call mpi_allreduce(ntasks1,ntasks,ndat,mpi_integer,mpi_sum,mpi_comm_world,ierror)
+    call mpi_allreduce(read_rec1,read_rec,ndat,mpi_integer,mpi_sum,mpi_comm_world,ierror) 
+    call mpi_allreduce(read_ears_rec1,read_ears_rec,ndat,mpi_integer,mpi_sum,mpi_comm_world,ierror) 
+    call mpi_allreduce(read_db_rec1,read_db_rec,ndat,mpi_integer,mpi_sum,mpi_comm_world,ierror) 
 
 !   Limit number of requested tasks per type to be <= total available tasks
     npemax=0
@@ -845,24 +1130,30 @@ subroutine read_obs(ndata,mype)
     
     npeextra=0
     if(mod(npetot,npe) > 0) npeextra=npe-mod(npetot,npe)
+    maxproc=32
     if(npeextra > 0)then
        if(mype == 0)write(6,*) ' number of extra processors ',npeextra
-       npe_sub3=npe_sub
        extraloop: do j=1,npeextra
-          iix=1
-          do ii=1,5
+          npe_sub3=ntasks
+          minproc=999999
+          do i=1,ndat
+            if(ntasks(i) > 0 .and.  parallel_read(i))minproc=min(minproc,ntasks(i))
+          end do
+          if(npeextra < minproc) exit extraloop
+          iix=minproc
+          do ii=1,6
              do i=1,ndat
                 if(iix == npe_sub3(i) .and. parallel_read(i))then
-                   if(ntasks(i) > 0 .and. ntasks(i) <= npeextra)then
+                   if(ntasks(i) <= npeextra .and. ntasks(i) < maxproc)then
                       npeextra=npeextra-ntasks(i)
-                      npe_sub(i)=npe_sub(i)+ntasks(i)
                       ntasks(i)=2*ntasks(i)
                       if(npeextra < iix)cycle extraloop
                    end if
                 end if
              end do
+             iix=2*iix
+             if(iix >= maxproc) cycle extraloop
           end do
-          iix=max(min(2*iix,8),npeextra)
        end do extraloop
     end if
 
@@ -886,11 +1177,10 @@ subroutine read_obs(ndata,mype)
        mype_root_sub(ilarge)=npestart
        npestart=npestart+npe_sub3(ilarge)
        mmdat=mmdat+1
-       if(npestart == npe)npestart=0
        npe_sub3(ilarge)=0
+       if(npestart + minval(npe_sub3, mask=npe_sub3>0)>= npe) npestart=0
     end do loopx
 
-        
 !   Define sub-communicators for each data file
     mm1=mype+1
     belong=.false.
@@ -917,8 +1207,9 @@ subroutine read_obs(ndata,mype)
     mype_airobst = mype_root
     do ii=1,mmdat
        i=npe_order(ii)
-       if(mype == 0 .and. npe_sub(i) > 0) write(6,'(1x,a,i4,1x,a,1x,2a,3i4)') &
-        'READ_OBS:  read ',i,dtype(i),dsis(i),' using ntasks=',ntasks(i),mype_root_sub(i),npe_sub(i) 
+       if(mype == 0 .and. npe_sub(i) > 0) write(6,'(1x,a,i4,1x,a,1x,2a,2i4,1x,i6,1x,i6,1x,i6)') &
+        'READ_OBS:  read ',i,dtype(i),dsis(i),' using ntasks=',ntasks(i),mype_root_sub(i), & 
+               read_rec(i),read_ears_rec(i),read_db_rec(i)
 
        acft_profl_file = index(dfile(i),'_profl')/=0
        if ((aircraft_t_bc_pof .or. aircraft_t_bc_ext .or. &
@@ -933,13 +1224,16 @@ subroutine read_obs(ndata,mype)
     use_sfc=.false.
     use_prsl_full_proc=.false.
     use_hgtl_full_proc=.false.
-    do i=1,ndat
+    mype_io_sfc=mype_io
+    do ii=1,mmdat
+       i=npe_order(ii)
        if(ditype(i) =='conv')then
           obstype=dtype(i)
           if (obstype == 't' .or. obstype == 'q'  .or. &
-              obstype == 'uv') then
-             use_prsl_full=.true.
-             if(belong(i))use_prsl_full_proc=.true.
+              obstype == 'uv' .or. obstype == 'wspd10m' .or. &
+              obstype == 'uwnd10m' .or. obstype == 'vwnd10m') then
+              use_prsl_full=.true.
+              if(belong(i))use_prsl_full_proc=.true.
           else
             do j=1,nconvtype
                if(obstype == trim(ioctype(j)) .and. ithin_conv(j) > 0)then
@@ -951,11 +1245,33 @@ subroutine read_obs(ndata,mype)
           if(obstype == 'rw')then
              use_hgtl_full=.true.
              if(belong(i))use_hgtl_full_proc=.true.
+           else if(obstype == 'dbz')then
+             use_hgtl_full=.true.
+             if(belong(i))use_hgtl_full_proc=.true.
           end if
+          if(obstype == 'sst')then
+            if(belong(i))use_sfc=.true.
+          endif
        else if(ditype(i) == 'rad' )then
-          if(belong(i))use_sfc=.true.
+          if(belong(i)) use_sfc=.true.
        end if
     end do
+    use_sfc_any=.false.
+    loop: do ii=1,mmdat
+       i=npe_order(ii)
+       if(ditype(i) == 'rad' .or. ditype(i) == 'sst')then
+          mype_io_sfc=mype_root_sub(i)
+          use_sfc_any=.true.
+          exit loop
+       end if
+    end do loop
+    if(use_sfc_any .and. mype == mype_io)use_sfc=.true.
+
+!   Create full horizontal surface fields from local fields in guess_grids
+    call getsfc(mype,mype_io_sfc,use_sfc,use_sfc_any)
+
+    if(mype == mype_io) call prt_guessfc2('sfcges2',use_sfc)
+
 !   Get guess 3d pressure on full grid
     allocate(work1(max(iglobal,itotsub)),prslsm(lat1*lon1))
     if(use_prsl_full)then
@@ -1006,20 +1322,15 @@ subroutine read_obs(ndata,mype)
       allocate(hgtl_full(1,1,1))
     end if
     deallocate(work1,prslsm)
-!   Create full horizontal surface fields from local fields in guess_grids
-    call getsfc(mype,use_sfc)
-    if(use_sfc) call prt_guessfc2('sfcges2')
 
-!   Create full horizontal nst fields from local fields in guess_grids/read it from nst file
-    if (nst_gsi > 0) then
-      call gsi_nstcoupler_set(mype)         ! Set NST fields (each proc needs full NST fields)
+!   Create moored buoy station ID
+    call mbuoy_info(mype)
 
-!     Create moored buoy station ID
-      call mbuoy_info(mype)
+!   Create moored buoy station ID for mbuoyb with 7-digit station ID
+    call mbuoyb_info(mype)
 
-!     Create ships info(ID, Depth & Instrument)
-      call read_ship_info(mype)
-    endif
+!   Create ships info(ID, Depth & Instrument)
+    call read_ship_info(mype)
 
 !   Loop over data files.  Each data file is read by a sub-communicator
     loop_of_obsdata_files: &
@@ -1049,50 +1360,118 @@ subroutine read_obs(ndata,mype)
           endif
 
 !         Process conventional (prepbufr) data
+          string="--"//trim(ditype(i))
           ditype_select: &
           if(ditype(i) == 'conv')then
              conv_obstype_select: &
              if (obstype == 't' .or. obstype == 'q'  .or. obstype == 'ps' .or. &
                  obstype == 'pw' .or. obstype == 'spd'.or. & 
                  obstype == 'gust' .or. obstype == 'vis'.or. &
-                 obstype == 'mta_cld' .or. obstype == 'gos_ctp'  ) then
+                 obstype == 'td2m' .or. &
+!                 obstype=='mxtm' .or. obstype == 'mitm' .or. &
+!                 obstype=='howv' .or. obstype=='pmsl' .or. &    #howv #ww3 
+                 obstype=='pmsl' .or. &
+                 obstype == 'mta_cld' .or. obstype == 'gos_ctp' .or. &
+                 obstype == 'lcbas' .or. obstype == 'cldch' ) then
+
 !               Process flight-letel high-density data not included in prepbufr
                 if ( index(infile,'hdobbufr') /=0 ) then
                   call read_fl_hdob(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
-                                    prsl_full)
+                                    prsl_full,nobs_sub1(1,i))
                   string='READ_FL_HDOB'
                 else
                    call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
-                        prsl_full)
+                        prsl_full,nobs_sub1(1,i),read_rec(i))
                    string='READ_PREPBUFR'
+
                 endif
-!            Process winds in the prepbufr
-             else if(obstype == 'uv') then
+             else if(obstype == 'howv') then
+                 if ( index(infile,'satmar') /=0) then
+                   
+                    call read_satmar (nread, npuse, nouse                                  &
+                                     , infile, obstype, lunout, gstime, twind, sis         &
+                                     , nobs_sub1(1,i))
+                    string='READ_SATMAR'
+                 else 
+                   call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
+                        prsl_full,nobs_sub1(1,i),read_rec(i))
+                   string='READ_PREPBUFR'
+
+                 endif
+             else if(obstype == 'mitm') then
+                if ( index(infile,'mitmdat') /=0) then
+                   call read_mitm_mxtm(nread,npuse,nouse,infile,obstype,lunout,gstime,sis, & 
+                                       nobs_sub1(1,i))
+                   string='READ_ASCII_MITM'
+                 else
+                   call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
+                        prsl_full,nobs_sub1(1,i),read_rec(i))
+                   string='READ_PREPBUFR'
+                 endif
+
+             else if(obstype == 'mxtm') then
+                if ( index(infile,'mxtmdat') /=0) then
+                   call read_mitm_mxtm(nread,npuse,nouse,infile,obstype,lunout,gstime,sis, & 
+                                       nobs_sub1(1,i))
+                   string='READ_ASCII_MXTM'
+                 else
+                   call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
+                        prsl_full,nobs_sub1(1,i),read_rec(i))
+                   string='READ_PREPBUFR'
+                 endif
+
+!            Process total cloud amount (tcamt) in prepbufr -or- from goes imager sky cover products
+             else if(obstype == 'tcamt') then
+!             Process GOES Imager Sky Cover product separately from prepbufr-based sky cover obs
+                if ( index(infile,'goessky') /=0 ) then
+                   call read_goesimgr_skycover(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
+                        prsl_full,nobs_sub1(1,i))
+                   string='READ_GOESIMGR_SKYCOVER'
+                else
+!              else read from prepbufr
+                   call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,prsl_full, &
+                         nobs_sub1(1,i),read_rec(i))
+                   string='READ_PREPBUFR'
+                end if
+
+!             Process winds in the prepbufr
+            else if(obstype == 'uv' .or. obstype == 'wspd10m' .or. &
+                    obstype == 'uwnd10m' .or. obstype == 'vwnd10m') then
 !             Process satellite winds which seperate from prepbufr
                 if ( index(infile,'satwnd') /=0 ) then
                   call read_satwnd(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
-                     prsl_full)
+                     prsl_full,nobs_sub1(1,i))
                   string='READ_SATWND'
 !             Process oscat winds which seperate from prepbufr
                 elseif ( index(infile,'oscatbufr') /=0 ) then
                   call read_sfcwnd(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
-                     prsl_full)
+                     prsl_full,nobs_sub1(1,i))
                   string='READ_SFCWND'
+!             Process rapidscat winds which seperate from prepbufr
+                elseif ( index(infile,'rapidscatbufr') /=0 ) then
+                  call read_rapidscat(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
+                     prsl_full,nobs_sub1(1,i))
+                  string='READ_RAPIDSCAT'
                 else if ( index(infile,'hdobbufr') /=0 ) then
-                  call read_fl_hdob(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&                                                                     
-                     prsl_full)
+                  call read_fl_hdob(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
+                       prsl_full,nobs_sub1(1,i))
                   string='READ_FL_HDOB'
                 else
                   call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
-                     prsl_full)
+                     prsl_full,nobs_sub1(1,i),read_rec(i))
                   string='READ_PREPBUFR'
                 endif
 
-!            Process conventional SST (modsbufr, at this moment) data
+!            Process conventional SST (nsstbufr, at this moment) data
              elseif ( obstype == 'sst' ) then
-                if ( platid == 'mods') then
+                string="--"//trim(ditype(i))//":sst:"//trim(platid)
+                if ( platid == 'nsst') then
+                   call read_nsstbufr(nread,npuse,nouse,gstime,infile,obstype, &
+                        lunout,twind,sis,nobs_sub1(1,i))
+                   string='READ_NSSTBUFR'
+                elseif ( platid == 'mods') then
                    call read_modsbufr(nread,npuse,nouse,gstime,infile,obstype, &
-                        lunout,twind,sis)
+                        lunout,twind,sis,nobs_sub1(1,i))
                    string='READ_MODSBUFR'
                 else
                    if(nst_gsi>0)then
@@ -1101,32 +1480,76 @@ subroutine read_obs(ndata,mype)
                    endif
 
                    call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
-                        prsl_full)
+                        prsl_full,nobs_sub1(1,i),read_rec(i))
                    string='READ_PREPBUFR'
                 endif
 
 !            Process radar reflectivity Mosaic
              else if (obstype == 'rad_ref' ) then
-                call read_RadarRef_mosaic(nread,npuse,infile,obstype,lunout,twind,sis)
+                call read_radarref_mosaic(nread,npuse,infile,obstype,lunout,twind,sis, &
+                      nobs_sub1(1,i))
                 string='READ_RADARREF_MOSAIC'
 
 !            Process  lightning
              else if (obstype == 'lghtn' ) then
-                call read_lightning(nread,npuse,infile,obstype,lunout,twind,sis)
+                if(i_gsdcldanal_type==2) then
+                   call read_lightning(nread,npuse,infile,obstype,lunout,twind,sis,nobs_sub1(1,i))
+                else if(i_gsdcldanal_type==1 .or. i_gsdcldanal_type==6 &
+                        .or. i_gsdcldanal_type==3 .or. i_gsdcldanal_type==7) then
+                   call read_lightning_grid(nread,npuse,infile,obstype,lunout,twind,sis,nobs_sub1(1,i))
+                endif
                 string='READ_LIGHTNING'
 
 !            Process  NASA LaRC 
+             ! for regional obs that are already mapped to analysis grid
              else if (obstype == 'larccld' ) then
-!               write(6,*)'sliu :: NASA cld', infile, 'READ_NASA_LaRC'
-!               call read_NASA_LaRC(nread,npuse,infile,obstype,lunout,twind,sis)
-                call read_NASA_LaRC_cloud(nread,npuse,nouse,infile,obstype,lunout,twind,sis)
+                if(i_gsdcldanal_type==2) then
+                   call read_NASA_LaRC_cloud(nread,npuse,nouse,infile,obstype,lunout,sis,nobs_sub1(1,i))
+                else if(i_gsdcldanal_type==1 .or. i_gsdcldanal_type==6 &
+                        .or. i_gsdcldanal_type==3 .or. i_gsdcldanal_type==7) then
+                   call read_nasa_larc(nread,npuse,infile,obstype,lunout,twind,sis,nobs_sub1(1,i))
+                end if
+                string='READ_NASA_LaRC'
+             ! for global NASA LaRC obs 
+             else if (obstype == 'larcglb' ) then
+                call read_NASA_LaRC_cloud(nread,npuse,nouse,infile,obstype,lunout,twind,sis,nobs_sub1(1,i))
                 string='READ_NASA_LaRC'
 
 !            Process radar winds
              else if (obstype == 'rw') then
-                call read_radar(nread,npuse,nouse,infile,lunout,obstype,twind,sis,&
-                                hgtl_full)
-                string='READ_RADAR'
+                if( trim(infile) == 'vr_vol' )then
+                  call read_radar_wind_ascii(nread,npuse,nouse,infile,lunout,obstype,sis,&
+                                  hgtl_full,nobs_sub1(1,i))
+                else
+                 if (vadwnd_l2rw_qc) then
+                      write(6,*)'READ_OBS: radial wind,read_radar,dfile=',infile,',dsis=',sis 
+                     call read_radar(nread,npuse,nouse,infile,lunout,obstype,twind,sis,&
+                                     hgtl_full,nobs_sub1(1,i))
+                     string='READ_RADAR'
+                  else if (sis == 'l2rw') then
+                      write(6,*)'READ_OBS: radial wind,read_radar_l2rw_novadqc,dfile=',infile,',dsis=',sis
+                     call read_radar_l2rw_novadqc(npuse,nouse,lunout,obstype,sis,nobs_sub1(1,i))
+                     string='READ_RADAR_L2RW_NOVADQC'
+                  end if
+                end if
+                string='READ_RADAR_WIND'
+
+!            Process radar reflectivity from MRMS
+             else if (obstype == 'dbz' ) then
+                print *, "calling read_dbz"
+                if(trim(infile)=='dbzobs.nc')then
+                  call read_dbz_nc(nread,npuse,nouse,infile,lunout,obstype,sis,hgtl_full,nobs_sub1(1,i))
+                  string='READ_dBZ'
+                else
+                  call read_dbz_mrms_detect_format(infile,l_mrms_sparse_netcdf)
+                  if(l_mrms_sparse_netcdf) then
+                     call read_dbz_mrms_sparse_netcdf(nread,npuse,nouse,infile,obstype,lunout,sis,nobs_sub1(1,i))
+                     string='READ_dbz_mrms_sparse_netcdf'
+                  else
+                     call read_dbz_mrms_netcdf(nread,npuse,nouse,infile,obstype,lunout,sis,nobs_sub1(1,i))
+                     string='READ_dbz_mrms_netcdf'
+                  endif
+                end if
 
 !            Process lagrangian data
              else if (obstype == 'lag') then
@@ -1136,40 +1559,44 @@ subroutine read_obs(ndata,mype)
 
 !            Process lidar winds
              else if (obstype == 'dw') then
-                call read_lidar(nread,npuse,nouse,infile,obstype,lunout,twind,sis)
+                call read_lidar(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                     nobs_sub1(1,i))
                 string='READ_LIDAR'
 
 !            Process synthetic tc-mslp obs
              else if (obstype == 'tcp') then
-                call read_tcps(nread,npuse,nouse,infile,obstype,lunout,sis)
+                call read_tcps(nread,npuse,nouse,infile,obstype,lunout,sis, &
+                     nobs_sub1(1,i))
                 string='READ_TCPS'
 
-!            Process radar superob winds
-             else if (obstype == 'srw') then
-                call read_superwinds(nread,npuse,nouse,infile,obstype,lunout, &
-                     twind,sis)
-                string='READ_SUPRWNDS'
-
-             else if (obstype == 'pm2_5') then
+             else if (obstype == 'pm2_5' .or. obstype == 'pm10') then
 
                 if (oneobtest_chem .and. oneob_type_chem=='pm2_5') then
                    call oneobschem(nread,npuse,nouse,gstime,&
-                        &infile,obstype,lunout,sis)
+                        &infile,obstype,lunout,sis,nobs_sub1(1,i))
                    string='ONEOBSCHEM'
                 else
                    call read_anowbufr(nread,npuse,nouse,gstime,&
-                        &infile,obstype,lunout,twind,sis)
+                        &infile,obstype,lunout,twind,sis,nobs_sub1(1,i))
                    string='READ_ANOWBUFR'
                 endif
 
 !            Process pblh
              else if (obstype == 'pblh') then
-                call read_pblh(nread,npuse,nouse,infile,obstype,lunout,twind,sis)
+                call read_pblh(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                    nobs_sub1(1,i))
                 string='READ_PBLH'
              end if conv_obstype_select
-
+!            Process swcp and lwcp
+          else if (ditype(i) == 'wcp') then
+             if ( obstype == 'swcp' .or. obstype == 'lwcp' ) then
+                call read_wcpbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                   prsl_full,nobs_sub1(1,i),read_rec(i))
+                string='READ_WCPBUFR'
+             end if
           else if (ditype(i) == 'rad')then
 
+             call radiance_obstype_search(obstype,radmod)
 
 !            Process TOVS 1b data
              rad_obstype_select: &
@@ -1178,41 +1605,52 @@ subroutine read_obs(ndata,mype)
                   obstype == 'mhs'   .or. obstype == 'hirs4' .or.  &
                   obstype == 'hirs3' .or. obstype == 'hirs2' .or.  &
                   obstype == 'ssu' )) then
-                llb=1
-                lll=1
-                if(ears_possible(i))lll=2
                 call read_bufrtovs(mype,val_dat,ithin,isfcalc,rmesh,platid,gstime,&
                      infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),llb,lll)
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), nobs_sub1(1,i), &
+                     read_rec(i),read_ears_rec(i),read_db_rec(i),dval_use,radmod)
                 string='READ_BUFRTOVS'
 
 !            Process atms data
              else if (obstype == 'atms') then
                 call read_atms(mype,val_dat,ithin,isfcalc,rmesh,platid,gstime,&
                      infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),nobs_sub1(1,i),&
+                     read_rec(i),read_ears_rec(i),read_db_rec(i),dval_use,radmod)
                 string='READ_ATMS'
+
+!            Process saphir data
+             else if (obstype == 'saphir') then
+                call read_saphir(mype,val_dat,ithin,isfcalc,rmesh,platid,gstime,&
+                     infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),  &
+                     nobs_sub1(1,i),dval_use)
+                string='READ_SAPHIR'
+
 
 !            Process airs data        
              else if(platid == 'aqua' .and. (obstype == 'airs' .or.   &
                   obstype == 'amsua'  .or.  obstype == 'hsb' ))then
                 call read_airs(mype,val_dat,ithin,isfcalc,rmesh,platid,gstime,&
                      infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                     nobs_sub1(1,i),read_rec(i),dval_use)
                 string='READ_AIRS'
 
 !            Process iasi data
              else if(obstype == 'iasi')then
                 call read_iasi(mype,val_dat,ithin,isfcalc,rmesh,platid,gstime,&
                      infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),nobs_sub1(1,i), &
+                     read_rec(i),read_ears_rec(i),read_db_rec(i),dval_use)
                 string='READ_IASI'
 
 !            Process cris data
-             else if(obstype == 'cris')then
+             else if(obstype == 'cris' .or. obstype =='cris-fsr' )then
                 call read_cris(mype,val_dat,ithin,isfcalc,rmesh,platid,gstime,&
                      infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),nobs_sub1(1,i), &
+                     read_rec(i),read_ears_rec(i),read_db_rec(i),dval_use)
                 string='READ_CRIS'
 
 !            Process GOES sounder data
@@ -1222,36 +1660,25 @@ subroutine read_obs(ndata,mype)
                       obstype == 'sndrd3' .or. obstype == 'sndrd4') then
                 call read_goesndr(mype,val_dat,ithin,rmesh,platid,&
                      infile,lunout,obstype,nread,npuse,nouse,twind,gstime,sis,&
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                     nobs_sub1(1,i),read_rec(i),dval_use)
                 string='READ_GOESNDR'
-                
+
 !            Process ssmi data
-             else if (obstype == 'ssmi' ) then 
+             else if (obstype == 'ssmi' ) then
                 call read_ssmi(mype,val_dat,ithin,rmesh,platid,gstime,&
                      infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                     nobs_sub1(1,i),read_rec(i),dval_use)
                 string='READ_SSMI'
-
-!            Process tmi data
-             else if (obstype == 'tmi') then
-                call read_tmi(mype,val_dat,ithin,rmesh,platid,gstime,&
-                     infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
-                string='READ_TMI'
-
-!            Process gmi (GMI 1CR) data
-             else if ( obstype == 'gmi' ) then
-                call read_gmi(mype,val_dat,ithin,rmesh,platid,gstime,&
-                     infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
-                string='READ_GMI'
 
 !            Process amsre data
              else if ( obstype == 'amsre_low' .or. obstype == 'amsre_mid' .or. &
                        obstype == 'amsre_hig' ) then
-                call read_amsre(mype,val_dat,ithin,isfcalc,rmesh,gstime,&
+                call read_amsre(mype,val_dat,ithin,isfcalc,rmesh,platid,gstime,&
                      infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                     nobs_sub1(1,i),read_rec(i),dval_use)
                 string='READ_AMSRE'
                 
 !            Process ssmis data
@@ -1259,38 +1686,75 @@ subroutine read_obs(ndata,mype)
                       obstype == 'ssmis_las' .or. obstype == 'ssmis_uas' .or. &
                       obstype == 'ssmis_img' .or. obstype == 'ssmis_env' ) then
                 call read_ssmis(mype,val_dat,ithin,isfcalc,rmesh,platid,gstime,&
-                     infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                      infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
+                      mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                      nobs_sub1(1,i),read_rec(i),dval_use)
                 string='READ_SSMIS'
+
+!            Process AMSR2 data
+             else if(obstype == 'amsr2')then
+                call read_amsr2(mype,val_dat,ithin,rmesh,platid,gstime,&
+                     infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),  &
+                     nobs_sub1(1,i))
+                string='READ_AMSR2'
 
 !            Process GOES IMAGER RADIANCE  data
              else if(obstype == 'goes_img') then
                 call read_goesimg(mype,val_dat,ithin,rmesh,platid,gstime,&
                      infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                     nobs_sub1(1,i),read_rec(i),dval_use)
                 string='READ_GOESMIMG'
+
+!            Process GMI data
+             else if (obstype == 'gmi') then
+                call read_gmi(mype,val_dat,ithin,rmesh,platid,gstime,&
+                     infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),  &
+                     nobs_sub1(1,i),dval_use)
+                string='READ_GMI'
 
 !            Process Meteosat SEVIRI RADIANCE  data
              else if(obstype == 'seviri') then
                  call read_seviri(mype,val_dat,ithin,rmesh,platid,gstime,&
                      infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                     nobs_sub1(1,i),read_rec(i),dval_use)
                 string='READ_SEVIRI'
+!            Process GOES-R ABI RADIANCE  data
+             else if(obstype == 'abi') then
+                call read_abi(mype,val_dat,ithin,rmesh,platid,gstime,&
+                     infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                     nobs_sub1(1,i),read_rec(i),dval_use)
+                string='READ_ABI'
+
+        !    Process Himawari-8 AHI RADIANCE  data
+             else if(obstype == 'ahi') then
+                call read_ahi(mype,val_dat,ithin,rmesh,platid,gstime,&
+                     infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),  &
+                     nobs_sub1(1,i),dval_use)
+                string='READ_AHI'
+
 
 !            Process NAVY AVHRR RADIANCE  data
-             else if(obstype == 'avhrr_navy') then
-                call read_avhrr_navy(mype,val_dat,ithin,rmesh,platid,gstime,&
-                     infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
-                string='READ_AVH_NAVY'
+               else if(obstype == 'avhrr_navy') then
+                  call read_avhrr_navy(mype,val_dat,ithin,rmesh,platid,gstime,&
+                       infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
+                       mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                       nobs_sub1(1,i),read_rec(i),dval_use)
+                  string='READ_AVH_NAVY'
 
-!            Process NESDIS AVHRR RADIANCE  data
-             else if(obstype == 'avhrr') then
-                call read_avhrr(mype,val_dat,ithin,rmesh,platid,gstime,&
-                     infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
-                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
-                string='READ_AVHRR'
-             end if rad_obstype_select
+  !            Process NESDIS AVHRR RADIANCE  data
+               else if(obstype == 'avhrr') then
+                  call read_avhrr(mype,val_dat,ithin,rmesh,platid,gstime,&
+                       infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
+                       mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                       nobs_sub1(1,i),read_rec(i),dval_use)
+                  string='READ_AVHRR'
+               end if rad_obstype_select
 
 !         Process ozone data
           else if (ditype(i) == 'ozone')then
@@ -1298,7 +1762,8 @@ subroutine read_obs(ndata,mype)
              if (is_extOzone(infile,obstype,dplat(i))) then
 
                 call extOzone_read(infile,obstype,dplat(i),dsis(i), &
-                   iread,ipuse,iouse, platid,gstime,lunout,twind,ithin,rmesh)
+                   iread,ipuse,iouse, platid,gstime,lunout,twind,ithin,rmesh, &
+                   nobs_sub1(:,i))
                 string='extOzone_read'
 
                 nread=nread+iread
@@ -1307,35 +1772,44 @@ subroutine read_obs(ndata,mype)
 
              else
                 call read_ozone(nread,npuse,nouse,&
-                   platid,infile,gstime,lunout,obstype,twind,sis,ithin,rmesh)
+                   platid,infile,gstime,lunout,obstype,twind,sis,ithin,rmesh, &
+                   nobs_sub1(1,i))
                 string='READ_OZONE'
              endif ozone_obstype_select
 
 !         Process co data
           else if (ditype(i) =='co')then 
-             call read_co(nread,npuse,nouse,&
-                 infile,gstime,lunout,obstype,sis)
+             call read_co(nread,npuse,nouse,infile,gstime,lunout,obstype,sis, &
+                  nobs_sub1(1,i))
              string='READ_CO'
 
 !         Process precipitation             
           else if (ditype(i) == 'pcp')then
-             call read_pcp(nread,npuse,nouse,gstime,infile, &
-                  lunout,obstype,twind,sis)
+             call read_pcp(nread,npuse,nouse,gstime,infile,lunout,obstype,twind,sis, &
+                  nobs_sub1(1,i))
              string='READ_PCP'
 
 !         Process gps observations
           else if (ditype(i) == 'gps')then
              call read_gps(nread,npuse,nouse,infile,lunout,obstype,twind, &
-                  nprof_gps1,sis)
+                  nprof_gps1,sis,nobs_sub1(1,i))
              string='READ_GPS'
 
 !         Process aerosol data
           else if (ditype(i) == 'aero' )then
              call read_aerosol(nread,npuse,nouse,&
                   platid,infile,gstime,lunout,obstype,twind,sis,ithin,rmesh, &
-                  mype,mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i))
+                  mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                  nobs_sub1(1,i))
              string='READ_AEROSOL'
-             
+
+!         Process satellite lightning observations (e.g. GOES/GLM)                     
+          else if(ditype(i) == 'light')then
+               if (obstype == 'goes_glm' ) then
+             call read_goesglm(nread,ndata,nodata,infile,obstype,lunout,sis)
+             string='READ_GOESGLM'
+               endif
+
           end if ditype_select
 
 !         Close unit to data file
@@ -1347,12 +1821,21 @@ subroutine read_obs(ndata,mype)
              ndata1(i,2)=ndata1(i,2)+nread
              ndata1(i,3)=ndata1(i,3)+nouse
 
+             if(string(1:2)=='--') then
+               call warn('read_obs','task without reader, i =',i)
+               call warn('read_obs','                infile =',trim(infile))
+               call warn('read_obs','             ditype(i) =',trim(ditype(i)))
+               call warn('read_obs','               obstype =',trim(obstype))
+               call warn('read_obs','                platid =',trim(platid))
+               call warn('read_obs','                string =',trim(string))
+             endif
+
              write(6,8000) adjustl(string),infile,obstype,sis,nread,ithin,&
                   rmesh,isfcalc,nouse,npe_sub(i)
-8000         format(1x,a15,': file=',a15,&
+8000         format(1x,a22,': file=',a15,&
                   ' type=',a10,  ' sis=',a20,  ' nread=',i10,&
                   ' ithin=',i2, ' rmesh=',f11.6,' isfcalc=',i2,&
-                  ' ndata=',i10,' ntask=',i3)
+                  ' nkeep=',i10,' ntask=',i3)
 
           endif
        endif task_belongs
@@ -1377,20 +1860,28 @@ subroutine read_obs(ndata,mype)
        ierror)
 
 !   Collect super obs factors
-    call mpi_allreduce(super_val,super_val1,superp+1,mpi_rtype,&
-         mpi_sum,mpi_comm_world,ierror)
+    if(mype == 0)write(6,*) ' dval_use = ',dval_use
+    if(dval_use)then
+       call mpi_allreduce(super_val,super_val1,superp+1,mpi_rtype,&
+            mpi_sum,mpi_comm_world,ierror)
+    else
+       super_val1=zero
+    end if
     super_val1(0)=one
     deallocate(super_val)
 
 !   Collect number of gps profiles (needed later for qc)
     call mpi_allreduce(nprof_gps1,nprof_gps,1,mpi_integer,mpi_sum,mpi_comm_world,ierror)
+    call mpi_allreduce(nobs_sub1,nobs_sub,npe*ndat,mpi_integer,mpi_sum,mpi_comm_world,& 
+         ierror)
 
 !   Write collective obs selection information to scratch file.
     if (lread_obs_save .and. mype==0) then
        write(6,*)'READ_OBS:  write collective obs selection info to ',trim(obs_input_common)
-       open(lunsave,file=obs_input_common,form='unformatted')
-       write(lunsave) ndata,superp,nprof_gps,ditype
+       call unformatted_open(lunsave,file=obs_input_common,class=".obs_input.")
+       write(lunsave) ndata,ndat,npe,superp,nprof_gps,ditype
        write(lunsave) super_val1
+       write(lunsave) nobs_sub
        close(lunsave)
     endif
 

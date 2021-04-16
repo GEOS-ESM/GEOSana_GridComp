@@ -1,4 +1,11 @@
-subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
+module lag_setup
+  implicit none
+  private
+  public:: setup
+        interface setup; module procedure setuplag; end interface
+
+contains
+subroutine setuplag(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    setuplag    compute rhs of oi for lagrangian data    
@@ -12,6 +19,14 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 !   2010-07-14  todling - use die to abort
 !   2011-08-01  lueken  - replaced F90 with f90 (no machine logic) and removed double &
 !   2014-01-28  todling - write sensitivity slot indicator (ioff) to header of diagfile
+!   2014-12-30  derber - Modify for possibility of not using obsdiag
+!   2015-10-01  guo   - full res obvsr: index to allow redistribution of obsdiags
+!   2016-05-18  guo     - replaced ob_type with polymorphic obsNode through type casting
+!   2016-06-24  guo     - fixed the default value of obsdiags(:,:)%tail%luse to luse(i)
+!                       . removed (%dlat,%dlon) debris.
+!   2017-02-09  guo     - Remove m_alloc, n_alloc.
+!                       . Remove my_node with corrected typecast().
+!   2020-02-26  todling - reset obsbin from hr to min
 !
 !   input argument list:
 !     lunin    - unit from which to read observations
@@ -30,13 +45,26 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 !$$$
   use mpeu_util, only: die,perr
   use kinds, only: r_kind,r_single,r_double,i_kind
-  use obsmod, only: laghead,lagtail,i_lag_ob_type,obsdiags,&
-      obsptr,lobsdiagsave,nobskeep,lobsdiag_allocated,&
-      time_offset
-  use obsmod, only: lag_ob_type
-  use obsmod, only: obs_diag
+  use m_obsdiagNode, only: obs_diag
+  use m_obsdiagNode, only: obs_diags
+  use m_obsdiagNode, only: obsdiagLList_nextNode
+  use m_obsdiagNode, only: obsdiagNode_set
+  use m_obsdiagNode, only: obsdiagNode_get
+  use m_obsdiagNode, only: obsdiagNode_assert
 
-  use gsi_4dvar, only: nobs_bins,hr_obsbin,l4dvar
+  use obsmod, only: &
+      lobsdiagsave,nobskeep,lobsdiag_allocated,&
+      time_offset
+  use m_obsNode, only: obsNode
+  use m_lagNode, only: lagNode
+  use m_lagNode, only: lagNode_appendto
+  use m_obsLList,only: obsLLIst
+  use obsmod, only: luse_obsdiag
+
+  use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
+       nc_diag_write, nc_diag_data2d
+  use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
+  use gsi_4dvar, only: nobs_bins,mn_obsbin,l4dvar
   use guess_grids, only: nfldsig,hrdifsig
   use gridmod, only: nsig
   use qcmod, only: npres_print,ptop,pbot
@@ -47,7 +75,7 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   use convinfo, only: nconvtype,cermin,cermax,cgross,cvar_b,cvar_pg,ictype
   use convinfo, only: icsubtype,icuse
 
-  use m_dtime,only: dtime_setup,dtime_check,dtime_show
+  use m_dtime,only: dtime_setup,dtime_check
 
   use lag_fields, only: orig_lag_num,lag_kfirst
   use lag_fields, only: lag_nl_vec,lag_u_full,lag_v_full
@@ -60,11 +88,14 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   implicit none
 
 ! Declare passed variables
+  type(obsLList ),target,dimension(:),intent(in):: obsLL
+  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+
   logical                                          ,intent(in   ) :: conv_diagsave
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
   real(r_kind),dimension(7*nsig+100)               ,intent(inout) :: awork
   real(r_kind),dimension(npres_print,nconvtype,5,3),intent(inout) :: bwork
-  integer(i_kind)                                  ,intent(in   ) :: is	! ndat index
+  integer(i_kind)                                  ,intent(in   ) :: is ! ndat index
 
 ! Declare local parameters
 
@@ -100,17 +131,24 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   character(8),allocatable,dimension(:):: cdiagbuf
 
   logical,dimension(nobs):: luse,muse
+  integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical:: in_curbin, in_anybin
-  integer(i_kind),dimension(nobs_bins) :: n_alloc
-  integer(i_kind),dimension(nobs_bins) :: m_alloc
-  type(lag_ob_type),pointer :: my_head
+  type(lagNode),pointer :: my_head
   type(obs_diag),pointer :: my_diag
+  type(obs_diag),pointer :: my_diagLon,my_diagLat
+  type(obs_diags),pointer :: my_diagLL
+  type(obsLList),pointer,dimension(:):: laghead
+  laghead => obsLL(:)
 
-  n_alloc(:)=0
-  m_alloc(:)=0
+  call die('setuplag','I don''t believe this code is working -- J.Guo')
+  ! Problems include, data(ilone) and data(ilate) are expected to be in degrees
+  ! here, according to the code comment.  However, they were set to in radians
+  ! in read_lag().  In particular, they should have been set to in degrees to
+  ! be correctly located on the grid.
+
 !******************************************************************************
 ! Read and reformat observations in work arrays.
-  read(lunin)data,luse
+  read(lunin)data,luse,ioid
 
 !    index information for data array (see reading routine)
 
@@ -159,8 +197,7 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 
 !    Link observation to appropriate observation bin
      if (nobs_bins>1) then
-        ibin = int( dtime/hr_obsbin ) + 1
-      ! ibin = NINT( dtime/hr_obsbin ) + 1
+        ibin = int( dtime*60/mn_obsbin ) + 1
      else
         ibin = 1
      endif
@@ -177,46 +214,34 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
         print '(A,I2.2,A,I4.4,A,I4)'      ,'mype ',mype,' data ',i,' obsbin ',ibin
      end if
 
-!    Link obs to diagnostics structure
-     do jj=1,2
-        if (.not.lobsdiag_allocated) then
-           if (.not.associated(obsdiags(i_lag_ob_type,ibin)%head)) then
-              allocate(obsdiags(i_lag_ob_type,ibin)%head,stat=istat)
-              if (istat/=0) call die('setuplag: failure to allocate obsdiags')
-              obsdiags(i_lag_ob_type,ibin)%tail => obsdiags(i_lag_ob_type,ibin)%head
-           else
-              allocate(obsdiags(i_lag_ob_type,ibin)%tail%next,stat=istat)
-              if (istat/=0) call die('setuplag: failure to allocate obsdiags')
-              obsdiags(i_lag_ob_type,ibin)%tail => obsdiags(i_lag_ob_type,ibin)%tail%next
-           end if
-           allocate(obsdiags(i_lag_ob_type,ibin)%tail%muse(miter+1))
-           allocate(obsdiags(i_lag_ob_type,ibin)%tail%nldepart(miter+1))
-           allocate(obsdiags(i_lag_ob_type,ibin)%tail%tldepart(miter))
-           allocate(obsdiags(i_lag_ob_type,ibin)%tail%obssen(miter))
-           obsdiags(i_lag_ob_type,ibin)%tail%indxglb=i
-           obsdiags(i_lag_ob_type,ibin)%tail%nchnperobs=-99999
-           obsdiags(i_lag_ob_type,ibin)%tail%luse=.false.
-           obsdiags(i_lag_ob_type,ibin)%tail%muse(:)=.false.
-           obsdiags(i_lag_ob_type,ibin)%tail%nldepart(:)=-huge(zero)
-           obsdiags(i_lag_ob_type,ibin)%tail%tldepart(:)=zero
-           obsdiags(i_lag_ob_type,ibin)%tail%wgtjo=-huge(zero)
-           obsdiags(i_lag_ob_type,ibin)%tail%obssen(:)=zero
+     if (luse_obsdiag) my_diagLL => odiagLL(ibin)
 
-           n_alloc(ibin)=n_alloc(ibin)+1
-           my_diag => obsdiags(i_lag_ob_type,ibin)%tail
-           my_diag%idv = is
-           my_diag%iob = i
-           my_diag%ich = jj
-        else
-           if (.not.associated(obsdiags(i_lag_ob_type,ibin)%tail)) then
-              obsdiags(i_lag_ob_type,ibin)%tail => obsdiags(i_lag_ob_type,ibin)%head
-           else
-              obsdiags(i_lag_ob_type,ibin)%tail => obsdiags(i_lag_ob_type,ibin)%tail%next
-           end if
-           if (obsdiags(i_lag_ob_type,ibin)%tail%indxglb/=i) call die('setuplag: index error')
-        endif
-        if (jj==1) obsptr => obsdiags(i_lag_ob_type,ibin)%tail
-     end do
+!    Link obs to diagnostics structure
+     if (luse_obsdiag) then
+        do jj=1,2
+          my_diag => obsdiagLList_nextNode(my_diagLL    ,&
+                create = .not.lobsdiag_allocated        ,&
+                   idv = is             ,&
+                   iob = ioid(i)        ,&
+                   ich = jj             ,&
+                  elat = data(ilate,i)  ,&
+                  elon = data(ilone,i)  ,&
+                  luse = luse(i)        ,&
+                 miter = miter          )
+
+          if(.not.associated(my_diag)) then
+            call perr(myname,'obsdiagLList_nextNode(), create =', .not.lobsdiag_allocated)
+            call perr(myname,'                            ich =', jj)
+            call  die(myname)
+          endif
+
+          select case(jj)
+          case(1); my_diagLon => my_diag
+          case(2); my_diagLat => my_diag
+          end select
+          my_diag => null()
+        end do
+     end if
 
 !--------
 ! Skip this o-g calculation, if there is no ges field to use.
@@ -237,7 +262,7 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 !    4d var : computation done using the obsbins
      if (l4dvar) then
 
-        fieldtime=(ibin-1)*hr_obsbin
+        fieldtime=(ibin-1)*mn_obsbin
         if(fieldtime>=hrdifsig(1) .and. fieldtime<=hrdifsig(nfldsig)) then
          ! Which guess field to use ?
            do k=1,nfldsig-1
@@ -249,7 +274,7 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
            call die('setuplag: Inapropriate velocity guess fields')
         end if
  
-        hsteptime = (dtime - (ibin-1)*hr_obsbin)* r3600
+        hsteptime = (dtime*60 - (ibin-1)*mn_obsbin)* 60.0_r_kind
  
         lonfcst=lag_nl_vec(laglocnum,ibin,1)
         latfcst=lag_nl_vec(laglocnum,ibin,2)
@@ -358,7 +383,7 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
      
      if ((ratio_errors*error_lat <= tiny_r_kind) .or. &
          (ratio_errors*error_lon <= tiny_r_kind)) muse(i)=.false.
-     if (nobskeep>0) muse(i)=obsdiags(i_lag_ob_type,ibin)%tail%muse(nobskeep)
+     if (nobskeep>0.and.luse_obsdiag) call obsdiagNode_get(my_diagLat, jiter=nobskeep, muse=muse(i))
  
      if (iv_debug>=1) then
         print '(A,I2.2,A,I4.4,A,F12.6,F12.6)','mype ',mype,' data ',i,' ratios ',ratio_lon,ratio_lat
@@ -418,16 +443,14 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
  
      endif
 
-     ! lon
-     obsptr%luse=luse(i)
-     obsptr%muse(jiter)=muse(i)
-     obsptr%nldepart(jiter)=reslon
-     obsptr%wgtjo= (error_lon*ratio_errors)**2
-     ! lat
-     obsdiags(i_lag_ob_type,ibin)%tail%luse=luse(i)
-     obsdiags(i_lag_ob_type,ibin)%tail%muse(jiter)=muse(i)
-     obsdiags(i_lag_ob_type,ibin)%tail%nldepart(jiter)=reslat
-     obsdiags(i_lag_ob_type,ibin)%tail%wgtjo= (error_lat*ratio_errors)**2
+     if (luse_obsdiag) then
+       ! lon
+        call obsdiagNode_set(my_diagLon,wgtjo=(error_lon*ratio_errors)**2, &
+                jiter=jiter,muse=muse(i),nldepart=reslon)
+       ! lat
+        call obsdiagNode_set(my_diagLat,wgtjo=(error_lat*ratio_errors)**2, &
+                jiter=jiter,muse=muse(i),nldepart=reslat)
+     endif
  
      if (iv_debug>=1) then
         print '(A,I2.2,A,I4.4,A,F12.6)','mype ',mype,' data ',i,' jo lon ',&
@@ -440,76 +463,68 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 !    in inner loop minimization (int* and stp* routines)
      if (.not. last .and. muse(i)) then
  
-        if (.not. associated(laghead(ibin)%head))then
-           allocate(laghead(ibin)%head,stat=istat)
-           if(istat /= 0)write(6,*)' failure to write laghead '
-           lagtail(ibin)%head => laghead(ibin)%head
-        else
-           allocate(lagtail(ibin)%head%llpoint,stat=istat)
-           if(istat /= 0)write(6,*)' failure to write lagtail%llpoint '
-           lagtail(ibin)%head => lagtail(ibin)%head%llpoint
-        end if
+        allocate(my_head)
+        call lagNode_appendto(my_head,laghead(ibin))
 
-        m_alloc(ibin) = m_alloc(ibin) +1
-        my_head => lagtail(ibin)%head
         my_head%idv = is
-        my_head%iob = i
+        my_head%iob = ioid(i)
+        my_head%elat= data(ilate,i)
+        my_head%elon= data(ilone,i)
 
-        allocate(lagtail(ibin)%head%speci(lag_rk2itenpara_i),stat=istat)
+        allocate(my_head%speci(lag_rk2itenpara_i),stat=istat)
         if(istat /= 0)write(6,*)' failure to allocate lagtail%speci '
-        allocate(lagtail(ibin)%head%specr(lag_rk2itenpara_r),stat=istat)
+        allocate(my_head%specr(lag_rk2itenpara_r),stat=istat)
         if(istat /= 0)write(6,*)' failure to allocate lagtail%specr '
  
-        lagtail(ibin)%head%res_lon=reslon
-        lagtail(ibin)%head%res_lat=reslat
-        lagtail(ibin)%head%err2_lon=error_lon**2
-        lagtail(ibin)%head%err2_lat=error_lat**2
-        lagtail(ibin)%head%raterr2=ratio_errors**2    
-        lagtail(ibin)%head%obslon=dlon
-        lagtail(ibin)%head%obslat=dlat
-        lagtail(ibin)%head%geslon=lonfcst
-        lagtail(ibin)%head%geslat=latfcst
-        lagtail(ibin)%head%intnum=dnum
-        lagtail(ibin)%head%speci=tlspeci
-        lagtail(ibin)%head%specr=tlspecr
-        lagtail(ibin)%head%time=dtime
-        lagtail(ibin)%head%b=cvar_b(ikx)
-        lagtail(ibin)%head%pg=cvar_pg(ikx)
-        lagtail(ibin)%head%luse=luse(i)
+        my_head%res_lon=reslon
+        my_head%res_lat=reslat
+        my_head%err2_lon=error_lon**2
+        my_head%err2_lat=error_lat**2
+        my_head%raterr2=ratio_errors**2    
+        my_head%obslon=dlon
+        my_head%obslat=dlat
+        my_head%geslon=lonfcst
+        my_head%geslat=latfcst
+        my_head%intnum=dnum
+        my_head%speci=tlspeci
+        my_head%specr=tlspecr
+        my_head%time=dtime
+        my_head%b=cvar_b(ikx)
+        my_head%pg=cvar_pg(ikx)
+        my_head%luse=luse(i)
+        my_head%diag_lon => null()
+        my_head%diag_lat => null()
 
-        lagtail(ibin)%head%diag_lon => obsptr
+        if (luse_obsdiag) then
+           call obsdiagNode_assert(my_diagLon, my_head%idv,my_head%iob,1,myname,'my_diagLon:my_head')
+           call obsdiagNode_assert(my_diagLat, my_head%idv,my_head%iob,2,myname,'my_diagLat:my_head')
 
-        my_head => lagtail(ibin)%head
-        my_diag => lagtail(ibin)%head%diag_lon
-        if(my_head%idv /= my_diag%idv .or. &
-           my_head%iob /= my_diag%iob .or. &
-                     1 /= my_diag%ich ) then
-           call perr(myname,'mismatching %[head,diags]%(idv,iob,ich,ibin) =', &
-                 (/is,i,1,ibin/))
-           call perr(myname,'my_head%(idv,iob,ich) =',(/my_head%idv,my_head%iob,1/))
-           call perr(myname,'my_diag%(idv,iob,ich) =',(/my_diag%idv,my_diag%iob,my_diag%ich/))
-           call die(myname)
+           my_head%diag_lon => my_diagLon
+           my_head%diag_lat => my_diagLat
         endif
 
-        lagtail(ibin)%head%diag_lat => obsdiags(i_lag_ob_type,ibin)%tail
- 
-        my_head => lagtail(ibin)%head
-        my_diag => lagtail(ibin)%head%diag_lat
-        if(my_head%idv /= my_diag%idv .or. &
-           my_head%iob /= my_diag%iob .or. &
-                     2 /= my_diag%ich ) then
-           call perr(myname,'mismatching %[head,diags]%(idv,iob,ich,ibin) =', &
-                 (/is,i,2,ibin/))
-           call perr(myname,'my_head%(idv,iob,ich) =',(/my_head%idv,my_head%iob,2/))
-           call perr(myname,'my_diag%(idv,iob,ich) =',(/my_diag%idv,my_diag%iob,my_diag%ich/))
-           call die(myname)
-        endif
+        my_head => null()
      end if
 
 ! Save select output for diagnostic file
      if(conv_diagsave)then
         ii=ii+1
-        rstation_id     = orig_lag_num(dnum,1)
+        rstation_id = orig_lag_num(dnum,1)
+        err_input   = data(ier,i)
+        if (ratio_errors*error_lon>tiny_r_kind .and. ratio_errors*error_lat>tiny_r_kind) then
+           err_final_lon = one/(ratio_errors*error_lon)*rad2deg
+           err_final_lat = one/(ratio_errors*error_lat)*rad2deg
+        else
+           err_final_lon = huge_single
+           err_final_lat = huge_single
+        endif
+        errinv_input = huge_single
+        errinv_final_lon = huge_single
+        errinv_final_lat = huge_single
+        if (err_input>tiny_r_kind) errinv_input=one/err_input
+        if (err_final_lon>tiny_r_kind) errinv_final_lon=one/err_final_lon
+        if (err_final_lat>tiny_r_kind) errinv_final_lat=one/err_final_lat
+ 
         write(cdiagbuf(ii),fmt='(I5.5)') int(rstation_id)
  
         rdiagbuf(1,ii)  = ictype(ikx)        ! observation type
@@ -527,21 +542,6 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
            rdiagbuf(8,ii) = -one
         endif
 
-        err_input = data(ier,i)
-        if (ratio_errors*error_lon>tiny_r_kind .and. ratio_errors*error_lat>tiny_r_kind) then
-           err_final_lon = one/(ratio_errors*error_lon)*rad2deg
-           err_final_lat = one/(ratio_errors*error_lat)*rad2deg
-        else
-           err_final_lon = huge_single
-           err_final_lat = huge_single
-        endif
-        errinv_input = huge_single
-        errinv_final_lon = huge_single
-        errinv_final_lat = huge_single
-        if (err_input>tiny_r_kind) errinv_input=one/err_input
-        if (err_final_lon>tiny_r_kind) errinv_final_lon=one/err_final_lon
-        if (err_final_lat>tiny_r_kind) errinv_final_lat=one/err_final_lat
- 
         rdiagbuf(9,ii) = rwgt               ! nonlinear qc relative weight
         rdiagbuf(10,ii)= errinv_input       ! prepbufr inverse obs error
         rdiagbuf(11,ii)= errinv_final_lon   ! final inverse observation error
@@ -555,9 +555,13 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 
         ioff=ioff0
         if (lobsdiagsave) then
+          associate(odiag => my_diagLat)
+                ! Logic here seems to be only for one of two diag components,
+                ! according to its original implementation, for my_diagLat only.
+                ! Is it the original intention, or just a bug?
            do jj=1,miter
               ioff=ioff+1
-              if (obsdiags(i_lag_ob_type,ibin)%tail%muse(jj)) then
+              if (odiag%muse(jj)) then
                  rdiagbuf(ioff,ii) = one
               else
                  rdiagbuf(ioff,ii) = -one
@@ -565,16 +569,17 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
            enddo
            do jj=1,miter+1
               ioff=ioff+1
-              rdiagbuf(ioff,ii) = obsdiags(i_lag_ob_type,ibin)%tail%nldepart(jj)
+              rdiagbuf(ioff,ii) = odiag%nldepart(jj)
            enddo
            do jj=1,miter
               ioff=ioff+1
-              rdiagbuf(ioff,ii) = obsdiags(i_lag_ob_type,ibin)%tail%tldepart(jj)
+              rdiagbuf(ioff,ii) = odiag%tldepart(jj)
            enddo
            do jj=1,miter
               ioff=ioff+1
-              rdiagbuf(ioff,ii) = obsdiags(i_lag_ob_type,ibin)%tail%obssen(jj)
+              rdiagbuf(ioff,ii) = odiag%obssen(jj)
            enddo
+          end associate ! odiag
         endif
 
      end if
@@ -583,11 +588,20 @@ subroutine setuplag(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 
 ! Write information to diagnostic file
   if(conv_diagsave .and. ii>0)then
-     call dtime_show('setuplag','diagsave:lag',i_lag_ob_type)
      write(7)'lag',nchar,nreal,ii,mype,ioff0
      write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
      deallocate(cdiagbuf,rdiagbuf)
   end if
 
 ! End of routine
+contains
+  subroutine init_netcdf_diag_
+  end subroutine init_netcdf_diag_
+  subroutine contents_binary_diag_
+  end subroutine contents_binary_diag_
+  subroutine contents_netcdf_diag_
+! Observation class
+  character(7),parameter     :: obsclass = '    lag'
+  end subroutine contents_netcdf_diag_
 end subroutine setuplag
+end module lag_setup

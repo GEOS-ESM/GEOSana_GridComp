@@ -1,6 +1,7 @@
 subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
      infile,lunout,obstype,nread,ndata,nodata,twind,sis,&
-     mype_root,mype_sub,npe_sub,mpi_comm_sub)
+     mype_root,mype_sub,npe_sub,mpi_comm_sub,nobs, &
+     nrec_start,dval_use)
 
 !$$$  subprogram documentation block
 ! subprogram:    read_ssmi           read SSM/I  bufr1b data
@@ -51,6 +52,9 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
 !   2013-01-26  parrish - change from grdcrd to grdcrd1 (to allow successful debug compile on WCOSS)
 !   2014-05-02  sienkiewicz- modify gross check screening to allow data to be used with bad ch6, if
 !                              ch6 data has been turned off - only toss if do85GHz is true
+!   2015-02-23  Rancic/Thomas - add thin4d to time window logical
+!   2015-10-01  guo     - consolidate use of ob location (in deg)
+!   2018-05-21  j.jin   - added time-thinning. Moved the checking of thin4d into satthin.F90.
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -68,11 +72,13 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
 !     mype_sub - mpi task id within sub-communicator
 !     npe_sub  - number of data read tasks
 !     mpi_comm_sub - sub-communicator for data read
+!     nrec_start - first subset with useful information
 !
 !   output argument list:
 !     nread    - number of BUFR SSM/I observations read (after eliminating orbit overlap)
 !     ndata    - number of BUFR SSM/I profiles retained for further processing (thinned)
 !     nodata   - number of BUFR SSM/I observations retained for further processing (thinned)
+!     nobs     - array of observations on each subdomain for each processor
 !
 ! attributes:
 !   language: f90
@@ -82,21 +88,26 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
   use kinds, only: r_kind,r_double,i_kind
   use satthin, only: super_val,itxmax,makegrids,map2tgrid,destroygrids, &
       checkob,finalcheck,score_crit
+  use satthin, only: radthin_time_info,tdiff2crit
+  use obsmod,  only: time_window_max
   use obsmod, only: bmiss
-  use radinfo, only: iuse_rad,jpch_rad,nusis,nuchan,nst_gsi,nstinfo
+  use radinfo, only: iuse_rad,jpch_rad,nusis,nuchan
   use gridmod, only: diagnostic_reg,regional,rlats,rlons,nlat,nlon,&
       tll2xy,txy2ll
   use constants, only: deg2rad,rad2deg,zero,one,two,three,four,r60inv
-  use gsi_4dvar, only: l4dvar,iwinbgn,winlen
+  use gsi_4dvar, only: l4dvar,l4densvar,iwinbgn,winlen
   use deter_sfc_mod, only: deter_sfc
+  use gsi_nstcouplermod, only: nst_gsi,nstinfo
   use gsi_nstcouplermod, only: gsi_nstcoupler_skindepth, gsi_nstcoupler_deter
+  use mpimod, only: npe
+! use radiance_mod, only: rad_obs_type
 
   implicit none
 
 ! Declare passed variables
   character(len=*),intent(in   ) :: infile,obstype,jsatid
   character(len=20),intent(in  ) :: sis
-  integer(i_kind),intent(in   ) :: mype,lunout,ithin
+  integer(i_kind),intent(in   ) :: mype,lunout,ithin,nrec_start
   integer(i_kind),intent(in   ) :: mype_root
   integer(i_kind),intent(in   ) :: mype_sub
   integer(i_kind),intent(in   ) :: npe_sub
@@ -104,14 +115,14 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
   real(r_kind)   ,intent(in   ) :: rmesh,gstime,twind
   real(r_kind)   ,intent(inout) :: val_ssmi
 
+  integer(i_kind),dimension(npe),intent(inout):: nobs
   integer(i_kind),intent(inout):: nread
 
   integer(i_kind),intent(inout):: ndata,nodata
-
+  logical        ,intent(in   ):: dval_use
 
 ! Declare local parameters
   integer(i_kind),parameter :: n1bhdr=14
-  integer(i_kind),parameter :: maxinfo=33
   integer(i_kind),parameter :: maxchanl=30
 
   integer(i_kind),parameter :: ntime=8      !time header
@@ -134,7 +145,7 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
   integer(i_kind):: iret,idate,nchanl
   integer(i_kind):: isflg,nreal,idomsfc
   integer(i_kind):: nmind,itx,nele,itt
-  integer(i_kind):: iskip
+  integer(i_kind):: iskip,maxinfo
   integer(i_kind):: lnbufr
   integer(i_kind):: ilat,ilon
   integer(i_kind),allocatable,dimension(:)::nrec
@@ -144,7 +155,6 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
   real(r_kind) pred
   real(r_kind) sstime,tdiff,t4dv
   real(r_kind) crit1,dist1
-  real(r_kind) timedif
   real(r_kind),allocatable,dimension(:,:):: data_all
 
   real(r_kind) disterr,disterrmax,dlon00,dlat00,cdist
@@ -167,11 +177,15 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
   real(r_kind) :: zob,tref,dtw,dtc,tz_tr
 
   real(r_kind):: dlat,dlon,dlon_earth,dlat_earth
+  real(r_kind):: dlon_earth_deg,dlat_earth_deg
   real(r_kind):: ssmi_def_ang,ssmi_zen_ang  ! default and obs SSM/I zenith ang
   logical  do85GHz, ch6, ch7
+  real(r_kind)    :: ptime,timeinflat,crit0
+  integer(i_kind) :: ithin_time,n_tbin,it_mesh
 
 !**************************************************************************
 ! Initialize variables
+  maxinfo=31
   lnbufr = 15
   disterrmax=zero
   ntest=0
@@ -222,9 +236,9 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
      if (nusis(i)==sis) then
         if (iuse_rad(i)>=0) then
            if (iuse_rad(i)>0) assim=.true.
-	   if (nuchan(i)==6) ch6=.true.
-	   if (nuchan(i)==7) ch7=.true.
-	   if (assim.and.ch6.and.ch7) exit
+           if (nuchan(i)==6) ch6=.true.
+           if (nuchan(i)==7) ch7=.true.
+           if (assim.and.ch6.and.ch7) exit
         endif
      endif
   end do search
@@ -232,8 +246,14 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
 
   do85GHz = .not. assim .or. (ch6.and.ch7)
 
+  call radthin_time_info(obstype, jsatid, sis, ptime, ithin_time)
+  if( ptime > 0.0_r_kind) then
+     n_tbin=nint(2*time_window_max/ptime)
+  else
+     n_tbin=1
+  endif
 ! Make thinning grids
-  call makegrids(rmesh,ithin)
+  call makegrids(rmesh,ithin,n_tbin=n_tbin)
 
 ! Open unit to satellite bufr file
   open(lnbufr,file=trim(infile),form='unformatted')
@@ -241,6 +261,7 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
   call datelen(10)
 
 ! Allocate arrays to hold data
+  if(dval_use)maxinfo=maxinfo+2
   nreal  = maxinfo + nstinfo
   nele   = nreal   + nchanl
   allocate(data_all(nele,itxmax),nrec(itxmax))
@@ -251,6 +272,7 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
   next=0
   read_subset: do while(ireadmg(lnbufr,subset,idate)>=0)
      irec=irec+1
+     if(irec < nrec_start) cycle read_subset
      next=next+1
      if(next == npe_sub)next=0
      if(next /= mype_sub)cycle
@@ -268,11 +290,11 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
         iobsdate(1:5) = bfr1bhdr(2:6) !year,month,day,hour,min
         call w3fs21(iobsdate,nmind)
         t4dv=(real(nmind-iwinbgn,r_kind) + real(bfr1bhdr(7),r_kind)*r60inv)*r60inv
-        if (l4dvar) then
+        sstime=real(nmind,r_kind) + real(bfr1bhdr(7),r_kind)*r60inv
+        tdiff=(sstime-gstime)*r60inv
+        if (l4dvar.or.l4densvar) then
            if (t4dv<zero .OR. t4dv>winlen) cycle read_loop
         else
-           sstime=real(nmind,r_kind) + real(bfr1bhdr(7),r_kind)*r60inv
-           tdiff=(sstime-gstime)*r60inv
            if(abs(tdiff) > twind)  cycle read_loop
         endif
 
@@ -298,6 +320,8 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
            if(abs(dlat_earth)>90.0_r_kind .or. abs(dlon_earth)>r360) cycle scan_loop
            if(dlon_earth< zero) dlon_earth = dlon_earth+r360
            if(dlon_earth==r360) dlon_earth = dlon_earth-r360
+           dlat_earth_deg = dlat_earth
+           dlon_earth_deg = dlon_earth
            dlat_earth = dlat_earth*deg2rad
            dlon_earth = dlon_earth*deg2rad
 
@@ -353,14 +377,11 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
            if(iskip >= nchanl)  cycle scan_loop  !if all ch for any position is bad, skip 
            flgch = iskip*two   !used for thinning priority range 0-14
 
-           if (l4dvar) then
-              crit1 = 0.01_r_kind+ flgch
-           else
-              timedif = 6.0_r_kind*abs(tdiff) ! range: 0 to 18
-              crit1 = 0.01_r_kind+timedif + flgch
-           endif
 !          Map obs to thinning grid
-           call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis)
+           crit0 = 0.01_r_kind
+           timeinflat=6.0_r_kind
+           call tdiff2crit(tdiff,ptime,ithin_time,timeinflat,crit0,crit1,it_mesh)
+           call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis,it_mesh=it_mesh)
            if(.not. iuse)cycle scan_loop
 
 
@@ -467,10 +488,12 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
            data_all(27,itx)= idomsfc + 0.001_r_kind ! dominate surface type
            data_all(28,itx)= sfcr                 ! surface roughness
            data_all(29,itx)= ff10                 ! ten meter wind factor
-           data_all(30,itx)= dlon_earth*rad2deg   ! earth relative longitude (degrees)
-           data_all(31,itx)= dlat_earth*rad2deg   ! earth relative latitude (degrees)
-           data_all(maxinfo-1,itx)= val_ssmi
-           data_all(maxinfo,itx)= itt
+           data_all(30,itx)= dlon_earth_deg       ! earth relative longitude (degrees)
+           data_all(31,itx)= dlat_earth_deg       ! earth relative latitude (degrees)
+           if(dval_use)then
+              data_all(32,itx)= val_ssmi
+              data_all(33,itx)= itt
+           end if
 
            if(nst_gsi>0) then
               data_all(maxinfo+1,itx) = tref       ! foundation temperature
@@ -509,12 +532,16 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
            if(data_all(i+nreal,n) > tbmin .and. &
               data_all(i+nreal,n) < tbmax)nodata=nodata+1
         end do
-        itt=nint(data_all(maxinfo,n))
-        super_val(itt)=super_val(itt)+val_ssmi
-
      end do
+     if(dval_use .and. assim)then
+        do n=1,ndata
+           itt=nint(data_all(33,n))
+           super_val(itt)=super_val(itt)+val_ssmi
+        end do
+     end if
 
 !    Write final set of "best" observations to output file
+     call count_obs(ndata,nele,ilat,ilon,data_all,nobs)
      write(lunout) obstype,sis,nreal,nchanl,ilat,ilon
      write(lunout) ((data_all(k,n),k=1,nele),n=1,ndata)
   

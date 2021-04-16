@@ -10,6 +10,8 @@ Module SSMIS_Spatial_Average_Mod
 ! Program history log:
 !    2011-11-18   collard   - Original version (for ATMS)
 !    2011-12-20   eliu      - Modify to apply for SSMIS 
+!    2016-03-03   ejones    - Add option for spatial averaging of GMI
+!    2016-03-24   ejones    - Add option for spatial averaging of AMSR2
 ! 
 
   use kinds, only: r_kind,r_double,i_kind
@@ -23,17 +25,16 @@ Module SSMIS_Spatial_Average_Mod
 
 CONTAINS 
 
-  SUBROUTINE SSMIS_Spatial_Average(Mype, Mype_Sub, BufrSat, Method, Num_Obs, NChanl,  &
-                                   FOV, Scan , Node_InOut, Time, Lat, Lon, BT_InOut, Error_status)
+  SUBROUTINE SSMIS_Spatial_Average(BufrSat, Method, Num_Obs, NChanl,  &
+                                   FOV, Node_InOut, Time, Lat, Lon, BT_InOut, Error_status)
 
     IMPLICIT NONE
     
     ! Declare passed variables
-    integer(i_kind) ,intent(in   ) :: Mype,Mype_Sub,BufrSat  
-    integer(i_kind) ,intent(in   ) :: Method           ! 1=simple(1)  2=simple(2) 3=AAPP 
+    integer(i_kind) ,intent(in   ) :: BufrSat  
+    integer(i_kind) ,intent(in   ) :: Method        ! 1=simple(1), 2=simple(2), 3=AAPP, 4=GMI (simple 1), 5=AMSR2 (simple1)  
     integer(i_kind) ,intent(in   ) :: Num_Obs, NChanl
     integer(i_kind) ,intent(in   ) :: Fov(num_obs)
-    integer(i_kind) ,intent(in   ) :: Scan(num_obs)
     integer(i_kind) ,intent(inout) :: Node_InOut(num_obs)
     real(r_kind)    ,intent(in   ) :: Time(Num_Obs)
     real(r_kind)    ,intent(in   ) :: Lat(Num_Obs)
@@ -46,13 +47,15 @@ CONTAINS
     integer(i_kind), parameter :: lninfile=15
 !   integer(i_kind), parameter :: max_fov=96
     integer(i_kind), parameter :: max_fov=60
+    integer(i_kind), parameter :: max_fov_gmi=221
+    integer(i_kind), parameter :: max_fov_amsr2=243
 !   integer(i_kind), parameter :: max_obs=20000000
     integer(i_kind), parameter :: as_node= 1_i_kind
     integer(i_kind), parameter :: ds_node=-1_i_kind
     real(r_kind),    parameter :: btmin=70.0_r_kind
     real(r_kind),    parameter :: btmax=320.0_r_kind
-    real(r_kind),    parameter :: sigma = 25.0_r_kind    
-!   real(r_kind),    parameter :: sigma = 50.0_r_kind  
+    real(r_kind),    parameter :: sigma = 1.0_r_kind/25.0_r_kind    
+!   real(r_kind),    parameter :: sigma = 1.0_r_kind/50.0_r_kind  
 
     ! Declare local variables
     character(100) :: infile 
@@ -67,7 +70,6 @@ CONTAINS
     integer(i_kind) :: ntime_scan   
     integer(i_kind) :: delta_scan   
     integer(i_kind) :: scanline_new 
-    integer(i_kind) :: ncount
     integer(i_kind) :: nxaverage(nchanl),nyaverage(nchanl)
     integer(i_kind) :: channelnumber(nchanl)
     integer(i_kind) :: qc_distx(nchanl),qc_disty(nchanl)
@@ -96,7 +98,7 @@ CONTAINS
     if (Method == 1) then  ! simple averaging 1
 
        gaussian_wgt = .false.
-       write(*,*) 'SSMIS_Spatial_Average: using method from Banghua'
+!      write(*,*) 'SSMIS_Spatial_Average: using method from Banghua'
        write(*,*) 'SSMIS_Spatial_Average: bufrsat = ', BufrSat
        write(*,*) 'SSMIS_Spatial_Average: Gaussian Weighted Averaging = ', gaussian_wgt 
 
@@ -116,18 +118,15 @@ CONTAINS
           scanline(iobs) = nscan
        enddo
        max_scan = maxval(scanline)
-       write(*,*) 'SSMIS_Spatial_Average: max_scan = ', max_scan
-       write(*,*) 'SSMIS_Spatial_Average: max_fov  = ', max_fov
-       write(*,*) 'SSMIS_Spatial_Average: nchanl   = ', nchanl 
+       write(*,*) 'SSMIS_Spatial_Average: max_scan,max_fov,nchanl = ', &
+                 max_scan,max_fov,nchanl
 
 !      Allocate and initialize variables
-       allocate(bt_image(max_fov,max_scan,nchanl))
        allocate(bt_image_orig(max_fov,max_scan,nchanl))
        allocate(latitude(max_fov,max_scan))
        allocate(longitude(max_fov,max_scan))
        allocate(nodeinfo(max_fov,max_scan))
        allocate(scanline_back(max_fov,max_scan))
-       bt_image(:,:,:)     = 1000.0_r_kind
        bt_image_orig(:,:,:)= 1000.0_r_kind
        latitude(:,:)       = 1000.0_r_kind 
        longitude(:,:)      = 1000.0_r_kind 
@@ -135,11 +134,9 @@ CONTAINS
        nodeinfo(:,:)       = 1000_i_kind 
 
 !      Put data into 2D (fov vs. scanline) array
-       write(*,*) 'SSMIS_Spatial_Average:  put data into array '
        do iobs = 1, num_obs
           latitude(fov(iobs),scanline(iobs))       = lat(iobs) 
           longitude(fov(iobs),scanline(iobs))      = lon(iobs) 
-          bt_image(fov(iobs),scanline(iobs),:)     = bt_inout(:,iobs)
           bt_image_orig(fov(iobs),scanline(iobs),:)= bt_inout(:,iobs)
           scanline_back(fov(iobs),scanline(iobs))  = iobs
        enddo
@@ -161,73 +158,64 @@ CONTAINS
        nodeinfo(:,max_scan) = nodeinfo(:,max_scan-1)
 
 !      Do spatial averaging in the box centered on each fov for each channel
-       write(*,*) 'SSMIS_Spatial_Average: do spatial averaging for noise reduction '
+!$omp parallel do  schedule(dynamic,1)private(ic,iobs,iscan,ifov,ns1,ns2,np1,np2,xnum,mta,is,ip,lat1,lon1,lat2,lon2,dist,wgt)
        scan_loop: do iscan = 1, max_scan 
           fov_loop: do ifov = 1, max_fov 
 
-!            Define grid box (3 (scan direction) x 7 (satellite track dir))
-             ns1 = iscan-3          
-             ns2 = iscan+3          
-             if (ns1 < 1) ns1=1
-             if (ns2 > max_scan) ns2=max_scan
-             np1 = ifov-1          
-             np2 = ifov+1          
-             if (np1 < 1) np1=1
-             if (np2 > max_fov) np2=max_fov
+             iobs = scanline_back(ifov,iscan) 
+             if (iobs >0) then 
+                node_inout(iobs) = nodeinfo(ifov,iscan)
+!               Define grid box (3 (scan direction) x 7 (satellite track dir))
+                ns1 = iscan-3          
+                ns2 = iscan+3          
+                if (ns1 < 1) ns1=1
+                if (ns2 > max_scan) ns2=max_scan
+                np1 = ifov-1          
+                np2 = ifov+1          
+                if (np1 < 1) np1=1
+                if (np2 > max_fov) np2=max_fov
 
-             channel_loop: do ic = 1, nchanl  
-                ncount = 0_i_kind
-                xnum   = 0.0_r_kind
-                mta    = 0.0_r_kind
-                if (any(bt_image_orig(np1:np2,ns1:ns2,ic) < btmin .or. bt_image_orig(np1:np1,ns1:ns2,ic) > btmax)) then 
-                   bt_image(ifov,iscan,ic) = 1000.0_r_kind 
-                else
-                  ! Calculate distance of each fov to the center fov 
-                   box_y1: do is = ns1, ns2 
-                   box_x1: do ip = np1, np2 
-                      lat1 = latitude(ifov,iscan)    ! lat of the center fov
-                      lon1 = longitude(ifov,iscan)   ! lon of the center fov
-                      lat2 = latitude(ip,is)          
-                      lon2 = longitude(ip,is)
-                      dist = distance(lat1,lon1,lat2,lon2) 
-                      if (dist > 100.0_r_kind) cycle box_x1  ! outside the box 
-                      if (gaussian_wgt) then
-                         wgt = exp(-0.5_r_kind*(dist/sigma)*(dist/sigma))
-                      else
-                         wgt = 1.0
-                      endif
-                      ncount = ncount+1 
-                      xnum   = xnum+wgt
-                      mta    = mta +wgt*bt_image_orig(ip,is,ic)
-                   enddo box_x1
-                   enddo box_y1
-                   bt_image(ifov,iscan,ic) = mta/xnum 
-                endif
-             enddo channel_loop 
-
+                channel_loop: do ic = 1, nchanl  
+                   xnum   = 0.0_r_kind
+                   mta    = 0.0_r_kind
+                   if (any(bt_image_orig(np1:np2,ns1:ns2,ic) < btmin .or. &
+                           bt_image_orig(np1:np1,ns1:ns2,ic) > btmax)) then 
+                      bt_inout(ic,iobs) = 1000.0_r_kind 
+                   else
+                     ! Calculate distance of each fov to the center fov 
+                      box_y1: do is = ns1, ns2 
+                      box_x1: do ip = np1, np2 
+                         lat1 = latitude(ifov,iscan)    ! lat of the center fov
+                         lon1 = longitude(ifov,iscan)   ! lon of the center fov
+                         lat2 = latitude(ip,is)          
+                         lon2 = longitude(ip,is)
+                         dist = distance(lat1,lon1,lat2,lon2) 
+                         if (dist > 100.0_r_kind) cycle box_x1  ! outside the box 
+                         if (gaussian_wgt) then
+                            wgt = exp(-0.5_r_kind*(dist*sigma)*(dist*sigma))
+                         else
+                            wgt = 1.0
+                         endif
+                         xnum   = xnum+wgt
+                         mta    = mta +wgt*bt_image_orig(ip,is,ic)
+                      enddo box_x1
+                      enddo box_y1
+                      bt_inout(ic,iobs) = mta/xnum
+                   endif
+                enddo channel_loop 
+             endif
           enddo fov_loop
        enddo scan_loop
-
-       do iscan = 1, max_scan
-          do ifov = 1, max_fov
-             if (scanline_back(ifov,iscan) >0) then 
-                bt_inout(:,scanline_back(ifov,iscan)) = bt_image(ifov,iscan,:)
-                node_inout(scanline_back(ifov,iscan)) = nodeinfo(ifov,iscan)
-             endif
-          enddo
-       enddo
 
 !      Deallocate arrays
        deallocate(nodeinfo,scanline,scanline_back)
        deallocate(latitude,longitude)
-       deallocate(bt_image_orig,bt_image)
-       nullify(bt_image1)
-    endif ! Method=1
+       deallocate(bt_image_orig)
 
 !============================================================================================================
 
 !   Simple method 2 
-    if (Method == 2) then  ! simple averaging 2 
+    else if (Method == 2) then  ! simple averaging 2 
 
        gaussian_wgt = .false.
        write(*,*) 'SSMIS_Spatial_Average: using method from Emily'
@@ -371,7 +359,6 @@ CONTAINS
              if (np2 > max_fov) np2=max_fov
 
              channel_loop2: do ic = 1, nchanl
-                ncount = 0_i_kind
                 xnum   = 0.0_r_kind
                 mta    = 0.0_r_kind
                 if (any(bt_image_orig(np1:np2,ns1:ns2,ic) < btmin .or. bt_image_orig(np1:np1,ns1:ns2,ic) > btmax)) then
@@ -387,11 +374,10 @@ CONTAINS
                       dist = distance(lat1,lon1,lat2,lon2)
                       if (dist > 100.0_r_kind) cycle box_x2  ! outside the box
                       if (gaussian_wgt) then
-                         wgt = exp(-0.5_r_kind*(dist/sigma)*(dist/sigma))
+                         wgt = exp(-0.5_r_kind*(dist*sigma)*(dist*sigma))
                       else
                          wgt = 1.0
                       endif
-                      ncount = ncount+1
                       xnum   = xnum+wgt
                       mta    = mta +wgt*bt_image_orig(ip,is,ic)
                    enddo box_x2
@@ -414,18 +400,17 @@ CONTAINS
        deallocate(nodeinfo,scanline,scanline_back)
        deallocate(latitude,longitude)
        deallocate(bt_image_orig,bt_image)
-       nullify(bt_image1)
-    endif
 
 
 !============================================================================================================
 
-    if (Method == 3) then  !  AAPP method
+    else if (Method == 3) then  !  AAPP method
 
        write(*,*) 'SSMIS_Spatial_Average: using AAPP method'
        if (bufrsat == 249) infile= 'ssmis_f16_beamwidth.txt'
        if (bufrsat == 285) infile= 'ssmis_f17_beamwidth.txt'
        if (bufrsat == 286) infile= 'ssmis_f18_beamwidth.txt'
+       if (bufrsat == 287) infile= 'ssmis_f19_beamwidth.txt'
 
        ! Read the beamwidth requirements
        OPEN(lninfile,file=infile,form='formatted',status='old', &
@@ -598,7 +583,7 @@ CONTAINS
           ! (otherwise bt_inout just keeps the same value):
           IF (ANY(channelnumber(1:nchannels) == ichan)) THEN
 
-             CALL MODIFY_BEAMWIDTH ( MYPE, max_fov, max_scan, bt_image1, &
+             CALL MODIFY_BEAMWIDTH ( max_fov, max_scan, bt_image1, &
                   sampling_distx, sampling_disty, beamwidth(ichan), newwidth(ichan), &
                   cutoff(ichan), nxaverage(ichan), nyaverage(ichan), &
                   qc_distx(ichan), qc_disty(ichan), IOS)
@@ -622,16 +607,278 @@ CONTAINS
 !      call cpu_time(time2)
 !      write(*,*)'CPU time for noise reduction = ', time2-time1 
     endif ! method=3
-    
+
+!============================================================================================================
+
+!   Simple method for GMI (like method 1)
+    if (Method == 4) then  ! simple averaging 1
+       gaussian_wgt = .false.
+!       write(*,*) 'SSMIS_Spatial_Average for GMI: using method from Banghua'
+       write(*,*) 'SSMIS_Spatial_Average for GMI: bufrsat = ', BufrSat
+       write(*,*) 'SSMIS_Spatial_Average for GMI: Gaussian Weighted Averaging =',gaussian_wgt
+
+       ! Determine scanline from time
+       !==============================
+       allocate(scanline(num_obs))
+       t1          = time(1)  ! time for first scanline
+       nscan       = 1        ! first scanline
+       scanline(1) = nscan
+       do iobs = 2, num_obs
+          t2    = time(iobs)
+          tdiff = t2-t1
+          if (tdiff >= 0.00001_r_kind) then
+             nscan = nscan+1
+             t1    = t2
+          endif
+          scanline(iobs) = nscan
+       enddo
+       max_scan = maxval(scanline)
+       write(*,*) 'SSMIS_Spatial_Average for GMI:max_scan,max_fov,nchanl = ', &
+                 max_scan,max_fov,nchanl
+
+!      Allocate and initialize variables
+       allocate(bt_image_orig(max_fov_gmi,max_scan,nchanl))
+       allocate(latitude(max_fov_gmi,max_scan))
+       allocate(longitude(max_fov_gmi,max_scan))
+       allocate(nodeinfo(max_fov_gmi,max_scan))
+       allocate(scanline_back(max_fov_gmi,max_scan))
+       bt_image_orig(:,:,:)= 1000.0_r_kind
+       latitude(:,:)       = 1000.0_r_kind
+       longitude(:,:)      = 1000.0_r_kind
+       scanline_back(:,:)  = -1
+       nodeinfo(:,:)       = 1000_i_kind
+
+!      Put data into 2D (fov vs. scanline) array
+       do iobs = 1, num_obs
+          latitude(fov(iobs),scanline(iobs))       = lat(iobs)
+          longitude(fov(iobs),scanline(iobs))      = lon(iobs)
+          bt_image_orig(fov(iobs),scanline(iobs),:)= bt_inout(:,iobs)
+          scanline_back(fov(iobs),scanline(iobs))  = iobs
+       enddo
+
+!      Determine AS/DS node information for each scanline
+       gmi_loop1: do iscan = 1, max_scan-1
+          gmi_loop2: do ifov = 1, max_fov_gmi
+             if (scanline_back(ifov,iscan) > 0 .and. scanline_back(ifov,iscan+1)> 0) then
+                dlat = latitude(ifov,iscan+1)-latitude(ifov,iscan)
+                if (dlat < 0.0_r_kind) then
+                   nodeinfo(:,iscan) = ds_node
+                else
+                   nodeinfo(:,iscan) = as_node
+                endif
+                cycle gmi_loop1
+             endif
+          enddo gmi_loop2
+       enddo gmi_loop1
+       nodeinfo(:,max_scan) = nodeinfo(:,max_scan-1)
+
+!      Do spatial averaging in the box centered on each fov for each channel
+       gmi_scan_loop: do iscan = 1, max_scan
+          gmi_fov_loop: do ifov = 1, max_fov_gmi    
+             iobs = scanline_back(ifov,iscan)
+             if (iobs >0) then
+                node_inout(iobs) = nodeinfo(ifov,iscan)
+                gmi_channel_loop: do ic = 1, nchanl
+!            Define grid box by channel -
+!            Ch 1-2: 1 scan direction, 1 track direction
+!            Ch 3-13: 3 scan direction, 3 track direction
+                   if ((ic == 1) .or. (ic == 2)) then
+                      ns1 = iscan
+                      ns2 = iscan
+                      if (ns1 < 1) ns1=1
+                      if (ns2 > max_scan) ns2=max_scan
+                      np1 = ifov
+                      np2 = ifov
+                      if (np1 < 1) np1=1
+                      if (np2 > max_fov_gmi) np2=max_fov_gmi
+                   else if ((ic > 2) .and. (ic < 14)) then
+                      ns1 = iscan-1
+                      ns2 = iscan+1
+                      if (ns1 < 1) ns1=1
+                      if (ns2 > max_scan) ns2=max_scan
+                      np1 = ifov-1
+                      np2 = ifov+1
+                      if (np1 < 1) np1=1
+                      if (np2 > max_fov_gmi) np2=max_fov_gmi
+                   endif
+
+                   xnum   = 0.0_r_kind
+                   mta    = 0.0_r_kind
+                   if (any(bt_image_orig(np1:np2,ns1:ns2,ic) < btmin .or. &
+                           bt_image_orig(np1:np1,ns1:ns2,ic) > btmax)) then
+                       bt_inout(ic,iobs) = 1000.0_r_kind
+                   else
+                ! Calculate distance of each fov to the center fov
+                      gmi_box_y1: do is = ns1, ns2
+                      gmi_box_x1: do ip = np1, np2
+                         lat1 = latitude(ifov,iscan)    ! lat of the center fov
+                         lon1 = longitude(ifov,iscan)   ! lon of the center fov
+                         lat2 = latitude(ip,is)
+                         lon2 = longitude(ip,is)
+                         dist = distance(lat1,lon1,lat2,lon2)
+                         if (dist > 50.0_r_kind) cycle gmi_box_x1  ! outside the box
+                         if (gaussian_wgt) then
+                            wgt = exp(-0.5_r_kind*(dist/sigma)*(dist/sigma))
+                         else
+                            wgt = 1.0
+                         endif
+                         xnum   = xnum+wgt
+                         mta    = mta +wgt*bt_image_orig(ip,is,ic)
+                      enddo gmi_box_x1
+                      enddo gmi_box_y1
+                      bt_inout(ic,iobs) = mta/xnum
+                   endif
+                enddo gmi_channel_loop
+             endif
+          enddo gmi_fov_loop
+       enddo gmi_scan_loop
+
+!      Deallocate arrays
+       deallocate(nodeinfo,scanline,scanline_back)
+       deallocate(latitude,longitude)
+       deallocate(bt_image_orig)
+    endif ! Method=4
+
+!============================================================================================================
+
+!   Simple method for AMSR2 (like method 1)
+    if (Method == 5) then  ! simple averaging 1
+       gaussian_wgt = .false.
+!       write(*,*) 'SSMIS_Spatial_Average for AMSR2: using method from Banghua'
+       write(*,*) 'SSMIS_Spatial_Average for AMSR2: bufrsat = ', BufrSat
+       write(*,*) 'SSMIS_Spatial_Average for AMSR2: Gaussian Weighted Averaging=',gaussian_wgt
+
+       ! Determine scanline from time
+       !==============================
+       allocate(scanline(num_obs))
+       t1          = time(1)  ! time for first scanline
+       nscan       = 1        ! first scanline
+       scanline(1) = nscan
+       do iobs = 2, num_obs
+          t2    = time(iobs)
+          tdiff = t2-t1
+          if (tdiff >= 0.00001_r_kind) then
+             nscan = nscan+1
+             t1    = t2
+          endif
+          scanline(iobs) = nscan
+       enddo
+       max_scan = maxval(scanline)
+       write(*,*) 'SSMIS_Spatial_Average for AMSR2:max_scan,max_fov,nchanl = ', &
+                 max_scan,max_fov,nchanl
+
+!      Allocate and initialize variables
+       allocate(bt_image_orig(max_fov_amsr2,max_scan,nchanl))
+       allocate(latitude(max_fov_amsr2,max_scan))
+       allocate(longitude(max_fov_amsr2,max_scan))
+       allocate(nodeinfo(max_fov_amsr2,max_scan))
+       allocate(scanline_back(max_fov_amsr2,max_scan))
+       bt_image_orig(:,:,:)= 1000.0_r_kind
+       latitude(:,:)       = 1000.0_r_kind
+       longitude(:,:)      = 1000.0_r_kind
+       scanline_back(:,:)  = -1
+       nodeinfo(:,:)       = 1000_i_kind
+
+!      Put data into 2D (fov vs. scanline) array
+       do iobs = 1, num_obs
+          latitude(fov(iobs),scanline(iobs))       = lat(iobs)
+          longitude(fov(iobs),scanline(iobs))      = lon(iobs)
+          bt_image_orig(fov(iobs),scanline(iobs),:)= bt_inout(:,iobs)
+          scanline_back(fov(iobs),scanline(iobs))  = iobs
+       enddo
+
+!      Determine AS/DS node information for each scanline
+       amsr2_loop1: do iscan = 1, max_scan-1
+          amsr2_loop2: do ifov = 1, max_fov_amsr2
+             if (scanline_back(ifov,iscan) > 0 .and. scanline_back(ifov,iscan+1)> 0) then
+                dlat = latitude(ifov,iscan+1)-latitude(ifov,iscan)
+                if (dlat < 0.0_r_kind) then
+                   nodeinfo(:,iscan) = ds_node
+                else
+                   nodeinfo(:,iscan) = as_node
+                endif
+                cycle amsr2_loop1
+             endif
+          enddo amsr2_loop2
+       enddo amsr2_loop1
+       nodeinfo(:,max_scan) = nodeinfo(:,max_scan-1)
+
+!      Do spatial averaging in the box centered on each fov for each channel
+       amsr2_scan_loop: do iscan = 1, max_scan
+          amsr2_fov_loop: do ifov = 1, max_fov_amsr2
+             iobs = scanline_back(ifov,iscan)
+             if (iobs >0) then
+                node_inout(iobs) = nodeinfo(ifov,iscan)
+                amsr2_channel_loop: do ic = 1, nchanl
+!            Define grid box by channel -
+!            Ch 1-6: 1 scan direction, 1 track direction
+!            Ch 7-14: 3 scan direction, 3 track direction
+                   if ((ic >= 1) .and. (ic <= 6)) then
+                      ns1 = iscan
+                      ns2 = iscan
+                      if (ns1 < 1) ns1=1
+                      if (ns2 > max_scan) ns2=max_scan
+                      np1 = ifov
+                      np2 = ifov
+                      if (np1 < 1) np1=1
+                      if (np2 > max_fov_gmi) np2=max_fov_amsr2
+                   else if ((ic >= 7) .and. (ic <= 14)) then
+                      ns1 = iscan-1
+                      ns2 = iscan+1
+                      if (ns1 < 1) ns1=1
+                      if (ns2 > max_scan) ns2=max_scan
+                      np1 = ifov-1
+                      np2 = ifov+1
+                      if (np1 < 1) np1=1
+                      if (np2 > max_fov_amsr2) np2=max_fov_amsr2
+                   endif
+
+                   xnum   = 0.0_r_kind
+                   mta    = 0.0_r_kind
+                   if (any(bt_image_orig(np1:np2,ns1:ns2,ic) < btmin .or. &
+                           bt_image_orig(np1:np1,ns1:ns2,ic) > btmax)) then
+                       bt_inout(ic,iobs) = 1000.0_r_kind
+                   else
+                ! Calculate distance of each fov to the center fov
+                      amsr2_box_y1: do is = ns1, ns2
+                      amsr2_box_x1: do ip = np1, np2
+                         lat1 = latitude(ifov,iscan)    ! lat of the center fov
+                         lon1 = longitude(ifov,iscan)   ! lon of the center fov
+                         lat2 = latitude(ip,is)
+                         lon2 = longitude(ip,is)
+                         dist = distance(lat1,lon1,lat2,lon2)
+                         if (dist > 50.0_r_kind) cycle amsr2_box_x1  ! outside the box
+                         if (gaussian_wgt) then
+                            wgt = exp(-0.5_r_kind*(dist/sigma)*(dist/sigma))
+                         else
+                            wgt = 1.0
+                         endif
+                         xnum   = xnum+wgt
+                         mta    = mta +wgt*bt_image_orig(ip,is,ic)
+                      enddo amsr2_box_x1
+                      enddo amsr2_box_y1
+                      bt_inout(ic,iobs) = mta/xnum
+                   endif
+                enddo amsr2_channel_loop
+             endif
+          enddo amsr2_fov_loop
+       enddo amsr2_scan_loop
+
+!      Deallocate arrays
+       deallocate(nodeinfo,scanline,scanline_back)
+       deallocate(latitude,longitude)
+       deallocate(bt_image_orig)
+    endif ! Method=5
+
 END Subroutine SSMIS_Spatial_Average
 
 
-SUBROUTINE MODIFY_BEAMWIDTH ( MYPE, nx, ny, image, sampling_distx, sampling_disty, & 
+SUBROUTINE MODIFY_BEAMWIDTH ( nx, ny, image, sampling_distx, sampling_disty, & 
      beamwidth, newwidth, mtfcutoff, nxaverage, nyaverage, qc_distx, qc_disty, &
      Error)
      
 !-----------------------------------------
-! Name: $Id: ssmis_spatial_average_mod.f90,v 1.5 2014/11/11 20:08:02 jguo Exp $
+! Name: $Id: ssmis_spatial_average_mod.f90,v 1.9 2018/06/15 20:56:50 jguo Exp $
 !
 ! Purpose:
 !   Manipulate the effective beam width of an image. For example, convert ATMS
@@ -682,7 +929,6 @@ SUBROUTINE MODIFY_BEAMWIDTH ( MYPE, nx, ny, image, sampling_distx, sampling_dist
       PARAMETER (maxval=400.0) !Values greater than this are treated as missing
 
 ! Arguments
-      INTEGER(I_KIND), INTENT(IN)  :: MYPE         
       INTEGER(I_KIND), INTENT(IN)  :: nx, ny         !Size of image
       REAL(R_KIND), INTENT(INOUT)  :: image(nx,ny)   !BT or radiance image
       REAL(R_KIND), INTENT(IN)     :: sampling_distx !typically degrees
@@ -1028,67 +1274,72 @@ SUBROUTINE MODIFY_BEAMWIDTH ( MYPE, nx, ny, image, sampling_distx, sampling_dist
 !
       IF ( N .EQ. 1 ) RETURN
 !
- 100  J = 1
+      J = 1
       N1 = N - 1
-      DO 104, I = 1, N1
-         IF ( I .GE. J ) GOTO 101
-         XT = X(J)
-         X(J) = X(I)
-         X(I) = XT
- 101     K = N / 2
- 102     IF ( K .GE. J ) GOTO 103
+      DO 104 I = 1, N1
+         IF ( I < J ) THEN
+            XT = X(J)
+            X(J) = X(I)
+            X(I) = XT
+         END IF
+         K = N / 2
+         DO WHILE ( K < J )           
             J = J - K
             K = K / 2
-            GOTO 102
- 103     J = J + K
+         END DO
+         J = J + K
  104  CONTINUE
 ! 
       IS = 1
       ID = 4
- 70   DO 60, I0 = IS, N, ID
-         I1 = I0 + 1
-         R1 = X(I0)
-         X(I0) = R1 + X(I1)
-         X(I1) = R1 - X(I1)
- 60   CONTINUE
-      IS = 2 * ID - 1
-      ID = 4 * ID
-      IF ( IS .LT. N ) GOTO 70
+      DO
+         DO 60 I0 = IS, N, ID
+            I1 = I0 + 1
+            R1 = X(I0)
+            X(I0) = R1 + X(I1)
+            X(I1) = R1 - X(I1)
+ 60      CONTINUE
+         IS = 2 * ID - 1
+         ID = 4 * ID
+         IF ( IS >= N ) EXIT
+      END DO
 !
       N2 = 2
-      DO 10, K = 2, M
+      DO 10 K = 2, M
          N2 = N2 * 2
          N4 = N2 / 4
          N8 = N2 / 8
          E = TWOPI / N2
          IS = 0
          ID = N2 * 2
- 40      DO 38, I = IS, N-1, ID
-            I1 = I + 1
-            I2 = I1 + N4
-            I3 = I2 + N4
-            I4 = I3 + N4
-            T1 = X(I4) + X(I3)
-            X(I4) = X(I4) - X(I3)
-            X(I3) = X(I1) - T1
-            X(I1) = X(I1) + T1
-            IF ( N4 .EQ. 1 ) GOTO 38
-            I1 = I1 + N8
-            I2 = I2 + N8
-            I3 = I3 + N8
-            I4 = I4 + N8
-            T1 = ( X(I3) + X(I4) ) / SQRT2
-            T2 = ( X(I3) - X(I4) ) / SQRT2
-            X(I4) = X(I2) - T1
-            X(I3) = - X(I2) - T1
-            X(I2) = X(I1) - T2
-            X(I1) = X(I1) + T2
- 38      CONTINUE
-         IS = 2 * ID - N2
-         ID = 4 * ID
-         IF ( IS .LT. N ) GOTO 40
+         DO
+            DO 38 I = IS, N-1, ID
+               I1 = I + 1
+               I2 = I1 + N4
+               I3 = I2 + N4
+               I4 = I3 + N4
+               T1 = X(I4) + X(I3)
+               X(I4) = X(I4) - X(I3)
+               X(I3) = X(I1) - T1
+               X(I1) = X(I1) + T1
+               IF ( N4 == 1 ) CYCLE
+               I1 = I1 + N8
+               I2 = I2 + N8
+               I3 = I3 + N8
+               I4 = I4 + N8
+               T1 = ( X(I3) + X(I4) ) / SQRT2
+               T2 = ( X(I3) - X(I4) ) / SQRT2
+               X(I4) = X(I2) - T1
+               X(I3) = - X(I2) - T1
+               X(I2) = X(I1) - T2
+               X(I1) = X(I1) + T2
+ 38         CONTINUE
+            IS = 2 * ID - N2
+            ID = 4 * ID
+            IF ( IS >= N ) EXIT
+         END DO
          A = E
-         DO 32, J = 2, N8
+         DO 32 J = 2, N8
             A3 = 3 * A
             CC1 = COS(A)
             SS1 = SIN(A)
@@ -1097,39 +1348,41 @@ SUBROUTINE MODIFY_BEAMWIDTH ( MYPE, nx, ny, image, sampling_distx, sampling_dist
             A = J * E
             IS = 0
             ID = 2 * N2
- 36         DO 30, I = IS, N-1, ID
-               I1 = I + J
-               I2 = I1 + N4
-               I3 = I2 + N4
-               I4 = I3 + N4
-               I5 = I + N4 - J + 2
-               I6 = I5 + N4
-               I7 = I6 + N4
-               I8 = I7 + N4
-               T1 = X(I3) * CC1 + X(I7) * SS1
-               T2 = X(I7) * CC1 - X(I3) * SS1
-               T3 = X(I4) * CC3 + X(I8) * SS3
-               T4 = X(I8) * CC3 - X(I4) * SS3
-               T5 = T1 + T3
-               T6 = T2 + T4
-               T3 = T1 - T3
-               T4 = T2 - T4
-               T2 = X(I6) + T6
-               X(I3) = T6 - X(I6)
-               X(I8) = T2
-               T2 = X(I2) - T3
-               X(I7) = - X(I2) - T3
-               X(I4) = T2
-               T1 = X(I1) + T5
-               X(I6) = X(I1) - T5
-               X(I1) = T1
-               T1 = X(I5) + T4
-               X(I5) = X(I5) - T4
-               X(I2) = T1
- 30         CONTINUE
-            IS = 2 * ID - N2
-            ID = 4 * ID
-            IF ( IS .LT. N ) GOTO 36
+            DO 
+               DO 30 I = IS, N-1, ID
+                  I1 = I + J
+                  I2 = I1 + N4
+                  I3 = I2 + N4
+                  I4 = I3 + N4
+                  I5 = I + N4 - J + 2
+                  I6 = I5 + N4
+                  I7 = I6 + N4
+                  I8 = I7 + N4
+                  T1 = X(I3) * CC1 + X(I7) * SS1
+                  T2 = X(I7) * CC1 - X(I3) * SS1
+                  T3 = X(I4) * CC3 + X(I8) * SS3
+                  T4 = X(I8) * CC3 - X(I4) * SS3
+                  T5 = T1 + T3
+                  T6 = T2 + T4
+                  T3 = T1 - T3
+                  T4 = T2 - T4
+                  T2 = X(I6) + T6
+                  X(I3) = T6 - X(I6)
+                  X(I8) = T2
+                  T2 = X(I2) - T3
+                  X(I7) = - X(I2) - T3
+                  X(I4) = T2
+                  T1 = X(I1) + T5
+                  X(I6) = X(I1) - T5
+                  X(I1) = T1
+                  T1 = X(I5) + T4
+                  X(I5) = X(I5) - T4
+                  X(I2) = T1
+ 30            CONTINUE
+               IS = 2 * ID - N2
+               ID = 4 * ID
+               IF ( IS >= N ) EXIT
+            END DO
  32      CONTINUE
  10   CONTINUE
       RETURN
@@ -1191,40 +1444,42 @@ SUBROUTINE MODIFY_BEAMWIDTH ( MYPE, nx, ny, image, sampling_distx, sampling_dist
       IF ( N .EQ. 1 ) RETURN
 !
       N2 = 2 * N
-      DO 10, K = 1, M-1
+      DO 10 K = 1, M-1
          IS = 0
          ID = N2
          N2 = N2 / 2
          N4 = N2 / 4
          N8 = N4 / 2
          E = TWOPI / N2
- 17      DO 15, I = IS, N-1, ID
-            I1 = I + 1
-            I2 = I1 + N4
-            I3 = I2 + N4
-            I4 = I3 + N4
-            T1 = X(I1) - X(I3)
-            X(I1) = X(I1) + X(I3)
-            X(I2) = 2 * X(I2)
-            X(I3) = T1 - 2 * X(I4)
-            X(I4) = T1 + 2 * X(I4)
-            IF ( N4 .EQ. 1 ) GOTO 15
-            I1 = I1 + N8
-            I2 = I2 + N8
-            I3 = I3 + N8
-            I4 = I4 + N8
-            T1 = ( X(I2) - X(I1) ) / SQRT2
-            T2 = ( X(I4) + X(I3) ) / SQRT2
-            X(I1) = X(I1) + X(I2)
-            X(I2) = X(I4) - X(I3)
-            X(I3) = 2 * ( - T2 - T1 )
-            X(I4) = 2 * ( -T2 + T1 )
- 15      CONTINUE
-         IS = 2 * ID - N2
-         ID = 4 * ID
-         IF ( IS .LT. N-1 ) GOTO 17
+         DO 
+ 17         DO 15 I = IS, N-1, ID
+               I1 = I + 1
+               I2 = I1 + N4
+               I3 = I2 + N4
+               I4 = I3 + N4
+               T1 = X(I1) - X(I3)
+               X(I1) = X(I1) + X(I3)
+               X(I2) = 2 * X(I2)
+               X(I3) = T1 - 2 * X(I4)
+               X(I4) = T1 + 2 * X(I4)
+               IF ( N4 .EQ. 1 ) CYCLE
+               I1 = I1 + N8
+               I2 = I2 + N8
+               I3 = I3 + N8
+               I4 = I4 + N8
+               T1 = ( X(I2) - X(I1) ) / SQRT2
+               T2 = ( X(I4) + X(I3) ) / SQRT2
+               X(I1) = X(I1) + X(I2)
+               X(I2) = X(I4) - X(I3)
+               X(I3) = 2 * ( - T2 - T1 )
+               X(I4) = 2 * ( -T2 + T1 )
+ 15         CONTINUE
+            IS = 2 * ID - N2
+            ID = 4 * ID
+            IF ( IS >= N-1 ) EXIT
+         END DO
          A = E
-         DO 20, J = 2, N8
+         DO 20 J = 2, N8
             A3 = 3 * A
             CC1 = COS(A)
             SS1 = SIN(A)
@@ -1233,66 +1488,71 @@ SUBROUTINE MODIFY_BEAMWIDTH ( MYPE, nx, ny, image, sampling_distx, sampling_dist
             A = J * E
             IS = 0
             ID = 2 * N2
- 40         DO 30, I = IS, N-1, ID
-               I1 = I + J
-               I2 = I1 + N4
-               I3 = I2 + N4
-               I4 = I3 + N4
-               I5 = I + N4 - J + 2
-               I6 = I5 + N4
-               I7 = I6 + N4
-               I8 = I7 + N4
-               T1 = X(I1) - X(I6)
-               X(I1) = X(I1) + X(I6)
-               T2 = X(I5) - X(I2)
-               X(I5) = X(I2) + X(I5)
-               T3 = X(I8) + X(I3)
-               X(I6) = X(I8) - X(I3)
-               T4 = X(I4) + X(I7)
-               X(I2) = X(I4) - X(I7)
-               T5 = T1 - T4
-               T1 = T1 + T4
-               T4 = T2 - T3
-               T2 = T2 + T3
-               X(I3) = T5 * CC1 + T4 * SS1
-               X(I7) = - T4 * CC1 + T5 * SS1
-               X(I4) = T1 * CC3 - T2 * SS3
-               X(I8) = T2 * CC3 + T1 * SS3
- 30         CONTINUE
-            IS = 2 * ID - N2
-            ID = 4 * ID
-            IF ( IS .LT. N-1 ) GOTO 40
+            DO 
+               DO 30 I = IS, N-1, ID
+                  I1 = I + J
+                  I2 = I1 + N4
+                  I3 = I2 + N4
+                  I4 = I3 + N4
+                  I5 = I + N4 - J + 2
+                  I6 = I5 + N4
+                  I7 = I6 + N4
+                  I8 = I7 + N4
+                  T1 = X(I1) - X(I6)
+                  X(I1) = X(I1) + X(I6)
+                  T2 = X(I5) - X(I2)
+                  X(I5) = X(I2) + X(I5)
+                  T3 = X(I8) + X(I3)
+                  X(I6) = X(I8) - X(I3)
+                  T4 = X(I4) + X(I7)
+                  X(I2) = X(I4) - X(I7)
+                  T5 = T1 - T4
+                  T1 = T1 + T4
+                  T4 = T2 - T3
+                  T2 = T2 + T3
+                  X(I3) = T5 * CC1 + T4 * SS1
+                  X(I7) = - T4 * CC1 + T5 * SS1
+                  X(I4) = T1 * CC3 - T2 * SS3
+                  X(I8) = T2 * CC3 + T1 * SS3
+ 30           CONTINUE
+              IS = 2 * ID - N2
+              ID = 4 * ID
+              IF ( IS >= N-1 ) EXIT
+           END DO
  20      CONTINUE
  10   CONTINUE
 !
       IS = 1
       ID = 4
- 70   DO 60, I0 = IS, N, ID
-         I1 = I0 + 1
-         R1 = X(I0)
-         X(I0) = R1 + X(I1)
-         X(I1) = R1 - X(I1)
- 60   CONTINUE
-      IS = 2 * ID - 1
-      ID = 4 * ID
-      IF ( IS .LT. N ) GOTO 70
+      DO 
+         DO 60 I0 = IS, N, ID
+            I1 = I0 + 1
+            R1 = X(I0)
+            X(I0) = R1 + X(I1)
+            X(I1) = R1 - X(I1)
+ 60      CONTINUE
+         IS = 2 * ID - 1
+         ID = 4 * ID
+         IF ( IS >= N ) EXIT
+      END DO
 !
- 100  J = 1
+      J = 1
       N1 = N - 1
-      DO 104, I = 1, N1
-         IF ( I .GE. J ) GOTO 101
-         XT = X(J)
-         X(J) = X(I)
-         X(I) = XT
- 101     K = N / 2
- 102     IF ( K .GE. J ) GOTO 103
+      DO 104 I = 1, N1
+         IF ( I < J ) THEN
+            XT = X(J)
+            X(J) = X(I)
+            X(I) = XT
+         END IF
+         K = N / 2
+         DO WHILE ( K < J )         
             J = J - K
             K = K / 2
-            GOTO 102
- 103     J = J + K
+         END DO
+         J = J + K
  104  CONTINUE
       XT = 1.0 / FLOAT( N )
-      DO 99, I = 1, N
+      DO 99 I = 1, N
          X(I) = XT * X(I)
  99   CONTINUE
       RETURN

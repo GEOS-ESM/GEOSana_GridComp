@@ -85,6 +85,21 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !                         PBL pseudo obs
 !   2013-10-19  todling - metguess now holds background
 !   2013-05-24      zhu - add ostats_t and rstats_t for aircraft temperature bias correction
+!   2014-03-19  pondeca - add wspd10m
+!   2014-04-10  pondeca - add td2m,mxtm,mitm,pmsl
+!   2014-05-07  pondeca - add howv
+!   2014-12-30  derber - Modify for possibility of not using obsdiag
+!   2014-0?-16  carley/zhu - add tcamt and lcbas
+!   2015-07-10  pondeca - add cldch
+!   2015-10-01  guo   - full res obvsr: index to allow redistribution of obsdiags
+!   2016-05-05  pondeca - add uwnd10m, vwund10m
+!   2017-05-12  Y. Wang and X. Wang - add dbz for reflectivity DA. POC: xuguang.wang@ou.edu
+!   2018-01-01  Apodaca - add GOES/GLM lightning
+!   2018-02-15  wu      - add code for fv3_regional 
+!   2018-08-10  guo     - replaced type specific setupXYZ() calls with a looped
+!                         polymorphic implementation using %setup().
+!   2019-03-15  Ladwig  - add option for cloud analysis in observer
+!   2019-03-28  Ladwig  - add metar cloud obs as pseudo water vapor in var analysis
 !
 !   input argument list:
 !     ndata(*,1)- number of prefiles retained for further processing
@@ -102,37 +117,42 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-  use kinds, only: r_kind,i_kind,r_quad
+  use kinds, only: r_kind,i_kind,r_quad,r_single
   use constants, only: zero,one,fv,zero_quad
   use guess_grids, only: load_prsges,load_geop_hgt,load_gsdpbl_hgt
   use guess_grids, only: ges_tsen,nfldsig
-  use obsmod, only: nsat1,iadate,nobs_type,obscounts,mype_diaghdr,&
-       nchan_total,ndat,obs_setup,&
-       dirname,write_diag,nprof_gps,ditype,obsdiags,lobserver,&
-       destroyobs,inquire_obsdiags,lobskeep,nobskeep,lobsdiag_allocated
+  use obsmod, only: nsat1,iadate,&
+       ndat,obs_setup,&
+       dtype,&
+       dirname,write_diag,lobserver,&
+       destroyobs,lobskeep,nobskeep,lobsdiag_allocated, &
+       luse_obsdiag
+  use obsmod, only: lobsdiagsave
+  use obsmod, only: binary_diag
   use obs_sensitivity, only: lobsensfc, lsensrecompute
+  use obs_sensitivity, only: obsensCounts_realloc
   use radinfo, only: newpc4pred
-  use radinfo, only: mype_rad,diag_rad,jpch_rad,retrieval,fbias,npred,ostats,rstats
-! use aircraftinfo, only: aircraft_t_bc_pof,aircraft_t_bc,ostats_t,rstats_t,npredt,max_tail
+  use radinfo, only: mype_rad,jpch_rad,retrieval,fbias,npred,ostats,rstats
   use aircraftinfo, only: aircraft_t_bc_pof,aircraft_t_bc,ostats_t,rstats_t,npredt,ntail
-  use pcpinfo, only: diag_pcp
-  use ozinfo, only: diag_ozone,mype_oz,jpch_oz,ihave_oz
-  use coinfo, only: diag_co,mype_co,jpch_co,ihave_co
+  use ozinfo, only: mype_oz,jpch_oz,ihave_oz
+  use coinfo, only: mype_co,jpch_co,ihave_co
+  use lightinfo, only: mype_light
   use mpimod, only: ierror,mpi_comm_world,mpi_rtype,mpi_sum
-  use gridmod, only: nsig,twodvar_regional,wrf_mass_regional,nems_nmmb_regional
+  use gridmod, only: twodvar_regional,wrf_mass_regional,nems_nmmb_regional
+  use gridmod, only: cmaq_regional,fv3_regional
   use gsi_4dvar, only: nobs_bins,l4dvar
+  use gsi_4dvar, only: mPEs_observer
   use jfunc, only: jiter,jiterstart,miter,first,last
   use qcmod, only: npres_print
   use convinfo, only: nconvtype,diag_conv
   use timermod, only: timer_ini,timer_fnl
   use lag_fields, only: lag_presetup,lag_state_write,lag_state_read,lag_destroy_uv
-  use state_vectors, only: svars2d
   use mpeu_util, only: getindex
   use mpl_allreducemod, only: mpl_allreduce
-  use aeroinfo, only: diag_aero
   use berror, only: reset_predictors_var
   use rapidrefresh_cldsurf_mod, only: l_PBL_pseudo_SurfobsT,l_PBL_pseudo_SurfobsQ,&
-                                      l_PBL_pseudo_SurfobsUV
+                                      l_PBL_pseudo_SurfobsUV,i_gsdcldanal_type,&
+                                      i_cloud_q_innovation
   use m_rhs, only: rhs_alloc
   use m_rhs, only: rhs_dealloc
   use m_rhs, only: rhs_allocated
@@ -144,10 +164,34 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   use m_rhs, only: stats_oz => rhs_stats_oz
   use m_rhs, only: toss_gps_sub => rhs_toss_gps
 
+  use m_rhs, only: i_ps,i_uv,i_t,i_q,i_pw,i_rw,i_dw,i_gps,i_sst,i_tcp,i_lag, &
+                   i_gust,i_vis,i_pblh,i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, &
+                   i_tcamt,i_lcbas,i_cldch,i_uwnd10m,i_vwnd10m,i_swcp,i_lwcp
+  use m_rhs, only: i_dbz
+  use m_rhs, only: i_light
+
+  use m_gpsStats, only: gpsStats_genstats       ! was genstats_gps()
+  use m_gpsStats, only: gpsStats_destroy        ! was done by genstats_gps()
+
   use gsi_bundlemod, only: GSI_BundleGetPointer
   use gsi_metguess_mod, only: GSI_MetGuess_Bundle
+  use m_obsdiags, only: obsdiags
+  use m_obsdiags, only: obsdiags_reset
+  use m_obsdiags, only: obsdiags_read
+  use m_obsdiags, only: obsdiags_sort
+  use m_obsdiags, only: obsdiags_write
+  use m_obsdiags, only: inquire_obsdiags => obsdiags_inquire
 
-  use mpeu_util, only: die
+  use gsi_obOperTypeManager, only: obOper_typeIndex
+  use gsi_obOperTypeManager, only: nobs_type => obOper_count
+  use gsi_obOper, only: obOper
+  use m_obsdiags, only: obOpers_config
+  use m_obsdiags, only: obOper_create
+  use m_obsdiags, only: obOper_destroy
+  use m_obsdiagNode, only: obsdiagLList_rewind
+
+  use mpeu_util, only: die,warn,perr
+  use mpeu_util, only: basename
   implicit none
 
 ! Declare passed variables
@@ -159,43 +203,21 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 ! Declare external calls for code analysis
   external:: compute_derived
   external:: evaljo
-  external:: genstats_gps
+  !external:: genstats_gps
   external:: mpi_allreduce
   external:: mpi_finalize
   external:: mpi_reduce
-  external:: read_obsdiags
-  external:: setupaod
-  external:: setupbend
-  external:: setupdw
-  external:: setuplag
-  external:: setupozlay
-  external:: setupozlev
-  external:: setuppcp
-  external:: setupps
-  external:: setuppw
-  external:: setupq
-  external:: setuprad
-  external:: setupref
-  external:: setuprw
-  external:: setupspd
-  external:: setupsrw
-  external:: setupsst
-  external:: setupt
-  external:: setuptcp
-  external:: setupw
-  external:: setupgust
-  external:: setupvis
-  external:: setuppblh
+  !external:: read_obsdiags
   external:: statsconv
   external:: statsoz
   external:: statspcp
   external:: statsrad
+  external:: statslight
   external:: stop2
   external:: w3tage
 
 ! Delcare local variables
-  logical rad_diagsave,ozone_diagsave,pcp_diagsave,conv_diagsave,llouter,getodiag,co_diagsave
-  logical aero_diagsave
+  logical:: conv_diagsave,llouter,getodiag
 
   character(80):: string
   character(10)::obstype
@@ -203,10 +225,10 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   character(128):: diag_conv_file
   character(len=12) :: clfile
 
-  integer(i_kind) lunin,nobs,nchanl,nreal,nele,&
-       is,idate,i_dw,i_rw,i_srw,i_sst,i_tcp,i_gps,i_uv,i_ps,i_lag,&
-       i_t,i_pw,i_q,i_co,i_gust,i_vis,i_ref,i_pblh,iobs,nprt,ii,jj
-  integer(i_kind) it,ier,istatus
+  integer(i_kind):: lunin,is,idate
+  integer(i_kind):: iobs,nprt,ii,jj
+  integer(i_kind):: it,ier,istatus
+  integer(i_kind):: nreal,nchanl
 
   real(r_quad):: zjo
   real(r_kind),dimension(40,ndat):: aivals1
@@ -218,11 +240,22 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 
   real(r_kind),dimension(:,:,:),pointer:: ges_tv_it=>NULL()
   real(r_kind),dimension(:,:,:),pointer:: ges_q_it =>NULL()
+  character(len=*),parameter:: myname='setuprhsall'
+
+  logical,parameter:: OBSDIAGS_RELOAD = .false.
+  !logical,parameter:: OBSDIAGS_RELOAD = .true.
+  logical:: opened
+  character(len=256):: tmpname,tmpaccess,tmpform
+
+  class(obOper),pointer:: is_obOper
 
   if(.not.init_pass .and. .not.lobsdiag_allocated) call die('setuprhsall','multiple lobsdiag_allocated',lobsdiag_allocated)
 !******************************************************************************
 ! Initialize timer
   call timer_ini('setuprhsall')
+
+! Because I have to make a test
+  luse_obsdiag = luse_obsdiag .or. OBSDIAGS_RELOAD
 
 ! Initialize variables and constants.
   first = jiter == jiterstart   ! .true. on first outer iter
@@ -231,67 +264,62 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 
 ! Set diagnostic output flag
 
-  rad_diagsave  = write_diag(jiter) .and. diag_rad
-  pcp_diagsave  = write_diag(jiter) .and. diag_pcp
   conv_diagsave = write_diag(jiter) .and. diag_conv
-  ozone_diagsave= write_diag(jiter) .and. diag_ozone .and. ihave_oz
-  co_diagsave   = write_diag(jiter) .and. diag_co    .and. ihave_co
-  aero_diagsave = write_diag(jiter) .and. diag_aero
 
-  i_ps = 1
-  i_uv = 2
-  i_t  = 3
-  i_q  = 4
-  i_pw = 5
-  i_rw = 6
-  i_dw = 7
-  i_srw= 8
-  i_gps= 9
-  i_sst= 10
-  i_tcp= 11
-  i_lag= 12
-  i_co = 13
-  i_gust=14
-  i_vis =15
-  i_pblh=16
-  i_ref =i_pblh
-
-  allocate(awork1(7*nsig+100,i_ref))
-  if(.not.rhs_allocated) call rhs_alloc(aworkdim2=size(awork1,2))
+  if(.not.rhs_allocated) call rhs_alloc()
+  allocate(awork1,mold=awork)
 
 ! Reset observation pointers
-  if(init_pass) call destroyobs
+  if(init_pass) then
+        ! setuprhsall() has been implemented to allow multiple passes over the
+        ! same observation input steams, such that an outer loop can be used to
+        ! iterate through incrementally available forecast states at different
+        ! times.  In each iteration ("pass"), only a subset of observations with
+        ! valid forecast states are computed for their innovations and linear
+        ! observation-operators.
+        !
+        ! init_pass is a flag marking the first pass of setuprhsall() for a
+        ! given jiter (a single outloop interaction is assumed with an update-
+        ! to-date state, where some initialization code are involked.  And
+        ! last_pass is a flag marking the last pass, where some summary code are
+        ! involked.
+        !
+        ! This feature is needed in particular for high resolution background
+        ! states for non-linear observation operator calculations (setup-calls),
+        ! often refered as the "split-observer" mode.  In this mode, preloading
+        ! of the forecast states of all time steps, is often not practical.
+
+    call obOpers_config()
+
+    call destroyobs()   ! remaining object, obsmod::nobs_sub(:,:)
+    call obsensCounts_realloc(nobs_type,nobs_bins)
+
+!++     call obOpers_reset(jiter,luse_obsdiag=luse_obsdiag,obsdiags_keep=lobsdiagsave)   ! replacing destroyobs()
+    call obsdiags_reset(obsdiags_keep=lobsdiagsave)   ! replacing destroyobs()
 
 ! Read observation diagnostics if available
-  if (l4dvar) then
-     getodiag=(.not.lobserver) .or. (lobserver.and.jiter>1)
-     clfile='obsdiags.ZZZ'
-     if (lobsensfc .and. .not.lsensrecompute) then
+    if (l4dvar) then
+      getodiag=(.not.lobserver) .or. (lobserver.and.jiter>1)
+      clfile='obsdiags.ZZZ'
+      if (lobsensfc .and. .not.lsensrecompute) then
         write(clfile(10:12),'(I3.3)') miter
-        call read_obsdiags(clfile)
+        call obsdiags_read(clfile,mPEs=mPEs_observer,jiter_expected=miter)      ! replacing read_obsdiags()
         call inquire_obsdiags(miter)
-     else if (getodiag) then
+      else if (getodiag) then
         if (.not.lobserver) then
            write(clfile(10:12),'(I3.3)') jiter
-           call read_obsdiags(clfile)
+           call obsdiags_read(clfile,mPEs=mPEs_observer,jiter_expected=jiter)   ! replacing read_obsdiags()
            call inquire_obsdiags(miter)
         endif
-     endif
-  endif
+      endif
+    endif
 
-  if(init_pass) then
-     if (allocated(obscounts)) then
-        write(6,*)'setuprhsall: obscounts allocated'
-        call stop2(285)
-     end if
-     allocate(obscounts(nobs_type,nobs_bins))
-  endif
-
-  if (jiter>1.and.lobskeep) then
-     nobskeep=1
-  else
-     nobskeep=0
-  endif
+    if (jiter>1.and.lobskeep) then
+      nobskeep=1
+    else
+      nobskeep=0
+    endif
+  endif ! <init_pass>
 
 ! The 3d pressure and geopotential grids are initially loaded at
 ! the end of the call to read_guess.  Thus, we don't need to call 
@@ -325,7 +353,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 ! Compute 2d subdomain pbl heights from the guess fields
    if (wrf_mass_regional) then
       call load_gsdpbl_hgt(mype)
-   else if (nems_nmmb_regional) then
+   else if (nems_nmmb_regional .or. fv3_regional) then
       if (l_PBL_pseudo_SurfobsT .or. l_PBL_pseudo_SurfobsQ .or. l_PBL_pseudo_SurfobsUV) then
          call load_gsdpbl_hgt(mype)
       end if
@@ -333,7 +361,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 
 
 ! Compute derived quantities on grid
-  call compute_derived(mype,init_pass)
+  if(.not.cmaq_regional) call compute_derived(mype,init_pass)
 
   ! ------------------------------------------------------------------------
 
@@ -346,10 +374,10 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
         call lag_state_write()
      end if
 
-!    Reset observation pointers
-     do ii=1,nobs_bins
-        do jj=1,nobs_type
-           obsdiags(jj,ii)%tail => NULL()
+!    Reset observation pointers.  This is assumed by setup*() routines.
+     do ii=1,size(obsdiags,2)
+        do jj=1,size(obsdiags,1)
+           call obsdiagLList_rewind(obsdiags(jj,ii))
         enddo
      enddo
 
@@ -359,14 +387,40 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
  
   
 !    If requested, create conventional diagnostic files
-     if(conv_diagsave)then
+     if(conv_diagsave.and.binary_diag)then
         write(string,900) jiter
 900     format('conv_',i2.2)
         diag_conv_file=trim(dirname) // trim(string)
         if(init_pass) then
            open(7,file=trim(diag_conv_file),form='unformatted',status='unknown',position='rewind')
+
         else
-           open(7,file=trim(diag_conv_file),form='unformatted',status='old',position='append')
+           !  open(7,file=trim(diag_conv_file),form='unformatted',status='old',position='append')
+
+                ! Without a close(7) until the last_pass=.true., the same file
+                ! is expected to remain open "asis", equivalent to an "append"
+                ! position through a re-open().  Therefore, a sequence of
+                ! verification steps are taken to replace the earlier open()
+                ! statement, to avoid re-open() without a close().
+
+           inquire(unit=7,opened=opened)
+           if(opened) then
+             inquire(unit=7,name=tmpname,form=tmpform,access=tmpaccess)
+             tmpname=basename(tmpname)
+             if(trim(tmpname)/=trim(diag_conv_file)) then
+               call perr(myname,'unexpectly occupied, unit =',7)
+               call perr(myname,'           diag_conv_file =',trim(diag_conv_file))
+               call perr(myname,'   inquire(unit=7,  name= )',trim(tmpname))
+               call perr(myname,'   inquire(unit=7,  form= )',trim(tmpform))
+               call perr(myname,'   inquire(unit=7,access= )',trim(tmpaccess))
+               call  die(myname)
+             endif
+
+           else
+             call perr(myname,'unexpectly closed, unit =',7)
+             call perr(myname,'         diag_conv_file =',trim(diag_conv_file))
+             call  die(myname)
+           endif
         endif
         idate=iadate(4)+iadate(3)*100+iadate(2)*10000+iadate(1)*1000000
         if(init_pass .and. mype == 0)write(7)idate
@@ -382,147 +436,75 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
         rstats_t=zero_quad
      end if
 
-
-!    Loop over data types to process
+!    Loop over data types to process (for polymorphic obOper%setup() calls)
      do is=1,ndat
-        nobs=nsat1(is)
- 
-        if(nobs > 0)then
 
-           read(lunin,iostat=ier) obstype,isis,nreal,nchanl
-           if(mype == mype_diaghdr(is)) then
-              write(6,300) obstype,isis,nreal,nchanl
- 300          format(' SETUPALL:,obstype,isis,nreal,nchanl=',a12,a20,i7,i7)
-           endif
-           if(ier/=0) call die('setuprhsall','read(), iostat =',ier)
-           nele=nreal+nchanl
+        ! Skip data streams where no obOper has been implemented for now.
+        ! These streams are handled in a "lazy" approach, to preserve its
+        ! current behavior of the program.
+        !
+        ! (1) If present in distributed obs_setup streams, they will be
+        !     processed, by sequantially skipping corresponding records
+        !     with possible exceptions (error messages).
+        !
+        ! (2) If not expected to be present in distributed obs_setup streams,
+        !     A warning message body for exceptions will be issued.  And
+        !     the program will proceed as normal.
 
-!          Set up for radiance data
-           if(ditype(is) == 'rad')then
- 
-              call setuprad(lunin,&
-                 mype,aivals,stats,nchanl,nreal,nobs,&
-                 obstype,isis,is,rad_diagsave,init_pass,last_pass)
+        select case(trim(dtype(is)))
+        case('gos_ctp', 'rad_ref', 'lghtn', 'larccld', 'larcglb')
+                ! Exception (1) (see above)
 
-!          Set up for aerosol data
-           else if(ditype(is) == 'aero')then
-              call setupaod(lunin,&
-                 mype,nchanl,nreal,nobs,&
-                 obstype,isis,is,aero_diagsave,init_pass)
+          if(nsat1(is)>0)then
+            read(lunin,iostat=ier) obstype,isis,nreal,nchanl
+                if(ier/=0) then
+                  call perr(myname,'unexpected obs_setup read(1), iostat =',ier)
+                  call perr(myname,'                                  is =',is)
+                  call perr(myname,'                           ndat1(is) =',nsat1(is))
+                  call perr(myname,'                           dtype(is) =',trim(dtype(is)))
+                  call  die(myname)
+                endif
 
-!          Set up for precipitation data
-           else if(ditype(is) == 'pcp')then
-              call setuppcp(lunin,mype,&
-                 aivals,nele,nobs,obstype,isis,is,pcp_diagsave,init_pass)
- 
-!          Set up conventional data
-           else if(ditype(is) == 'conv')then
-!             Set up temperature data
-              if(obstype=='t')then
-                 call setupt(lunin,mype,bwork,awork(1,i_t),nele,nobs,is,conv_diagsave)
+            read(lunin,iostat=ier)
+                if(ier/=0) then
+                  call perr(myname,'unexpected obs_setup read(2), iostat =',ier)
+                  call perr(myname,'                                  is =',is)
+                  call perr(myname,'                           ndat1(is) =',nsat1(is))
+                  call perr(myname,'                           dtype(is) =',trim(dtype(is)))
+                  call perr(myname,'                             obstype =',trim(obstype))
+                  call perr(myname,'                                isis =',trim(isis))
+                  call perr(myname,'                               nreal =',nreal)
+                  call perr(myname,'                              nchanl =',nchanl)
+                  call  die(myname)
+                endif
+          endif
 
-!             Set up uv wind data
-              else if(obstype=='uv')then
-                 call setupw(lunin,mype,bwork,awork(1,i_uv),nele,nobs,is,conv_diagsave)
+        case default
 
-!             Set up wind speed data
-              else if(obstype=='spd')then
-                 call setupspd(lunin,mype,bwork,awork(1,i_uv),nele,nobs,is,conv_diagsave)
+          is_obOper => obOper_create(dtype(is))
 
-!             Set up surface pressure data
-              else if(obstype=='ps')then
-                 call setupps(lunin,mype,bwork,awork(1,i_ps),nele,nobs,is,conv_diagsave)
- 
-!             Set up tc-mslp data
-              else if(obstype=='tcp')then
-                 call setuptcp(lunin,mype,bwork,awork(1,i_tcp),nele,nobs,is,conv_diagsave)
+          if(associated(is_obOper)) then
+            call is_obOper%setup(lunin,mype, is, nsat1(is), init_pass,last_pass)
+            call obOper_destroy(is_obOper)
 
-!             Set up moisture data
-              else if(obstype=='q') then
-                 call setupq(lunin,mype,bwork,awork(1,i_q),nele,nobs,is,conv_diagsave)
-
-!             Set up lidar wind data
-              else if(obstype=='dw')then
-                 call setupdw(lunin,mype,bwork,awork(1,i_dw),nele,nobs,is,conv_diagsave)
-
-!             Set up radar wind data
-              else if(obstype=='rw')then
-                 call setuprw(lunin,mype,bwork,awork(1,i_rw),nele,nobs,is,conv_diagsave)
-
-!             Set up total precipitable water (total column water) data
-              else if(obstype=='pw')then
-                 call setuppw(lunin,mype,bwork,awork(1,i_pw),nele,nobs,is,conv_diagsave)
-
-!             Set up superob radar wind data
-              else if(obstype=='srw')then
-                 call setupsrw(lunin,mype,bwork,awork(1,i_srw),nele,nobs,is,conv_diagsave)
-
-!             Set up conventional sst data
-              else if(obstype=='sst' .and. getindex(svars2d,'sst')>0) then 
-                 call setupsst(lunin,mype,bwork,awork(1,i_sst),nele,nobs,is,conv_diagsave)
-
-!             Set up conventional lagrangian data
-              else if(obstype=='lag') then 
-                 call setuplag(lunin,mype,bwork,awork(1,i_lag),nele,nobs,is,conv_diagsave)
-              else if(obstype == 'pm2_5')then 
-                 call setuppm2_5(lunin,mype,nele,nobs,&
-                      isis,is,conv_diagsave)
-
-!             Set up conventional wind gust data
-              else if(obstype=='gust' .and. getindex(svars2d,'gust')>0) then
-                 call setupgust(lunin,mype,bwork,awork(1,i_gust),nele,nobs,is,conv_diagsave)
-
-!             Set up conventional visibility data
-              else if(obstype=='vis' .and. getindex(svars2d,'vis')>0) then
-                 call setupvis(lunin,mype,bwork,awork(1,i_vis),nele,nobs,is,conv_diagsave)
-
-!             Set up conventional pbl height data
-              else if(obstype=='pblh' .and. getindex(svars2d,'pblh')>0) then
-                 call setuppblh(lunin,mype,bwork,awork(1,i_pblh),nele,nobs,is,conv_diagsave)
-
-!             skip this kind of data because they are not used in the var analysis
-              else if(obstype == 'mta_cld' .or. obstype == 'gos_ctp' .or. &
-                      obstype == 'rad_ref' .or. obstype=='lghtn' .or. &
-                      obstype == 'larccld' ) then
-                 read(lunin,iostat=ier)
-                 if(ier/=0) call die('setuprhsall','read(), iostat =',ier)
-
-!
-              else
-                 write(6,*) 'Warning, unknown data type in setuprhsall,', obstype
-
-              end if
-
-!          set up ozone (sbuv/omi/mls) data
-           else if(ditype(is) == 'ozone' .and. ihave_oz)then
-              if (obstype == 'o3lev' .or. index(obstype,'mls')/=0 ) then
-                 call setupozlev(lunin,mype,stats_oz,nchanl,nreal,nobs,&
-                      obstype,isis,is,ozone_diagsave,init_pass)
-              else
-                 call setupozlay(lunin,mype,stats_oz,nchanl,nreal,nobs,&
-                      obstype,isis,is,ozone_diagsave,init_pass)
-              end if
-
-!          Set up co (mopitt) data
-           else if(ditype(is) == 'co')then 
-              call setupco(lunin,mype,stats_co,nchanl,nreal,nobs,&
-                   obstype,isis,is,co_diagsave,init_pass)
-
-!          Set up GPS local refractivity data
-           else if(ditype(is) == 'gps')then
-              if(obstype=='gps_ref')then
-                 call setupref(lunin,mype,awork(1,i_gps),nele,nobs,toss_gps_sub,is,init_pass,last_pass)
-
-!             Set up GPS local bending angle data
-              else if(obstype=='gps_bnd')then
-                 call setupbend(lunin,mype,awork(1,i_gps),nele,nobs,toss_gps_sub,is,init_pass,last_pass)
-              end if
-           end if
-
-        end if
+          else
+                ! Exception (2) (see above)
+            call warn(myname,'unexpected obOper, is =',is)
+            call warn(myname,'                dtype =',trim(dtype(is)))
+            call warn(myname,'     obOper_typeIndex =',obOper_typeIndex(dtype(is)))
+          endif
+        end select
 
      end do
      close(lunin)
+
+     ! run cloud analysis in observer
+     if(i_gsdcldanal_type==7) then
+         call gsdcloudanalysis(mype)
+         ! Write output analysis files
+         call write_all(-1,mype)
+         call prt_guess('analysis')
+     endif
 
   else
 
@@ -535,18 +517,46 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   if(.not.last_pass) then
      call timer_fnl('setuprhsall')
      return
+     ! So the rest code are for the last_pass only
   endif
 
 ! Deallocate wind field array for Lagrangian data assimilation
   call lag_destroy_uv()
 
-! Setup observation vectors
-  call setupyobs
-
 ! Finalize qc and accumulate statistics for GPSRO data
-  call genstats_gps(bwork,awork(1,i_gps),toss_gps_sub,conv_diagsave,mype)
+  call gpsStats_genstats(bwork,awork(:,i_gps),toss_gps_sub,conv_diagsave,mype)
+  call gpsStats_destroy()       ! replacing ...
+  ! -- call genstats_gps(bwork,awork(1,i_gps),toss_gps_sub,conv_diagsave,mype)
 
-  if (conv_diagsave) close(7)
+  if (conv_diagsave.and.binary_diag) close(7)
+
+  ! Sorting with obsdiags_sort() would let the contents of obsdiags, including
+  ! linked-lists of obsNodes as well as obs_diags, to be sorted into
+  ! the same sequences, regardless their processing orders, number of
+  ! processors, or particular distributions.
+  !
+  ! For ob. operators not implemented to support multi-setups using
+  ! luse_obsdiag, sorting could become a problem.  Among them, cases of
+  ! l_PBL_pseudo_SurfobsT, l_PBL_pseudo_SurfobsQ, and l_PBL_pseudo_SurfobsUV
+  ! have been fixed since, but it might be better to keep it simple for
+  ! those applications.  The case of i_cloud_q_innovation==2 is new.  It is
+  ! not sure why it won't work even in case of .not.luse_obsdiag.
+
+  if(.not.(l_PBL_pseudo_SurfobsT  .or.  l_PBL_pseudo_SurfobsQ   .or. &
+           l_PBL_pseudo_SurfobsUV .or. (i_cloud_q_innovation==2)) ) then
+     call obsdiags_sort()
+  endif
+
+! for temporary testing purposes, _write and _read.
+  if(OBSDIAGS_RELOAD) then
+    call obsdiags_write('obsdiags.ttt',force=.true.)
+        ! call Barrier() before obsdiags_read(), to make sure all PEs have
+        ! finished their obsdiags_write().
+    if(mPEs_observer>0) call MPI_Barrier(mpi_comm_world,ier)
+
+    call obsdiags_read('obsdiags.ttt',mPEs=mPEs_observer,force=.true.)
+    call inquire_obsdiags(miter)
+  endif
 
 ! call inquire_obsdiags(miter)
 
@@ -562,6 +572,9 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !    call mpl_allreduce(npredt,max_tail,rstats_t)
      call mpl_allreduce(npredt,ntail,ostats_t)
      call mpl_allreduce(npredt,ntail,rstats_t)
+  end if
+
+  if (newpc4pred .or. aircraft_t_bc_pof .or. aircraft_t_bc) then
      call reset_predictors_var
   end if
 
@@ -610,8 +623,13 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 
 !    Compute and print statistics for "conventional" data
      call statsconv(mype,&
-          i_ps,i_uv,i_srw,i_t,i_q,i_pw,i_rw,i_dw,i_gps,i_sst,i_tcp,i_lag, &
-          i_gust,i_vis,i_pblh,i_ref,bwork1,awork1,ndata)
+          i_ps,i_uv,i_t,i_q,i_pw,i_rw,i_dw,i_gps,i_sst,i_tcp,i_lag, &
+          i_gust,i_vis,i_pblh,i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, &
+          i_tcamt,i_lcbas,i_cldch,i_uwnd10m,i_vwnd10m,i_swcp,i_lwcp,i_dbz, &
+          size(awork1,2),bwork1,awork1,ndata)
+
+!     Compute and print statistics for "lightning" data
+     if (mype==mype_light) call statslight(mype,i_light,bwork1,awork1,size(awork1,2),ndata)
 
   endif  ! < .not. lobserver >
 
@@ -620,7 +638,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 ! Print Jo table
   nprt=2
   llouter=.true.
-  call evaljo(zjo,iobs,nprt,llouter)
+  if(luse_obsdiag)call evaljo(zjo,iobs,nprt,llouter)
 
 ! If only performing sst retrieval, end program execution
   if(retrieval)then

@@ -42,6 +42,12 @@ module jfunc
 !   2013-05-20  zhu     - add ntclen for aircraft temperature bias correction aircraft_t_bc=.true. 
 !                         or aircraft_t_bc_pof=.true.
 !   2013-10-30  jung    - added logical clip_supersaturation
+!   2013-12-10  zhu     - add variables varcw and cwoption
+!   2014-03-19  pondeca - add factw10m
+!   2014-05-07  pondeca - add facthowv
+!   2014-06-18  carley/zhu - add lcbas and tcamt
+!   2015-07-10  pondeca - add factcldch
+!   2018-05-19  eliu    - add control factors (factql,factqi, ....) for hydrometeors 
 !
 ! Subroutines Included:
 !   sub init_jfunc           - set defaults for cost function variables
@@ -77,7 +83,6 @@ module jfunc
 !   def nvals_len  - number of 2d state-vector variables * subdomain size (with buffer)
 !   def nval_levs  - number of 2d (x/y) control-vector variables
 !   def nval_len   - number of 2d control-vector variables * subdomain size (with buffer)
-!   def l_foto     - option for foto
 !   def print_diag_pcg - option for turning on GMAO diagnostics in pcgsoi
 !   def tsensible  - option to use sensible temperature as the control variable. applicable
 !                    to the 2dvar mode only
@@ -88,6 +93,8 @@ module jfunc
 !   def ntracer    - total number of tracer variables
 !   def nrft       - total number of time tendencies for upper level control variables
 !   def nrft_      - order of time tendencies for 3d control variables
+!   def R_option   - Option to use variable correlation length for lcbas based on data
+!                    density - follows Hayden and Purser (1995) (twodvar_regional only)
 !
 ! attributes:
 !   language: f90
@@ -121,19 +128,20 @@ module jfunc
   public :: set_pointer
   public :: set_sqrt_2dsize
 ! set passed variables to public
-  public :: nrclen,npclen,nsclen,ntclen,qoption,nval_lenz,tendsflag,tsensible
+  public :: nrclen,npclen,nsclen,ntclen,qoption,nval_lenz,tendsflag,tsensible,cwoption,varcw
   public :: switch_on_derivatives,jiterend,jiterstart,jiter,iter,niter,miter
-  public :: diurnalbc,bcoption,biascor,nval2d,dhat_dt,xhat_dt,l_foto,xhatsave,first
+  public :: diurnalbc,bcoption,biascor,nval2d,xhatsave,first
   public :: factqmax,factqmin,clip_supersaturation,last,yhatsave,nvals_len,nval_levs,iout_iter,nclen
+  public :: factql,factqi,factqr,factqs,factqg  
   public :: niter_no_qc,print_diag_pcg,lgschmidt,penorig,gnormorig,iguess
-  public :: factg,factv,factp,diag_precon,step_start
+  public :: factg,factv,factp,factl,R_option,factw10m,facthowv,factcldch,diag_precon,step_start
   public :: pseudo_q2
   public :: varq
 
-  logical first,last,switch_on_derivatives,tendsflag,l_foto,print_diag_pcg,tsensible,lgschmidt,diag_precon
-  logical clip_supersaturation
+  logical first,last,switch_on_derivatives,tendsflag,print_diag_pcg,tsensible,lgschmidt,diag_precon
+  logical clip_supersaturation,R_option
   logical pseudo_q2
-  integer(i_kind) iout_iter,miter,iguess,nclen,qoption
+  integer(i_kind) iout_iter,miter,iguess,nclen,qoption,cwoption
   integer(i_kind) jiter,jiterstart,jiterend,iter
   integer(i_kind) nvals_len,nvals_levs
   integer(i_kind) nval_len,nval_lenz,nval_levs
@@ -141,11 +149,13 @@ module jfunc
   integer(i_kind) nval2d,nclenz
 
   integer(i_kind),dimension(0:50):: niter,niter_no_qc
-  real(r_kind) factqmax,factqmin,gnormorig,penorig,biascor(2),diurnalbc,factg,factv,factp,step_start
+  real(r_kind) factqmax,factqmin,gnormorig,penorig,biascor(2),diurnalbc,factg,factv,factp,factl,&
+               factw10m,facthowv,factcldch,step_start
+  real(r_kind) factql,factqi,factqr,factqs,factqg  
   integer(i_kind) bcoption
   real(r_kind),allocatable,dimension(:,:):: varq
+  real(r_kind),allocatable,dimension(:,:):: varcw
   type(control_vector),save :: xhatsave,yhatsave
-  type(gsi_bundle),save :: xhat_dt,dhat_dt
 
 contains
 
@@ -184,22 +194,32 @@ contains
     last  = .false.
     switch_on_derivatives=.false.
     tendsflag=.false.
-    l_foto=.false.
     print_diag_pcg=.false.
     tsensible=.false.
     lgschmidt=.false.
     diag_precon=.false.
     step_start=1.e-4_r_kind
+    R_option=.false.
 
-    factqmin=one
-    factqmax=one
+    factqmin=zero
+    factqmax=zero
+    factql=zero
+    factqi=zero
+    factqr=zero
+    factqs=zero
+    factqg=zero
     clip_supersaturation=.false.
-    factg=one
-    factv=one
-    factp=one
+    factg=zero
+    factv=zero
+    factp=zero
+    factl=zero
+    factw10m=zero
+    facthowv=zero
+    factcldch=zero
     iout_iter=220
     miter=1
     qoption=1
+    cwoption=0
     pseudo_q2=.false.
     do i=0,50
        niter(i)=0
@@ -210,7 +230,7 @@ contains
     jiter=jiterstart
     biascor(1)=0.98_r_kind ! dump coefficient for background bias correction
     biascor(2)=0.1_r_kind  ! time-scale associated to background bias estimate (cov model)
-    diurnalbc=0            ! 1= diurnal bias; 0= persistent bias
+    diurnalbc=0         ! 1= diurnal bias; 0= persistent bias
     bcoption=0             ! =0:do-nothing; =1:sibc; when <0 will estimate but not correct bkg bias
     nclen=1
     nclenz=1
@@ -259,7 +279,7 @@ contains
 !
 !$$$
     use constants, only: zero
-    use gridmod, only: lat2,lon2,nsig,regional
+    use gridmod, only: nsig,regional
     use m_berror_stats, only: berror_get_dims
     use m_berror_stats_reg, only: berror_get_dims_reg
     implicit none
@@ -291,6 +311,13 @@ contains
        end do
     endif
 
+    allocate(varcw(1:mlat,1:nsig))
+    do k=1,nsig
+       do j=1,mlat
+          varcw(j,k)=zero
+       end do
+    end do
+
     return
   end subroutine create_jfunc
     
@@ -321,6 +348,7 @@ contains
     call deallocate_cv(xhatsave)
     call deallocate_cv(yhatsave)
     if(allocated(varq)) deallocate(varq)
+    if(allocated(varcw)) deallocate(varcw)
 
     return
   end subroutine destroy_jfunc
@@ -339,9 +367,11 @@ contains
 !   2005-05-05  treadon - read guess solution from 4-byte reals
 !   2008-05-12  safford - rm unused uses and vars
 !   2013-10-25  todling - reposition ltosi and others to commvars
+!   2016-05-04  todling - allow for bias component of solution to be taken in
 !
 !   input argument list:
 !     mype   - mpi task id
+!     dirx,diry - dynamic components, e.g. %values(:), must be already allocated
 !
 !   output argument list:
 !     dirx,diry
@@ -360,10 +390,10 @@ contains
     implicit none
 
     integer(i_kind)     ,intent(in   ) :: mype
-    type(control_vector),intent(  out) :: dirx,diry
+    type(control_vector),intent(inout) :: dirx,diry
 
     integer(i_kind) i,k,mm1,myper,kk,i1,i2
-    integer(i_kind) nlatg,nlong,nsigg
+    integer(i_kind) nlatg,nlong,nsigg,nrcleng
     integer(i_kind),dimension(5):: iadateg
     real(r_single),dimension(max(iglobal,itotsub)):: fieldx,fieldy
     real(r_single),dimension(nlat,nlon):: xhatsave_g,yhatsave_g
@@ -380,13 +410,14 @@ contains
     nlatg=0
     nlong=0
     nsigg=0
-    read(12,end=1234)iadateg,nlatg,nlong,nsigg
+    nrcleng=0
+    read(12,end=1234)iadateg,nlatg,nlong,nsigg,nrcleng
     if(iadate(1) == iadateg(1) .and. iadate(2) == iadate(2) .and. &
        iadate(3) == iadateg(3) .and. iadate(4) == iadateg(4) .and. &
        iadate(5) == iadateg(5) .and. nlat == nlatg .and. &
        nlon == nlong .and. nsig == nsigg) then
        if(mype == 0) write(6,*)'READ_GUESS_SOLUTION:  read guess solution for ',&
-                     iadateg,nlatg,nlong,nsigg
+                     iadateg,nlatg,nlong,nsigg,nrcleng
        jiterstart=0
          
 ! Let all tasks read gesfile_in to pick up bias correction (second read)
@@ -409,7 +440,19 @@ contains
        end do  !end do over nval_levs
 
 !      Read radiance and precipitation bias correction terms
-       read(12,end=1236) (xhatsave_r4(i),i=nclen1+1,nclen),(yhatsave_r4(i),i=nclen1+1,nclen)
+       if ( nrcleng==nrclen ) then
+          read(12,end=1236) (xhatsave_r4(i),i=nclen1+1,nclen),(yhatsave_r4(i),i=nclen1+1,nclen)
+       else
+          if(mype == 0) then
+             write(6,*) 'READ_GUESS_SOLUTION:  INCOMPATABLE RADIANCE COMPONENT in GESFILE, gesfile_in'
+             write(6,*) 'READ_GUESS_SOLUTION:  nrclen: input,current=',nrcleng,nrclen
+             write(6,*) 'READ_GUESS_SOLUTION:  ignoring previous radiance guess' 
+          endif
+          do i=nclen1+1,nclen
+             xhatsave_r4(i)=zero
+             yhatsave_r4(i)=zero
+          end do
+       endif
        do i=1,nclen
           dirx%values(i)=real(xhatsave_r4(i),r_kind)
           diry%values(i)=real(yhatsave_r4(i),r_kind)
@@ -498,7 +541,7 @@ contains
 ! Write header record to output file
     if (mype==mypew) then
        open(51,file='gesfile_out',form='unformatted')
-       write(51) iadate,nlat,nlon,nsig
+       write(51) iadate,nlat,nlon,nsig,nrclen
     endif
 
 ! Loop over levels.  Gather guess solution and write to output
@@ -539,7 +582,7 @@ contains
        write(51) (xhatsave4(i),i=1,nrclen),(yhatsave4(i),i=1,nrclen)
        close(51)
        write(6,*)'WRITE_GUESS_SOLUTION:  write guess solution for ',&
-                  iadate,nlat,nlon,nsig
+                  iadate,nlat,nlon,nsig,nrclen
     endif
 
     return
@@ -622,12 +665,12 @@ contains
 !   machine:  ibm rs/6000 sp
 !
 !$$$
-    use gridmod, only: lat1,lon1,latlon11,latlon1n,nsig,lat2,lon2
+    use gridmod, only: latlon11,latlon1n,nsig,lat2,lon2
     use gridmod, only: nnnn1o,regional,nlat,nlon
     use radinfo, only: npred,jpch_rad
     use pcpinfo, only: npredp,npcptype
     use aircraftinfo, only: npredt,ntail,aircraft_t_bc_pof,aircraft_t_bc
-    use state_vectors, only: ns3d,ns2d,levels
+    use state_vectors, only: ns2d,levels
     use constants, only : max_varname_length
     use gsi_4dvar, only: nsubwin, lsqrtb
     use bias_predictors, only: setup_predictors

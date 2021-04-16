@@ -21,6 +21,8 @@
 #  23Feb2014 Todling    - Channel 14 of AMSU-A on Metop-b turned on
 
 #  11Mar2014 McCarty    - remove SSU ch 3 when AMSU-A Ch 14 appears
+#  20Nov2018 McCarty    - Add NOAA-20
+#  12Jan2020 Sienkiewicz - Add MetOp-C AMSU-A
 # NOAA-05 (tn)
 #=============
 # tirosn SSU ch 3 unusable
@@ -145,7 +147,9 @@ n19  20091222 000000  21001231 240000  amsua  1        14               #  ch8 n
 # Aqua AMSU-A
 #=============
 aqua  20021012 000000  20071102 120000  amsua 1        14
-aqua  20071102 180000  21001231 240000  amsua 1        14                          # ch4 noisy; QC affected ; turn off ch1-5
+aqua  20071102 180000  20160923 120000  amsua 1        14               # ch4 noisy; QC affected ; turn off ch1-5
+aqua  20160923 180000  21001231 240000  amsua 0                         # chs1-2 detector failure, cannot QC
+                                                                        #    without development - wm
 
 
 # METOP-A
@@ -157,6 +161,12 @@ metop-a 20090115 120000  21001231 240000  amsua 1      14            # ch7 noisy
 #=========
 metop-b 20130213 000000  21001231 240000  amsua  1     14            # active for e512a_rt - known tech ok to be on
 
+# METOP-C   # using start data of data in regular data files - can modify this to reflect additional data availability
+#=========
+metop-c 20190917 000000  21001231 240000  amsua  1     14            # 
+
 
 # Downgrade & upgrade 14 to iuse=4
 npp  20111116 000000  21001231 240000  atms  1  15
+n20  20111116 000000  21001231 240000  atms  1  15
+

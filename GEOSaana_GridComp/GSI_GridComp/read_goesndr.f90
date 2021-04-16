@@ -1,6 +1,7 @@
 subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
      lunout,obstype,nread,ndata,nodata,twind,gstime,sis,&
-     mype_root,mype_sub,npe_sub,mpi_comm_sub)
+     mype_root,mype_sub,npe_sub,mpi_comm_sub,nobs, &
+     nrec_start,dval_use)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    read_goesndr                   read goes sounder data
@@ -56,6 +57,9 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
 !                           code tests for bmiss==1e9, but a lot of hdr(15) values = 1e11, which
 !                          causes integer overflow with current logic.  Made quick fix, but needs review.
 !   2013-12-30  sienkiewicz - use BUFR library function 'ibfms' to check for missing value of hdr(15)
+!   2015-02-23  Rancic/Thomas - add thin4d to time window logical
+!   2015-10-01  guo     - consolidate use of ob location (in deg)
+!   2018-05-21  j.jin   - added time-thinning. Moved the checking of thin4d into satthin.F90.
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -73,11 +77,13 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
 !     mype_sub - mpi task id within sub-communicator
 !     npe_sub  - number of data read tasks
 !     mpi_comm_sub - sub-communicator for data read
+!     nrec_start - first subset with useful information
 !
 !   output argument list:
 !     nread    - number of BUFR GOES sounder observations read
 !     ndata    - number of BUFR GOES sounder profiles retained for further processing
 !     nodata   - number of BUFR GOES sounder observations retained for further processing
+!     nobs     - array of observations on each subdomain for each processor
 !
 ! attributes:
 !   language: f90
@@ -87,32 +93,37 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
   use kinds, only: r_kind,r_double,i_kind
   use satthin, only: super_val,itxmax,makegrids,map2tgrid,destroygrids, &
       checkob,finalcheck,score_crit
+  use satthin, only: radthin_time_info,tdiff2crit
+  use obsmod,  only: time_window_max
   use obsmod, only: bmiss
   use radinfo, only: cbias,newchn,predx,iuse_rad,jpch_rad,nusis,ang_rad,air_rad,&
-      newpc4pred,nst_gsi,nstinfo
+      newpc4pred
   use gridmod, only: diagnostic_reg,nlat,nlon,regional,tll2xy,txy2ll,rlats,rlons
-  use constants, only: deg2rad,zero,rad2deg, r60inv,one,two,tiny_r_kind
-  use gsi_4dvar, only: l4dvar,time_4dvar,iwinbgn,winlen
+  use constants, only: deg2rad,zero,rad2deg, r60inv,one,two
+  use gsi_4dvar, only: l4dvar,l4densvar,time_4dvar,iwinbgn,winlen
   use deter_sfc_mod, only: deter_sfc
+  use gsi_nstcouplermod, only: nst_gsi,nstinfo
   use gsi_nstcouplermod, only: gsi_nstcoupler_skindepth, gsi_nstcoupler_deter
+  use mpimod, only: npe
+! use radiance_mod, only: rad_obs_type
 
   implicit none
 
 ! Declare passed variables
   character(len=*),intent(in   ) :: infile,obstype,jsatid
   character(len=20),intent(in  ) :: sis
-  integer(i_kind) ,intent(in   ) :: mype,lunout,ithin
+  integer(i_kind) ,intent(in   ) :: mype,lunout,ithin,nrec_start
   integer(i_kind) ,intent(inout) :: ndata,nodata,nread
+  integer(i_kind),dimension(npe) ,intent(inout) :: nobs
   real(r_kind)    ,intent(in   ) :: rmesh,twind,gstime
   real(r_kind)    ,intent(inout) :: val_goes
   integer(i_kind) ,intent(in   ) :: mype_root
   integer(i_kind) ,intent(in   ) :: mype_sub
   integer(i_kind) ,intent(in   ) :: npe_sub
   integer(i_kind) ,intent(in   ) :: mpi_comm_sub
-
+  logical         ,intent(in   ) :: dval_use
 
 ! Declare local parameters
-  integer(i_kind),parameter:: maxinfo=33
   integer(i_kind),parameter:: mfov=25   ! maximum number of fovs (currently 5x5)
 
   real(r_kind),parameter:: r360=360.0_r_kind
@@ -131,7 +142,7 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
 
   integer(i_kind) kx,levs,ldetect
   integer(i_kind) lnbufr,nchanl,nreal,iret,ksatid,lsatid
-  integer(i_kind) idate
+  integer(i_kind) idate,maxinfo
   integer(i_kind) ilat,ilon,isflg,idomsfc
   integer(i_kind) itx,k,i,itt,iskip,l,ifov,n
   integer(i_kind) ichan8,ich8
@@ -141,8 +152,9 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
   integer(i_kind),allocatable,dimension(:)::nrec
   integer(i_kind) ibfms         ! BUFR missing value function
 
-  real(r_kind) dlon,dlat,timedif,emiss,sfcr
+  real(r_kind) dlon,dlat,emiss,sfcr
   real(r_kind) dlon_earth,dlat_earth
+  real(r_kind) dlon_earth_deg,dlat_earth_deg
   real(r_kind) ch8,sstime
   real(r_kind) pred,crit1,tdiff,dist1,toff,t4dv
   real(r_kind) cdist,disterr,disterrmax,dlon00,dlat00,r01
@@ -157,12 +169,14 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
 
   real(r_double),dimension(15):: hdr
   real(r_double),dimension(18):: grad
-
+  real(r_kind)    :: ptime,timeinflat,crit0
+  integer(i_kind) :: ithin_time,n_tbin,it_mesh
 
 
 !**************************************************************************
 
 ! Start routine here.  Set constants.  Initialize variables
+  maxinfo=31
   lnbufr = 10
   disterrmax=zero
   ntest  = 0
@@ -200,8 +214,14 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
   if (.not.assim) val_goes=zero
 
 
+  call radthin_time_info(obstype, jsatid, sis, ptime, ithin_time)
+  if( ptime > 0.0_r_kind) then
+     n_tbin=nint(2*time_window_max/ptime)
+  else
+     n_tbin=1
+  endif
 ! Make thinning grids
-  call makegrids(rmesh,ithin)
+  call makegrids(rmesh,ithin,n_tbin=n_tbin)
  
 !  check to see if prepbufr file
 
@@ -247,6 +267,7 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
   call time_4dvar(idate,toff)
 
 ! Allocate arrays to hold data
+  if(dval_use) maxinfo = maxinfo + 2
   nreal  = maxinfo + nstinfo
   nele   = nreal   + nchanl
   allocate(data_all(nele,itxmax),nrec(itxmax))
@@ -259,9 +280,10 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
 !    Time offset
      if(next == 0)call time_4dvar(idate,toff)
      irec=irec+1
+     if(irec < nrec_start) cycle read_subset
      next=next+1
      if(next == npe_sub)next=0
-     if(next/=mype_sub)cycle
+     if(next/=mype_sub)cycle read_subset
      read_loop: do while (ireadsb(lnbufr)==0)
 
 !       Extract type, date, and location information
@@ -318,7 +340,7 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
         end if
 
 !       If not within analysis window, skip obs
-        if (l4dvar) then
+        if (l4dvar.or.l4densvar) then
            if (t4dv<zero .OR. t4dv>winlen) cycle read_loop
         else
            if (abs(tdiff)>twind) cycle read_loop
@@ -329,6 +351,8 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
         if (hdr(1)==r360) hdr(1)=zero
         if (hdr(1)< zero) hdr(1)=hdr(1)+r360
 
+        dlon_earth_deg = hdr(1)
+        dlat_earth_deg = hdr(2)
         dlon_earth = hdr(1)*deg2rad   !convert degrees to radians
         dlat_earth = hdr(2)*deg2rad 
         if(regional)then
@@ -356,20 +380,12 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
 
 !       Set common predictor parameters
 
-        if (l4dvar) then
-           timedif = zero
-        else
-           timedif = 6.0_r_kind*abs(tdiff)        ! range:  0 to 18
-        endif
-
         nread=nread+nchanl
-
-        crit1=0.01_r_kind+timedif
-        if(ifov < mfov .and. ifov > 0)then
-           crit1=crit1+two*float(mfov-ifov)
-        end if
-
-        call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis)
+        crit0=0.01_r_kind
+        if(ifov < mfov .and. ifov > 0) crit0 = crit0+two*float(mfov-ifov)
+        timeinflat=6.0_r_kind
+        call tdiff2crit(tdiff,ptime,ithin_time,timeinflat,crit0,crit1,it_mesh)
+        call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis,it_mesh=it_mesh)
         if(.not. iuse)cycle read_loop
 
 !       Increment goes sounder data counter
@@ -472,12 +488,14 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
         data_all(27,itx)= idomsfc + 0.001_r_kind       ! dominate surface type
         data_all(28,itx)= sfcr                         ! surface roughness
         data_all(29,itx)= ff10                         ! ten meter wind factor
-        data_all(30,itx)= dlon_earth*rad2deg           ! earth relative longitude (degrees)
-        data_all(31,itx)= dlat_earth*rad2deg           ! earth relative latitude (degrees)
+        data_all(30,itx)= dlon_earth_deg               ! earth relative longitude (degrees)
+        data_all(31,itx)= dlat_earth_deg               ! earth relative latitude (degrees)
 
 
-        data_all(32,itx)= val_goes
-        data_all(33,itx)= itt
+        if(dval_use)then
+          data_all(32,itx)= val_goes
+          data_all(33,itx)= itt
+        end if
 
         if ( nst_gsi > 0 ) then
           data_all(maxinfo+1,itx) = tref         ! foundation temperature
@@ -516,12 +534,16 @@ subroutine read_goesndr(mype,val_goes,ithin,rmesh,jsatid,infile,&
            if(data_all(i+nreal,n) > tbmin .and. &
               data_all(i+nreal,n) < tbmax)nodata=nodata+1
         end do
-        itt=nint(data_all(maxinfo,n))
-        super_val(itt)=super_val(itt)+val_goes
-
      end do
+     if(dval_use .and. assim)then
+        do n=1,ndata
+           itt=nint(data_all(33,n))
+           super_val(itt)=super_val(itt)+val_goes
+        end do
+     end if
 
 !    Write final set of "best" observations to output file
+     call count_obs(ndata,nele,ilat,ilon,data_all,nobs)
      write(lunout) obstype,sis,nreal,nchanl,ilat,ilon
      write(lunout) ((data_all(k,n),k=1,nele),n=1,ndata)
   

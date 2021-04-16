@@ -14,6 +14,12 @@ module intallmod
 !   2009-08-13  lueken - update documentation
 !   2012-02-08  kleist - changes related to 4d-ensemble-var additions and consolidation of 
 !                   int... individual modules to one intjcmod
+!   2015-09-03  guo     - obsmod::yobs has been replaced with m_obsHeadBundle,
+!                         where yobs is created and destroyed when and where it
+!                         is needed.
+!   2018-08-10  guo     - removed obsHeadBundle references.
+!                       - replaced intjo() related implementations with a new
+!                         polymorphic implementation of intjomod::intjo().
 !
 ! subroutines included:
 !   sub intall
@@ -145,6 +151,11 @@ subroutine intall(sval,sbias,rval,rbias)
 !   2007-04-13  tremolet - split Jo and 3dvar components into intjo and int3dvar
 !   2007-10-01  todling  - add timers
 !   2011-10-20  todling  - observation operators refer to state- not control-vec (cvars->svars)
+!   2014-03-19  pondeca -  Add RHS calculation for wspd10m constraint
+!   2014-05-07  pondeca -  Add RHS calculation for howv constraint
+!   2014-06-17  carley/zhu  - Add RHS calculation for lcbas constraint
+!   2015-07-10  pondeca - Add RHS calculation for cldch constraint
+!   2019-03-13  eliu    - add precipitation component
 !
 !   input argument list:
 !     sval     - solution on grid
@@ -165,23 +176,24 @@ subroutine intall(sval,sbias,rval,rbias)
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-  use kinds, only: i_kind
+  use kinds, only: i_kind,r_quad
   use gsi_4dvar, only: nobs_bins,ltlint,ibin_anl
-  use constants, only: zero
-  use jcmod, only: ljcpdry,ljc4tlevs,ljcdfi
-  use jfunc, only: l_foto,dhat_dt
-  use obsmod, only: yobs
+  use constants, only: zero,zero_quad
+  use jcmod, only: ljcpdry,ljc4tlevs,ljcdfi,ljclimqc 
+  use jfunc, only: nrclen,nsclen,npclen,ntclen
   use intjomod, only: intjo
   use bias_predictors, only : predictors,assignment(=)
   use state_vectors, only: allocate_state,deallocate_state
-  use intjcmod, only: intlimq,intlimg,intlimv,intlimp,&
-      intjcpdry,intjcdfi
+  use intjcmod, only: intlimq,intlimg,intlimv,intlimp,intlimw10m,intlimhowv,intlimcldch,&
+      intliml,intjcpdry1,intjcpdry2,intjcdfi,intlimqc  
   use timermod, only: timer_ini,timer_fnl
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: assignment(=)
-  use state_vectors, only: svars2d
+  use state_vectors, only: svars2d, svars3d  
   use mpeu_util, only: getindex
   use guess_grids, only: ntguessig,nfldsig
+  use mpl_allreducemod, only: mpl_allreduce
+
   implicit none
 
 ! Declare passed variables
@@ -189,31 +201,26 @@ subroutine intall(sval,sbias,rval,rbias)
   type(predictors), intent(in   ) :: sbias
   type(gsi_bundle), intent(inout) :: rval(nobs_bins)
   type(predictors), intent(inout) :: rbias
+  real(r_quad),dimension(max(1,nrclen)) :: qpred
+  real(r_quad),dimension(2*nobs_bins) :: mass
 
 ! Declare local variables
-  integer(i_kind) :: ibin,ii,it
+  integer(i_kind) :: ibin,ii,it,i
 
 !******************************************************************************
 ! Initialize timer
   call timer_ini('intall')
 
 ! Zero gradient arrays
-  if (l_foto) then
-     call allocate_state(dhat_dt)
-     dhat_dt=zero
-  endif
 
   do ii=1,nobs_bins
      rval(ii)=zero
   enddo
-  rbias=zero
 
-! Compute RHS in physical space
+  qpred=zero_quad
 
-! RHS for Jo
-  do ibin=1,nobs_bins
-     call intjo(yobs(ibin),rval(ibin),rbias,sval(ibin),sbias,ibin)
-  end do
+! Compute RHS in physical space (rval,qpred)
+  call intjo(rval,qpred,sval,sbias)
 
   if(.not.ltlint)then
 ! RHS for moisture constraint
@@ -229,7 +236,28 @@ subroutine intall(sval,sbias,rval,rbias)
            call intlimq(rval(ibin),sval(ibin),it)
         end do
      end if
-
+     if (ljclimqc) then
+        if (.not.ljc4tlevs) then
+           if (getindex(svars3d,'ql')>0) call intlimqc(rval(ibin_anl),sval(ibin_anl),ntguessig,'ql')
+           if (getindex(svars3d,'qi')>0) call intlimqc(rval(ibin_anl),sval(ibin_anl),ntguessig,'qi')
+           if (getindex(svars3d,'qr')>0) call intlimqc(rval(ibin_anl),sval(ibin_anl),ntguessig,'qr')
+           if (getindex(svars3d,'qs')>0) call intlimqc(rval(ibin_anl),sval(ibin_anl),ntguessig,'qs')
+           if (getindex(svars3d,'qg')>0) call intlimqc(rval(ibin_anl),sval(ibin_anl),ntguessig,'qg')
+        else
+           do ibin=1,nobs_bins
+              if (nobs_bins /= nfldsig) then
+                 it=ntguessig
+              else
+                 it=ibin
+              end if
+              if (getindex(svars3d,'ql')>0) call intlimqc(rval(ibin),sval(ibin),it,'ql')
+              if (getindex(svars3d,'qi')>0) call intlimqc(rval(ibin),sval(ibin),it,'qi')
+              if (getindex(svars3d,'qr')>0) call intlimqc(rval(ibin),sval(ibin),it,'qr')
+              if (getindex(svars3d,'qs')>0) call intlimqc(rval(ibin),sval(ibin),it,'qs')
+              if (getindex(svars3d,'qg')>0) call intlimqc(rval(ibin),sval(ibin),it,'qg')
+           end do
+        end if
+     end if  ! ljclimqc
 ! RHS for gust constraint
      if (getindex(svars2d,'gust')>0)call intlimg(rval(1),sval(1))
 
@@ -238,29 +266,69 @@ subroutine intall(sval,sbias,rval,rbias)
 
 ! RHS for pblh constraint
      if (getindex(svars2d,'pblh')>0) call intlimp(rval(1),sval(1))
+
+! RHS for wspd10m constraint
+     if (getindex(svars2d,'wspd10m')>0) call intlimw10m(rval(1),sval(1))
+
+! RHS for howv constraint
+     if (getindex(svars2d,'howv')>0) call intlimhowv(rval(1),sval(1))
+
+! RHS for lcbas constraint
+     if (getindex(svars2d,'lcbas')>0) call intliml(rval(1),sval(1))
+
+! RHS for cldch constraint
+     if (getindex(svars2d,'cldch')>0) call intlimcldch(rval(1),sval(1))
+
   end if
 
-! RHS for dry ps constraint
+! RHS for dry ps constraint: part 1
+  if(ljcpdry)then
+
+    if (.not.ljc4tlevs) then
+      call intjcpdry1(sval(ibin_anl),1,mass)
+    else 
+      call intjcpdry1(sval,nobs_bins,mass)
+    end if
+
+!   Put reduces together to minimize wait time
+!   First, use MPI to get global mean increment
+    call mpl_allreduce(2*nobs_bins,qpvals=mass)
+
+  end if
+
+! Take care of background error for bias correction terms
+
+  call mpl_allreduce(nrclen,qpvals=qpred)
+
+
+! RHS for dry ps constraint: part 2
   if(ljcpdry)then
     if (.not.ljc4tlevs) then
-      call intjcpdry(rval(ibin_anl),sval(ibin_anl))
+      call intjcpdry2(rval(ibin_anl),1,mass)
     else 
-      do ibin=1,nobs_bins
-         call intjcpdry(rval(ibin),sval(ibin))
-      end do
+      call intjcpdry2(rval,nobs_bins,mass)
     end if
   end if
 
 ! RHS for Jc DFI
   if (ljcdfi .and. nobs_bins>1) call intjcdfi(rval,sval)
 
-  if(l_foto) then
-!    RHS calculation for Jc and other 3D-Var terms
-     call int3dvar(rval(1),dhat_dt)
-
-! Release local memory
-     call deallocate_state(dhat_dt)
-   end if
+  if(nsclen > 0)then
+     do i=1,nsclen
+        rbias%predr(i)=qpred(i)
+     end do
+  end if
+  if(npclen > 0)then
+     
+     do i=1,npclen
+        rbias%predp(i)=qpred(nsclen+i)
+     end do
+  end if
+  if (ntclen>0) then
+     do i=1,ntclen
+        rbias%predt(i)=qpred(nsclen+npclen+i)
+     end do
+  end if
 
 ! Finalize timer
   call timer_fnl('intall')

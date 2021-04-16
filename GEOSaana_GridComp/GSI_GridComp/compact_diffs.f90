@@ -16,6 +16,8 @@ module compact_diffs
 !			  cdiff_initialized().
 !   2013-12-18  parrish - add factor of 2 to pole values to correct error in
 !                           compact_dlon, compact_dlat, tcompact_dlon, tcompact_dlat
+!   2014-12-03  derber  - modify stvp2uv and tstvp2uv to reduce unnecessary data
+!                         motion
 !
 ! subroutines included:
 !   sub init_compact_diffs  - initialize parameters used by compact diffs
@@ -91,6 +93,7 @@ module compact_diffs
   public :: tcompact_dlat
 ! set passed variables to public
   public :: coef,noq
+  public :: lbcox1,lacox1,lbcox2,lacoy1,lacox2,lbcoy1,lcy,lacoy2,lbcoy2
 
   public:: cdiff_created
   public:: cdiff_initialized
@@ -98,6 +101,8 @@ module compact_diffs
   integer(i_kind),save :: noq
   logical,save :: initialized_=.false.
   real(r_kind),allocatable,dimension(:):: coef
+  integer(i_kind) nxh,nbp,nya,nxa,lbcox1,lacox1,lbcox2
+  integer(i_kind) lacoy1,lacox2,lbcoy1,lcy,lacoy2,lbcoy2
 
   logical,save :: inisphed_=.false.
   integer,save :: nlon_alloced_=-1
@@ -218,7 +223,7 @@ contains
   end subroutine destroy_cdiff_coefs
 
 
-  subroutine stvp2uv(work1,work2)
+  subroutine stvp2uv(work,idim)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    stvp2uv compute uv from streamfunction/velocity potential
@@ -234,14 +239,17 @@ contains
 !   2004-07-27  treadon - add only on use declarations; add intent in/out
 !   2004-10-26  kleist - fix sign error
 !   2009-04-19  derber - modified interface
+!   2014-12-03  derber  - modify stvp2uv and tstvp2uv to reduce unnecessary data
+!                         motion
 !
 !   input argument list:
-!     work1  - array containing the streamfunction 
-!     work2  - array containing the velocity potential 
+!     work(1,*  - array containing the streamfunction 
+!     work(2,*  - array containing the velocity potential 
+!     idim      - initial dimension of work array
 !
 !   output argument list:
-!     work1  - array containing the u velocity 
-!     work2  - array containing the v velocity 
+!     work(1,*  - array containing the u velocity 
+!     work(2,*  - array containing the v velocity 
 !
 ! attributes:
 !   language: f90
@@ -253,47 +261,41 @@ contains
   implicit none
 
 ! Declare passed variables
-  real(r_kind),dimension(nlat,nlon),intent(inout) :: work1,work2
+  integer(i_kind),intent(in) :: idim
+  real(r_kind),dimension(idim,nlat,nlon),intent(inout) :: work
 
 ! Declare local variables  
-  integer(i_kind) lbcoy2,lcy,lbcoy1,lacoy1,lacoy2,ix,iy,nbp,nya
-  integer(i_kind) nxh,nxa,lacox2,lbcox2,lacox1,lbcox1,ny,i,j
+  integer(i_kind) ix,iy
+  integer(i_kind) ny,i,j
   real(r_kind) polsu,polnu,polnv,polsv
   real(r_kind),dimension(nlon):: grid3n,grid3s,grid1n,grid1s
   real(r_kind),dimension(nlat-2,nlon):: a,b,grid1,grid2,grid3,grid4
 
+  if(idim <=1) write(6,*) ' error in call to stvp2uv ',idim
+  if(.not.inisphed_) call die('stvp2uv','coef not computed')
   ny=nlat-2
-  nxh=nlon/2
-  nbp=2*noq+1
-  nya=ny*nbp
-  nxa=nxh*nbp
 
-  lacox1=1
-  lbcox1=lacox1+nxa
-  lacox2=lbcox1+nxa
-  lbcox2=lacox2+nxa
-  lacoy1=lbcox2+nxa
-  lbcoy1=lacoy1+nya
-  lacoy2=lbcoy1+nya
-  lbcoy2=lacoy2+nya
-  lcy   =lbcoy2+nya-1
-  
   do j=1,nlon
      do i=2,nlat-1
-        a(i-1,j)=work1(i,j)
-        b(i-1,j)=work2(i,j)
+        a(i-1,j)=work(1,i,j)
+        b(i-1,j)=work(2,i,j)
      end do
   end do
   
+!$omp parallel sections
+!$omp section
   call xdcirdp(a,grid1,coef(lacox1),coef(lbcox1),coef(lacox2),coef(lbcox2),&
-       nlon,ny,noq,nxh)
+       nlon,ny,noq)
+!$omp section
   call xdcirdp(b,grid3,coef(lacox1),coef(lbcox1),coef(lacox2),coef(lbcox2),&
-       nlon,ny,noq,nxh)
-  
+       nlon,ny,noq)
+!$omp section
   call ydsphdp(a,grid2,coef(lacoy1),coef(lbcoy1),coef(lacoy2),coef(lbcoy2),&
        nlon,ny,noq)
+!$omp section
   call ydsphdp(b,grid4,coef(lacoy1),coef(lbcoy1),coef(lacoy2),coef(lbcoy2),&
        nlon,ny,noq)
+!$omp end parallel sections
 
 !  make corrections for convergence of meridians:
   do ix=1,nlon
@@ -322,18 +324,18 @@ contains
      grid3s(ix)= polsu*coslon(ix)+polsv*sinlon(ix)
      grid1s(ix)= polsu*sinlon(ix)-polsv*coslon(ix)
   end do
-! work 1 is u, work2 is v
+! work(1 is u, work(2 is v
   do j=1,nlon
      do i=1,nlat
         if(i /= 1 .and. i /= nlat)then
-           work1(i,j)=grid3(i-1,j)
-           work2(i,j)=grid1(i-1,j)
+           work(1,i,j)=grid3(i-1,j)
+           work(2,i,j)=grid1(i-1,j)
         else if(i == 1)then
-           work1(i,j)=grid3s(j)
-           work2(i,j)=grid1s(j)
+           work(1,i,j)=grid3s(j)
+           work(2,i,j)=grid1s(j)
         else
-           work1(i,j)=grid3n(j)
-           work2(i,j)=grid1n(j)
+           work(1,i,j)=grid3n(j)
+           work(2,i,j)=grid1n(j)
         end if
      end do
   enddo
@@ -379,27 +381,14 @@ contains
   real(r_kind),dimension(nlat,nlon),intent(inout) :: work1,work2
 
 ! Declare local variables  
-  integer(i_kind) i,j,lacox1,nxa,lacox2,lbcox1,nxh,ny,nya
-  integer(i_kind) nbp,lcy,lbcoy2,iy,ix,lacoy1,lbcox2,lacoy2,lbcoy1
+  integer(i_kind) i,j,ny
+  integer(i_kind) iy,ix
   real(r_kind) rnlon,div_n,div_s,vor_n,vor_s
   real(r_kind),dimension(nlat-2,nlon):: u,v,&
        grid_div,grid_vor,du_dlat,du_dlon,dv_dlat,dv_dlon
 
+  if(.not.inisphed_) call die('uv2vordiv','coef not computed')
   ny=nlat-2
-  nxh=nlon/2
-  nbp=2*noq+1
-  nya=ny*nbp
-  nxa=nxh*nbp
-
-  lacox1=1
-  lbcox1=lacox1+nxa
-  lacox2=lbcox1+nxa
-  lbcox2=lacox2+nxa
-  lacoy1=lbcox2+nxa
-  lbcoy1=lacoy1+nya
-  lacoy2=lbcoy1+nya
-  lbcoy2=lacoy2+nya
-  lcy   =lbcoy2+nya-1
 
   do ix=1,nlon
      do iy=1,ny
@@ -425,11 +414,11 @@ contains
 
 ! Compute x derivative of u:  du_dlon = du/dlon
   call xdcirdp(u,du_dlon,coef(lacox1),coef(lbcox1),coef(lacox2),coef(lbcox2),&
-       nlon,ny,noq,nxh)
+       nlon,ny,noq)
 
 ! Compute x derivative of v:  dv_dlon = dv/dlon
   call xdcirdp(v,dv_dlon,coef(lacox1),coef(lbcox1),coef(lacox2),coef(lbcox2),&
-       nlon,ny,noq,nxh)
+       nlon,ny,noq)
 
 ! Multiply u and v by cos(lat).  Note:  coef(lcy+iy) contains 1/cos(lat)
   do ix=1,nlon
@@ -496,7 +485,7 @@ contains
 end subroutine uv2vordiv
 
 
-  subroutine xdcirdp(p,q,aco1,bco1,aco2,bco2,nx,ny,noq,nxh)
+  subroutine xdcirdp(p,q,aco1,bco1,aco2,bco2,nx,ny,noq)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    xdcirdp               compute x derivatives on sphere 
@@ -521,7 +510,6 @@ end subroutine uv2vordiv
 !     nx     - number of points in a cyclic-row (x-direction) 	
 !     ny     - number of parallel rows				
 !     noq    - quarter of the order of differencing (1 implies 4th-order)
-!     nxh    - one half of nx				       
 !
 !   output argument list:
 !     q      - array of derivatives are added		   	       
@@ -533,7 +521,7 @@ end subroutine uv2vordiv
   implicit none
 
 ! Declare passed variables
-  integer(i_kind)                     ,intent(in   ) :: nx,ny,noq,nxh
+  integer(i_kind)                     ,intent(in   ) :: nx,ny,noq
   real(r_kind),dimension(ny,nx)       ,intent(in   ) :: p
   real(r_kind),dimension(nxh,-noq:noq),intent(in   ) :: aco1,bco1,aco2,bco2
   real(r_kind),dimension(ny,nx)       ,intent(  out) :: q
@@ -542,6 +530,7 @@ end subroutine uv2vordiv
   integer(i_kind) nxhp,ix,iy,nxp,ix1,ix2
   real(r_kind),dimension(ny,nx):: v1,v2
 
+  if(.not.inisphed_) call die('xdcirdp','coef not computed')
   nxhp=nxh+1
   nxp=nx+1
 
@@ -705,7 +694,7 @@ end subroutine uv2vordiv
   end subroutine xbacbv
 
 
-  subroutine tstvp2uv(work1,work2)
+  subroutine tstvp2uv(work,idim)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    tstvp2uv                           adjoint of stvp2uv
@@ -723,14 +712,17 @@ end subroutine uv2vordiv
 !   2004-10-26  kleist - fix sign error
 !   2008-06-05  safford - rm unused vars
 !   2009-04-19  derber modified interface
+!   2014-12-03  derber  - modify stvp2uv and tstvp2uv to reduce unnecessary data
+!                         motion
 !
 !   input argument list:
-!     work1  - array containing the adjoint u velocity 
-!     work2  - array containing the adjoint v velocity
+!     work(1,*  - array containing the adjoint u velocity 
+!     work(2,*  - array containing the adjoint v velocity
+!     idim      - initial dimension of work array
 !
 !   output argument list:
-!     work1  - array containing the adjoint streamfunction 
-!     work2  - array containing the adjoint velocity potential 
+!     work(1,*  - array containing the adjoint streamfunction 
+!     work(2,*  - array containing the adjoint velocity potential 
 !
 ! attributes:
 !   language: f90
@@ -741,43 +733,32 @@ end subroutine uv2vordiv
   implicit none
 
 ! Declare passed scalars, arrays
-  real(r_kind),dimension(nlat,nlon),intent(inout) :: work1,work2
+  integer(i_kind),intent(in) :: idim
+  real(r_kind),dimension(idim,nlat,nlon),intent(inout) :: work
 
 ! Declare local scalars,arrays
-  integer(i_kind) ny,nxh,nbp,nya,nxa,lacox1,lbcox1,lacox2,lbcox2,lacoy1,lbcoy1
-  integer(i_kind) lacoy2,lbcoy2,lcy,iy,ix,i,j
+  integer(i_kind) ny
+  integer(i_kind) iy,ix,i,j
   real(r_kind) polsu,polsv,polnu,polnv
   real(r_kind),dimension(nlon):: grid3n,grid3s,grid1n,grid1s
-  real(r_kind),dimension(nlat-2,nlon):: a,b,grid2,grid3,grid1,grid4
+  real(r_kind),dimension(nlat-2,nlon):: a,b,c,d,grid2,grid3,grid1,grid4
 
 
+  if(idim <=1) write(6,*) ' error in call to tstvp2uv ',idim
+  if(.not.inisphed_) call die('tstvp2uv','coef not computed')
   ny=nlat-2
-  nxh=nlon/2
-  nbp=2*noq+1
-  nya=ny*nbp
-  nxa=nxh*nbp
-  
-  lacox1=1
-  lbcox1=lacox1+nxa
-  lacox2=lbcox1+nxa
-  lbcox2=lacox2+nxa
-  lacoy1=lbcox2+nxa
-  lbcoy1=lacoy1+nya
-  lacoy2=lbcoy1+nya
-  lbcoy2=lacoy2+nya
-  lcy   =lbcoy2+nya-1
   
   do j=1,nlon
      do i=1,nlat
         if(i /= 1 .and. i /= nlat)then
-           grid3(i-1,j)=work1(i,j)
-           grid1(i-1,j)=work2(i,j)
+           grid3(i-1,j)=work(1,i,j)
+           grid1(i-1,j)=work(2,i,j)
         else if(i == 1)then
-           grid3s(j)=work1(i,j)
-           grid1s(j)=work2(i,j)
+           grid3s(j)=work(1,i,j)
+           grid1s(j)=work(2,i,j)
         else
-           grid3n(j)=work1(i,j)
-           grid1n(j)=work2(i,j)
+           grid3n(j)=work(1,i,j)
+           grid1n(j)=work(2,i,j)
         end if
      end do
   end do
@@ -815,31 +796,33 @@ end subroutine uv2vordiv
      end do
   end do
 
+!$omp parallel sections
+!$omp section
   call xdcirdp(grid3,b, &
        coef(lacox1),coef(lbcox1),coef(lacox2),coef(lbcox2), &
-       nlon,ny,noq,nxh)
-
+       nlon,ny,noq)
+!$omp section
+  call tydsphdp(c,grid4, &
+       coef(lacoy1),coef(lbcoy1),coef(lacoy2),coef(lbcoy2), &
+       nlon,ny,noq)
+!$omp section
   call xdcirdp(grid1,a, &
        coef(lacox1),coef(lbcox1),coef(lacox2),coef(lbcox2), &
-       nlon,ny,noq,nxh)
-
-  call tydsphdp(a,grid2, &
+       nlon,ny,noq)
+!$omp section
+  call tydsphdp(d,grid2, &
        coef(lacoy1),coef(lbcoy1),coef(lacoy2),coef(lbcoy2), &
        nlon,ny,noq)
-
-  call tydsphdp(b,grid4, &
-       coef(lacoy1),coef(lbcoy1),coef(lacoy2),coef(lbcoy2), &
-       nlon,ny,noq)
-
+!$omp end parallel sections
   do j=1,nlon
      do i=1,nlat
         if(i /= 1 .and. i /= nlat)then
 !          NOTE:  Adjoint of first derivative is its negative
-           work1(i,j)=-a(i-1,j)
-           work2(i,j)=-b(i-1,j)
+           work(1,i,j)=-(a(i-1,j)+d(i-1,j))
+           work(2,i,j)=-(b(i-1,j)+c(i-1,j))
         else
-           work1(i,j)=zero
-           work2(i,j)=zero
+           work(1,i,j)=zero
+           work(2,i,j)=zero
         end if
      end do
   end do
@@ -890,10 +873,10 @@ end subroutine uv2vordiv
   real(r_kind),dimension(ny,nx)      ,intent(  out) :: q
 
 ! Declare local variables
-  integer(i_kind) nxh,nxhp,ix,iy,ix1
+  integer(i_kind) nxhp,ix,iy,ix1
   real(r_kind),dimension(ny,nx):: v1,v2
 
-  nxh=nx/2
+  if(.not.inisphed_) call die('ydsphdp','coef not computed')
   nxhp=nxh+1
 
 !  treat odd-symmetry component of input:
@@ -1105,10 +1088,10 @@ end subroutine uv2vordiv
   real(r_kind),dimension(ny,nx)      ,intent(  out) :: p
 
 ! Declare local variables
-  integer(i_kind) nxh,nxhp,ix,iy,ix1
+  integer(i_kind) nxhp,ix,iy,ix1
   real(r_kind),dimension(ny,nx):: v1,v2
 
-  nxh=nx/2
+  if(.not.inisphed_) call die('tydsphdp','coef not computed')
   nxhp=nxh+1
   do ix=1,nxh
      ix1=nxh+ix
@@ -1126,8 +1109,8 @@ end subroutine uv2vordiv
   do ix=1,nxh
      ix1=nxh+ix
      do iy=1,ny
-        p(iy,ix )=p(iy,ix )-v1(iy,ix)-v2(iy,ix1)
-        p(iy,ix1)=p(iy,ix1)-v1(iy,ix)+v2(iy,ix1)
+        p(iy,ix )=-(v1(iy,ix)+v2(iy,ix1))
+        p(iy,ix1)= -v1(iy,ix)+v2(iy,ix1)
      enddo
   enddo
   
@@ -1327,17 +1310,16 @@ end subroutine uv2vordiv
   real(r_kind),dimension(nlat-1),intent(in   ) :: tau,yor
   
 ! Declare local variables
-  integer(i_kind) nxh,nbp,nya,nxa,lbcox1,lacox1,ltaui,lbcox2
-  integer(i_kind) lacoy1,lacox2,lbcoy1,lcy,lacoy2,lbcoy2,i,ix,ltau,iy
+  integer(i_kind) i,ix,iy,ltau,ltaui
   real(r_kind) pih,pi2onx,ri
   real(r_kind),dimension(max(nx/2,ny+2)+16+52*(noq+5)+32*(noq+5)**2):: w
 
   character(len=*),parameter :: myname_='compact_diffs.inisph'
 
   if(.not.initialized_) call die(myname_,'coef not created')
-  if( nlon_alloced_ /= nx		.or. &
-      nlat_alloced_ /= ny+2	.or. &
-      noq_alloced_  /= noq	) then
+  if( nlon_alloced_ /= nx       .or. &
+      nlat_alloced_ /= ny+2     .or. &
+      noq_alloced_  /= noq    ) then
     call perr(myname_,'mismatching dimensions')
     call perr(myname_,'nlon_alloced_ =',nlon_alloced_)
     call perr(myname_,'nlon(nx) =',nx)
@@ -1962,8 +1944,8 @@ end subroutine uv2vordiv
 
   real(r_kind),dimension(nlat,nlon),intent(  out) :: dbdx
 
-  integer(i_kind) ny,nxh,nbp,nya,nxa,lacox1,lbcox1,lacox2,lbcox2,lacoy1,lbcoy1
-  integer(i_kind) lbcoy2,lacoy2,iy,ix,i,j,lcy
+  integer(i_kind) ny
+  integer(i_kind) iy,ix,i,j
   real(r_kind),dimension(nlat-2,nlon):: work3,grid3
   real(r_kind),dimension(nlon):: grid3n,grid3s
   real(r_kind) polnu,polnv,polsu,polsv
@@ -1972,21 +1954,7 @@ end subroutine uv2vordiv
 
 ! Set parameters for calls to subsequent routines
   ny=nlat-2
-  nxh=nlon/2
-  nbp=2*noq+1
-  nya=ny*nbp
-  nxa=nxh*nbp
   
-  lacox1=1
-  lbcox1=lacox1+nxa
-  lacox2=lbcox1+nxa
-  lbcox2=lacox2+nxa
-  lacoy1=lbcox2+nxa
-  lbcoy1=lacoy1+nya
-  lacoy2=lbcoy1+nya
-  lbcoy2=lacoy2+nya
-  lcy   =lbcoy2+nya-1
-
 
 ! Initialize output arrays to zero
   do j=1,nlon
@@ -2008,7 +1976,7 @@ end subroutine uv2vordiv
 ! Compute x (east-west) derivatives on sphere
   call xdcirdp(work3,grid3, &
        coef(lacox1),coef(lbcox1),coef(lacox2),coef(lbcox2),&
-       nlon,ny,noq,nxh)
+       nlon,ny,noq)
 
 ! Make corrections for convergence of meridians:
   do ix=1,nlon
@@ -2092,30 +2060,17 @@ end subroutine uv2vordiv
   real(r_kind),dimension(nlat,nlon),intent(in   ) :: dbdx
   logical                          ,intent(in   ) :: vector
 
-  integer(i_kind) ny,nxh,nbp,nya,nxa,lacox1,lbcox1,lacox2,lbcox2,lacoy1,lbcoy1
-  integer(i_kind) lbcoy2,lacoy2,iy,ix,i,j,lcy
+  integer(i_kind) ny
+  integer(i_kind) iy,ix,i,j
   real(r_kind),dimension(nlat-2,nlon):: work3,grid3
   real(r_kind),dimension(nlon):: grid3n,grid3s
   real(r_kind) polnu,polnv,polsu,polsv
 
 
+  if(.not.inisphed_) call die('tcompact_dlon','coef not computed')
 ! Set parameters for calls to subsequent routines
   ny=nlat-2
-  nxh=nlon/2
-  nbp=2*noq+1
-  nya=ny*nbp
-  nxa=nxh*nbp
   
-  lacox1=1
-  lbcox1=lacox1+nxa
-  lacox2=lbcox1+nxa
-  lbcox2=lacox2+nxa
-  lacoy1=lbcox2+nxa
-  lbcoy1=lacoy1+nya
-  lacoy2=lbcoy1+nya
-  lbcoy2=lacoy2+nya
-  lcy   =lbcoy2+nya-1
-
   do j=1,nlon
      grid3s(j)=dbdx(1,j)
      grid3n(j)=dbdx(nlat,j)
@@ -2159,7 +2114,7 @@ end subroutine uv2vordiv
 ! adjoint of X (east-west) derivatives on sphere
   call xdcirdp(grid3,work3, &
        coef(lacox1),coef(lbcox1),coef(lacox2),coef(lbcox2),&
-       nlon,ny,noq,nxh)
+       nlon,ny,noq)
 
 ! Transfer scalar input field to work array.
 ! Zero other work arrays.
@@ -2212,8 +2167,8 @@ end subroutine uv2vordiv
 
   real(r_kind),dimension(nlat,nlon),intent(  out) :: dbdy
 
-  integer(i_kind) ny,nxh,nbp,nya,nxa,lacox1,lbcox1,lacox2,lbcox2,lacoy1,lbcoy1
-  integer(i_kind) lbcoy2,lacoy2,iy,ix,i,j,lcy
+  integer(i_kind) ny
+  integer(i_kind) iy,ix,i,j
   real(r_kind),dimension(nlat-2,nlon):: work2,grid4
   real(r_kind),dimension(nlon)::grid4n,grid4s
   real(r_kind) polnu,polnv,polsu,polsv
@@ -2222,22 +2177,7 @@ end subroutine uv2vordiv
 
 ! Set parameters for calls to subsequent routines
   ny=nlat-2
-  nxh=nlon/2
-  nbp=2*noq+1
-  nya=ny*nbp
-  nxa=nxh*nbp
   
-  lacox1=1
-  lbcox1=lacox1+nxa
-  lacox2=lbcox1+nxa
-  lbcox2=lacox2+nxa
-  lacoy1=lbcox2+nxa
-  lbcoy1=lacoy1+nya
-  lacoy2=lbcoy1+nya
-  lbcoy2=lacoy2+nya
-  lcy   =lbcoy2+nya-1
-
-
 ! Initialize output arrays to zero
   do j=1,nlon
      do i=1,nlat
@@ -2350,30 +2290,17 @@ end subroutine uv2vordiv
   real(r_kind),dimension(nlat,nlon),intent(in   ) :: dbdy
   logical                          ,intent(in   ) :: vector
 
-  integer(i_kind) ny,nxh,nbp,nya,nxa,lacox1,lbcox1,lacox2,lbcox2,lacoy1,lbcoy1
-  integer(i_kind) lbcoy2,lacoy2,iy,ix,i,j,lcy
+  integer(i_kind) ny
+  integer(i_kind) iy,ix,i,j
   real(r_kind),dimension(nlat-2,nlon):: work2,grid4
   real(r_kind),dimension(nlon)::grid4n,grid4s
   real(r_kind) polnu,polnv,polsu,polsv
 
 
+  if(.not.inisphed_) call die('tcompact_dlat','coef not computed')
 ! Set parameters for calls to subsequent routines
   ny=nlat-2
-  nxh=nlon/2
-  nbp=2*noq+1
-  nya=ny*nbp
-  nxa=nxh*nbp
   
-  lacox1=1
-  lbcox1=lacox1+nxa
-  lacox2=lbcox1+nxa
-  lbcox2=lacox2+nxa
-  lacoy1=lbcox2+nxa
-  lbcoy1=lacoy1+nya
-  lacoy2=lbcoy1+nya
-  lbcoy2=lacoy2+nya
-  lcy   =lbcoy2+nya-1
-
   do j=1,nlon
      grid4s(j)=dbdy(1,j)
      grid4n(j)=dbdy(nlat,j)
@@ -2414,7 +2341,6 @@ end subroutine uv2vordiv
   end if
 
 ! adjoint of y derivative on sphere
-  work2=zero
   call tydsphdp(work2,grid4, &
        coef(lacoy1),coef(lbcoy1),coef(lacoy2),coef(lbcoy2),&
        nlon,ny,noq)

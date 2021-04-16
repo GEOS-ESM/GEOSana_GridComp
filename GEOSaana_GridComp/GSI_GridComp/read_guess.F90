@@ -69,6 +69,10 @@ subroutine read_guess(iyear,month,idd,mype)
 !   2014-10-05  todling - background biases now held in bundle
 !                       - redefined meanning of bcoption
 !                       - renamed bkg-bias interface for clarity
+!   2015-01-14  Hu      - add function gsd_gen_coast_prox to calculate coast
+!                         proximity over full domain instead of subdomain
+!   2016-03-02  s.liu/carley - remove use_reflectivity and use i_gsdcldanal_type 
+!   2017-10-10  Wu W    - add code for FV3 netcdf guess input 
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -84,12 +88,14 @@ subroutine read_guess(iyear,month,idd,mype)
   use kinds, only: r_kind,i_kind
   use jfunc, only: bcoption,clip_supersaturation
   use guess_grids, only:  nfldsig,ges_tsen,load_prsges,load_geop_hgt,ges_prsl
+  use guess_grids, only:  geop_hgti,ges_geopi
   use m_gsiBiases,only : bkg_bias_correction,nbc
   use m_gsiBiases, only: gsi_bkgbias_bundle
-  use gsi_io, only: read_bias
+  use gsi_bias, only: read_bias
   use gridmod, only: lat2,lon2
   use gridmod, only: nsig
-  use gridmod, only: wrf_mass_regional,wrf_nmm_regional,cmaq_regional,use_reflectivity,&
+  use gridmod, only: wrf_mass_regional,wrf_nmm_regional,cmaq_regional,&
+       fv3_regional,&
        twodvar_regional,netcdf,regional,nems_nmmb_regional,use_gfs_ozone
   use gridmod, only: use_gfs_nemsio
   use gfs_stratosphere, only: use_gfs_stratosphere
@@ -99,6 +105,10 @@ subroutine read_guess(iyear,month,idd,mype)
   use ncepnems_io, only: read_nems,read_nems_chem
   use gsi_metguess_mod, only: gsi_metguess_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
+  use gsd_update_mod, only: gsd_gen_coast_prox 
+  use read_wrf_mass_guess_mod, only: read_wrf_mass_guess_class
+  use read_wrf_nmm_guess_mod, only: read_wrf_nmm_guess_class
+  use gsi_rfv3io_mod, only: read_fv3_netcdf_guess
 
   implicit none
 
@@ -113,6 +123,8 @@ subroutine read_guess(iyear,month,idd,mype)
   logical :: ice
   integer(i_kind) i,j,k,it,iret_bias,ier,istatus
   integer(i_kind) iderivative
+  type(read_wrf_nmm_guess_class) :: nmm_binary_guess
+  type(read_wrf_mass_guess_class) :: nmm_mass_guess
 
   real(r_kind) :: satval
   real(r_kind),dimension(lat2,lon2,nsig) :: satq
@@ -120,6 +132,7 @@ subroutine read_guess(iyear,month,idd,mype)
   real(r_kind),dimension(:,:,:),pointer:: ges_tv=>NULL()
   real(r_kind),dimension(:,:,:),pointer:: ges_q =>NULL()
 
+  iret_bias=0
 !-----------------------------------------------------------------------------------
 ! Certain functions are only done once --> on the first outer iteration. 
 ! One-time functions include
@@ -131,24 +144,22 @@ subroutine read_guess(iyear,month,idd,mype)
      if (regional)then
         if (wrf_nmm_regional) then
            if(netcdf) then
-              call read_wrf_nmm_netcdf_guess(mype)
+              call nmm_binary_guess%read_wrf_nmm_netcdf_guess(mype)
            else
-              call read_wrf_nmm_binary_guess(mype)
+              call nmm_binary_guess%read_wrf_nmm_binary_guess(mype)
            end if
         else if (wrf_mass_regional) then
            if(netcdf) then
-              call read_wrf_mass_netcdf_guess(mype)
+              call nmm_mass_guess%read_wrf_mass_netcdf_guess(mype)
            else
-              call read_wrf_mass_binary_guess(mype)
+              call nmm_mass_guess%read_wrf_mass_binary_guess(mype)
            end if
         else if(twodvar_regional) then
            call read_2d_guess(mype)
         else if (nems_nmmb_regional) then
-           call read_nems_nmmb_guess(mype)
-!          if(use_reflectivity) then
-!          if(mype==0)write(6,*)'sliu in read_guess to read reflectivity',use_reflectivity
-!          call read_nems_nmmb_guess_ref(mype)
-!          end if
+           call nmm_binary_guess%read_nems_nmmb_guess(mype)
+        else if (fv3_regional      ) then
+           call  read_fv3_netcdf_guess
         else if (cmaq_regional) then
            call read_cmaq_guess(mype)
         end if
@@ -158,7 +169,6 @@ subroutine read_guess(iyear,month,idd,mype)
      else
 
 !       If requested, read bias correction fields
-        iret_bias=0
         if (abs(bcoption)>0) then
            filename='biascor_in'
            allocate(work(lat2,lon2,nbc))
@@ -170,10 +180,10 @@ subroutine read_guess(iyear,month,idd,mype)
 #ifndef HAVE_ESMF
         if ( use_gfs_nemsio ) then
 !!           WRITE(6,*)'WARNING :: you elect to read first guess field in NEMSIO format'
-           call read_nems(mype)
+           call read_nems
            call read_nems_chem(iyear,month,idd)
         else
-           call read_gfs(mype)
+           call read_gfs
            call read_gfs_chem(iyear,month,idd)
         end if
 #endif
@@ -236,6 +246,12 @@ subroutine read_guess(iyear,month,idd,mype)
 
 ! Compute 3d subdomain geopotential heights from the guess fields
   call load_geop_hgt
+
+! Save guess geopotential height at level interface for use in write_atm
+  ges_geopi=geop_hgti
+
+! Compute the coast proximity
+  call gsd_gen_coast_prox
 
 !  If this is a regional run and ozone is desired from the gfs model, bring it in here:
   if(regional.and.use_gfs_ozone.and..not.use_gfs_stratosphere) &

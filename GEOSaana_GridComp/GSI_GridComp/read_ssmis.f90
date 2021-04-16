@@ -1,6 +1,7 @@
 subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
            infile,lunout,obstype,nread,ndata,nodata,twind,sis,&
-           mype_root,mype_sub,npe_sub,mpi_comm_sub)
+           mype_root,mype_sub,npe_sub,mpi_comm_sub,nobs, &
+           nrec_start,dval_use)
 
 ! subprogram:    read_ssmis            read ssmis data
 ! prgmmr: okamoto          org: np23                date: 2005-01-05
@@ -58,6 +59,9 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
 !   2012-07-10  sienkiewicz  add control for choosing noise reduction method  0=no smoothing
 !   2013-01-26  parrish - change from grdcrd to grdcrd1 (to allow successful debug compile on WCOSS)
 !   2013-01-26  parrish - WCOSS debug compile error--change mype from intent(inout) to intent(in)
+!   2014-12-03  derber remove unused variables
+!   2015-02-23  Rancic/Thomas - add thin4d to time window logical
+!   2018-05-21  j.jin   - added time-thinning. Moved the checking of thin4d into satthin.F90.
 !
 ! input argument list:
 !     mype     - mpi task id
@@ -76,11 +80,13 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
 !     mype_sub - mpi task id within sub-communicator
 !     npe_sub  - number of data read tasks
 !     mpi_comm_sub - sub-communicator for data read
+!     nrec_start - first subset with useful information
 !
 ! output argument list:
 !     nread    - number of BUFR MI 1b observations read
 !     ndata    - number of BUFR MI 1b profiles retained for further processing
 !     nodata   - number of BUFR MI 1b observations retained for further processing
+!     nobs     - array of observations on each subdomain for each processor
 !
 ! attributes:
 !     language: f90
@@ -90,19 +96,23 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
   use kinds, only: r_kind,r_double,i_kind
   use satthin, only: super_val,itxmax,makegrids,map2tgrid,destroygrids, &
       checkob,finalcheck,score_crit
-  use radinfo, only: iuse_rad,jpch_rad,nusis,nst_gsi,nstinfo,ssmis_method
-  use radinfo, only: iuse_rad,newchn,cbias,predx,nusis,jpch_rad,air_rad,ang_rad,&   
-      use_edges,radedge1,radedge2,nusis,radstart,radstep,newpc4pred,adp_anglebc         
-  use radinfo, only: nst_gsi,nstinfo,fac_dtl,fac_tsl    
+  use satthin, only: radthin_time_info,tdiff2crit
+  use obsmod,  only: time_window_max
+  use radinfo, only: ssmis_method
+  use radinfo, only: iuse_rad,newchn,nusis,jpch_rad,&   
+      use_edges,radedge1,radedge2       
   use gridmod, only: diagnostic_reg,regional,rlats,rlons,nlat,nlon,&
       tll2xy,txy2ll
   use constants, only: deg2rad,rad2deg,zero,half,one,two,four,r60inv
-  use gsi_4dvar, only: l4dvar, iwinbgn, winlen
+  use gsi_4dvar, only: l4dvar,l4densvar,iwinbgn,winlen
   use calc_fov_conical, only: instrument_init
   use deter_sfc_mod, only: deter_sfc,deter_sfc_fov
+  use gsi_nstcouplermod, only: nst_gsi,nstinfo 
   use gsi_nstcouplermod, only: gsi_nstcoupler_skindepth, gsi_nstcoupler_deter
   use ssmis_spatial_average_mod, only : ssmis_spatial_average 
   use m_sortind
+  use mpimod, only: npe
+! use radiance_mod, only: rad_obs_type
  
   implicit none
 
@@ -111,19 +121,20 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
   character(len=20),intent(in  ) :: sis
   real(r_kind)    ,intent(in   ) :: rmesh,gstime,twind
   real(r_kind)    ,intent(inout) :: val_ssmis
-  integer(i_kind) ,intent(in   ) :: mype
+  integer(i_kind) ,intent(in   ) :: mype,nrec_start
   integer(i_kind) ,intent(inout) :: lunout,ithin,isfcalc
+  integer(i_kind),dimension(npe) ,intent(inout) :: nobs
   integer(i_kind) ,intent(inout) :: nread
   integer(i_kind) ,intent(inout) :: ndata,nodata
   integer(i_kind) ,intent(in   ) :: mype_root
   integer(i_kind) ,intent(in   ) :: mype_sub
   integer(i_kind) ,intent(in   ) :: npe_sub
   integer(i_kind) ,intent(in   ) :: mpi_comm_sub
+  logical         ,intent(in   ) :: dval_use
 
 ! Declare local variables
   character(7),parameter    :: fov_flag="conical"
   integer(i_kind),parameter :: maxchanl  =  24
-  integer(i_kind),parameter :: maxinfo   =  33
   integer(i_kind),parameter :: mxscen_img = 180   !img
   integer(i_kind),parameter :: mxscen_env = 90    !env
   integer(i_kind),parameter :: mxscen_las = 60    !las
@@ -150,19 +161,19 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
   integer(i_kind) :: nscan,jc,bufsat,incangl,said
   integer(i_kind) :: nfov_bad
   integer(i_kind) :: ichan, instr
-  integer(i_kind) :: isflg_1,isflg_2,isflg_3,isflg_4
   integer(i_kind) :: radedge_min, radedge_max  
   integer(i_kind) :: iobs,num_obs,method,iret
   integer(i_kind) :: irain
   integer(i_kind) :: doy,mon,m
-  integer(i_kind) :: ibfms
+  integer(i_kind) :: ibfms,maxinfo
 
-  integer(i_kind),pointer :: ifov,iscan,iorbn,inode
+! integer(i_kind),pointer :: ifov,iscan,iorbn,inode
+  integer(i_kind),pointer :: ifov,inode
 
   integer(i_kind),allocatable        :: sorted_index(:)
   integer(i_kind),allocatable,target :: ifov_save(:)
-  integer(i_kind),allocatable,target :: iscan_save(:)
-  integer(i_kind),allocatable,target :: iorbn_save(:)
+! integer(i_kind),allocatable,target :: iscan_save(:)
+! integer(i_kind),allocatable,target :: iorbn_save(:)
   integer(i_kind),allocatable,target :: inode_save(:)
 
   integer(i_kind),dimension(12):: mlen,mday
@@ -170,30 +181,28 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
   integer(i_kind),allocatable  :: nrec(:)  
 
   real(r_kind) :: sfcr,r07
-  real(r_kind) :: pred
-  real(r_kind) :: tdiff,timedif,dist1
-  real(r_kind) :: step,start 
+! real(r_kind) :: pred
+  real(r_kind) :: tdiff,dist1
+! real(r_kind) :: step,start 
   real(r_kind) :: tsavg,vty,vfr,sty,stp,sm,sn,zz,ff10
   real(r_kind) :: zob,tref,dtw,dtc,tz_tr
   real(r_kind) :: disterr,disterrmax,cdist,dlon00,dlat00
-  real(r_kind) :: fovn,scan,orbn,rainf
-  real(r_kind) :: sort_time1, sort_time2   
+  real(r_kind) :: fovn,sscan,orbn,rainf
+! real(r_kind) :: sort_time1, sort_time2   
   real(r_kind) :: flgch
   real(r_kind) :: clat,clon
   real(r_kind) :: dlat,dlon
   real(r_kind) :: dlon_earth_deg,dlat_earth_deg,expansion,sat_aziang
   real(r_kind) :: utc_hour,sun_zenith,sun_azimuth
-  real(r_kind) :: sstx_1,sstx_2,sstx_3,sstx_4
 
   real(r_double),dimension(7)         :: bufrinit
   real(r_double),dimension(3,5)       :: bufrymd
   real(r_double),dimension(2,2)       :: bufrhm
   real(r_double),dimension(2,29)      :: bufrloc
-  real(r_double),dimension(2,maxchanl):: bufrtbb
+  real(r_double),dimension(1,maxchanl):: bufrtbb
   
   real(r_double) :: rnode
 
-  real(r_kind),dimension(0:3) :: sfcpct_1,sfcpct_2,sfcpct_3,sfcpct_4
   real(r_kind),dimension(0:3) :: sfcpct
   real(r_kind),dimension(0:4) :: rlndsea
   real(r_kind),dimension(0:3) :: ts
@@ -201,6 +210,7 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
   real(r_kind),pointer :: bt_in(:)
   real(r_kind),pointer :: crit1,rsat,t4dv,solzen,solazi,dlon_earth,dlat_earth,satazi,lza
 
+  integer(i_kind),allocatable,target :: it_mesh_save(:)
   real(r_kind),allocatable,target :: rsat_save(:)
   real(r_kind),allocatable,target :: t4dv_save(:)
   real(r_kind),allocatable,target :: dlon_earth_save(:)
@@ -214,12 +224,17 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
   real(r_kind),allocatable        :: relative_time_in_seconds(:)
   real(r_kind),allocatable        :: data_all(:,:)
 
+  real(r_kind)    :: ptime,timeinflat,crit0
+  integer(i_kind) :: ithin_time,n_tbin
+  integer(i_kind),pointer:: it_mesh => null()
+
 ! For solar zenith/azimuth angles calculation
   data  mlen/31,28,31,30,31,30, &
              31,31,30,31,30,31/
 
 !----------------------------------------------------------------------
 ! Initialize variables
+  maxinfo   =  31
   m = 0
   do mon=1,12
      mday(mon) = m
@@ -258,8 +273,14 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
   end do search
   if (.not.assim) val_ssmis=zero
 
+  call radthin_time_info(obstype, jsatid, sis, ptime, ithin_time)
+  if( ptime > 0.0_r_kind) then
+     n_tbin=nint(2*time_window_max/ptime)
+  else
+     n_tbin=1
+  endif
 ! Make thinning grids
-  call makegrids(rmesh,ithin)
+  call makegrids(rmesh,ithin,n_tbin=n_tbin)
 
 ! Set various variables depending on type of data to be read
   ssmis_uas= obstype == 'ssmis_uas'
@@ -273,6 +294,7 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
   if (trim(sis) == 'ssmis_f16') bufsat=249  
   if (trim(sis) == 'ssmis_f17') bufsat=285  
   if (trim(sis) == 'ssmis_f18') bufsat=286 
+  if (trim(sis) == 'ssmis_f19') bufsat=287 
 
   write(6,*) 'READ_SSMIS: reading bufsat = ', bufsat, trim(sis)
 
@@ -309,7 +331,6 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
      if (trim(jsatid) == 'f17') instr=27
      if (trim(jsatid) == 'f18') instr=28
      if (trim(jsatid) == 'f19') instr=29
-     if (trim(jsatid) == 'f20') instr=30
 !    right now, all ssmis data is mapped to a common fov -
 !    that of the las channels.
      ichan = 1
@@ -331,8 +352,8 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
   radedge_max = 1000
   do i=1,jpch_rad
      if (trim(nusis(i))==trim(sis)) then
-        step  = radstep(i)
-        start = radstart(i)
+!       step  = radstep(i)
+!       start = radstart(i)
         if (radedge1(i)/=-1 .or. radedge2(i)/=-1) then
            radedge_min=radedge1(i)
            radedge_max=radedge2(i)
@@ -349,14 +370,15 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
 
 ! Allocate arrays for BUFR I/O
   allocate(ifov_save(maxobs))
-  allocate(iscan_save(maxobs))
-  allocate(iorbn_save(maxobs))
+! allocate(iscan_save(maxobs))
+! allocate(iorbn_save(maxobs))
   allocate(inode_save(maxobs))
   allocate(rsat_save(maxobs))
   allocate(t4dv_save(maxobs))
   allocate(dlon_earth_save(maxobs))
   allocate(dlat_earth_save(maxobs))
   allocate(crit1_save(maxobs))
+  allocate(it_mesh_save(maxobs))
   allocate(lza_save(maxobs))
   allocate(satazi_save(maxobs))
   allocate(solzen_save(maxobs))
@@ -376,6 +398,8 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
 ! Loop to read bufr file
   irec=0   
   read_subset: do while(ireadmg(lnbufr,subset,idate)>=0 .and. iobs < maxobs)
+     irec = irec + 1
+     if(irec < nrec_start) cycle read_subset
      read_loop: do while(ireadsb(lnbufr)==0 .and. iobs < maxobs)
 
         rsat        => rsat_save(iobs)
@@ -383,9 +407,10 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
         dlon_earth  => dlon_earth_save(iobs)
         dlat_earth  => dlat_earth_save(iobs)
         crit1       => crit1_save(iobs)
+        it_mesh     => it_mesh_save(iobs)
         ifov        => ifov_save(iobs)
-        iscan       => iscan_save(iobs)
-        iorbn       => iorbn_save(iobs)
+!       iscan       => iscan_save(iobs)
+!       iorbn       => iorbn_save(iobs)
         inode       => inode_save(iobs)
         lza         => lza_save(iobs)
         satazi      => satazi_save(iobs)
@@ -400,19 +425,21 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
         said = nint( bufrinit(1))  
         if( said /= bufsat) cycle read_subset
 
+        rainf = bufrinit(6)
+        irain = nint(rainf)
+
+!       Rain check (-1=indeterminate 0=no rain 1=rain)
+        if(irain == 1 .or. irain < 0) cycle read_loop    ! rain check
+
         rsat=bufsat
 
         fovn  = bufrinit(4)
-        scan  = bufrinit(3)
+        sscan  = bufrinit(3)
         orbn  = bufrinit(7)
-        rainf = bufrinit(6)
         ifov  = nint(fovn)
-        iscan = nint(scan)
-        iorbn = nint(orbn)
-        irain = nint(rainf)
+!       iscan = nint(sscan)
+!       iorbn = nint(orbn)
   
-!       Rain check (-1=indeterminate 0=no rain 1=rain)
-        if(irain == 1 .or. irain < 0) cycle read_loop    ! rain check
 
 !       if not doing noise reduction, try reading node information
         if ( .not. do_noise_reduction ) then
@@ -435,22 +462,16 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
 
         call w3fs21(iobsdate,nmind)
         t4dv=(real(nmind-iwinbgn,r_kind) + real(bufrinit(2),r_kind)*r60inv)*r60inv
-        if (l4dvar) then
+        tdiff=t4dv+(iwinbgn-gstime)*r60inv
+        if (l4dvar.or.l4densvar) then
            if (t4dv<zero .OR. t4dv>winlen) cycle read_loop
         else
-           tdiff=t4dv+(iwinbgn-gstime)*r60inv
            if(abs(tdiff) > twind+one_minute) cycle read_loop
         endif
 
-!       Give score based on time in the window 
-        if (l4dvar) then
-!          crit1 = 0.01_r_kind+ flgch  
-           crit1 = zero              
-        else
-           timedif = 6.0_r_kind*abs(tdiff) ! range:  0 to 18
-!          crit1 = 0.01_r_kind+timedif + flgch  
-           crit1 = timedif                   
-        endif
+        crit0 = 0.00_r_kind        ! forced to >= 0.01_r_kind in tdiff2crit()
+        timeinflat=6.0_r_kind
+        call tdiff2crit(tdiff,ptime,ithin_time,timeinflat,crit0,crit1,it_mesh)
 
 !       Extract obs location, TBB, other information
 !       BUFR read 3/3 --- read in observation lat/lon
@@ -487,8 +508,8 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
 !       Check Tb
 !       Transfer observed brightness temperature to work array.
 
-        call ufbrep(lnbufr,bufrtbb,  2,maxchanl,nlv,"CHNM TMBR" )  
-        bt_save(1:maxchanl,iobs) = bufrtbb(2,1:maxchanl)
+        call ufbrep(lnbufr,bufrtbb,  1,maxchanl,nlv,"TMBR" )  
+        bt_save(1:maxchanl,iobs) = bufrtbb(1,1:maxchanl)
         
         iobs=iobs+1 
 
@@ -508,7 +529,7 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
 
   if (do_noise_reduction) then 
 
-     call cpu_time(sort_time1)
+!    call cpu_time(sort_time1)
      write(*,*) 'READ_SSMIS: num_obs  = ', num_obs, num_obs*nchanl
 
 !    Sort time in ascending order and get sorted index 
@@ -525,16 +546,17 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
      dlon_earth_save(1:num_obs)          = dlon_earth_save(sorted_index)
      dlat_earth_save(1:num_obs)          = dlat_earth_save(sorted_index)
      crit1_save(1:num_obs)               = crit1_save(sorted_index)
+     it_mesh_save(1:num_obs)             = it_mesh_save(sorted_index)
      ifov_save(1:num_obs)                = ifov_save(sorted_index)
-     iscan_save(1:num_obs)               = iscan_save(sorted_index)
-     iorbn_save(1:num_obs)               = iorbn_save(sorted_index)
+!    iscan_save(1:num_obs)               = iscan_save(sorted_index)
+!    iorbn_save(1:num_obs)               = iorbn_save(sorted_index)
      lza_save(1:num_obs)                 = lza_save(sorted_index)
      satazi_save(1:num_obs)              = satazi_save(sorted_index)
      solzen_save(1:num_obs)              = solzen_save(sorted_index)
      solazi_save(1:num_obs)              = solazi_save(sorted_index)
      bt_save(:,1:num_obs)                = bt_save(:,sorted_index)
 
-     call cpu_time(sort_time2)
+!    call cpu_time(sort_time2)
 !    write(*,*)'READ_SSMIS: cpu_time (sorting)  ', sort_time2-sort_time1
 !    write(*,*)'READ_SSMIS: min/max time        ', minval(relative_time_in_seconds(1:num_obs)), &
 !                                                  maxval(relative_time_in_seconds(1:num_obs))  
@@ -559,8 +581,8 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
      method = ssmis_method
      write(*,*) 'READ_SSMIS: Calling ssmis_spatial_average, method =', method
 
-     call ssmis_spatial_average(mype,mype_sub,bufsat,method,num_obs,nchanl, & 
-                                ifov_save,iscan_save,inode_save,relative_time_in_seconds, & 
+     call ssmis_spatial_average(bufsat,method,num_obs,nchanl, & 
+                                ifov_save,inode_save,relative_time_in_seconds,  & 
                                 dlat_earth_save,dlon_earth_save, &
                                 bt_save(1:nchanl,1:num_obs),iret)  ! inout 
      if (iret /= 0) then
@@ -580,6 +602,7 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
 ! Complete thinning and QC steps for SSMIS
 ! Write header record to scratch file.  Also allocate array
 ! to hold all data for given satellite
+  if(dval_use) maxinfo = maxinfo+2
   nreal  = maxinfo + nstinfo
   nele   = nreal   + nchanl
   allocate(data_all(nele,itxmax),nrec(itxmax)) 
@@ -592,6 +615,7 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
      dlon_earth => dlon_earth_save(iobs) 
      dlat_earth => dlat_earth_save(iobs) 
      crit1      => crit1_save(iobs) 
+     it_mesh    => it_mesh_save(iobs) 
      ifov       => ifov_save(iobs) 
      inode      => inode_save(iobs) 
      lza        => lza_save(iobs) 
@@ -601,6 +625,8 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
      bt_in      => bt_save(1:nchanl,iobs) 
 
      if (inode == 0) cycle obsloop   ! this indicate duplicated data
+     if (.not. use_edges .and. (ifov < radedge_min .or. ifov > radedge_max)) &
+       cycle obsloop
 
      dlat_earth_deg = dlat_earth 
      dlon_earth_deg = dlon_earth 
@@ -632,19 +658,17 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
      endif
 
 !    Check time window
-     if (l4dvar) then
+     tdiff=t4dv+(iwinbgn-gstime)*r60inv
+     if (l4dvar.or.l4densvar) then
         if (t4dv<zero .OR. t4dv>winlen) cycle obsloop 
      else
-        tdiff=t4dv+(iwinbgn-gstime)*r60inv
         if(abs(tdiff) > twind) cycle ObsLoop
      endif
 
 !    Map obs to thinning grid
-     call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis)
+     call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis,it_mesh=it_mesh)
      if(.not. iuse)cycle obsloop
 
-    if (.not. use_edges .and. (ifov < radedge_min .or. ifov > radedge_max)) &
-       cycle obsloop
 
      nread=nread+nchanl
 
@@ -691,14 +715,14 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
      endif ! isfcalc==1
 
      crit1 = crit1 + rlndsea(isflg)
-     call checkob(dist1,crit1,itx,iuse)
-     if(.not. iuse)cycle obsloop
+!    call checkob(dist1,crit1,itx,iuse)
+!    if(.not. iuse)cycle obsloop
 
 !    Set common predictor parameters
-     pred = zero
+!    pred = zero
 
 !    Compute "score" for observation.  All scores>=0.0.  Lowest score is "best"
-     crit1 = crit1+pred
+!    crit1 = crit1+pred
 
      call finalcheck(dist1,crit1,itx,iuse)
      if(.not. iuse)cycle obsloop
@@ -751,8 +775,10 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
      data_all(29,itx)= ff10                      ! ten meter wind factor
      data_all(30,itx)= dlon_earth_deg            ! earth relative longitude (degrees)
      data_all(31,itx)= dlat_earth_deg            ! earth relative latitude (degrees)
-     data_all(maxinfo-1,itx)=val_ssmis
-     data_all(maxinfo,itx)=itt
+     if(dval_use)then
+        data_all(32,itx)=val_ssmis
+        data_all(33,itx)=itt
+     end if
 
      if ( nst_gsi > 0 ) then
         data_all(maxinfo+1,itx) = tref         ! foundation temperature
@@ -771,13 +797,14 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
 ! Deallocate I/O arrays
   deallocate(rsat_save)
   deallocate(ifov_save)
-  deallocate(iscan_save)
+! deallocate(iscan_save)
   deallocate(inode_save)
-  deallocate(iorbn_save)
+! deallocate(iorbn_save)
   deallocate(t4dv_save)
   deallocate(dlon_earth_save)
   deallocate(dlat_earth_save)
   deallocate(crit1_save)
+  deallocate(it_mesh_save)
   deallocate(lza_save)
   deallocate(satazi_save)
   deallocate(solzen_save)
@@ -800,11 +827,16 @@ subroutine read_ssmis(mype,val_ssmis,ithin,isfcalc,rmesh,jsatid,gstime,&
            if(data_all(i+nreal,n) > tbmin .and. &
               data_all(i+nreal,n) < tbmax)nodata=nodata+1
         end do
-        itt=nint(data_all(maxinfo,n))
-        super_val(itt)=super_val(itt)+val_ssmis
      end do
+     if(dval_use .and. assim)then
+        do n=1,ndata
+           itt=nint(data_all(33,n))
+           super_val(itt)=super_val(itt)+val_ssmis
+        end do
+     end if
 
 !    Write final set of "best" observations to output file
+     call count_obs(ndata,nele,ilat,ilon,data_all,nobs)
      write(lunout) obstype,sis,nreal,nchanl,ilat,ilon
      write(lunout) ((data_all(k,n),k=1,nele),n=1,ndata)
 

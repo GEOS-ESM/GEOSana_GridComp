@@ -1,5 +1,5 @@
 subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis,&
-     prsl_full)
+     prsl_full,nobs)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    read_sfcwnd                    read scatterometer winds
@@ -14,6 +14,13 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 !
 ! program history log:
 !   2012-08-20 Li Bi      
+!   2014-04-15 Su -  new error table
+!   2015-02-23  Rancic/Thomas - add thin4d to time window logical
+!   2015-03-23  Su      -fix array size with maximum message and subset number from fixed number to
+!                        dynamic allocated array
+!   2015-10-01  guo     - consolidate use of ob location (in deg)
+!   2016-03-15  Su      - modified the code so that the program won't stop when
+!                         no subtype is found in non linear qc error table and b table
 !
 !   input argument list:
 !     ithin    - flag to thin data
@@ -29,6 +36,7 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 !     nread    - number of satellite winds read 
 !     ndata    - number of satellite winds retained for further processing
 !     nodata   - number of satellite winds retained for further processing
+!     nobs     - array of observations on each subdomain for each processor
 !
 ! attributes:
 !   language: f90
@@ -38,20 +46,23 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   use kinds, only: r_kind,r_double,i_kind,r_single
   use gridmod, only: diagnostic_reg,regional,nlon,nlat,nsig,&
        tll2xy,txy2ll,rotate_wind_ll2xy,rotate_wind_xy2ll,&
-       rlats,rlons,twodvar_regional
-  use qcmod, only: errormod,noiqc
+       rlats,rlons
+  use qcmod, only: errormod,noiqc,njqc
+
   use convthin, only: make3grids,map3grids,del3grids,use_all
   use constants, only: deg2rad,zero,rad2deg,one_tenth,&
         tiny_r_kind,huge_r_kind,r60inv,one_tenth,&
         one,two,three,four,five,half,quarter,r60inv,r10,r100,r2000
-!  use converr,only: etabl
-  use obsmod, only: iadate,oberrflg,perturb_obs,perturb_fact,ran01dom,bmiss
-  use convinfo, only: nconvtype,ctwind, &
-       ncmiter,ncgroup,ncnumgrp,icuse,ictype,icsubtype,ioctype, &
-       ithin_conv,rmesh_conv,pmesh_conv, &
-       id_bias_ps,id_bias_t,conv_bias_ps,conv_bias_t,use_prepb_satwnd
-  use gsi_4dvar, only: l4dvar,iwinbgn,winlen,time_4dvar
+  use converr,only: etabl
+  use converr_uv,only: etabl_uv,isuble_uv,maxsub_uv
+  use convb_uv,only: btabl_uv
+  use obsmod, only: ran01dom,bmiss
+  use convinfo, only: nconvtype, &
+       icuse,ictype,icsubtype,ioctype, &
+       ithin_conv,rmesh_conv,pmesh_conv
+  use gsi_4dvar, only: l4dvar,l4densvar,iwinbgn,winlen,time_4dvar,thin4d
   use deter_sfc_mod, only: deter_sfc_type,deter_sfc2
+  use mpimod, only: npe
   implicit none
 
 ! Declare passed variables
@@ -59,13 +70,12 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   character(len=20)                     ,intent(in   ) :: sis
   integer(i_kind)                       ,intent(in   ) :: lunout
   integer(i_kind)                       ,intent(inout) :: nread,ndata,nodata
+  integer(i_kind),dimension(npe)        ,intent(inout) :: nobs
   real(r_kind)                          ,intent(in   ) :: twind
   real(r_kind),dimension(nlat,nlon,nsig),intent(in   ) :: prsl_full
 
 ! Declare local parameters
 
-  integer(i_kind),parameter:: mxtb=5000000
-  integer(i_kind),parameter:: nmsgmax=10000 ! max message count
   real(r_kind),parameter:: r6= 6.0_r_kind
   real(r_kind),parameter:: r90= 90.0_r_kind
   real(r_kind),parameter:: r110= 110.0_r_kind
@@ -84,8 +94,8 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   character(8) subset
   character(8) c_prvstg,c_sprvstg
 
-  integer(i_kind) ireadmg,ireadsb,iuse
-  integer(i_kind) i,maxobs,idomsfc,nsattype
+  integer(i_kind) ireadmg,ireadsb,iuse,mxtb,nmsgmax
+  integer(i_kind) i,maxobs,idomsfc,nsattype,j,ncount
   integer(i_kind) nc,nx,isflg,itx,nchanl
   integer(i_kind) ntb,ntmatch,ncx,ncsave,ntread
   integer(i_kind) kk,klon1,klat1,klonp1,klatp1
@@ -98,8 +108,7 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   integer(i_kind) ntest,nvtest
   integer(i_kind) kl,k1,k2
   integer(i_kind) nmsg                ! message index
-  integer(i_kind) tab(mxtb,3)
-  integer(i_kind) qc1,qc2,qc3
+  integer(i_kind) qc1,qc2,qc3,ierr
   
   
  
@@ -107,21 +116,20 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   integer(i_kind),dimension(nconvtype+1) :: ntx  
   
   integer(i_kind),dimension(5):: idate5 
-  integer(i_kind),dimension(nmsgmax):: nrep
-  integer(i_kind),allocatable,dimension(:):: isort,iloc
+  integer(i_kind),allocatable,dimension(:):: isort,iloc,nrep
+  integer(i_kind),allocatable,dimension(:,:)::tab
 
-  integer(i_kind) ietabl,itypex,lcount,iflag,m
-
-  real(r_single),allocatable,dimension(:,:,:) :: etabl
-
+! integer(i_kind) itypex,lcount,iflag,m
+  integer(i_kind) itypey
   real(r_kind) toff,t4dv
   real(r_kind) rmesh,ediff,usage,tdiff
   real(r_kind) u0,v0,uob,vob,dx,dy,dx1,dy1,w00,w10,w01,w11
-  real(r_kind) dlnpob,ppb,ppb2,qifn,qify,ee
+  real(r_kind) dlnpob,ppb,ppb2,qifn,qify,ee,var_jb
   real(r_kind) woe,dlat,dlon,dlat_earth,dlon_earth,oelev
+  real(r_kind) dlat_earth_deg,dlon_earth_deg
   real(r_kind) cdist,disterr,disterrmax,rlon00,rlat00
   real(r_kind) vdisterrmax,u00,v00,uob1,vob1
-  real(r_kind) del,werrmin,obserr,ppb1
+  real(r_kind) del,werrmin,obserr,ppb1,wjbmin
   real(r_kind) tsavg,ff10,sfcr,sstime,gstime,zz
   real(r_kind) crit1,timedif,xmesh,pmesh
   real(r_kind),dimension(nsig):: presl
@@ -159,38 +167,38 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 ! Read observation error table
 ! itype 291 has been modified in the error table 
 
-  allocate(etabl(300,33,6))
-  etabl=1.e9_r_kind
-  ietabl=19
-  open(ietabl,file='errtable',form='formatted')
-  rewind ietabl
-  etabl=1.e9_r_kind
-  lcount=0
-  loopd : do
-     read(ietabl,100,IOSTAT=iflag) itypex
-     if( iflag /= 0 ) exit loopd
-     lcount=lcount+1
-     do k=1,33
-        read(ietabl,110)(etabl(itypex,k,m),m=1,6)
-     end do
-  end do   loopd
-100     format(1x,i3)
-110     format(1x,6e12.5)
-  if(lcount<=0 ) then
-     write(6,*)'READ_SFCWND: obs error table not available to 3dvar. the program will stop'
-     call stop2(49) 
-  else
-     write(6,*)'READ_SFCWND: observation errors provided by local file errtable'
-  endif
-
-  close(ietabl)
+!  allocate(etabl(300,33,6))
+!  etabl=1.e9_r_kind
+!  ietabl=19
+!  open(ietabl,file='errtable',form='formatted')
+!  rewind ietabl
+!  etabl=1.e9_r_kind
+!  lcount=0
+!  loopd : do
+!     read(ietabl,100,IOSTAT=iflag) itypex
+!     if( iflag /= 0 ) exit loopd
+!     lcount=lcount+1
+!     do k=1,33
+!        read(ietabl,110)(etabl(itypex,k,m),m=1,6)
+!     end do
+!  end do   loopd
+!100     format(1x,i3)
+!110     format(1x,6e12.5)
+!  if(lcount<=0 ) then
+!     write(6,*)'READ_SFCWND: obs error table not available to 3dvar. the program will stop'
+!     call stop2(49) 
+!  else
+!     write(6,*)'READ_SFCWND: observation errors provided by local file errtable'
+!  endif
+!
+!  close(ietabl)
 
 ! Set lower limits for observation errors
 ! ** keep this way for now
 ! nreal keep the dimension of cdata_all 
   werrmin=one
   nsattype=0
-  nreal=23
+  nreal=24
   if (noiqc) then
      lim_qm=8
   else
@@ -227,14 +235,19 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   call openbf(lunin,'IN',lunin)
   call datelen(10)
 
-  allocate(lmsg(nmsgmax,ntread))
+!! get message and subset counts
+
+  call getcount_bufr(infile,nmsgmax,mxtb)
+
+  allocate(lmsg(nmsgmax,ntread),tab(mxtb,3),nrep(nmsgmax))
+
   lmsg = .false.
   maxobs=0
   tab=0
   nmsg=0
   nrep=0
   ntb =0
-  
+  ncount=0
   msg_report: do while (ireadmg(lunin,subset,idate) == 0)
 !    if(trim(subset) == 'NC005012') cycle msg_report 
 
@@ -438,7 +451,7 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
            idate5(5) = hdrdat(8)     ! minutes
            call w3fs21(idate5,nmind)
            t4dv = real((nmind-iwinbgn),r_kind)*r60inv
-           if (l4dvar) then
+           if (l4dvar.or.l4densvar) then
               if (t4dv<zero .OR. t4dv>winlen) cycle loop_readsb 
            else
               sstime = real(nmind,r_kind) 
@@ -465,7 +478,9 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
            endif
 
 
-           nread=nread+1
+           nread=nread+2
+           dlon_earth_deg=hdrdat(3)
+           dlat_earth_deg=hdrdat(2)
            dlon_earth=hdrdat(3)*deg2rad
            dlat_earth=hdrdat(2)*deg2rad
                               
@@ -529,22 +544,64 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 !   only need read the 4th column for type 291 from the right
  
            ppb=max(zero,min(ppb,r2000))
-           if(ppb>=etabl(itype,1,1)) k1=1          
-           do kl=1,32
-              if(ppb>=etabl(itype,kl+1,1).and.ppb<=etabl(itype,kl,1)) k1=kl
-           end do
-           if(ppb<=etabl(itype,33,1)) k1=5
-           k2=k1+1
-           ediff = etabl(itype,k2,1)-etabl(itype,k1,1)
-           if (abs(ediff) > tiny_r_kind) then
-              del = (ppb-etabl(itype,k1,1))/ediff
-           else
-              del = huge_r_kind
+           itypey=itype
+           if(njqc) then
+              ierr=0
+              do i =1,maxsub_uv
+                 if( icsubtype(nc) == isuble_uv(itypey,i) ) then
+                    ierr=i+1
+                    exit
+                 else if( i == maxsub_uv .and. icsubtype(nc) /= isuble_uv(itypey,i)) then
+                    ncount=ncount+1
+                    do j=1,maxsub_uv
+                       if(isuble_uv(itypey,j) ==0 ) then
+                          ierr=j+1
+                          exit
+                       endif
+                    enddo
+                    if (ncount ==1) then
+                       write(6,*) 'READ_SFCWND,WARNING!! cannot find subtyep in the error table,&
+                                   itype,iobsub=',itypey,icsubtype
+                       write(6,*) 'read error table at colomn subtype as 0,error table column=',j
+                    endif
+                 endif
+              enddo
+              if(ppb>=etabl_uv(itypey,1,1)) k1=1
+              do kl=1,32
+                 if(ppb>=etabl_uv(itypey,kl+1,1).and.ppb<=etabl_uv(itypey,kl,1)) k1=kl
+              end do
+              if(ppb<=etabl_uv(itypey,33,1)) k1=5
+              k2=k1+1
+              ediff = etabl_uv(itypey,k2,1)-etabl_uv(itypey,k1,1)
+              if (abs(ediff) > tiny_r_kind) then
+                 del = (ppb-etabl_uv(itypey,k1,1))/ediff
+              else
+                 del = huge_r_kind
+              endif
+              del=max(zero,min(del,one))
+              obserr=(one-del)*etabl_uv(itypey,k1,ierr)+del*etabl_uv(itypey,k2,ierr)
+              obserr=max(obserr,werrmin)
+! get non linear qc parameter from b table
+              var_jb=(one-del)*btabl_uv(itypey,k1,ierr)+del*btabl_uv(itypey,k2,ierr)
+              var_jb=max(var_jb,wjbmin)
+              if (var_jb >= 10.0_r_kind) var_jb=zero
+          else
+             if(ppb>=etabl(itype,1,1)) k1=1
+              do kl=1,32
+                 if(ppb>=etabl(itype,kl+1,1).and.ppb<=etabl(itype,kl,1)) k1=kl
+              end do
+              if(ppb<=etabl(itype,33,1)) k1=5
+              k2=k1+1
+              ediff = etabl(itype,k2,1)-etabl(itype,k1,1)
+              if (abs(ediff) > tiny_r_kind) then
+                 del = (ppb-etabl(itype,k1,1))/ediff
+              else
+                 del = huge_r_kind
+              endif
+              del=max(zero,min(del,one))
+              obserr=(one-del)*etabl(itype,k1,4)+del*etabl(itype,k2,4)
+              obserr=max(obserr,werrmin)
            endif
-           del=max(zero,min(del,one))
-           obserr=(one-del)*etabl(itype,k1,4)+del*etabl(itype,k2,4)
-           obserr=max(obserr,werrmin)
-
 
 !         Set usage variable
            usage = 0 
@@ -587,7 +644,7 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
               ntmp=ndata  ! counting moved to map3gridS
 
  !         Set data quality index for thinning
-              if (l4dvar) then
+              if (thin4d) then
                  timedif = zero
               else
                  timedif=abs(t4dv-toff)
@@ -607,13 +664,13 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
               if (.not. luse) cycle loop_readsb
               if(iiout > 0) isort(iiout)=0
               if (ndata > ntmp) then
-                 nodata=nodata+1
+                 nodata=nodata+2
               endif
               isort(ntb)=iout
 
            else
               ndata=ndata+1
-              nodata=nodata+1
+              nodata=nodata+2
               iout=ndata
               isort(ntb)=iout
            endif
@@ -654,13 +711,12 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
            cdata_all(16,iout)=tsavg               ! skin temperature
            cdata_all(17,iout)=ff10                ! 10 meter wind factor
            cdata_all(18,iout)=sfcr                ! surface roughness
-           cdata_all(19,iout)=dlon_earth*rad2deg  ! earth relative longitude (degrees)
-           cdata_all(20,iout)=dlat_earth*rad2deg  ! earth relative latitude (degrees)
+           cdata_all(19,iout)=dlon_earth_deg      ! earth relative longitude (degrees)
+           cdata_all(20,iout)=dlat_earth_deg      ! earth relative latitude (degrees)
            cdata_all(21,iout)=zz                  ! terrain height at ob location
            cdata_all(22,iout)=r_prvstg(1,1)       ! provider name
            cdata_all(23,iout)=r_sprvstg(1,1)      ! subprovider name
-
-
+           cdata_all(24,iout)=var_jb              ! non linear qc parameter
 
         enddo  loop_readsb
 
@@ -676,7 +732,7 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 ! Normal exit
 
   enddo loop_convinfo! loops over convinfo entry matches
-  deallocate(lmsg)
+  deallocate(lmsg,nrep,tab)
  
 
   ! Write header record and data to output file for further processing
@@ -701,8 +757,9 @@ subroutine read_sfcwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
      end do
   end do
   deallocate(iloc,isort,cdata_all)
-  deallocate(etabl)
+!  deallocate(etabl)
   
+  call count_obs(ndata,nreal,ilat,ilon,cdata_out,nobs)
   write(lunout) obstype,sis,nreal,nchanl,ilat,ilon
   write(lunout) cdata_out
 

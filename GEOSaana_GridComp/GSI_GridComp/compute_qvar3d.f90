@@ -17,6 +17,13 @@ subroutine compute_qvar3d
 ! 2013-10-19 todling - metguess now holds background
 ! 2013-10-25 todling - reposition ltosi and others to commvars
 ! 2013-10-30 jung - check and clip supersaturation
+! 2012-12-15 zhu  - add two cwoption options for both global and regional
+! 2014-06-15 zhu  - new background error variance of cw in the regional applications 
+!                   for all-sky radiance assimilation (cwoption3)
+! 2015-01-04 zhu  - apply the background error variance of cw cwoption3 to the global
+! 2015-09-10 zhu  - use centralized cloud_names_fwd and n_clouds_fwd in the assignments of cloud 
+!                   variances (either cw or individual hydrometerors) for all-sky radiance assimilation
+!                 - remove cwoption1
 !
 !   input argument list:
 !
@@ -30,39 +37,39 @@ subroutine compute_qvar3d
 !$$$
   use kinds, only: r_kind,i_kind,r_single
   use berror, only: dssv
-  use jfunc, only: varq,qoption,clip_supersaturation
+  use jfunc, only: varq,qoption,varcw,cwoption,clip_supersaturation
   use derivsmod, only: qsatg,qgues
   use control_vectors, only: cvars3d
-  use gridmod, only: lat2,lon2,nsig,lat1,lon1,istart,iglobal, &
-                     itotsub,ijn,displs_g,nlat,regional
-  use general_commvars_mod, only: ltosi,ltosj
+  use gridmod, only: lat2,lon2,nsig
   use constants, only: zero,one,fv,r100,qmin
   use guess_grids, only: fact_tv,ntguessig,nfldsig,ges_tsen,ges_prsl,ges_qsat
   use mpeu_util, only: getindex
-  use mpimod, only: mpi_integer,mpi_rtype,mpi_sum,mpi_comm_world,mype
-  use gsi_metguess_mod,  only: gsi_metguess_get,gsi_metguess_bundle
+  use gsi_metguess_mod,  only: gsi_metguess_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
+  use general_sub2grid_mod, only: general_sub2grid,general_grid2sub
+  use radiance_mod, only: icloud_cv,n_clouds_fwd,cloud_names_fwd
+  use obsmod, only: l_wcp_cwm
 
   implicit none
 
 ! Declare local variables
   logical ice
   integer(i_kind) :: i,j,k,it,n,np,iderivative,nrf3_q,nrf3_cw
+  integer(i_kind) :: ic,nrf3_var
   real(r_kind) d,dn1,dn2
   real(r_kind),allocatable,dimension(:,:,:):: rhgues
 
-  integer(i_kind):: istatus,ier,ierror,mm1,il,nk,n_actual_clouds
-  integer(i_kind),dimension(nsig):: ntmp,ntmp1
-  integer(i_kind),dimension(nlat):: ntp
-  real(r_kind):: coef,cwtmp,maxamy
-  real(r_kind),dimension(nsig):: work_cw,work_cw1,amz
-  real(r_kind),dimension(nlat):: wk_cw,amy0
-  real(r_kind),dimension(lat2):: amy
-  real(r_kind),dimension(lat1,lon1):: work2
-  real(r_kind),dimension(max(iglobal,itotsub)):: work1
+  integer(i_kind):: istatus,ier,ier6
+  real(r_kind):: cwtmp
+  real(r_kind),pointer,dimension(:,:,:):: ges_var=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_ql=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_qi=>NULL()
+  real(r_kind),pointer,dimension(:,:,:):: ges_qr=>NULL()
+  real(r_kind),pointer,dimension(:,:,:):: ges_qs=>NULL()
+  real(r_kind),pointer,dimension(:,:,:):: ges_qg=>NULL()
+  real(r_kind),pointer,dimension(:,:,:):: ges_qh=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_q =>NULL()
+  integer(i_kind):: maxvarq1
 
 
   nrf3_q=getindex(cvars3d,'q')
@@ -127,6 +134,7 @@ subroutine compute_qvar3d
   end do
 
   if (qoption==2) then
+     maxvarq1=min(size(varq,1),25)
      do k=1,nsig
         do j=1,lon2
            do i=1,lat2
@@ -135,8 +143,8 @@ subroutine compute_qvar3d
               np=n+1
               dn2=d-float(n)
               dn1=one-dn2
-              n=min0(max(1,n),25)
-              np=min0(max(1,np),25)
+              n=min0(max(1,n),maxvarq1)
+              np=min0(max(1,np),maxvarq1)
               dssv(i,j,k,nrf3_q)=(varq(n,k)*dn1 + varq(np,k)*dn2)*dssv(i,j,k,nrf3_q)
            end do
         end do
@@ -145,89 +153,93 @@ subroutine compute_qvar3d
 
   deallocate(rhgues)
 
-  if (regional .and. nrf3_cw>0) then 
-     call gsi_metguess_get('clouds::3d',n_actual_clouds,ier)
-     if (n_actual_clouds<=0) return
+  if (.not. icloud_cv) return
+  if (nrf3_cw>0) then 
 
      call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'ql',ges_ql,istatus);ier=istatus
      call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'qi',ges_qi,istatus);ier=ier+istatus
-     if (ier==0) then 
-!       compute mean at each vertical level 
-        ntmp=0
-        work_cw =zero
-        work_cw1=zero
+     if (ier/=0) return
+     call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'qr',ges_qr,istatus);ier6=istatus
+     call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'qs',ges_qs,istatus);ier6=ier6+istatus
+     call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'qg',ges_qg,istatus);ier6=ier6+istatus
+     call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'qh',ges_qh,istatus);ier6=ier6+istatus
+     if (l_wcp_cwm .and. ier6/=0) return
+
+     if (cwoption==3) then
         do k = 1,nsig
-           do j = 2,lon2-1
-              do i = 2,lat2-1
-                 cwtmp=ges_ql(i,j,k)+ges_qi(i,j,k)
-                 if (cwtmp>1.0e-10_r_kind) then
-                    work_cw(k) = work_cw(k) + cwtmp
-                    ntmp(k)=ntmp(k)+1
+           do j = 1,lon2
+              do i = 1,lat2
+                 if (ges_prsl(i,j,k,ntguessig)<15.0_r_kind) then
+                    dssv(i,j,k,nrf3_cw)=zero
+                 else
+                    cwtmp=ges_ql(i,j,k)+ges_qi(i,j,k)
+                    if (l_wcp_cwm .and. ier6==0) then
+                       cwtmp=cwtmp &
+                           +ges_qr(i,j,k)+ges_qs(i,j,k) &
+                           +ges_qg(i,j,k)+ges_qh(i,j,k)
+                    endif
+                    if (cwtmp<1.0e-10_r_kind) cwtmp=1.0e-10_r_kind
+                    dn1=0.05_r_kind*cwtmp
+                    dssv(i,j,k,nrf3_cw)=dn1*dssv(i,j,k,nrf3_cw)
                  end if
               end do
            end do
         end do
-
-        call mpi_allreduce(work_cw,work_cw1,nsig,mpi_rtype,mpi_sum,mpi_comm_world,ierror)
-        call mpi_allreduce(ntmp,ntmp1,nsig,mpi_integer,mpi_sum,mpi_comm_world,ierror)
-  
-        amz=1.0e-10_r_kind
-        do k=1,nsig
-           if (ntmp1(k)>0) amz(k)=max(work_cw1(k)/float(ntmp1(k)),1.0e-10_r_kind)
-        enddo
-
-!       get variation with latitudes
-        mm1=mype+1
-        nk=int(float(nsig)/5.0_r_kind)
-        do i = 2,lat2-1
-           do j = 2,lon2-1
-              work2(i-1,j-1)=ges_ql(i,j,nk)+ges_qi(i,j,nk)
-           end do
-        end do
-        call mpi_allgatherv(work2,ijn(mm1),mpi_rtype,work1,ijn,displs_g,mpi_rtype,&
-             mpi_comm_world,ierror)
-
-        ntp=0
-        wk_cw=zero
-        do k=1,iglobal
-           i=ltosi(k) ; j=ltosj(k)
-           cwtmp=work1(k)
-           if (cwtmp>1.0e-10_r_kind) then
-              wk_cw(i)=wk_cw(i)+cwtmp
-              ntp(i)=ntp(i)+1 
-           end if 
-        end do
-
-        amy0=one
-        maxamy=zero
-        do i=1,nlat
-           if (ntp(i)>0) then 
-              amy0(i)=max(wk_cw(i)/float(ntp(i)),1.0e-10_r_kind)
-              if (amy0(i)>maxamy) maxamy=amy0(i)
-           end if
-        end do
-        do i=1,nlat 
-           if (ntp(i)>0) amy0(i)=amy0(i)/maxamy
-        end do
-
-        do i=1,lat2
-           il=i+istart(mm1)-2
-           il=min0(max0(1,il),nlat)
-           amy(i)=amy0(il)
-        end do
-
-!       apply the coefficients to dssv of cw
-        do k=1,nsig
-           do i=1,lat2
-              coef=amz(k)*amy(i)
-              do j=1,lon2
-                 dssv(i,j,k,nrf3_cw)=coef*dssv(i,j,k,nrf3_cw)
+     end if
+     if (cwoption==2) then
+        do k = 1,nsig
+           do j = 1,lon2
+              do i = 1,lat2
+                 cwtmp=ges_ql(i,j,k)+ges_qi(i,j,k)
+                 if (l_wcp_cwm .and. ier6==0) then
+                    cwtmp=cwtmp &
+                        +ges_qr(i,j,k)+ges_qs(i,j,k) &
+                        +ges_qg(i,j,k)+ges_qh(i,j,k)
+                 endif
+                 if (cwtmp<1.0e-10_r_kind) cwtmp=1.0e-10_r_kind
+                 d=-2.0_r_kind*log(cwtmp) + one
+                 n=int(d)
+                 np=n+1
+                 dn2=d-float(n)
+                 dn1=one-dn2
+                 n=min0(max(1,n),30)
+                 np=min0(max(1,np),30)
+                 dssv(i,j,k,nrf3_cw)=(varcw(n,k)*dn1 + varcw(np,k)*dn2)*dssv(i,j,k,nrf3_cw)
               end do
            end do
         end do
-     end if ! end of ier
-  end if ! end of nrf3_cw
+     end if ! end of cw
 
+! for individual hydrometeors
+  else 
+     if (cwoption/=3) return
+     do n=1,size(cvars3d)
+        do ic=1,n_clouds_fwd
+           if(trim(cvars3d(n))==trim(cloud_names_fwd(ic))) then
+              nrf3_var=n
+              call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig), &
+                             trim(cloud_names_fwd(ic)),ges_var,istatus)
+              if (istatus/=0) return
+
+              do k = 1,nsig
+                 do j = 1,lon2
+                    do i = 1,lat2
+                       if (ges_prsl(i,j,k,ntguessig)<15.0_r_kind) then
+                          dssv(i,j,k,nrf3_var)=zero
+                       else
+                          cwtmp=ges_var(i,j,k)
+                          if (ges_var(i,j,k)<1.0e-10_r_kind) cwtmp=1.0e-10_r_kind
+                          dn1=0.05_r_kind*cwtmp
+                          dssv(i,j,k,nrf3_var)=dn1*dssv(i,j,k,nrf3_var)
+                       end if
+                    end do
+                 end do
+              end do
+
+           end if
+        end do 
+     end do
+  end if ! end of nrf3_cw
 
 end subroutine compute_qvar3d
 

@@ -43,7 +43,7 @@
 aura      20041001 000000  29991231 240000   o3lev        37    1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37
 aura      20041001 000000  29991231 240000   o3lev         7   38 39 40 41 42 43 44
 # aura ozone levels (mls, nrt - gmao)                    count  -- levels --
-aura      20130401 000000  29991231 240000   mls55     30    8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37
+aura      20130401 000000  29991231 240000   mls55     29       9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37
 aura      20130401 000000  29991231 240000   mls55      6   38 39 40 41 42 43 
 
 # Note that redundency of the same data is allowed software.  One has to edit either time range of active.tbl or gsi.rc to explude one or another.
@@ -58,6 +58,18 @@ ep        19960722 000000  29991231 240000   tomseff      0
 # metop-a ozone levels (gome)                        count  -- levels --
 metop-a   19900101 000000  29991231 240000   gome        0
 
+# OMPS Nadir Mapper
+npp       20120101 000000  29901231 240000   ompsnm      1       1
+# OMPS Nadir Profiler
+npp       20120101 000000  29901231 240000   ompsnp     21    1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21
+
+# OMPS-LP UV ozone levels                               count  -- levels --
+npp      20130101 000000  29991231 240000   ompslpuv    31    1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+npp      20130101 000000  29991231 240000   ompslpuv    25   32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56
+
+# OMPS-LP Vis ozone levels                               count  -- levels --
+npp      20130101 000000  29991231 240000   ompslpvis   31    1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+npp      20130101 000000  29991231 240000   ompslpvis   25   32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56
 
 # Nimbus-7, NOAA-09, -11 ozone levels (sbuv2)             count  -- levels --
 nim07     19781101 000000  19891231 240000   sbuv2      13    1  2  3  4  5  6  7  8  9 10 11 12 13

@@ -1,5 +1,5 @@
 subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
-             nprof_gps,sis)
+             nprof_gps,sis,nobs)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram: read_gps                   read in and reformat gps data
@@ -56,6 +56,9 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 !   2011-08-24 cucurull - add preliminaty qc flags for C/NOFS, SAC-C, Oceansat-2, METOP-B, SAC-D, and M-T
 !   2012-10-25 cucurull - add qc flag for bnd=0 case
 !   2013-01-26  parrish - change from grdcrd to grdcrd1 (to allow successful debug compile on WCOSS)
+!   2015-02-23  Rancic/Thomas - add l4densvar to time window logical
+!   2015-10-01  guo     - consolidate use of ob location (in deg)
+!   2017-11-16  dutta   - addition of profile quality flags for KOMPSAT5 GPSRO.
 !
 !   input argument list:
 !     infile   - unit from which to read BUFR data
@@ -68,6 +71,7 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 !     nread    - number of gps observations read
 !     ndata    - number of gps profiles retained for further processing
 !     nodata   - number of gps observations retained for further processing
+!     nobs     - array of observations on each subdomain for each processor
 !
 ! attributes:
 !   language: f90
@@ -76,12 +80,13 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 !$$$ end documentation block
 
   use kinds, only: r_kind,i_kind,r_double
-  use constants, only: deg2rad,zero,rad2deg,r60inv,r100
+  use constants, only: deg2rad,zero,r60inv,r100
   use obsmod, only: iadate,ref_obs
-  use gsi_4dvar, only: l4dvar,iwinbgn,winlen
-  use convinfo, only: nconvtype,ctwind,cermax, &
+  use gsi_4dvar, only: l4dvar,l4densvar,iwinbgn,winlen
+  use convinfo, only: nconvtype,ctwind, &
         ncmiter,ncgroup,ncnumgrp,icuse,ictype,ioctype
   use gridmod, only: regional,nlon,nlat,tll2xy,rlats,rlons
+  use mpimod, only: npe
   implicit none
 
 ! Declare passed variables
@@ -90,11 +95,12 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
   real(r_kind)    ,intent(in   ) :: twind
   integer(i_kind) ,intent(in   ) :: lunout
   integer(i_kind) ,intent(inout) :: nread,ndata,nodata
+  integer(i_kind),dimension(npe) ,intent(inout) :: nobs
   integer(i_kind) ,intent(inout) :: nprof_gps
 
 ! Declare local parameters  
   integer(i_kind),parameter:: maxlevs=500
-  integer(i_kind),parameter:: maxinfo=16
+  integer(i_kind),parameter:: maxinfo=18
   real(r_kind),parameter:: r10000=10000.0_r_kind
   real(r_kind),parameter:: r360=360.0_r_kind
 
@@ -124,19 +130,20 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
   
   real(r_kind) timeo,t4dv
   real(r_kind) pcc,qfro,usage,dlat,dlat_earth,dlon,dlon_earth,freq_chk,freq
+  real(r_kind) dlat_earth_deg,dlon_earth_deg
   real(r_kind) height,rlat,rlon,ref,bend,impact,roc,geoid,&
-               bend_error,ref_error,bend_pccf,ref_pccf
+               bend_error,ref_error,bend_pccf,ref_pccf,sclf,qfro_init
 
   real(r_kind),allocatable,dimension(:,:):: cdata_all
  
-  integer(i_kind),parameter:: n1ahdr=10
+  integer(i_kind),parameter:: n1ahdr=11
   real(r_double),dimension(n1ahdr):: bfr1ahdr
   real(r_double),dimension(50,maxlevs):: data1b
   real(r_double),dimension(50,maxlevs):: data2a
   real(r_double),dimension(maxlevs):: nreps_this_ROSEQ2
  
   data lnbufr/10/
-  data hdr1a / 'YEAR MNTH DAYS HOUR MINU PCCF ELRC SAID PTID GEODU' / 
+  data hdr1a / 'YEAR MNTH DAYS HOUR MINU PCCF ELRC SAID PTID GEODU SCLF' / 
   data nemo /'QFRO'/
   
 !***********************************************************************************
@@ -162,6 +169,18 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
      return
   end if
 
+! Open file for input, then read bufr data
+  open(lnbufr,file=trim(infile),form='unformatted')
+  call openbf(lnbufr,'IN',lnbufr)
+  call datelen(10)
+  call readmg(lnbufr,subset,idate,iret)
+  if (iret/=0) then
+     call closbf(lnbufr)
+     write(6,*)' GPS file not read '
+     write(6,1020)'READ_GPS:  ref_obs,nprof_gps= ',ref_obs,nprof_gps
+     return
+  end if
+
 ! Allocate and load arrays to contain gpsro types.
   ngpsro_type=ikx
   allocate(gpsro_ctype(ngpsro_type), gpsro_itype(ngpsro_type), &
@@ -178,13 +197,6 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
   end do
 
 
-! Open file for input, then read bufr data
-  open(lnbufr,file=trim(infile),form='unformatted')
-  call openbf(lnbufr,'IN',lnbufr)
-  call datelen(10)
-  call readmg(lnbufr,subset,idate,iret)
-  if (iret/=0) goto 1010
-
 ! Allocate work array to hold observations
   allocate(cdata_all(nreal,maxobs))
 
@@ -198,7 +210,8 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 ! Extract header information
         call ufbint(lnbufr,bfr1ahdr,n1ahdr,1,iret,hdr1a)
         call ufbint(lnbufr,qfro,1,1,iret,nemo)
-
+        qfro_init = qfro
+        
 ! observation time in minutes
         idate5(1) = bfr1ahdr(1) ! year
         idate5(2) = bfr1ahdr(2) ! month
@@ -210,6 +223,7 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
         said=bfr1ahdr(8)        ! Satellite identifier
         ptid=bfr1ahdr(9)        ! Platform transmitter ID number
         geoid=bfr1ahdr(10)      ! Geoid undulation
+        sclf=bfr1ahdr(11)         ! Satellite Classification (tranmitter type)
         call w3fs21(idate5,minobs)
 
 ! Locate satellite id in convinfo file
@@ -227,7 +241,7 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
    
 ! check time window in subset
         t4dv=real((minobs-iwinbgn),r_kind)*r60inv
-        if (l4dvar) then
+        if (l4dvar.or.l4densvar) then
            if (t4dv<zero .OR. t4dv>winlen) then
               write(6,*)'READ_GPS:      time outside window ',&
                    t4dv,' skip this report'
@@ -244,16 +258,17 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
         endif
  
 ! Check profile quality flags
-        if ( ((said > 739).and.(said < 746)).or.(said == 820).or.(said == 786)) then  !CDAAC processing
+        if ( ((said > 739).and.(said < 746)).or.(said == 820).or.(said == 786).or.&
+             ((said > 749).and.(said < 756)).or.(said == 825).or.(said == 44) ) then  !CDAAC processing
            if(pcc==zero) then
-              write(6,*)'READ_GPS:  bad profile said=',said,'ptid=',ptid,&
-                  ' SKIP this report'
+!             write(6,*)'READ_GPS:  bad profile said=',said,'ptid=',ptid,&
+!                 ' SKIP this report'
               cycle read_loop
            endif
         endif
 
-        if ((said == 4).or.(said == 3).or.(said == 421).or.(said == 440).or.&
-            (said == 821)) then ! GRAS SAF processing
+        if ((said == 4)  .or.(said == 3).or.(said == 421).or.(said == 440).or.&
+            (said == 821).or.(said == 5) ) then ! GRAS SAF processing
            call upftbv(lnbufr,nemo,qfro,mxib,ibit,nib)
            lone = .false.
              if(nib > 0) then
@@ -380,6 +395,8 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
               if (rlon==r360)  rlon=zero
               if (rlon<zero  ) rlon=rlon+r360
 
+              dlat_earth_deg = rlat
+              dlon_earth_deg = rlon
               dlat_earth = rlat * deg2rad  !convert to radians
               dlon_earth = rlon * deg2rad
  
@@ -418,10 +435,12 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
               cdata_all(11,ndata)= said            ! satellite identifier
               cdata_all(12,ndata)= ptid            ! platform transmitter id number
               cdata_all(13,ndata)= usage           ! usage parameter
-              cdata_all(14,ndata)= dlon_earth*rad2deg  ! earth relative longitude (degrees)
-              cdata_all(15,ndata)= dlat_earth*rad2deg  ! earth relative latitude (degrees)
+              cdata_all(14,ndata)= dlon_earth_deg  ! earth relative longitude (degrees)
+              cdata_all(15,ndata)= dlat_earth_deg  ! earth relative latitude (degrees)
               cdata_all(16,ndata)= geoid           ! geoid undulation (m)
-
+              cdata_all(17,ndata)= sclf              ! sat classification
+              cdata_all(18,ndata)= qfro_init    ! initial quality flag
+              
            else
               notgood = notgood + 1
            end if
@@ -434,12 +453,12 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
   enddo                     ! messages
 
 ! Write observation to scratch file
+  call count_obs(ndata,nreal,ilat,ilon,cdata_all,nobs)
   write(lunout) obstype,sis,nreal,nchanl,ilat,ilon,nmrecs
   write(lunout) ((cdata_all(k,i),k=1,nreal),i=1,ndata)
   deallocate(cdata_all)
   
 ! Close unit to input file
-1010 continue
   call closbf(lnbufr)
 
   nprof_gps = nmrecs
@@ -449,7 +468,7 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
           write(6,1020)'READ_GPS:  LEO_id,nprof_gps = ',gpsro_itype(i),nmrecs_id(i)
   end do
   write(6,1020)'READ_GPS:  ref_obs,nprof_gps= ',ref_obs,nprof_gps
-1020 format(a31,2(i6,1x))
+1020 format(a31,L,i6)
 
 ! Deallocate arrays
   deallocate(gpsro_ctype,gpsro_itype,gpsro_ikx,nmrecs_id)

@@ -207,6 +207,7 @@ module gsi_metguess_mod
 ! !USES:
 
 use kinds, only: i_kind,r_kind
+use constants, only: max_varname_length
 use mpimod, only : mype
 use mpeu_util,only: die
 use file_utility, only : get_lun
@@ -272,7 +273,7 @@ type(GSI_Bundle),pointer :: GSI_MetGuess_Bundle(:)   ! still a common block for 
 ! !PRIVATE ROUTINES:
 !BOC
 
-integer(i_kind),parameter::MAXSTR=256
+integer(i_kind),parameter::MAXSTR=max_varname_length
 logical:: guess_grid_initialized_=.false.
 logical:: guess_initialized_=.false.
 character(len=*), parameter :: myname = 'gsi_metguess_mod'
@@ -728,6 +729,11 @@ end subroutine final_
         if (i4crtm3d(ii)==12) ivar=ivar+1
      enddo
      istatus=0
+  else if(trim(desc)=='clouds_4crtm_fwd::3d') then
+     do ii=1,ng3d
+        if (i4crtm3d(ii)>10) ivar=ivar+1
+     enddo
+     istatus=0
   else if(index(trim(desc),'i4crtm::')/=0) then
      ln=len_trim(desc)
      work=desc(9:ln)
@@ -942,6 +948,7 @@ end subroutine final_
 !      clouds::3d             list of 3d cloud fields
 !      meteo_4crtm_jac::3d    list of 3d meteorology fields to participate in CRTM-Jac calc
 !      clouds_4crtm_jac::3d   list of 3d cloud fields to participate in CRTM-Jac calc
+!      clouds_4crtm_fwd::3d   list of 3d cloud fields to participate in CRTM-fwd calc
 ! 
 ! \end{verbatim}
 !  where XXX represents the name of the gas of interest. 
@@ -950,6 +957,8 @@ end subroutine final_
 !   2010-04-10  todling  initial code
 !   2011-04-06  ho-chung fix return status code
 !   2011-05-17  todling  protect against use of unavailable label
+!   2015-07-17  zhu      add clouds_4crtm_fwd::3d for variables used in forward
+!                        observation operator
 !
 ! !REMARKS:
 !   language: f90
@@ -1020,6 +1029,17 @@ end subroutine final_
         if(i4crtm3d(i)==12) then
            ii=ii+1
            ivar(ii)=mguess3d(i) 
+        endif
+     enddo
+     if(ii>0) istatus=0
+  endif
+  if(trim(desc)=='clouds_4crtm_fwd::3d') then
+     labfound=.true.
+     ii=0
+     do i=1,ng3d
+        if(i4crtm3d(i)>10) then
+           ii=ii+1
+           ivar(ii)=mguess3d(i)
         endif
      enddo
      if(ii>0) istatus=0

@@ -48,6 +48,8 @@
    use gsi_bundlemod, only : GSI_BundleGetPointer
    use gsi_bundlemod, only : GSI_Bundle
    use gsi_bundlemod, only : GSI_BundlePrint
+   use MAPL_LatLonGridFactoryMod
+   use MAPL_GridManagerMod
 
 ! Access to GSI's global data segments
 
@@ -138,17 +140,19 @@
                                            ! (nxpe, nype new for ESMF)
                          mpi_comm_world    ! MPI communicator
 
+   use gsi_4dvar, only: time_4dvar
    use gsi_4dvar, only: ibdate, iedate, iadatebgn, iadateend, iwinbgn, &
                          nhr_assimilation,& ! size of assimilation window (hrs)
                          min_offset,&       ! offset minutes from analysis time
                          iwrtinc,&          ! when .t., writes out increment
 			 idmodel,&          ! use identity perturbation model
-                         l4dvar             ! when .t., will run 4d-var
+                         l4dvar, &          ! when .t., will run 4d-var
+                         tau_fcst           ! interface of forecast (error; wrt to ana date/time)
 
    ! others...
    use constants, only: pi, rearth, zero, one, half
    use kinds,     only: r_kind,r_single,i_kind,r_double
-   use obsmod,    only: iadate, ianldate, ndat, ndat_times
+   use obsmod,    only: iadate, ianldate, ndat, ndat_times, time_offset
 
    ! meteorological guess
 !  use gsi_metguess_mod, only: gsi_metguess_create_grids
@@ -179,12 +183,22 @@
    public GSI_AgcmPertGrid
    public GSI_aClock
    public PERTMOD_RUN_DT
+   public GEOS_MU_SKIN
    public GSI_HALOWIDTH
    public GSI_Time0
    public GSI_RefTime
-   public GSI_ens_fname_tmpl
+   public GSI_FcsTime
+   public GSI_bkg_fname_tmpl
+   public GSI_ensbkg_fname_tmpl
+   public GSI_ensana_fname_tmpl
+   public GSI_ensprgA_fname_tmpl
+   public GSI_ensprgB_fname_tmpl
+   public GSI_fsens_fname_tmpl
+   public GSI_ferrA_fname_tmpl
+   public GSI_ferrB_fname_tmpl
+   public GSI_ensread_blocksize
 
-   public MU_SKIN  ! no so desirable to have this pass from here (revisit later)
+   public PPMV2GpG
 !
 ! !REVISION HISTORY:
 !
@@ -234,24 +248,34 @@
    real, parameter     :: UNDEF_SSI_      = -9.9899991E33 
    real, parameter     :: UNDEF_SOIL_TEMP = 1.E+15
    real, parameter     :: UNDEF_SNOW_DEP  = 1.E+12
-   real, parameter     :: PPMV2DU         = 1.657E-6
-   real, parameter     :: KGpKG2PPBV      = (28./28.97)*1.E+9 ! mol/mol to Kg/Kg as well
+   real, parameter     :: PPMV2GpG        = 1.6571E-6         ! ((47.9982 g/mol)/((28.9644 g/mol))*1e-6(mol/mol)-> g/g
+   real, parameter     :: KGpKG2PPBV      = (28./28.97)*1.E+9 ! mol/mol to ppbv
+   real, parameter     :: KGpKG2PPBVaero  = 1.E+9             ! kg/kg to ppbv (mol/mol to ppbv)
+   real, parameter     :: KGpKG2ppmvCO2   = 1.E+6             ! kg/kg to ppmv (mol/mol to ppmv)
    real, parameter     :: kPa_per_Pa      = 0.001
    real, parameter     :: Pa_per_kPa      = 1000.
    logical, parameter  :: verbose         = .false.
 
-   real(r_kind)        :: MU_SKIN
-
    integer, save       :: nbkgfreq        = 1
    integer, save       :: nthTimeIndex    = 0
    integer, save       :: BKGfreq_hr,BKGfreq_mn,BKGfreq_sc
-   integer, save       :: ANAfreq_hr,ANAwndw_hr
+   integer, save       :: ANAfreq_hr,ANAfreq_mn,ANAfreq_sc
+   integer, save       :: ANAwndw_hr
    integer(i_kind), save :: MYIDATE(4)
    integer(i_kind), save :: MYHOURG = 0.
+   real(r_kind), save  :: BKGfrac_hr
 
    logical, save       :: doVflip = .true.
    character(len=ESMF_MAXSTR),save :: GSI_ExpId
-   character(len=ESMF_MAXSTR),save :: GSI_ens_fname_tmpl
+   character(len=ESMF_MAXSTR),save :: GSI_bkg_fname_tmpl
+   character(len=ESMF_MAXSTR),save :: GSI_ensbkg_fname_tmpl
+   character(len=ESMF_MAXSTR),save :: GSI_ensana_fname_tmpl
+   character(len=ESMF_MAXSTR),save :: GSI_ensprgA_fname_tmpl
+   character(len=ESMF_MAXSTR),save :: GSI_ensprgB_fname_tmpl
+   character(len=ESMF_MAXSTR),save :: GSI_fsens_fname_tmpl
+   character(len=ESMF_MAXSTR),save :: GSI_ferrA_fname_tmpl
+   character(len=ESMF_MAXSTR),save :: GSI_ferrB_fname_tmpl
+   integer(i_kind)     :: GSI_ensread_blocksize
 
    logical             :: idco
 
@@ -270,10 +294,12 @@
 
    integer(i_kind),save :: GSI_HALOWIDTH = HW
    integer(i_kind),save :: PERTMOD_RUN_DT = HUGE(PERTMOD_RUN_DT)
+   real(r_kind)   ,save :: GEOS_MU_SKIN
    type(ESMF_Grid),save :: GSI_AgcmPertGrid
    type(ESMF_Clock),save :: GSI_aClock
    type(ESMF_Time),save :: GSI_Time0
    type(ESMF_Time),save :: GSI_RefTime
+   type(ESMF_Time),save :: GSI_FcsTime
 
 ! local utilities
 
@@ -621,6 +647,7 @@ _ENTRY_(trim(Iam))
 
 !-------------------------------------------------------------------------
    subroutine GSI_GridCompGridCreate_ ( grid, agcmPertGrid )
+
 !-------------------------------------------------------------------------
 ! !REVISION HISTORY:
 !
@@ -650,7 +677,9 @@ _ENTRY_(trim(Iam))
    real(kind(half))    :: dlon,dlat,pih
    character(len=*), parameter :: IAm='GSI_GridCompGridCreate'
 
+   character(len=30) GSIGRIDNAME
    real, allocatable,  dimension(:)   :: ak5r4(:),bk5r4(:)
+   type(LatLonGridFactory) :: ll_factory
 
 ! start
 
@@ -731,13 +760,12 @@ _ENTRY_(trim(Iam))
 
 ! Create Grid. The deltas define whether is is uniform or non-uniform
 
-   grid = MAPL_LatLonGridCreate (Name='GSI Grid', vm=vm, Nx=nxpe, Ny=nype,           &
-                                 IM_World=nlon, BegLon=lon0d, &
-                                 JM_World=nlat, BegLat=lat0d, &
-                                 LM_World=nsig, &
-                                 RC=STATUS)
-!!                                IM_World, BegLon, DelLon, &
-!!                                JM_World, BegLat, DelLat, &
+   call MAPL_DefGridName (nlon,nlat,GSIGRIDNAME,MAPL_am_I_root())
+   ll_factory = LatLonGridFactory(grid_name=GSIGRIDNAME, nx=nxpe, ny=nype, &
+                im_world=nlon, jm_world=nlat, lm=nsig, pole='PC', dateline='DC', &
+                rc=status)
+   VERIFY_(status)
+   grid = grid_manager%make_grid(ll_factory,rc=status)
    VERIFY_(STATUS)
 
    call ESMF_ConfigGetAttribute( CF, lon0d, label='AgcmPert_ORIGIN_CENTER_LON:', rc = STATUS )
@@ -745,11 +773,11 @@ _ENTRY_(trim(Iam))
    call ESMF_ConfigGetAttribute( CF, lat0d, label='AgcmPert_ORIGIN_CENTER_LAT:', rc = STATUS )
      	if(STATUS/=ESMF_SUCCESS) lat0d=-90.
 
-   agcmPertGrid = MAPL_LatLonGridCreate (Name='AgcmPert Grid', vm=vm, Nx=nxpe, Ny=nype, &
-                               IM_World=nlon, BegLon=lon0d, &
-                               JM_World=nlat, BegLat=lat0d, &
-                               LM_World=nsig, &
-                               RC=STATUS)
+   ll_factory = LatLonGridFactory(grid_name=GSIGRIDNAME, nx=nxpe, ny=nype, &
+                im_world=nlon, jm_world=nlat, lm=nsig, pole='PC', dateline='DC', &
+                rc=status)
+   VERIFY_(status)
+   agcmPertGrid = grid_manager%make_grid(ll_factory,rc=status)
    VERIFY_(STATUS)
 
    if(IamRoot) then
@@ -803,6 +831,8 @@ _ENTRY_(trim(Iam))
 
 !-------------------------------------------------------------------------
    subroutine GSI_GridCompGetVertParms_(rc)
+   use m_set_eta, only: set_eta
+   use mpimod, only: mpi_real8
 !-------------------------------------------------------------------------
 !
 ! !REVISION HISTORY:
@@ -813,6 +843,9 @@ _ENTRY_(trim(Iam))
    integer, optional,   intent(  OUT) :: rc     ! Error code:
    integer                            :: k
    real, allocatable,  dimension(:)   :: ak5r4(:),bk5r4(:)
+   real(r_double), allocatable,  dimension(:):: ak(:),bk(:)
+   real(r_double) :: ptop,pint
+   integer ks
    integer, allocatable, dimension(:) :: mylevs(:)
    character(len=16)                  :: vgridlabl
    character(len=3)                   :: cnsig
@@ -824,29 +857,19 @@ _ENTRY_(trim(Iam))
 
 ! Create the label to be searched for in the RC file based on nsig
 
-   write(cnsig,'(i3.3)',iostat=STATUS)nsig
-   VERIFY_(STATUS)
-   vgridlabl = "VERTGRID"//cnsig//":"
-
-   CALL ESMF_ConfigFindLabel(CF, label = trim(vgridlabl), rc = STATUS)
-   VERIFY_(STATUS)
-   allocate ( ak5r4(nsig+1), bk5r4(nsig+1), stat=STATUS )
-   VERIFY_(STATUS)
-   DO i = 1, nsig+1
-      CALL ESMF_ConfigNextLine    (CF, rc = STATUS)
-      VERIFY_(STATUS)
-      CALL ESMF_ConfigGetAttribute(CF, k, rc = STATUS)
-      VERIFY_(STATUS)
-      CALL ESMF_ConfigGetAttribute(CF, ak5r4(i), rc = STATUS) 
-      VERIFY_(STATUS)  
-      ak5(i)=ak5r4(i)
-      CALL ESMF_ConfigGetAttribute(CF, bk5r4(i), rc = STATUS)
-      VERIFY_(STATUS)
-      bk5(i)=bk5r4(i)
-      ck5(i)=zero
-   END DO
-   deallocate ( ak5r4, bk5r4, stat=STATUS )
-   VERIFY_(STATUS)
+   allocate ( ak (nsig+1), bk (nsig+1), stat=STATUS )
+   if(IamRoot) then
+      call set_eta ( nsig,ks,ptop,pint,ak,bk ) ! in GEOS orientation
+   endif
+   call mpi_bcast(ak, nsig+1,MPI_REAL8,MAPL_root,mpi_comm_world,rc)
+   call mpi_bcast(bk, nsig+1,MPI_REAL8,MAPL_root,mpi_comm_world,rc)
+   do i=1,nsig+1
+      k=nsig-i+2              ! in gsi orientation
+      ak5(k)=ak(i)*kPa_per_Pa ! convert to cb
+      bk5(k)=bk(i)
+      ck5(k)=zero
+   enddo
+   deallocate(ak,bk)
 
    if(IamRoot.and.verbose) then
       print *,trim(IAm),' - lev, ak, bk - '
@@ -878,7 +901,8 @@ _ENTRY_(trim(Iam))
    
 ! local variables
 
-   integer(i_kind)  :: i, bkgbits, bkgbits_hr
+   real(r_kind)     :: bkgbits
+   integer(i_kind)  :: i
    integer(i_kind)  :: JOB_SGMT(2)
    integer(i_kind)  :: BKGfreq
    integer(i_kind)  :: ANAfreq
@@ -906,10 +930,14 @@ _ENTRY_(trim(Iam))
    BKGfreq_mn = mod(BKGfreq,10000)/100
    BKGfreq_sc = mod(BKGfreq,100)
    BKGfreq_sc = BKGfreq_hr*3600 + BKGFreq_mn*60 + BKGfreq_sc
+   BKGfrac_hr = BKGfreq_hr + real(BKGfreq_mn)/60
  
    call ESMF_ConfigGetAttribute(CF, RUN_DT, label='RUN_DT:', rc=STATUS)
         VERIFY_(STATUS)
    call ESMF_ConfigGetAttribute(CF, PERTMOD_RUN_DT, label='PERTMOD_RUN_DT:', default=RUN_DT, rc=STATUS)
+        VERIFY_(STATUS)  
+   ! if GSI_DT specified have it overwrite run_dt, but leave pertmod_run_dt untouched
+   call ESMF_ConfigGetAttribute(CF, RUN_DT, label='GSI_DT:', default=RUN_DT, rc=STATUS)
         VERIFY_(STATUS)
 
    nbkgfreq  = BKGfreq_sc / RUN_DT    ! bkg per dt
@@ -918,6 +946,9 @@ _ENTRY_(trim(Iam))
         VERIFY_(STATUS)
 
    ANAfreq_hr = ANAfreq / 10000
+   ANAfreq_mn = mod(ANAfreq,10000)/100
+   ANAfreq_sc = mod(ANAfreq,100)
+   ANAfreq_sc = ANAfreq_hr*3600 + ANAFreq_mn*60 + ANAfreq_sc
 
    if ( mod(BKGfreq_sc,6*3600)==0) then
         nfldsig_all = nhr_assimilation*3600 / BKGfreq_sc
@@ -963,22 +994,24 @@ _ENTRY_(trim(Iam))
 #ifdef VERBOSE
    call tell(Iam,'nfldsig_all=',nfldsig_all)
    call tell(Iam,'nfldsfc_all=',nfldsfc_all)
-   call tell(Iam,'BKGfreq_hr =',BKGfreq_hr )
+   call tell(Iam,'BKGfrac_hr =',BKGfrac_hr )
 #endif
-   bkgbits = 0
+   bkgbits = 0.0
    do i = 1, nfldsig_all
       hrdifsig_all(i)  = bkgbits
-      bkgbits      = bkgbits + BKGfreq_hr
-#ifdef VERBOSE
-      call tell(Iam,'             i =',i)
-      call tell(Iam,'hrdifsig_all(i)=',hrdifsig_all(i))
-#endif
+      bkgbits      = bkgbits + bkgfrac_hr
+!_RT#ifdef VERBOSE
+      if (IamRoot) then
+         call tell(Iam,'             i =',i)
+         call tell(Iam,'hrdifsig_all(i)=',hrdifsig_all(i))
+      endif
+!_RT#endif
    enddo
 
-   bkgbits = 0
+   bkgbits = 0.0
    do i = 1, nfldsfc_all
       hrdifsfc_all(i)  = bkgbits
-      bkgbits      = bkgbits + BKGfreq_hr
+      bkgbits      = bkgbits + bkgfrac_hr
 #ifdef VERBOSE
       call tell(Iam,'             i =',i)
       call tell(Iam,'hrdifsfc_all(i)=',hrdifsfc_all(i))
@@ -986,16 +1019,56 @@ _ENTRY_(trim(Iam))
    enddo
    hrdifnst_all =  hrdifsfc_all ! make it simple
 
+   call ESMF_ConfigGetAttribute(CF, GSI_ensread_blocksize, label='ensemble_read_blocksize:', &
+                                default=4,rc=STATUS)
 
-!  Read in filename template for ensemble members
+!  Read in filename template for background files
 !  ----------------------------------------------
-   call ESMF_ConfigGetAttribute(CF, GSI_ens_fname_tmpl, label='ensemble_upabkg_filename:', &
+   call ESMF_ConfigGetAttribute(CF, GSI_bkg_fname_tmpl, label='upper-air_bkg_filename:', &
                                 default='%s.bkg.eta.%y4%m2%d2_%h2z.nc4',rc=STATUS)
         VERIFY_(STATUS)
 
-   call ESMF_ConfigGetAttribute(CF, MU_SKIN, label='MU_SKIN:', default=0.3_r_kind, rc=STATUS)
+!  Read in filename template for ensemble of backgrounds
+!  -----------------------------------------------------
+   call ESMF_ConfigGetAttribute(CF, GSI_ensbkg_fname_tmpl, label='ensemble_upabkg_filename:', &
+                                default='%s.bkg.eta.%y4%m2%d2_%h2z.nc4',rc=STATUS)
         VERIFY_(STATUS)
 
+!  Read in filename template for ensemble of analysis
+!  --------------------------------------------------
+   call ESMF_ConfigGetAttribute(CF, GSI_ensana_fname_tmpl, label='ensemble_upaana_filename:', &
+                                default='%s.ana.eta.%y4%m2%d2_%h2z.nc4',rc=STATUS)
+        VERIFY_(STATUS)
+!  Read in filename template for ensemble of forecasts
+!  ---------------------------------------------------
+   call ESMF_ConfigGetAttribute(CF, GSI_ensprgA_fname_tmpl, label='ensemble_upaprga_filename:', &
+                                default='%s.proga.eta.%y4%m2%d2_%h2z.nc4',rc=STATUS)
+        VERIFY_(STATUS)
+   call ESMF_ConfigGetAttribute(CF, GSI_ensprgB_fname_tmpl, label='ensemble_upaprgb_filename:', &
+                                default='%s.progb.eta.%y4%m2%d2_%h2z.nc4',rc=STATUS)
+        VERIFY_(STATUS)
+!  Define template filename of forecast sensitivity vector
+!  -------------------------------------------------------
+   call ESMF_ConfigGetAttribute(CF, GSI_fsens_fname_tmpl, label='forecast_sensitivity_filename:', &
+                                default='fsens.eta.nc4',rc=STATUS)
+        VERIFY_(STATUS)
+!  Define template filename of forecast error vectors
+!  -------------------------------------------------------
+   call ESMF_ConfigGetAttribute(CF, GSI_ferrA_fname_tmpl, label='forecast_errorA_filename:', &
+                                default='ferrA.eta.nc4',rc=STATUS)
+        VERIFY_(STATUS)
+   call ESMF_ConfigGetAttribute(CF, GSI_ferrB_fname_tmpl, label='forecast_errorB_filename:', &
+                                default='ferrB.eta.nc4',rc=STATUS)
+        VERIFY_(STATUS)
+
+!  Read in the temperature profile exponent: mu_skin used for skin SST analysis
+!  SA: PERHAPS THIS resource parameter SHOULD NOT BE in GSI_GridCompGetBKGTimes_. 
+!  Ricardo, plz suggest suitable place.
+!  ----------------------------------------------------------------------------
+   CALL ESMF_ConfigGetAttribute(CF, GEOS_MU_SKIN, label = 'mu_skin:', default=0.2_r_kind, rc=STATUS)
+        VERIFY_(STATUS)
+   if(IamRoot) print *,trim(Iam),': Set MU_SKIN= ', GEOS_MU_SKIN
+  
    end subroutine GSI_GridCompGetBKGTimes_
 
 !-------------------------------------------------------------------------
@@ -1120,6 +1193,8 @@ _ENTRY_(trim(Iam))
    real(r_single),dimension(:,:,:), pointer :: ozp  ! ozone
    real(r_single),dimension(:,:,:), pointer :: qimr ! cloud ice    mixing ratio
    real(r_single),dimension(:,:,:), pointer :: qlmr ! cloud liquid mixing ratio
+   real(r_single),dimension(:,:,:), pointer :: qrmr ! rain mixing ratio
+   real(r_single),dimension(:,:,:), pointer :: qsmr ! snow mixing ratio
    real(r_single),dimension(:,:,:), pointer :: clfr ! cloud fraction for radiation
    ! import chem tracers ... preliminary (dummy implementation)
    real(r_single),dimension(:,:,:), pointer :: cop   =>NULL() ! carbone monoxide
@@ -1185,6 +1260,8 @@ _ENTRY_(trim(Iam))
    real(r_single),dimension(:,:,:), pointer :: doz   ! ozone
    real(r_single),dimension(:,:,:), pointer :: dqimr ! cloud ice    mixing ratio
    real(r_single),dimension(:,:,:), pointer :: dqlmr ! cloud liquid mixing ratio
+   real(r_single),dimension(:,:,:), pointer :: dqrmr ! rain mixing ratio
+   real(r_single),dimension(:,:,:), pointer :: dqsmr ! snow mixing ratio
    real(r_single),dimension(:,:  ), pointer :: dfrland    ! land fraction
    real(r_single),dimension(:,:  ), pointer :: dfrlandice ! land-ice fraction
    real(r_single),dimension(:,:  ), pointer :: dfrlake    ! lake fraction
@@ -1284,13 +1361,13 @@ _ENTRY_(trim(Iam))
    call tell(Iam,"returned from GSI_GridCompSetAnaTime_()")
 #endif
 
-!  If so, this allows overwriting CO2 (and other trace gases) in background 
-!  ------------------------------------------------------------------------
-   call read_gfs_chem (iadate(1),iadate(2),iadate(3))
-
 !  Set observations input
 !  ----------------------
-   if(L==1.and.IamRoot) call GSI_GridCompSetObsNames_(L)
+   if(L==1)then
+     call mpi_barrier(mpi_comm_world,ier)
+     if(IamRoot) call GSI_GridCompSetObsNames_(L)
+     call mpi_barrier(mpi_comm_world,ier)
+   endif
 #ifdef VERBOSE
    call tell(Iam,"returned from GSI_GridCompSetObsNames_(L) at L =",L)
 #endif
@@ -1464,6 +1541,16 @@ _ENTRY_(trim(Iam))
       VERIFY_(STATUS)
    end if
 
+! Will bootstrap these variables ...
+! ----------------------------------
+!  call ESMFL_StateGetPointerToData(import, vfrp, 'NCEP_VEGFRAC', rc=STATUS)
+!  if(status==0) ncbootstrap(1)=.false.
+!  call ESMFL_StateGetPointerToData(import, vtyp, 'NCEP_VEGTYPE', rc=STATUS)
+!  if(status==0) ncbootstrap(2)=.false.
+!  call ESMFL_StateGetPointerToData(import, styp, 'NCEP_SOITYPE', rc=STATUS)
+!  if(status==0) ncbootstrap(3)=.false.
+!  status=0
+
 ! Extra Meteorological fields
 ! ---------------------------
    do nt=1,nmguess
@@ -1499,6 +1586,12 @@ _ENTRY_(trim(Iam))
             VERIFY_(STATUS)
          case ('QLTOT')
             call ESMFL_StateGetPointerToData(import, qlmr, trim(cvar), rc=STATUS)
+            VERIFY_(STATUS)
+         case ('QRTOT')
+            call ESMFL_StateGetPointerToData(import, qrmr, trim(cvar), rc=STATUS)
+            VERIFY_(STATUS)
+         case ('QSTOT')
+            call ESMFL_StateGetPointerToData(import, qsmr, trim(cvar), rc=STATUS)
             VERIFY_(STATUS)
          case ('CLOUD')
             call ESMFL_StateGetPointerToData(import, clfr, trim(cvar), rc=STATUS)
@@ -1649,6 +1742,12 @@ _ENTRY_(trim(Iam))
          case ('qltot')
             call ESMFL_StateGetPointerToData(export, dqlmr, trim(cvar), alloc=.true., rc=STATUS)
             VERIFY_(STATUS)
+         case ('qrtot')
+            call ESMFL_StateGetPointerToData(export, dqrmr, trim(cvar), alloc=.true., rc=STATUS)
+            VERIFY_(STATUS)
+         case ('qstot')
+            call ESMFL_StateGetPointerToData(export, dqsmr, trim(cvar), alloc=.true., rc=STATUS)
+            VERIFY_(STATUS)
          case ('ozone')
            call ESMFL_StateGetPointerToData(export, doz,    trim(cvar), alloc=.true., rc=STATUS)
            VERIFY_(STATUS)
@@ -1702,12 +1801,108 @@ _ENTRY_(trim(Iam))
       endif
       if(associated(ozp)) then
          where ( ozp /= MAPL_UNDEF )
-                 ozp = ozp * PPMV2DU    ! convert ozone unit
+                 ozp = ozp * PPMV2GpG  ! convert from ppmv to g/g
          endwhere
       endif
       if(associated(cop)) then
          where ( cop /= MAPL_UNDEF )
                  cop = cop * KGpKG2PPBV  ! convert carbon monoxide unit (need gen. way of handling chemistry)
+         endwhere
+      endif
+      if(associated(co2p)) then
+         where ( co2p /= MAPL_UNDEF )
+                 co2p = co2p * KGpKG2ppmvCO2  ! convert carbon dioxide to ppmv
+         endwhere
+      endif
+      if(associated(du001p)) then
+         where ( du001p /= MAPL_UNDEF )
+                 du001p = du001p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(du002p)) then
+         where ( du002p /= MAPL_UNDEF )
+                 du002p = du002p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+         print *, 'DEBUG doing the right thing ...'
+      endif
+      if(associated(du003p)) then
+         where ( du003p /= MAPL_UNDEF )
+                 du003p = du003p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(du004p)) then
+         where ( du004p /= MAPL_UNDEF )
+                 du004p = du004p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(du005p)) then
+         where ( du005p /= MAPL_UNDEF )
+                 du005p = du005p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(ss001p)) then
+         where ( ss001p /= MAPL_UNDEF )
+                 ss001p = ss001p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(ss002p)) then
+         where ( ss002p /= MAPL_UNDEF )
+                 ss002p = ss002p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(ss003p)) then
+         where ( ss003p /= MAPL_UNDEF )
+                 ss003p = ss003p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(ss004p)) then
+         where ( ss004p /= MAPL_UNDEF )
+                 ss004p = ss004p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(ss005p)) then
+         where ( ss005p /= MAPL_UNDEF )
+                 ss005p = ss005p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(dmsp)) then
+         where ( dmsp /= MAPL_UNDEF )
+                 dmsp = dmsp * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(so2p)) then
+         where ( so2p /= MAPL_UNDEF )
+                 so2p = so2p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(so4p)) then
+         where ( so4p /= MAPL_UNDEF )
+                 so4p = so4p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(msap)) then
+         where ( msap /= MAPL_UNDEF )
+                 msap = msap * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(bcphobicp)) then
+         where ( bcphobicp /= MAPL_UNDEF )
+                 bcphobicp = bcphobicp * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(bcphilicp)) then
+         where ( bcphilicp /= MAPL_UNDEF )
+                 bcphilicp = bcphilicp * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(ocphobicp)) then
+         where ( ocphobicp /= MAPL_UNDEF )
+                 ocphobicp = ocphobicp * KGpKG2PPBVaero ! convert from kg/kg to ppbv
+         endwhere
+      endif
+      if(associated(ocphilicp)) then
+         where ( ocphilicp /= MAPL_UNDEF )
+                 ocphilicp = ocphilicp * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
       endif
    endif
@@ -1750,6 +1945,7 @@ _ENTRY_(trim(Iam))
    integer(i_kind) :: irank, ipnt, ier,istatus
    character(len=ESMF_MAXSTR) :: cvar
    real(r_kind),pointer,dimension(:,:,:):: ptr_cwmr,ptr_qimr,ptr_qlmr
+
 
 ! start   
 
@@ -1840,6 +2036,10 @@ _ENTRY_(trim(Iam))
               call GSI_GridCompSwapIJ_(qimr,GSI_MetGuess_bundle(it)%r3(ipnt)%q)
             case ('ql')
               call GSI_GridCompSwapIJ_(qlmr,GSI_MetGuess_bundle(it)%r3(ipnt)%q)
+            case ('qr')
+              call GSI_GridCompSwapIJ_(qrmr,GSI_MetGuess_bundle(it)%r3(ipnt)%q)
+            case ('qs')
+              call GSI_GridCompSwapIJ_(qsmr,GSI_MetGuess_bundle(it)%r3(ipnt)%q)
             case ('cf')
               call GSI_GridCompSwapIJ_(clfr,GSI_MetGuess_bundle(it)%r3(ipnt)%q)
          end select
@@ -1923,6 +2123,10 @@ _ENTRY_(trim(Iam))
        call guess_grids_stats(cvar, GSI_chemguess_bundle(it)%r3(ipnt)%q, mype)
 #endif
    enddo
+
+!  If so, this allows overwriting CO2 (and other trace gases) in background 
+!  ------------------------------------------------------------------------
+   call read_gfs_chem (iadate(1),iadate(2),iadate(3),it)
 
 ! simple statistics
 
@@ -2316,12 +2520,16 @@ _ENTRY_(trim(Iam))
 
    subroutine GSI_GridCompGetNCEPsfcFromFile_(lit)
 
+   use sfcio_module
    implicit none
 
    integer, intent(in) :: lit ! logical index of first guess time level to copy
 
 ! !DESCRIPTION: read NCEP global surface fields, vegetation fraction,
 !               vegetation and soil type,  from a file.
+!   17Mar2016  Todling  Revisit handling of extra surface fields: use sfcio;
+!                       add option to set veg-type to constant for sensitivity
+!                       evalulation.
 !
 !EOPI
 !-------------------------------------------------------------------------
@@ -2338,14 +2546,23 @@ _ENTRY_(trim(Iam))
    integer version
    integer,dimension(4):: igdate
 
+   type(sfcio_head):: head
+   type(sfcio_data):: data
+
    character(len=*), parameter    :: &
             IAm='GSI_GridCompGetNCEPsfcFromFile_'
 
-   integer(i_kind) :: it,nn
+   integer(i_kind) :: it,nn,iret
+   integer(i_kind) :: iset_veg_type
+   logical,parameter :: wrt_ncep_sfc_grd=.false.
+   logical,parameter :: use_sfcio=.true.
 
 ! start
 
    if(IamRoot.and.verbose) print *,trim(Iam),': read NCEP global surface fields from a file'
+
+   call ESMF_ConfigGetAttribute( CF, iset_veg_type, label ='THIS_VEG_TYPE:', default=-1, rc = STATUS )
+   VERIFY_(STATUS)
 
    if(lit > nfldsfc) then
      do nn=1,nfldsfc-1
@@ -2361,14 +2578,34 @@ _ENTRY_(trim(Iam))
 !
    if(IamRoot) then
 
+      if (wrt_ncep_sfc_grd) then
+         call baopenwt(36,'ncepsfc.grd',iret)
+      endif
       ! NCEP surface fields are defined on a Gaussian grid...
-      open(34,file='ncepsfc', form='unformatted')
-      read (34) 
-      read(34) yhour,igdate,glon,glat2,version
-      close(34)
-      if(verbose) print *,trim(Iam),': ncepsfc hour/date  : ',yhour,' / ',igdate
-      if(verbose) print *,trim(Iam),': ncepsfc fields dims: ',glon,' x ',glat2
-      glat=glat2+2 
+      if (use_sfcio) then
+         print *,trim(Iam),': Using sfcio to read NCEP surface file (as BC)'
+         call sfcio_srohdc(34,'ncepsfc',head,data,iret)
+         yhour=head%fhour
+         igdate=head%idate
+         glat2=head%latb
+         glon =head%lonb
+         version = head%ivs
+         glat=glat2
+         if (iset_veg_type>0) then
+            data%vfrac=1.0 ! test sens of CRTM to veg fractions
+            data%vtype=13.0! test sens of CRTM to veg type
+            print*, trim(Iam), ', Veg-fractions reset: vfrac=1.0'
+            print*, trim(Iam), ', Veg-type reset by request to: ',iset_veg_type
+         endif
+      else
+         open(34,file='ncepsfc', form='unformatted')
+         read (34) 
+         read(34) yhour,igdate,glon,glat2,version
+         close(34)
+         glat=glat2+2 
+      endif
+      print *,trim(Iam),': ncepsfc hour/date  : ',yhour,' / ',igdate
+      print *,trim(Iam),': ncepsfc fields dims, version: ',glon,' x ',glat2, ' v', version
 
       allocate(sfcbuf(glon,glat2),  & ! ncepsfc fields buffer
                sfcbufpp(glon,glat), & ! same but with poles added
@@ -2380,12 +2617,16 @@ _ENTRY_(trim(Iam))
                stat=STATUS)
       VERIFY_(STATUS)
 
-      call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
-                          STATUS, jrec=12, fld=sfcbuf)
-      VERIFY_(STATUS)
+      if (.not.use_sfcio ) then
+         call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
+                             STATUS, jrec=12, fld=sfcbuf)
+         VERIFY_(STATUS)
+      else
+         sfcbuf=data%vfrac
+      endif
       call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
       call GSI_GridCompFlipLons_(sfcbufpp)
-      call hinterp ( sfcbufpp ,glon, glat   , &
+      call hinterp2 ( sfcbufpp ,glon, glat   , &
                       vfrbuf, nlon, nlat, 1, &
                       UNDEF_SSI_)
       call GSI_GridCompFlipLons_(vfrbuf)
@@ -2395,56 +2636,86 @@ _ENTRY_(trim(Iam))
       where(vfrbuf>1.0)
         vfrbuf=1.0
       end where
+      if (wrt_ncep_sfc_grd) then
+         call wryte(36,4*nlat*nlon,vfrbuf)
+      endif
 
-      call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
-                          STATUS, jrec=15, fld=sfcbuf)
-      VERIFY_(STATUS)
+      if (.not.use_sfcio ) then
+         call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
+                             STATUS, jrec=15, fld=sfcbuf)
+         VERIFY_(STATUS)
+      else
+         sfcbuf=data%vtype
+      endif
       call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
       call GSI_GridCompFlipLons_(sfcbufpp)
-      call hinterp ( sfcbufpp ,glon, glat   , &
+      call hinterp2 ( sfcbufpp ,glon, glat   , &
                       vtybuf, nlon, nlat, 1, &
                       UNDEF_SSI_)
       call GSI_GridCompFlipLons_(vtybuf)
+      vtybuf=real(nint(vtybuf),r_single) 
+      where(vtybuf <  0.0_r_single) vtybuf =  0.0_r_single
+      where(vtybuf > 13.0_r_single) vtybuf = 13.0_r_single
+      if (wrt_ncep_sfc_grd) then
+         call wryte(36,4*nlat*nlon,vtybuf)
+      endif
 
-      call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
-                          STATUS, jrec=16, fld=sfcbuf)
-      VERIFY_(STATUS)
+      if (.not.use_sfcio ) then
+         call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
+                             STATUS, jrec=16, fld=sfcbuf)
+         VERIFY_(STATUS)
+      else
+         sfcbuf=data%stype
+      endif
       call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
       call GSI_GridCompFlipLons_(sfcbufpp)
-      call hinterp ( sfcbufpp ,glon, glat   , &
+      call hinterp2 ( sfcbufpp ,glon, glat   , &
                       stybuf, nlon, nlat, 1, &
                       UNDEF_SSI_)
       call GSI_GridCompFlipLons_(stybuf)
+      stybuf=real(nint(stybuf),r_single)
+      where(stybuf <  0.0_r_single) stybuf = 0.0_r_single
+      where(stybuf >  9.0_r_single) stybuf = 9.0_r_single
+      if (wrt_ncep_sfc_grd) then
+         call wryte(36,4*nlat*nlon,stybuf)
+         call baclose(36,iret) 
+      endif
 
       deallocate(sfcbuf, sfcbufpp, stat=STATUS)
       VERIFY_(STATUS)
 
    end if
    
-   allocate(vfrp(lon2,lat2), &
-            vtyp(lon2,lat2), &
-            styp(lon2,lat2), &
-            stat=STATUS)
+   allocate(vfrp(lon2,lat2), stat=STATUS)
+   VERIFY_(STATUS)
+   call ArrayScatter(vfrp, vfrbuf, GSIGrid, hw=hw, rc=STATUS)
+   VERIFY_(STATUS)
+   call GSI_GridCompSwapIJ_(vfrp, veg_frac(:,:,it))
+   deallocate(vfrp, stat = STATUS)
    VERIFY_(STATUS)
 
-   call ArrayScatter(vfrp, vfrbuf, GSIGrid, hw=hw, rc=STATUS)
+   allocate(vtyp(lon2,lat2), stat=STATUS)
    VERIFY_(STATUS)
    call ArrayScatter(vtyp, vtybuf, GSIGrid, hw=hw, rc=STATUS)
    VERIFY_(STATUS)
-   call ArrayScatter(styp, stybuf, GSIGrid, hw=hw, rc=STATUS)
-   VERIFY_(STATUS)
-
 !  Dirty fix to get rid of complete insanity (but still not correct)
 !  -----------------------------------------
-   where(vtyp <= zero) vtyp = one
-   where(styp <= zero) styp = one
-
+   where(vtyp <= zero) vtyp = zero
    call GSI_GridCompSwapIJ_(vtyp, veg_type(:,:,it))
-   call GSI_GridCompSwapIJ_(styp,soil_type(:,:,it))   
-   call GSI_GridCompSwapIJ_(vfrp, veg_frac(:,:,it))
-
-   deallocate(vtyp, vfrp, styp, stat = STATUS)
+   deallocate(vtyp, stat = STATUS)
    VERIFY_(STATUS)
+
+   allocate(styp(lon2,lat2), stat=STATUS)
+   VERIFY_(STATUS)
+   call ArrayScatter(styp, stybuf, GSIGrid, hw=hw, rc=STATUS)
+   VERIFY_(STATUS)
+!  Dirty fix to get rid of complete insanity (but still not correct)
+!  -----------------------------------------
+   where(styp <= zero) styp = zero
+   call GSI_GridCompSwapIJ_(styp,soil_type(:,:,it))   
+   deallocate(styp, stat = STATUS)
+   VERIFY_(STATUS)
+
    if(IamRoot) then
       deallocate(vtybuf, stybuf, vfrbuf, stat=STATUS)
       VERIFY_(STATUS)
@@ -2470,7 +2741,7 @@ _ENTRY_(trim(Iam))
    subroutine GSI_GridCompCopyInternal2Export_(lit)
 
    use constants,only: one
-   use radinfo,  only: nst_gsi
+   use gsi_nstcouplermod,  only: nst_gsi
    implicit none
 
    integer, intent(in) :: lit ! logical index of first guess time level to copy
@@ -2511,6 +2782,8 @@ _ENTRY_(trim(Iam))
    real(r_kind),pointer::  q(:,:,:) =>NULL()
    real(r_kind),pointer:: ql(:,:,:) =>NULL()
    real(r_kind),pointer:: qi(:,:,:) =>NULL()
+   real(r_kind),pointer:: qr(:,:,:) =>NULL()
+   real(r_kind),pointer:: qs(:,:,:) =>NULL()
    real(r_kind),pointer:: cw(:,:,:) =>NULL()
    character(len=ESMF_MAXSTR) :: cvar
 
@@ -2596,6 +2869,10 @@ _ENTRY_(trim(Iam))
                call GSI_GridCompSwapJI_(dqimr,GSI_MetGuess_Bundle(it)%r3(ipnt)%q)
             case ('ql')
                CALL GSI_GridCompSwapJI_(dqlmr,GSI_MetGuess_Bundle(it)%r3(ipnt)%q)
+            case ('qr')
+               CALL GSI_GridCompSwapJI_(dqrmr,GSI_MetGuess_Bundle(it)%r3(ipnt)%q)
+            case ('qs')
+               CALL GSI_GridCompSwapJI_(dqsmr,GSI_MetGuess_Bundle(it)%r3(ipnt)%q)
           end select
       endif
    enddo
@@ -2630,7 +2907,7 @@ _ENTRY_(trim(Iam))
       if( nst_gsi > 2) then
           dts =  wrk + dts
       else
-          where (dts/=MAPL_UNDEF) dts =  wrk + dts             ! Original way of hadling sst [no nst]
+          where (dts/=MAPL_UNDEF) dts =  wrk + dts             ! Original way of handling sst [no nst]
       end if
       deallocate(wrk)
    endif
@@ -2691,7 +2968,7 @@ _ENTRY_(trim(Iam))
    if(associated(dps)) dps = dps  * Pa_per_kPa
    if(GsiGridType==0) then
       if(associated(dhs)) dhs = grav * dhs
-      if(associated(doz)) doz = doz  / PPMV2DU
+      if(associated(doz)) doz = doz  / PPMV2GpG
       if(idco.and.associated(dcop)) then
          dcop = dcop  / KGpKG2PPBV
       endif
@@ -2780,6 +3057,9 @@ _ENTRY_(trim(Iam))
    iedate(1:5)=(/jda(1),jda(2),jda(3),jda(5),jda(6)/)
    iadateend=jda(1)*1000000+jda(2)*10000+jda(3)*100+jda(5)
 
+!  Get time offset
+   call time_4dvar(ianldate,time_offset)
+
    if(IamRoot) then ! print out some information.
 
      write(6,*)trim(IAm),':  Guess date is ',idate4,ihourg
@@ -2794,6 +3074,7 @@ _ENTRY_(trim(Iam))
      write(6,*) trim(IAm),':        analysis yyyymmdd:hhmmss = '//cymd//':'//chms
      write(6,*) trim(IAm),':        analysis time in minutes =',nmin_an
      write(6,*) trim(IAm),':  time since start of var window =',iwinbgn
+     write(6,*) trim(IAm),':                     time offset =',time_offset
       
    endif
 
@@ -3114,14 +3395,18 @@ _ENTRY_(trim(Iam))
    call StrTemplate ( obsfile, tmpl, nymd=nymd, nhms=nhms, stat=STATUS )
    VERIFY_(STATUS)
    inquire(file=trim(ObsFileDir)//trim(obsfile), exist=fexist)
-   syscmd1 = 'rm -f '//trim(gsiname)
-   syscmd2 = 'ln -s '//trim(ObsFileDir)//trim(obsfile)//' '//trim(gsiname)
+   syscmd1 = '/bin/rm -f '//trim(gsiname)
+   syscmd2 = '/bin/ln -s '//trim(ObsFileDir)//trim(obsfile)//' '//trim(gsiname)
    if(fexist) then
       if(present(indx)) then
          write(syscmd2,'(2a,i2.2)') trim(syscmd2), '.', indx
       endif
-      call system(syscmd1)
-      call system(syscmd2)
+      ! RT: commented out due to MPT mpi issue in handling system calls 
+      ! RT: this is now controlled at script level
+      !call system(trim(syscmd1))
+      !call system(trim(syscmd2))
+      !call EXECUTE_COMMAND_LINE(trim(syscmd1),WAIT=.TRUE.)
+      !call EXECUTE_COMMAND_LINE(trim(syscmd2),WAIT=.TRUE.)
       call tell(Iam,trim(syscmd2))
    else
       call warn(Iam,"observation file does not exist, obsfile =",trim(obsfile))
@@ -3134,6 +3419,8 @@ _ENTRY_(trim(Iam))
 !-------------------------------------------------------------------------
 !  28Sep2013  Todling  GMAO-specific routine mimic of obsmod routine to get
 !                      GMAO extra column in gsiparm.nml file w/ obsclass
+!  11Mar2013  Sienkiewicz  update 'xdfile' size to match recent 'dfile' size
+!                          change for aircraft BC profile file name
 !-------------------------------------------------------------------------
    use file_utility, only : get_lun
    use mpeu_util, only: gettablesize
@@ -3147,7 +3434,7 @@ _ENTRY_(trim(Iam))
    integer(i_kind) luin,i,ii,nrows,ntot
    character(len=ESMF_MAXSTR),allocatable,dimension(:):: utable
    character(10) xdtype,xditype,xdplat
-   character(13) xdfile
+   character(15) xdfile
    character(20) xdsis
    character(32) xcolumn
    real(r_kind)  xdval
@@ -3390,6 +3677,9 @@ _ENTRY_(trim(Iam))
                                    'phis            ',    &
                                    'ps              ',    &
                                    'ts              ',    &
+!                                  'NCEP_VEGFRAC    ',    &
+!                                  'NCEP_VEGTYPE    ',    &
+!                                  'NCEP_SOITYPE    ',    &
                                    'U10M            ',    &
                                    'V10M            ',    &
                                    'SNOWDP          ',    &
@@ -3405,6 +3695,9 @@ _ENTRY_(trim(Iam))
                       'geopotential height             ', &
                       'surface pressure                ', &
                       'skin temperature                ', &
+!                     'NCEP(CRTM-like) veg fraction    ', &
+!                     'NCEP(CRTM-like) veg type        ', &
+!                     'NCEP(CRTM-like) soil type       ', &
                       'u 10 m-wind                     ', &
                       'v 10 m-wind                     ', &
                       'snow depth                      ', &
@@ -3418,8 +3711,11 @@ _ENTRY_(trim(Iam))
                       'fraction of sea ice             ' /)
    character(len=16), parameter :: inunits2d(nin2d) = (/  &
                                    'm**2/s**2       ',    &
-                                   'hPa             ',    &
+                                   'Pa              ',    &
                                    'K               ',    &
+!                                  '1               ',    &
+!                                  '1               ',    &
+!                                  '1               ',    &
                                    'm/s             ',    &
                                    'm/s             ',    &
                                    'm               ',    &
@@ -3452,7 +3748,7 @@ _ENTRY_(trim(Iam))
                                    'm/s             ',    &
                                    'K               ',    &
                                    'g/g             ',    &
-                                   'g/g             '    /)
+                                   'ppmv            '    /)
 
 !  Declare import 2d-fields (extra met-guess)
 !  ------------------------
@@ -3478,16 +3774,22 @@ _ENTRY_(trim(Iam))
 
 !  Declare import 3d-fields (extra met-guess)
 !  ------------------------
-   integer, parameter :: nin3dx=3
+   integer, parameter :: nin3dx=5
    character(len=16), parameter :: insname3dx(nin3dx) = (/  &
                                    'qitot           ',      &
                                    'qltot           ',      &
+                                   'qrtot           ',      &
+                                   'qstot           ',      &
                                    'cloud           '      /)
    character(len=40), parameter :: inlname3dx(nin3dx) = (/  &
                       'mass fraction of cloud ice water        ', &
                       'mass fraction of cloud liquid water     ', &
+                      'mass fraction of rain             r     ', &
+                      'mass fraction of snow             r     ', &
                       'cloud fraction for radiation            ' /)
    character(len=16), parameter :: inunits3dx(nin3dx) = (/&
+                                   '1               ',    &
+                                   '1               ',    &
                                    '1               ',    &
                                    '1               ',    &
                                    '1               '    /)
@@ -3595,7 +3897,7 @@ _ENTRY_(trim(Iam))
                       'fraction of sea ice             ' /)
    character(len=16), parameter :: exunits2d(nex2d) = (/  &
                                    'm**2/s**2       ',    &
-                                   'hPa             ',    &
+                                   'Pa              ',    &
                                    'K               ',    &
                                    '1               ',    &
                                    '1               ',    &
@@ -3624,20 +3926,26 @@ _ENTRY_(trim(Iam))
                                    'm/s             ',    &
                                    'm/s             ',    &
                                    'K               ',    &
-                                   'hPa             ',    &
+                                   'Pa              ',    &
                                    'g/g             ',    &
                                    'g/g             '    /)
 
 !  Declare export 3d-fields (extra met-guess)
 !  ------------------------
-   integer, parameter :: nex3dx=2
+   integer, parameter :: nex3dx=4
    character(len=16), parameter :: exsname3dx(nex3dx) = (/  &
                                    'qitot           ',      &
-                                   'qltot           '      /)
+                                   'qltot           ',      &
+                                   'qrtot           ',      &
+                                   'qstot           '      /)
    character(len=40), parameter :: exlname3dx(nex3dx) = (/  &
                       'mass fraction of cloud ice water inc    ', &
-                      'mass fraction of cloud liquid water inc ' /)
+                      'mass fraction of cloud liquid water inc ', &
+                      'mass fraction of rain inc               ', &
+                      'mass fraction of snow inc               ' /)
    character(len=16), parameter :: exunits3dx(nex3dx) = (/  &
+                                   '1               ',      &
+                                   '1               ',      &
                                    '1               ',      &
                                    '1               '      /)
 
@@ -3882,12 +4190,14 @@ _ENTRY_(trim(Iam))
    type(ESMF_Time)                  :: AlaTime
    type(ESMF_Time)                  :: AnaTime
    type(ESMF_Time)                  :: RefTime
+   type(ESMF_Time)                  :: FcsTime
    type(ESMF_TimeInterval)          :: FrqBKG
    type(ESMF_TimeInterval)          :: FrqANA
    type(ESMF_TimeInterval)          :: AnaOST
    type(ESMF_TimeInterval)          :: SmallTimeStep
    integer                          :: atime, i
    integer                          :: REF_TIME(6), RREF_DATE, RREF_TIME
+   integer                          :: FCS_TIME(6), nymd_fcst,nhms_fcst
    integer                          :: status, rc
    integer                          :: yy, mm, dd, hh, mn, sec
    logical                          :: IamRoot
@@ -3942,8 +4252,28 @@ _ENTRY_(trim(Iam))
    REF_TIME(5) = mod(RREF_TIME,10000)/100
    REF_TIME(6) = mod(RREF_TIME,100)
 
-! initialize current time
-! -----------------------
+!  in case necessary, initial time tau-days from now
+!  ------------------------------------------------- 
+   if (tau_fcst>0) then
+      nymd_fcst = RREF_DATE
+      nhms_fcst = RREF_TIME
+      call tick (nymd_fcst,nhms_fcst,tau_fcst*3600)
+      FCS_TIME(1) =     nymd_fcst/10000
+      FCS_TIME(2) = mod(nymd_fcst,10000)/100
+      FCS_TIME(3) = mod(nymd_fcst,100)
+      FCS_TIME(4) =     nhms_fcst/10000
+      FCS_TIME(5) = mod(nhms_fcst,10000)/100
+      FCS_TIME(6) = mod(nhms_fcst,100)
+      call ESMF_TimeSet(  GSI_FcsTime, YY =  FCS_TIME(1), &
+                                       MM =  FCS_TIME(2), &
+                                       DD =  FCS_TIME(3), &
+                                       H  =  FCS_TIME(4), &
+                                       M  =  FCS_TIME(5), &
+                                       S  =  FCS_TIME(6), rc=status ); VERIFY_(STATUS)
+   endif
+
+!  initialize current time
+!  -----------------------
    call ESMF_TimeSet(  RefTime, YY =  REF_TIME(1), &
                                 MM =  REF_TIME(2), &
                                 DD =  REF_TIME(3), &
@@ -3967,7 +4297,7 @@ _ENTRY_(trim(Iam))
    call ESMF_TimeIntervalSet(FrqBKG, s=BKGfreq_sc, rc=STATUS)
      VERIFY_(STATUS)
 
-   call ESMF_TimeIntervalSet(FrqANA, h=ANAfreq_hr, rc=STATUS)
+   call ESMF_TimeIntervalSet(FrqANA, h=ANAfreq_sc, rc=STATUS)
      VERIFY_(STATUS)
 
    call ESMF_TimeIntervalSet(AnaOST, h=min_offset/60,m=mod(min_offset,60), rc=STATUS)
@@ -4004,7 +4334,7 @@ _ENTRY_(trim(Iam))
           ntguessfc_ref = atime
           ntguesnst_ref = atime
           if (IamRoot) print *, Iam,": Upper-air updated pointer (ntguessig_ref): ", ntguessig_ref
-          if (IamRoot) print *, Iam,": Surface   updated pointer (ntguessig_ref): ", ntguessfc_ref
+          if (IamRoot) print *, Iam,": Surface   updated pointer (ntguessfc_ref): ", ntguessfc_ref
           if (IamRoot) print *, Iam,": Surface   updated pointer (ntguesnst_ref): ", ntguesnst_ref
       endif
 #ifdef VERBOSE
@@ -4099,13 +4429,21 @@ _ENTRY_(trim(Iam))
 
   im=size(rbufr,1)
   jm=size(rbufr,2)
-  rbufr(:, 1)=sum(sfcin(:,jm-2))/im	! add South Pole points
+  if(jm>size(sfcin,2))then
+     rbufr(:, 1)=sum(sfcin(:,jm-2))/im	! add South Pole points
+  else
+     rbufr(:, 1)=sfcin(:,jm)		! add South Pole points
+  endif
   do j=2,jm-1
 				! for j :=    2,   3, ..., jm-2,jm-1
 				!  jm-j == jm-2,jm-3, ...,    2,   1
     rbufr(:,j)=sfcin(:,jm-j) 
   end do
-  rbufr(:,jm)=sum(sfcin(:,   1))/im	! add North Pole points
+  if(jm>size(sfcin,2))then
+     rbufr(:,jm)=sum(sfcin(:,   1))/im	! add North Pole points
+  else
+     rbufr(:,jm)=sfcin(:,   1)		! add North Pole points
+  endif
   end subroutine GSI_GridCompSP2NP_
 
 !-------------------------------------------------------------------------

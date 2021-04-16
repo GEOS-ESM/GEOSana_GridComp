@@ -19,6 +19,8 @@
       public :: alloc, realloc, dealloc
       public :: getarec
       public :: locate
+      public :: token_shift
+      public :: SP,DP
 
     integer,parameter :: STDIN = 5
     integer,parameter :: STDOUT= 6
@@ -96,6 +98,8 @@
 ! !REVISION HISTORY:
 ! 	02May07	- Jing Guo <guo@gmao.gsfc.nasa.gov>
 !		- initial prototype/prolog/code
+!       22Sep16 - Jing Guo <jing.guo@nasa.gov>
+!               . Added token_shift() to keep unknown tails in records.
 !EOP ___________________________________________________________________
 
   character(len=*),parameter :: myname="satinfo_util"
@@ -856,4 +860,33 @@ subroutine assert_GE_(m,n,who,str)
     call die(myname_,who)
   endif
 end subroutine assert_GE_
+
+function token_shift(str,nshift) result(lbufr)
+!-- left-shift [ntok] tokens in str
+  implicit none
+  character(len=:), allocatable :: lbufr
+  character(len=*),intent(inout):: str
+  integer,optional,intent(in   ):: nshift
+
+  character(len=*),parameter:: blanks=achar(32)//achar(09)      ! <SPACE>//<TAB>
+  integer:: nshift_
+  integer:: is,ic,ln
+
+  nshift_=1
+  if(present(nshift)) nshift_=nshift
+
+  ln=len(str)
+  ic=0
+  is=0
+
+  lbufr=str
+  do while(is<nshift_ .and. ic<=ln)
+    ic=   verify(lbufr     //'?',blanks) ! scan for the next non-blank char
+    ic=ic-1+scan(lbufr(ic:)//' ',blanks) ! scan for the next blank char
+    ln=ln-(ic-1)
+
+    lbufr=lbufr(ic:)            ! skip the whole token segement
+    is=is+1                     ! count a shift
+  enddo
+end function token_shift
 end module satinfo_util

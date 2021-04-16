@@ -1,0 +1,38 @@
+
+correlated_observations::
+! Notes: 
+! (1) method:
+!     -1 - leave as is (ie, default R)
+!      0 - diag of estimated R only
+!      2 - full R
+! (2) kreq is the parameter in Weston et al. (2014) to adjust the spetrum of R
+!     code listens to factors made larger than zero in the table below.
+! (3) present value settings for AIRS and IASI bring J/n considerable closer to 1/2
+!
+! obtype   method  kreq      kmut  type   cov_file
+ cris-fsr_n20  2   0.1719     1.5325   sea    cris-fsr_108_v5_rcov.bin
+ cris-fsr_n20  2   0.1719     1.5325   land   cris-fsr_108_v5_rcov.bin
+ cris-fsr_n20  2   0.1719     1.5325   ice    cris-fsr_108_v5_rcov.bin
+ cris-fsr_n20  2   0.1719     1.5325   snow   cris-fsr_108_v5_rcov.bin
+ cris-fsr_n20  2   0.1719     1.5325   mixed  cris-fsr_108_v5_rcov.bin
+ cris-fsr_npp  2   0.1719     1.5325   sea    cris-fsr_108_v5_rcov.bin
+ cris-fsr_npp  2   0.1719     1.5325   land   cris-fsr_108_v5_rcov.bin
+ cris-fsr_npp  2   0.1719     1.5325   ice    cris-fsr_108_v5_rcov.bin
+ cris-fsr_npp  2   0.1719     1.5325   snow   cris-fsr_108_v5_rcov.bin
+ cris-fsr_npp  2   0.1719     1.5325   mixed  cris-fsr_108_v5_rcov.bin
+ airs_aqua  2      0.338556  1.0   sea    airs_aqua_sea_rcov.bin
+ airs_aqua  2      0.338556  1.0   land   airs_aqua_sea_rcov.bin
+ airs_aqua  2      0.338556  1.0   ice    airs_aqua_sea_rcov.bin
+ airs_aqua  2      0.338556  1.0   snow   airs_aqua_sea_rcov.bin
+ airs_aqua  2      0.338556  1.0   mixed  airs_aqua_sea_rcov.bin
+ iasi_metop-a 2    0.2037    1.09  sea    iasi_metop_sea_rcov.bin
+ iasi_metop-a 2    0.2037    1.09  land   iasi_metop_sea_rcov.bin
+ iasi_metop-a 2    0.2037    1.09  ice    iasi_metop_sea_rcov.bin
+ iasi_metop-a 2    0.2037    1.09  snow   iasi_metop_sea_rcov.bin
+ iasi_metop-a 2    0.2037    1.09  mixed  iasi_metop_sea_rcov.bin
+ iasi_metop-b 2    0.2037    1.09  sea    iasi_metop_sea_rcov.bin
+ iasi_metop-b 2    0.2037    1.09  land   iasi_metop_sea_rcov.bin
+ iasi_metop-b 2    0.2037    1.09  ice    iasi_metop_sea_rcov.bin
+ iasi_metop-b 2    0.2037    1.09  snow   iasi_metop_sea_rcov.bin
+ iasi_metop-b 2    0.2037    1.09  mixed  iasi_metop_sea_rcov.bin
+::

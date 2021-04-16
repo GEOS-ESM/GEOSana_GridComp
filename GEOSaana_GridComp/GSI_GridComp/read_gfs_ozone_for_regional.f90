@@ -24,6 +24,11 @@ subroutine read_gfs_ozone_for_regional
 !   2014-06-30  wu      - bug fix for undefined variable "proceed" in check_vars_
 !   2014-08-18  tong    - modified to allow gfs/gdas spectral coefficients to be
 !                         transformed to a coarser resolution grid
+!   2014-11-30  todling - update interface to general_read_gfs routines
+!   2014-12-03  derber  - modify call to general_read_gfsatm
+!   2015-05-13  wu      - read in just one GFS for ozone even when nfldsig > 1 
+!                         use the same ges_oz in all time levels
+!   2016-12-12  tong    - add code to get nemsio meta data, if use_gfs_nemsio=True
 !
 !   input argument list:
 !
@@ -36,27 +41,45 @@ subroutine read_gfs_ozone_for_regional
 !$$$ end documentation block
 
   use gridmod, only: nlat,nlon,lat2,lon2,nsig,region_lat,region_lon,check_gfs_ozone_date
-  use gridmod, only: jcap_gfs,nlat_gfs,nlon_gfs,wrf_nmm_regional
-  use constants,only: zero,half,fv,rd_over_cp,one,h300
-                       use constants, only: rad2deg  !  debug
-  use mpimod, only: mpi_comm_world,ierror,mype,mpi_rtype,mpi_min,mpi_max
-  use kinds, only: r_kind,i_kind
+  use gridmod, only: jcap_gfs,nlat_gfs,nlon_gfs,wrf_nmm_regional,use_gfs_nemsio
+  use constants,only: zero,half,rd_over_cp,one,h300,r60,r3600
+  use constants, only: max_varname_length
+  use mpimod, only: mpi_comm_world,ierror,mype,mpi_rtype,mpi_min,mpi_max,npe
+  use mpeu_util, only: die
+  use kinds, only: r_kind,i_kind,r_single
   use general_sub2grid_mod, only: sub2grid_info,general_sub2grid_create_info
   use general_sub2grid_mod, only: general_grid2sub,general_sub2grid
+  use general_sub2grid_mod, only: general_sub2grid_destroy_info
   use general_specmod, only: spec_vars,general_init_spec_vars,general_destroy_spec_vars
   use egrid2agrid_mod, only: g_create_egrid2points_slow,egrid2agrid_parm,g_egrid2points_faster
   use sigio_module, only: sigio_intkind,sigio_head,sigio_srhead
   use guess_grids, only: ges_prsl,ntguessig,nfldsig,ifilesig
   use aniso_ens_util, only: intp_spl
   use obsmod, only: iadate
-  use gsi_bundlemod, only : gsi_bundlegetpointer
+  use gsi_bundlemod, only: gsi_bundle,gsi_bundlegetpointer
+  use gsi_bundlemod, only: gsi_bundlecreate,gsi_bundledestroy
+  use gsi_bundlemod, only: gsi_grid,gsi_gridcreate
   use gsi_metguess_mod, only : gsi_metguess_get,gsi_metguess_bundle
+  use gsi_4dvar, only: nhr_assimilation
+  use nemsio_module, only: nemsio_init,nemsio_open,nemsio_close
+  use ncepnems_io, only: error_msg
+  use nemsio_module, only: nemsio_gfile,nemsio_getfilehead
+
   implicit none
 
-  type(sub2grid_info) grd_gfs,grd_mix
+  type(sub2grid_info) grd_gfs,grd_mix,grd_gfst
   type(spec_vars) sp_gfs,sp_b
-  real(r_kind),allocatable,dimension(:,:,:) :: pri,vor,div,u,v,tv,q,cwmr,oz,prsl
-  real(r_kind),allocatable,dimension(:,:)   :: z,ps
+  real(r_kind),allocatable,dimension(:,:,:) :: pri,prsl
+  real(r_kind),pointer,dimension(:,:,:) :: vor =>null()
+  real(r_kind),pointer,dimension(:,:,:) :: div =>null()
+  real(r_kind),pointer,dimension(:,:,:) :: u   =>null()
+  real(r_kind),pointer,dimension(:,:,:) :: v   =>null()
+  real(r_kind),pointer,dimension(:,:,:) :: tv  =>null()
+  real(r_kind),pointer,dimension(:,:,:) :: q   =>null()
+  real(r_kind),pointer,dimension(:,:,:) :: cwmr=>null()
+  real(r_kind),pointer,dimension(:,:,:) :: oz  =>null()
+  real(r_kind),pointer,dimension(:,:)   :: z =>null()
+  real(r_kind),pointer,dimension(:,:)   :: ps=>null()
   real(r_kind),allocatable,dimension(:) :: ak5,bk5,ck5,tref5
   real(r_kind),allocatable :: work_sub(:,:,:,:),work(:,:,:,:),work_reg(:,:,:,:)
 
@@ -64,13 +87,14 @@ subroutine read_gfs_ozone_for_regional
   real(r_kind) kapr,kap1,trk
   integer(i_kind) iret,i,j,k,k2,ndim
   integer(i_kind) it,it_beg,it_end   
+  integer(i_kind) istatus
   character(24) filename
   character(255),allocatable,dimension(:)::infiles
   logical uv_hyb_ens
   integer(sigio_intkind):: lunges = 11
   type(sigio_head):: sighead
   type(egrid2agrid_parm) :: p_g2r
-  integer(i_kind) inner_vars,num_fields,nsig_gfs,jcap_gfs_test
+  integer(i_kind) inner_vars,num_fields,num_fieldst,nsig_gfs,jcap_gfs_test
   integer(i_kind) nord_g2r,jcap_org,nlon_b
   logical,allocatable :: vector(:)
   logical vector0
@@ -86,9 +110,31 @@ subroutine read_gfs_ozone_for_regional
   integer(i_kind),dimension(5) :: iadate_gfs
   real(r_kind) hourg
   real(r_kind),dimension(5):: fha
+  character(len=120) :: my_name = 'READ_GFS_OZONE_FOR_REGIONAL'
+  integer(i_kind) :: latb, lonb, levs, nframe
+  integer(i_kind) :: nfhour, nfminute, nfsecondn, nfsecondd
+  integer(i_kind) :: njcap, idvc, idsl
+  integer(i_kind) :: istop = 101
+  integer(i_kind),dimension(7):: idate
+  real(r_kind) :: fhour
+  type(nemsio_gfile) :: gfile
+  integer(i_kind) :: nvcoord
+  real(r_single),allocatable:: nems_vcoord(:,:,:)
+  real(r_single),allocatable:: vcoord(:,:)
   real(r_kind),allocatable,dimension(:)::glb_ozmin,glb_ozmax,reg_ozmin,reg_ozmax
   real(r_kind),allocatable,dimension(:)::glb_ozmin0,glb_ozmax0,reg_ozmin0,reg_ozmax0
   real(r_kind),allocatable,dimension(:,:,:,:)::ges_oz
+
+  type(gsi_bundle) :: atm_bundle
+  type(gsi_grid)   :: atm_grid
+  integer(i_kind),parameter :: n2d=2
+  integer(i_kind),parameter :: n3d=8
+  character(len=max_varname_length), parameter :: vars2d(n2d) = (/ 'z   ', 'ps  ' /)
+  character(len=max_varname_length), parameter :: vars3d(n3d) = (/ 'u   ', 'v   ', &
+                                                  'vor ', 'div ', &
+                                                  'tv  ', 'q   ', &
+                                                  'cw  ', 'oz  '  /)
+
 
 !     figure out what are acceptable dimensions for global grid, based on resolution of input spectral coefs
 !   need to inquire from file what is spectral truncation, then setup general spectral structure variable
@@ -105,10 +151,11 @@ subroutine read_gfs_ozone_for_regional
 
 ! Determine input GFS filenames
   it_beg=1
-  it_end=nfldsig
+!!  for now use just one time level for global ozone input
+  it_end=1
   allocate(infiles(nfldsig))
   do it=it_beg,it_end
-     write(filename,'("gfs_sigf",i2.2)')ifilesig(it)
+     write(filename,'("gfs_sigf",i2.2)')nhr_assimilation
      infiles(it)=filename
      if(mype==0) then
         write(6,*) 'read_gfs_ozone_for_regional: gfs file required: nfldsig = ',nfldsig                           
@@ -124,28 +171,98 @@ subroutine read_gfs_ozone_for_regional
   filename=infiles(it)
   if (mype==0) write(6,*)'read_gfs_ozone_for_regional: reading in gfs file:',trim(filename)                  
 
-  open(lunges,file=trim(filename),form='unformatted')
+  if(.not. use_gfs_nemsio)then
+     open(lunges,file=trim(filename),form='unformatted')
+     call sigio_srhead(lunges,sighead,iret)
+     close(lunges)
+     if(mype == 0) then
+        write(6,*) ' sighead%fhour,sighead%idate=',sighead%fhour,sighead%idate
+        write(6,*) ' iadate(y,m,d,hr,min)=',iadate
+        write(6,*) ' sighead%jcap,sighead%levs=',sighead%jcap,sighead%levs
+        write(6,*) ' sighead%latf,sighead%lonf=',sighead%latf,sighead%lonf
+        write(6,*) ' sighead%idvc,sighead%nvcoord=',sighead%idvc,sighead%nvcoord
+        write(6,*) ' sighead%idsl=',sighead%idsl
+        do k=1,sighead%levs+1
+           write(6,*)' k,vcoord=',k,sighead%vcoord(k,:)
+        end do
+     end if
 
-  call sigio_srhead(lunges,sighead,iret)
-  close(lunges)
-  if(mype == 0) then
-     write(6,*) ' sighead%fhour,sighead%idate=',sighead%fhour,sighead%idate
-     write(6,*) ' iadate(y,m,d,hr,min)=',iadate
-     write(6,*) ' sighead%jcap,sighead%levs=',sighead%jcap,sighead%levs
-     write(6,*) ' sighead%latf,sighead%lonf=',sighead%latf,sighead%lonf
-     write(6,*) ' sighead%idvc,sighead%nvcoord=',sighead%idvc,sighead%nvcoord
-     write(6,*) ' sighead%idsl=',sighead%idsl
-     do k=1,sighead%levs+1
-        write(6,*)' k,vcoord=',k,sighead%vcoord(k,:)
-     end do
-  end if
-
+     nsig_gfs=sighead%levs
+     jcap_org=sighead%jcap
+     idvc=sighead%idvc
+     idsl=sighead%idsl
 ! Extract header information
-  hourg    = sighead%fhour
-  idate4(1)= sighead%idate(1)
-  idate4(2)= sighead%idate(2)
-  idate4(3)= sighead%idate(3)
-  idate4(4)= sighead%idate(4)
+     hourg    = sighead%fhour
+     idate4(1)= sighead%idate(1)
+     idate4(2)= sighead%idate(2)
+     idate4(3)= sighead%idate(3)
+     idate4(4)= sighead%idate(4)
+  else
+     call nemsio_init(iret=iret)
+     if (iret /= 0) call error_msg(trim(my_name),trim(filename),' ','init',istop,iret)
+
+     call nemsio_open(gfile,filename,'READ',iret=iret)
+     if (iret /= 0) call error_msg(trim(my_name),trim(filename),' ','open',istop,iret)
+
+     call nemsio_getfilehead(gfile,iret=iret,nframe=nframe, &
+          nfhour=nfhour,nfminute=nfminute,nfsecondn=nfsecondn,nfsecondd=nfsecondd, &
+          idate=idate,dimx=lonb,dimy=latb,dimz=levs,jcap=njcap,idvc=idvc,idsl=idsl)
+
+     if (nframe /= 0) call error_msg(trim(my_name),trim(filename),'nframe', &
+                                     'getfilehead',istop,nframe)
+
+     fhour = float(nfhour) + float(nfminute)/r60 + &
+             float(nfsecondn)/float(nfsecondd)/r3600
+
+     nsig_gfs=levs
+     jcap_org=njcap
+
+     allocate(nems_vcoord(levs+1,3,2))
+     call nemsio_getfilehead(gfile,iret=iret,vcoord=nems_vcoord)
+     if ( iret /= 0 ) call error_msg(trim(my_name),trim(filename),' ', &
+                                     'getfilehead',istop,iret)
+
+!    Determine the type of vertical coordinate used by model because that
+!    gfshead%nvcoord is no longer part of NEMSIO header output.
+     nvcoord=3
+     if(maxval(nems_vcoord(:,3,1))==zero .and. &
+        minval(nems_vcoord(:,3,1))==zero ) then
+        nvcoord=2
+        if(maxval(nems_vcoord(:,2,1))==zero .and. &
+           minval(nems_vcoord(:,2,1))==zero ) then
+           nvcoord=1
+        end if
+     end if
+     if (nvcoord > 2) then
+        write(6,*)' READ_GFS_OZONE_FOR_REGIONAL: NOT READY YET FOR ak5,bk5,ck5 vert &
+                    coordinate'
+        call stop2(85)
+     endif
+
+     allocate(vcoord(levs+1,nvcoord))
+     vcoord(:,1:nvcoord) = nems_vcoord(:,1:nvcoord,1)
+     deallocate(nems_vcoord)
+
+     call nemsio_close(gfile,iret=iret)
+     if ( iret /= 0 ) call error_msg(trim(my_name),trim(filename),' ', &
+                                     'close',istop,iret)
+
+     hourg = fhour
+     idate4(1) = idate(4)  !hour
+     idate4(2) = idate(2)  !month
+     idate4(3) = idate(3)  !day
+     idate4(4) = idate(1)  !year
+
+     if(mype == 0) then
+        write(6,*) ' nemsio: fhour,idate=',fhour,idate
+        write(6,*) ' iadate(y,m,d,hr,min)=',iadate
+        write(6,*) ' nemsio: jcap,levs=',njcap,levs
+        write(6,*) ' nemsio: latb,lonb=',latb,lonb
+        write(6,*) ' nemsio: idvc,nvcoord=',idvc,nvcoord
+        write(6,*) ' nemsio: idsl=',idsl
+     end if
+
+  end if
 
 ! Compute valid time from guess date and forecast length and compare to iadate, the analysis time
   iyr=idate4(4)
@@ -186,54 +303,82 @@ subroutine read_gfs_ozone_for_regional
 
 !         set up ak5,bk5,ck5 for use in computing 3d pressure field (needed for vertical interp to regional)
 !                            following is code segment from gesinfo.F90
-  allocate(ak5(sighead%levs+1))
-  allocate(bk5(sighead%levs+1))
-  allocate(ck5(sighead%levs+1))
-  allocate(tref5(sighead%levs))
-  do k=1,sighead%levs+1
+  allocate(ak5(nsig_gfs+1))
+  allocate(bk5(nsig_gfs+1))
+  allocate(ck5(nsig_gfs+1))
+  allocate(tref5(nsig_gfs))
+  do k=1,nsig_gfs+1
      ak5(k)=zero
      bk5(k)=zero
      ck5(k)=zero
   end do
-  if (sighead%nvcoord == 1) then
-     do k=1,sighead%levs+1
-        bk5(k) = sighead%vcoord(k,1)
-     end do
-  elseif (sighead%nvcoord == 2) then
-     do k = 1,sighead%levs+1
-        ak5(k) = sighead%vcoord(k,1)*zero_001
-        bk5(k) = sighead%vcoord(k,2)
-     end do
-  elseif (sighead%nvcoord == 3) then
-     do k = 1,sighead%levs+1
-        ak5(k) = sighead%vcoord(k,1)*zero_001
-        bk5(k) = sighead%vcoord(k,2)
-        ck5(k) = sighead%vcoord(k,3)*zero_001
-     end do
+  if (.not. use_gfs_nemsio) then
+     if (sighead%nvcoord == 1) then
+        do k=1,sighead%levs+1
+           bk5(k) = sighead%vcoord(k,1)
+        end do
+     elseif (sighead%nvcoord == 2) then
+        do k = 1,sighead%levs+1
+           ak5(k) = sighead%vcoord(k,1)*zero_001
+           bk5(k) = sighead%vcoord(k,2)
+        end do
+     elseif (sighead%nvcoord == 3) then
+        do k = 1,sighead%levs+1
+           ak5(k) = sighead%vcoord(k,1)*zero_001
+           bk5(k) = sighead%vcoord(k,2)
+           ck5(k) = sighead%vcoord(k,3)*zero_001
+        end do
+     else
+        write(6,*)'READ_GFS_OZONE_FOR_REGIONAL:  ***ERROR*** INVALID value for nvcoord=',sighead%nvcoord,filename
+        call stop2(85)
+     endif
   else
-     write(6,*)'READ_GFS_OZONE_FOR_REGIONAL:  ***ERROR*** INVALID value for nvcoord=',sighead%nvcoord
-     call stop2(85)
-  endif
+     if (nvcoord == 1) then
+        do k=1,nsig_gfs+1
+           bk5(k) = vcoord(k,1)
+        end do
+     elseif (nvcoord == 2) then
+        do k = 1,nsig_gfs+1
+           ak5(k) = vcoord(k,1)*zero_001
+           bk5(k) = vcoord(k,2)
+        end do
+     elseif (nvcoord == 3) then
+        do k = 1,nsig_gfs+1
+           ak5(k) = vcoord(k,1)*zero_001
+           bk5(k) = vcoord(k,2)
+           ck5(k) = vcoord(k,3)*zero_001
+        end do
+     else
+        write(6,*)'GET_GEFS_FOR_REGIONAL:  ***ERROR*** INVALID value for nvcoord=',nvcoord
+        call stop2(85)
+     endif
+  end if
+
 ! Load reference temperature array (used by general coordinate)
-  do k=1,sighead%levs
+  do k=1,nsig_gfs
      tref5(k)=h300
   end do
 
 
-
   inner_vars=1
-  jcap_org=sighead%jcap
-  nsig_gfs=sighead%levs
-  num_fields=2*nsig_gfs
+  num_fields=6*nsig_gfs+1
+  num_fieldst=min(num_fields,npe)
 
+  hires=.false.
   nlon_b=((2*jcap_org+1)/nlon_gfs+1)*nlon_gfs
-  if (nlon_b > nlon_gfs) then
+  if ( nlon_b > nlon_gfs ) then
      hires=.true.
   else
-     hires=.false. 
-     jcap_gfs=sighead%jcap
-     nlat_gfs=sighead%latf+2
-     nlon_gfs=sighead%lonf
+     hires=.false.
+     if(.not. use_gfs_nemsio)then
+        jcap_gfs=sighead%jcap
+        nlat_gfs=sighead%latf+2
+        nlon_gfs=sighead%lonf
+     else
+        jcap_gfs=njcap
+        nlat_gfs=latb+2
+        nlon_gfs=lonb
+     endif
   end if
 
   if(mype==0) write(6,*)'read_gfs_ozone_for_regional: jcap_org, jcap_gfs= ', &
@@ -241,50 +386,66 @@ subroutine read_gfs_ozone_for_regional
   if(mype==0) write(6,*)'read_gfs_ozone_for_regional: nlon_b, nlon_gfs, hires=', &
                          nlon_b, nlon_gfs, hires
 
+  call general_sub2grid_create_info(grd_gfst,inner_vars,nlat_gfs,nlon_gfs,nsig_gfs,num_fieldst, &
+                                  .not.regional)
+  num_fields=2*nsig_gfs
   allocate(vector(num_fields))
   vector=.false.
   call general_sub2grid_create_info(grd_gfs,inner_vars,nlat_gfs,nlon_gfs,nsig_gfs,num_fields, &
                                   .not.regional,vector)
+  deallocate(vector)
   jcap_gfs_test=jcap_gfs
   call general_init_spec_vars(sp_gfs,jcap_gfs,jcap_gfs_test,grd_gfs%nlat,grd_gfs%nlon)
-  if (hires) then
+  if (hires .and. .not. use_gfs_nemsio) then
       call general_init_spec_vars(sp_b,jcap_org,jcap_org,nlat_gfs,nlon_b)
   end if
 
 !  also want to set up regional grid structure variable grd_mix, which still has number of
 !   vertical levels set to nsig_gfs, but horizontal dimensions set to regional domain.
 
+  num_fields=2*nsig_gfs
+  allocate(vector(num_fields))
+  vector=.false.
   call general_sub2grid_create_info(grd_mix,inner_vars,nlat,nlon,nsig_gfs,num_fields,regional,vector)
   deallocate(vector)
 
 
-!!   allocate necessary space on global grid
+! allocate bundle for reading required fields
+  call gsi_gridcreate(atm_grid,grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig)
+  call gsi_bundlecreate(atm_bundle,atm_grid,'aux-atm-read',istatus,names2d=vars2d,names3d=vars3d)
+  if(istatus/=0) then
+    write(6,*)myname,': trouble creating atm_bundle'
+    call stop2(999)
+  endif
 
   allocate( pri(grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig+1))
-  allocate( vor(grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig))
-  allocate( div(grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig))
-  allocate(   u(grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig))
-  allocate(   v(grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig))
-  allocate(  tv(grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig))
-  allocate(   q(grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig))
-  allocate(cwmr(grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig))
-  allocate(  oz(grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig))
   allocate(prsl(grd_gfs%lat2,grd_gfs%lon2,grd_gfs%nsig))
-  allocate(   z(grd_gfs%lat2,grd_gfs%lon2))
-  allocate(  ps(grd_gfs%lat2,grd_gfs%lon2))
-
-  if (hires) then
-     call general_read_gfsatm(grd_gfs,sp_gfs,sp_b,filename,mype,uv_hyb_ens,z,ps, &
-                              vor,div,u,v,tv,q,cwmr,oz,iret)
+  if(use_gfs_nemsio)then
+     call general_read_gfsatm_nems(grd_gfst,sp_gfs,filename,uv_hyb_ens,.false.,.false., &
+                              atm_bundle,.true.,iret)
   else
-     call general_read_gfsatm(grd_gfs,sp_gfs,sp_gfs,filename,mype,uv_hyb_ens,z,ps, &
-                              vor,div,u,v,tv,q,cwmr,oz,iret)
+     if (hires) then
+        call general_read_gfsatm(grd_gfst,sp_gfs,sp_b,filename,uv_hyb_ens,.false.,.false., &
+                              atm_bundle,.true.,iret)
+     else
+        call general_read_gfsatm(grd_gfst,sp_gfs,sp_gfs,filename,uv_hyb_ens,.false.,.false., &
+                              atm_bundle,.true.,iret)
+     end if
   end if
 
-! test
-!   call grads3a(grd_gfs,u,oz,tv,q,ps,grd_gfs%nsig,mype,'gfsfields')
+  ierror = 0
+  call gsi_bundlegetpointer(atm_bundle,'vor' ,vor ,istatus) ; ierror = ierror + istatus
+  call gsi_bundlegetpointer(atm_bundle,'div' ,div ,istatus) ; ierror = ierror + istatus
+  call gsi_bundlegetpointer(atm_bundle,'u'   ,u   ,istatus) ; ierror = ierror + istatus
+  call gsi_bundlegetpointer(atm_bundle,'v'   ,v   ,istatus) ; ierror = ierror + istatus
+  call gsi_bundlegetpointer(atm_bundle,'tv'  ,tv  ,istatus) ; ierror = ierror + istatus
+  call gsi_bundlegetpointer(atm_bundle,'q'   ,q   ,istatus) ; ierror = ierror + istatus
+  call gsi_bundlegetpointer(atm_bundle,'oz'  ,oz  ,istatus) ; ierror = ierror + istatus
+  call gsi_bundlegetpointer(atm_bundle,'cw'  ,cwmr,istatus) ; ierror = ierror + istatus
+  call gsi_bundlegetpointer(atm_bundle,'z'   ,z   ,istatus) ; ierror = ierror + istatus
+  call gsi_bundlegetpointer(atm_bundle,'ps'  ,ps  ,istatus) ; ierror = ierror + istatus
+  if ( ierror /= 0 ) call die(myname,': missing atm_bundle vars, aborting ...',ierror)
 
-  deallocate(vor,div,u,v,q,cwmr,z)
   do k=1,grd_gfs%nsig
      ozmin=minval(oz(:,:,k))
      ozmax=maxval(oz(:,:,k))
@@ -305,7 +466,7 @@ subroutine read_gfs_ozone_for_regional
         pri(i,j,k2)=zero
      end do
   end do
-  if (sighead%idvc /= 3) then
+  if (idvc /= 3) then
      do k=2,grd_gfs%nsig
         do j=1,grd_gfs%lon2
            do i=1,grd_gfs%lat2
@@ -323,7 +484,8 @@ subroutine read_gfs_ozone_for_regional
         end do
      end do
   end if
-  deallocate(tv,ps,ak5,bk5,ck5,tref5)
+  deallocate(ak5,bk5,ck5,tref5)
+
   do k=1,grd_gfs%nsig+1
      ozmin=minval(pri(:,:,k))
      ozmax=maxval(pri(:,:,k))
@@ -333,7 +495,7 @@ subroutine read_gfs_ozone_for_regional
   end do
 
 ! next get pressure at layer midpoints.
-  if (sighead%idsl/=2) then
+  if (idsl/=2) then
      do j=1,grd_gfs%lon2
         do i=1,grd_gfs%lat2
            do k=1,grd_gfs%nsig
@@ -372,10 +534,12 @@ subroutine read_gfs_ozone_for_regional
         end do
      end do
   end do
-  deallocate(oz,prsl)
+  deallocate(prsl)
   allocate(work(grd_gfs%nlat,grd_gfs%nlon,grd_gfs%kbegin_loc:grd_gfs%kend_alloc,1))
   call general_sub2grid(grd_gfs,work_sub,work)
   deallocate(work_sub)
+
+  call gsi_bundledestroy(atm_bundle,istatus)
 
 ! then interpolate to regional analysis grid
   nord_g2r=4
@@ -456,14 +620,23 @@ subroutine read_gfs_ozone_for_regional
      end do
   end if
   call general_destroy_spec_vars(sp_gfs)
+  if ( hires .and. .not. use_gfs_nemsio ) call general_destroy_spec_vars(sp_b)
   deallocate(xspli,yspli,xsplo,ysplo,glb_ozmin,glb_ozmax,reg_ozmin,reg_ozmax,&
              glb_ozmin0,glb_ozmax0,reg_ozmin0,reg_ozmax0)
 
   enddo it_loop
 
+!!  for now use just one time level for global ozone input
+  do it=2,nfldsig
+     ges_oz(:,:,:,it)=ges_oz(:,:,:,1)
+  enddo
+
 ! copy ges_oz to met-bundle ...
   call copy_vars_
   call final_vars_
+  call general_sub2grid_destroy_info(grd_gfs)
+  call general_sub2grid_destroy_info(grd_mix)
+  call general_sub2grid_destroy_info(grd_gfst)
   deallocate(infiles)
 
   return

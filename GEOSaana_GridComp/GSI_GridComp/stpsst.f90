@@ -14,6 +14,7 @@ module stpsstmod
 !   2009-08-12  lueken - update documentation
 !   2010-05-13  todling - uniform interface across stp routines
 !   2011-04-03  li      - modify for Tr analysis
+!   2016-05-18  guo     - replaced ob_type with polymorphic obsNode through type casting
 !
 ! subroutines included:
 !   sub stpsst
@@ -73,17 +74,19 @@ subroutine stpsst(ssthead,rval,sval,out,sges,nstep)
 !
 !$$$
   use kinds, only: r_kind,i_kind,r_quad
-  use obsmod, only: sst_ob_type
   use qcmod, only: nlnqc_iter,varqc_iter
-  use constants, only: half,one,two,tiny_r_kind,cg_term,zero_quad
-  use gridmod, only: latlon11
-  use radinfo, only: nst_gsi
+  use constants, only: zero,half,one,two,tiny_r_kind,cg_term,zero_quad
+  use gsi_nstcouplermod, only: nst_gsi
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
+  use m_obsNode, only: obsNode
+  use m_sstNode, only: sstNode
+  use m_sstNode, only: sstNode_typecast
+  use m_sstNode, only: sstNode_nextcast
   implicit none
 
 ! Declare passed variables
-  type(sst_ob_type),pointer           ,intent(in   ) :: ssthead
+  class(obsNode), pointer             ,intent(in   ) :: ssthead
   integer(i_kind)                     ,intent(in   ) :: nstep
   real(r_quad),dimension(max(1,nstep)),intent(inout) :: out
   type(gsi_bundle)                    ,intent(in   ) :: rval,sval
@@ -99,7 +102,7 @@ subroutine stpsst(ssthead,rval,sval,out,sges,nstep)
   real(r_kind),pointer,dimension(:) :: ssst
   real(r_kind),pointer,dimension(:) :: rsst
   real(r_kind) tdir,rdir
-  type(sst_ob_type), pointer :: sstptr
+  type(sstNode), pointer :: sstptr
 
   out=zero_quad
 
@@ -113,7 +116,7 @@ subroutine stpsst(ssthead,rval,sval,out,sges,nstep)
   call gsi_bundlegetpointer(rval,'sst',rsst,istatus);ier=istatus+ier
   if(ier/=0)return
 
-  sstptr => ssthead
+  sstptr => sstNode_typecast(ssthead)
   do while (associated(sstptr))
      if(sstptr%luse)then
         if(nstep > 0)then
@@ -126,7 +129,7 @@ subroutine stpsst(ssthead,rval,sval,out,sges,nstep)
            w3=sstptr%wij(3)
            w4=sstptr%wij(4)
 
-           if ( nst_gsi > 2 ) then
+           if ( nst_gsi > 2 .and. (sstptr%tz_tr > zero .and. sstptr%tz_tr <= one) ) then
              tdir = w1*ssst(j1)+w2*ssst(j2)+w3*ssst(j3)+w4*ssst(j4)
              rdir = w1*rsst(j1)+w2*rsst(j2)+w3*rsst(j3)+w4*rsst(j4)
              val  = sstptr%tz_tr*rdir
@@ -162,7 +165,7 @@ subroutine stpsst(ssthead,rval,sval,out,sges,nstep)
         end do
      end if
 
-     sstptr => sstptr%llpoint
+     sstptr => sstNode_nextcast(sstptr)
 
   end do
   

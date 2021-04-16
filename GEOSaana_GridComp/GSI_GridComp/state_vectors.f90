@@ -23,6 +23,7 @@ module state_vectors
 !   2013-10-22  todling  - revisit edge/general rank-3 (level) handle
 !   2013-10-28  todling  - rename p3d to prse
 !   2014-11-02  todling  - negative levs indicate rank-3 array
+!   2014-12-03  derber   - remove unused variables
 !
 ! subroutines included:
 !   sub setup_state_vectors
@@ -81,7 +82,7 @@ private
   public  svars3d
   public  svars
   public  levels
-  public  ns2d,ns3d
+  public  ns2d,ns3d,nsdim
 
 ! State vector definition
 ! Could contain model state fields plus other fields required
@@ -94,7 +95,7 @@ integer(i_kind) :: nval_len,latlon11,latlon1n,latlon1n1,lat2,lon2,nsig
 logical :: llinit = .false.
 integer(i_kind) :: m_st_alloc, max_st_alloc, m_allocs, m_deallocs
 
-integer(i_kind) :: nvars,ns2d,ns3d
+integer(i_kind) :: nvars,ns2d,ns3d,nsdim
 character(len=max_varname_length),allocatable,dimension(:) :: svars
 character(len=max_varname_length),allocatable,dimension(:) :: svars3d
 character(len=max_varname_length),allocatable,dimension(:) :: svars2d
@@ -196,13 +197,15 @@ close(luin)
 ! variables participating in state vector
 
 ! Count variables first
-ns3d=0; ns2d=0
+ns3d=0; ns2d=0; nsdim=0;
 do ii=1,nvars
    read(utable(ii),*) var, ilev, itracer, source, funcof
    if(ilev==1) then
        ns2d=ns2d+1
+       nsdim=nsdim+1
    else
        ns3d=ns3d+1
+       nsdim=nsdim+ilev
    endif
 enddo
 
@@ -570,6 +573,7 @@ real(r_quad) function dot_prod_st(xst,yst,which)
 !   2012-09-14  Syed RH Rizvi, NCAR/NESL/MMM/DAS - bug fix: for 
 !                                    if(xst%r3(i)%mykind==r_single .and. yst%r3(i)%mykind==r_single)
 !                                    if( present (which)), ipntx and ipnty indexes should be used and not i 
+!   2020-05-08  Todling - a litte more check on dims
 !
 !   input argument list:
 !    xst,yst
@@ -584,16 +588,24 @@ real(r_quad) function dot_prod_st(xst,yst,which)
 !$$$ end documentation block
   implicit none
   type(gsi_bundle)         , intent(in) :: xst, yst
-  character(len=*)  ,optional, intent(in) :: which  ! variable name
+  character(len=*),optional, intent(in) :: which  ! variable name
 
   real(r_quad),dimension(1) :: zz
-  integer(i_kind) :: i,ii,nv,ipntx,ipnty,irkx,irky,ier,ist
+  integer(i_kind) :: i,ii,ipntx,ipnty,irkx,irky,ier,ist,n2d,n3d
 
   if (.not.present(which)) then
 
+     if(xst%n3d/=yst%n3d .or. xst%n2d/=yst%n2d) then
+       if(mype==0) &
+       write(6,*) 'dot_prod_st: improper dims (x,y)', xst%n3d,yst%n3d,xst%n2d,yst%n2d
+       call stop2(998)
+     else
+        n2d=xst%n2d
+        n3d=xst%n3d
+     endif
      zz(1)=zero_quad
      ii=0
-     do i = 1,ns3d
+     do i = 1,n3d
         ii=ii+1
         if(xst%r3(i)%mykind==r_single .and. yst%r3(i)%mykind==r_single)then
            zz(1)= zz(1)+dplevs(xst%r3(i)%qr4,yst%r3(i)%qr4,ihalo=1)
@@ -604,7 +616,7 @@ real(r_quad) function dot_prod_st(xst,yst,which)
            return
         endif
      enddo
-     do i = 1,ns2d
+     do i = 1,n2d
         ii=ii+1
         if(xst%r2(i)%mykind==r_single .and. yst%r2(i)%mykind==r_single)then
            zz(1)= zz(1)+dplevs(xst%r2(i)%qr4,yst%r2(i)%qr4,ihalo=1)
@@ -679,7 +691,7 @@ function dot_prod_st_r0(xst,yst,which) result(dotprod_red)
   zz(1)=0._r_quad
  
   zz(1)=dot_prod_st(xst,yst,which=which)
-  call mpl_allreduce(1,zz)
+  call mpl_allreduce(1,qpvals=zz)
   dotprod_red=zz(1)
 end function dot_prod_st_r0
 ! ----------------------------------------------------------------------
@@ -707,7 +719,8 @@ function dot_prod_st_r1(xst,yst,which) result(dotprod_red)
   do i=1,size(xst)
     zz(1)=zz(1)+dot_prod_st(xst(i),yst(i),which=which)
   enddo
-  call mpl_allreduce(1,zz)
+  call mpl_allreduce(1,qpvals=zz)
+
   dotprod_red=zz(1)
 end function dot_prod_st_r1
 ! ----------------------------------------------------------------------
@@ -721,12 +734,12 @@ function dot_prod_red_st_r0(xst,yst,iroot,which) result(dotprod_red)
   real(r_quad):: dotprod_red
   real(r_quad),dimension(1):: zz
 
-  integer(i_kind):: i
   character(len=*),parameter::myname_=myname//'*dot_prod_red_st_r1'
 
   zz(1)=dot_prod_st(xst,yst,which=which)
 
-  call mpl_reduce(1,iroot,zz)
+  call mpl_reduce(1,iroot,qpvals=zz)
+
   if(mype == iroot)then
      dotprod_red=zz(1)
   else
@@ -759,7 +772,7 @@ function dot_prod_red_st_r1(xst,yst,iroot,which) result(dotprod_red)
   do i=1,size(xst)
     zz(1)=zz(1)+dot_prod_st(xst(i),yst(i),which=which)
   enddo
-  call mpl_reduce(1,iroot,zz)
+  call mpl_reduce(1,iroot,qpvals=zz)
   if(mype == iroot)then
      dotprod_red=zz(1)
   else

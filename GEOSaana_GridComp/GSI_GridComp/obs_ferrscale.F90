@@ -11,6 +11,11 @@ module obs_ferrscale
 !   2008-11-17 todling 
 !   2010-05-14 todling - update  to use gsi_bundle
 !   2010-08-19 lueken  - add only to module use
+!   2015-09-03  guo     - obsmod::yobs has been replaced with m_obsHeadBundle,
+!                         where yobs is created and destroyed when and where it
+!                         is needed.
+!   2018-08-10  guo     - replaced intjo() related code to a new polymorphic
+!                         implementation intjomod::intjo().
 !
 ! Subroutines Included:
 !   init_ferr_scale  - Initialize parameters
@@ -297,8 +302,9 @@ use kinds, only: r_quad
 use gsi_4dvar, only: nsubwin, l4dvar
 use constants, only: zero_quad
 use mpimod, only: mype
-use obsmod, only: yobs
 use intjomod, only: intjo
+use mpl_allreducemod, only: mpl_allreduce
+use jfunc, only: nrclen,nsclen,npclen,ntclen
 
 implicit none
 
@@ -314,9 +320,12 @@ type(gsi_bundle) :: sval(nobs_bins), rval(nobs_bins)
 type(gsi_bundle) :: mval(nsubwin)
 type(predictors) :: sbias, rbias
 real(r_quad) :: zjb,zjo,zjc,zjl
-integer(i_kind) :: ii,iobs,ibin
+integer(i_kind) :: ii,iobs,i
 logical :: llprt,llouter
 character(len=255) :: seqcalls
+real(r_quad),dimension(max(1,nrclen)) :: qpred
+
+
 
 !**********************************************************************
 
@@ -372,10 +381,26 @@ do ii=1,nsubwin
    mval(ii)=zero
 end do
 
+qpred=zero_quad
 ! Compare obs to solution and transpose back to grid (H^T R^{-1} H)
-do ibin=1,nobs_bins
-   call intjo(yobs(ibin),rval(ibin),rbias,sval(ibin),sbias,ibin)
+call intjo(rval,qpred,sval,sbias)
+
+! Take care of background error for bias correction terms
+
+call mpl_allreduce(nrclen,qpvals=qpred)
+
+do i=1,nsclen
+   rbias%predr(i)=rbias%predr(i)+qpred(i)
 end do
+do i=1,npclen
+   rbias%predp(i)=rbias%predp(i)+qpred(nsclen+i)
+end do
+if (ntclen>0) then
+   do i=1,ntclen
+      rbias%predt(i)=rbias%predt(i)+qpred(nsclen+npclen+i)
+   end do
+end if
+
 
 ! Evaluate Jo
 call evaljo(zjo,iobs,nprt,llouter)

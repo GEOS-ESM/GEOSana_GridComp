@@ -8,6 +8,12 @@ module stpjcmod
 !
 ! program history log:
 !   2012-01-21  kleist - consolidation of Jc step routines into single module
+!   2014-03-19  pondeca - add stepzise calculation for wspd10m weak constraint term
+!   2014-05-07  pondeca - add stepzise calculation for howv weak constraint term
+!   2014-06-17  carley/zhu - add stepzise calculation for lcbas weak constraint term
+!   2015-07-10  pondeca - add stepzise calculation for cldch weak constraint term
+!   2019-03-05  martin - update stplimq to weight factqmin/max by latitude
+!   2019-03-14  eliu - add stplimqc to constraint negative hydrometeors
 !
 ! subroutines included:
 !
@@ -25,7 +31,7 @@ use gsi_metguess_mod, only: gsi_metguess_bundle
 implicit none
 
 PRIVATE
-PUBLIC stplimq,stplimg,stplimp,stplimv,stpjcdfi,stpjcpdry
+PUBLIC stplimqc,stplimq,stplimg,stplimp,stplimv,stplimw10m,stplimhowv,stplimcldch,stpliml,stpjcdfi,stpjcpdry 
 
 contains
 
@@ -52,6 +58,7 @@ subroutine stplimq(rval,sval,sges,outmin,outmax,nstep,itbin)
 !   2010-05-13  todling - update to use gsi_bundle
 !   2010-07-10  todling - merge w/ r8741 (trunk); qx(:)->qx (who made the change?)
 !   2011-12-27  kleist - add bins for 4d capability (4densvar option)
+!   2019-03-05  martin - update to weight factqmin/max by latitude
 !
 !   input argument list:
 !     rq       - search direction
@@ -69,9 +76,10 @@ subroutine stplimq(rval,sval,sges,outmin,outmax,nstep,itbin)
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-  use gridmod, only: lat1,lon1,lat2,lon2,nsig
+  use gridmod, only: lat1,lon1,nsig,istart,wgtfactlats
   use jfunc, only: factqmin,factqmax
   use guess_grids, only: ges_qsat
+  use mpimod, only: mype
   implicit none
 
 ! Declare passed variables
@@ -81,7 +89,7 @@ subroutine stplimq(rval,sval,sges,outmin,outmax,nstep,itbin)
   type(gsi_bundle)                    ,intent(in   ) :: rval,sval
 
 ! Declare local variables
-  integer(i_kind) i,j,k,kk,ier,istatus
+  integer(i_kind) i,j,k,kk,ier,istatus,ii,mm1
   real(r_kind) q,qx
   real(r_kind),pointer,dimension(:,:,:) :: rq,sq
   real(r_kind),pointer,dimension(:,:,:) :: ges_q_it=>NULL()
@@ -89,6 +97,8 @@ subroutine stplimq(rval,sval,sges,outmin,outmax,nstep,itbin)
   outmin=zero_quad; outmax=zero_quad
 
   if (factqmin==zero .and. factqmax==zero) return
+
+  mm1=mype+1
 
 ! Retrieve pointers
 ! Simply return if any pointer not found
@@ -105,16 +115,17 @@ subroutine stplimq(rval,sval,sges,outmin,outmax,nstep,itbin)
      do k = 1,nsig
         do j = 2,lon1+1
            do i = 2,lat1+1
-
+              ii=istart(mm1)+i-2
 !             Values for q using stepsizes
               q  = ges_q_it(i,j,k) + sq(i,j,k)
               do kk=1,nstep
                  qx = q + sges(kk)*rq(i,j,k)
                  if(qx < zero)then
-                    outmin(kk)=outmin(kk)+factqmin*qx*qx/(ges_qsat(i,j,k,itbin)*ges_qsat(i,j,k,itbin))
+                    outmin(kk)=outmin(kk)+(factqmin*wgtfactlats(ii))*qx*qx &
+                               /(ges_qsat(i,j,k,itbin)*ges_qsat(i,j,k,itbin))
                  else
                     if(qx > ges_qsat(i,j,k,itbin))then
-                       outmax(kk)=outmax(kk)+factqmax*(qx-ges_qsat(i,j,k,itbin))* &
+                       outmax(kk)=outmax(kk)+(factqmax*wgtfactlats(ii))*(qx-ges_qsat(i,j,k,itbin))* &
                             (qx-ges_qsat(i,j,k,itbin))/(ges_qsat(i,j,k,itbin)*ges_qsat(i,j,k,itbin))
                     end if
                  end if
@@ -126,15 +137,15 @@ subroutine stplimq(rval,sval,sges,outmin,outmax,nstep,itbin)
      do k = 1,nsig
         do j = 2,lon1+1
            do i = 2,lat1+1
-
+              ii=istart(mm1)+i-2
 !             Values for q using stepsizes
               q  = ges_q_it(i,j,k)
               if(q < zero)then
-                 outmin(1)=outmin(1)+factqmin*q*q/(ges_qsat(i,j,k,itbin)*ges_qsat(i,j,k,itbin))
+                 outmin(1)=outmin(1)+(factqmin*wgtfactlats(ii))*q*q/(ges_qsat(i,j,k,itbin)*ges_qsat(i,j,k,itbin))
               else
                  if(q > ges_qsat(i,j,k,itbin))then
-                    outmax(1)=outmax(1)+factqmax*(q-ges_qsat(i,j,k,itbin))*(q-ges_qsat(i,j,k,itbin))/ &
-                             (ges_qsat(i,j,k,itbin)*ges_qsat(i,j,k,itbin))
+                    outmax(1)=outmax(1)+(factqmax*wgtfactlats(ii))*(q-ges_qsat(i,j,k,itbin))*&
+                                (q-ges_qsat(i,j,k,itbin))/(ges_qsat(i,j,k,itbin)*ges_qsat(i,j,k,itbin))
                  end if
               end if
            end do
@@ -148,7 +159,129 @@ subroutine stplimq(rval,sval,sges,outmin,outmax,nstep,itbin)
   end do
   return
 end subroutine stplimq
+subroutine stplimqc(rval,sval,sges,out,nstep,itbin,cldtype)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    stplimqc    calculate penalty and stepsize for limit of qc 
+!   prgmmr: eliu           org: np23                date: 2018-05-30
+!
+! abstract: calculate stepsize contribution and penalty for limiting q
+!
+! program history log:
+!   2018-05-30  eliu  - based on stplimq
+!
+!   input argument list:
+!     rqc      - search direction
+!     sqc      - increment in grid space
+!     sges     - step size estimates (4)
+!     nstep    - number of step size estimates if == 0 then just do outer loop
+!     itbin    - observation bin number (time level)
+!
+!   output argument list:
+!     outmin(1:nstep)  - current penalty for negative q sges(1:nstep)
+!     outmax(1:nstep)  - current penalty for excess q sges(1:nstep)
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+  use mpimod, only: mype
+  use gridmod, only: lat1,lon1,nsig
+  use jfunc, only: factql,factqi,factqr,factqs,factqg  
+  use guess_grids, only: ges_qsat
+  implicit none
 
+! Declare passed variables
+  integer(i_kind)                     ,intent(in   ) :: nstep,itbin
+  real(r_kind),dimension(max(1,nstep)),intent(in   ) :: sges
+  real(r_quad),dimension(max(1,nstep)),intent(  out) :: out       
+  type(gsi_bundle)                    ,intent(in   ) :: rval,sval
+  character(2)                        ,intent(in   ) :: cldtype
+! Declare local variables
+  integer(i_kind) i,j,k,kk,ier,ier1,istatus
+  real(r_kind) qc,qx
+  real(r_kind) factqc 
+  real(r_kind),pointer,dimension(:,:,:) :: rqc,sqc
+  real(r_kind),pointer,dimension(:,:,:) :: ges_qc_it=>NULL()
+
+  out=zero_quad
+
+! Retrieve pointers
+! Simply return if any pointer not found
+  ier=0; ier1=0; istatus=0
+  if (cldtype == 'ql') then
+     factqc =factql
+     call gsi_bundlegetpointer(sval,'ql',sqc,istatus);ier=istatus+ier
+     call gsi_bundlegetpointer(rval,'ql',rqc,istatus);ier=istatus+ier
+     call gsi_bundlegetpointer(gsi_metguess_bundle(itbin),'ql',ges_qc_it,ier1)
+  endif
+  if (cldtype == 'qi') then
+     factqc =factqi
+     call gsi_bundlegetpointer(sval,'qi',sqc,istatus);ier=istatus+ier
+     call gsi_bundlegetpointer(rval,'qi',rqc,istatus);ier=istatus+ier
+     call gsi_bundlegetpointer(gsi_metguess_bundle(itbin),'qi',ges_qc_it,ier1)
+  endif
+  if (cldtype == 'qr') then
+     factqc =factqr
+     call gsi_bundlegetpointer(sval,'qr',sqc,istatus);ier=istatus+ier
+     call gsi_bundlegetpointer(rval,'qr',rqc,istatus);ier=istatus+ier
+     call gsi_bundlegetpointer(gsi_metguess_bundle(itbin),'qr',ges_qc_it,ier1)
+  endif
+  if (cldtype == 'qs') then
+     factqc =factqs
+     call gsi_bundlegetpointer(sval,'qs',sqc,istatus);ier=istatus+ier
+     call gsi_bundlegetpointer(rval,'qs',rqc,istatus);ier=istatus+ier
+     call gsi_bundlegetpointer(gsi_metguess_bundle(itbin),'qs',ges_qc_it,ier1)
+  endif
+  if (cldtype == 'qg') then
+     factqc =factqg
+     call gsi_bundlegetpointer(sval,'qg',sqc,istatus);ier=istatus+ier
+     call gsi_bundlegetpointer(rval,'qg',rqc,istatus);ier=istatus+ier
+     call gsi_bundlegetpointer(gsi_metguess_bundle(itbin),'qg',ges_qc_it,ier1)
+  endif
+  if (mype==0) write(6,*)'stplimqc: factqc   = ', factqc
+  if (mype==0) write(6,*)'stplimqc: ier ier1 = ', ier, ier1 
+  if ( factqc==0 ) return
+  if ( ier/=0 .or. ier1/=0 ) return
+
+! Loop over interior of subdomain
+  if(nstep > 0)then
+     do k = 1,nsig
+        do j = 2,lon1+1
+           do i = 2,lat1+1
+
+!             Values for q using stepsizes
+              qc = ges_qc_it(i,j,k) + sqc(i,j,k)
+              do kk=1,nstep
+                 qx = qc + sges(kk)*rqc(i,j,k)
+                 if(qx < zero)then
+                    out(kk)=out(kk)+factqc*qx*qx/(ges_qsat(i,j,k,itbin)*ges_qsat(i,j,k,itbin))
+                 end if
+              end do
+           end do
+        end do
+     end do
+  else
+     do k = 1,nsig
+        do j = 2,lon1+1
+           do i = 2,lat1+1
+
+!             Values for q using stepsizes
+              qc  = ges_qc_it(i,j,k)
+              if(qc < zero)then
+                 out(1)=out(1)+factqc*qc*qc/(ges_qsat(i,j,k,itbin)*ges_qsat(i,j,k,itbin))
+              end if
+           end do
+        end do
+     end do
+  end if
+
+  do kk=2,nstep
+     out(kk)=out(kk)-out(1)
+  end do
+  return
+end subroutine stplimqc
 subroutine stplimg(rval,sval,sges,out,nstep)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -174,7 +307,7 @@ subroutine stplimg(rval,sval,sges,out,nstep)
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-  use gridmod, only: lat1,lon1,lat2,lon2,nsig
+  use gridmod, only: lat1,lon1
   use derivsmod, only: ggues
   use jfunc, only: factg
   implicit none
@@ -249,7 +382,7 @@ subroutine stplimp(rval,sval,sges,out,nstep)
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-  use gridmod, only: lat1,lon1,lat2,lon2,nsig
+  use gridmod, only: lat1,lon1
   use derivsmod, only: pgues
   use jfunc, only: factp
   implicit none
@@ -324,7 +457,7 @@ subroutine stplimv(rval,sval,sges,out,nstep)
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-  use gridmod, only: lat1,lon1,lat2,lon2,nsig
+  use gridmod, only: lat1,lon1
   use jfunc, only: factv
   use derivsmod, only: vgues
   implicit none
@@ -373,8 +506,308 @@ subroutine stplimv(rval,sval,sges,out,nstep)
   end do
   return
 end subroutine stplimv
- 
-subroutine stpjcpdry(rval,sval,pen,b,c)
+
+subroutine stplimw10m(rval,sval,sges,out,nstep)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    stplimw10m     calculate penalty and stepsize for limit of q
+!   prgmmr: derber           org: np23                date: 1996-11-19
+!
+! abstract: calculate stepsize contribution and penalty for limiting wspd10m
+!
+! program history log:
+!   2014-03-19  pondeca
+!
+!   input argument list:
+!     rg       - search direction
+!     sg       - increment in grid space
+!     sges     - step size estimates (4)
+!     nstep    - number of step size estimates if == 0 then just do outer loop
+!
+!   output argument list:
+!     out(1:nstep)  - current penalty for negative wspd10m sges(1:nstep)
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+  use gridmod, only: lat1,lon1
+  use jfunc, only: factw10m
+  use derivsmod, only: w10mgues
+  implicit none
+
+! Declare passed variables
+  integer(i_kind)                     ,intent(in   ) :: nstep
+  real(r_kind),dimension(max(1,nstep)),intent(in   ) :: sges
+  real(r_quad),dimension(max(1,nstep)),intent(  out) :: out
+  type(gsi_bundle)                    ,intent(in   ) :: rval,sval
+
+! Declare local variables
+  integer(i_kind) i,j,kk,ier,istatus
+  real(r_kind) wspd10m,gx
+  real(r_kind),pointer,dimension(:,:) :: rg,sg
+
+  out=zero_quad
+
+  if (factw10m==zero) return
+
+! Retrieve pointers
+! Simply return if any pointer not found
+  ier=0
+  call gsi_bundlegetpointer(sval,'wspd10m',sg,istatus);ier=istatus+ier
+  call gsi_bundlegetpointer(rval,'wspd10m',rg,istatus);ier=istatus+ier
+  if(ier/=0)return
+
+! Loop over interior of subdomain
+  if(nstep > 0)then
+     do j = 2,lon1+1
+        do i = 2,lat1+1
+
+!          Values for wspd10m using stepsizes
+           wspd10m  = w10mgues(i,j) + sg(i,j)
+           do kk=1,nstep
+              gx = wspd10m + sges(kk)*rg(i,j)
+              if(gx < zero)then
+                 out(kk)=out(kk)+factw10m*gx*gx/(w10mgues(i,j)*w10mgues(i,j))
+              end if
+           end do
+        end do
+     end do
+  end if
+
+  do kk=2,nstep
+     out(kk)=out(kk)-out(1)
+  end do
+  return
+end subroutine stplimw10m
+
+subroutine stplimhowv(rval,sval,sges,out,nstep)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    stplimhowv     calculate penalty and stepsize for limit of howv
+!   prgmmr: pondeca           org: np23                date: 2014-05-07
+!
+! abstract: calculate stepsize contribution and penalty for limiting howv
+!
+! program history log:
+!   2014-05-07  pondeca
+!
+!   input argument list:
+!     rg       - search direction
+!     sg       - increment in grid space
+!     sges     - step size estimates (4)
+!     nstep    - number of step size estimates if == 0 then just do outer loop
+!
+!   output argument list:
+!     out(1:nstep)  - current penalty for negative howv sges(1:nstep)
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+  use gridmod, only: lat1,lon1
+  use jfunc, only: facthowv
+  use derivsmod, only: howvgues
+  implicit none
+
+! Declare passed variables
+  integer(i_kind)                     ,intent(in   ) :: nstep
+  real(r_kind),dimension(max(1,nstep)),intent(in   ) :: sges
+  real(r_quad),dimension(max(1,nstep)),intent(  out) :: out
+  type(gsi_bundle)                    ,intent(in   ) :: rval,sval
+
+! Declare local variables
+  integer(i_kind) i,j,kk,ier,istatus
+  real(r_kind) howv,gx
+  real(r_kind),pointer,dimension(:,:) :: rg,sg
+
+  out=zero_quad
+
+  if (facthowv==zero) return
+
+! Retrieve pointers
+! Simply return if any pointer not found
+  ier=0
+  call gsi_bundlegetpointer(sval,'howv',sg,istatus);ier=istatus+ier
+  call gsi_bundlegetpointer(rval,'howv',rg,istatus);ier=istatus+ier
+  if(ier/=0)return
+
+! Loop over interior of subdomain
+  if(nstep > 0)then
+     do j = 2,lon1+1
+        do i = 2,lat1+1
+
+!          Values for howv using stepsizes
+           howv  = howvgues(i,j) + sg(i,j)
+           do kk=1,nstep
+              gx = howv + sges(kk)*rg(i,j)
+              if(gx < zero)then
+                 out(kk)=out(kk)+facthowv*gx*gx/(howvgues(i,j)*howvgues(i,j))
+              end if
+           end do
+        end do
+     end do
+  end if
+
+  do kk=2,nstep
+     out(kk)=out(kk)-out(1)
+  end do
+  return
+end subroutine stplimhowv
+
+subroutine stplimcldch(rval,sval,sges,out,nstep)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    stplimcldch     calculate penalty and stepsize for limit of cldch
+!   prgmmr: derber           org: np23                date: 1996-11-19
+!
+! abstract: calculate stepsize contribution and penalty for limiting cldch
+!
+! program history log:
+!   2015-07-10  pondeca
+!
+!   input argument list:
+!     rg       - search direction
+!     sg       - increment in grid space
+!     sges     - step size estimates (4)
+!     nstep    - number of step size estimates if == 0 then just do outer loop
+!
+!   output argument list:
+!     out(1:nstep)  - current penalty for negative cldch sges(1:nstep)
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+  use gridmod, only: lat1,lon1
+  use jfunc, only: factcldch
+  use derivsmod, only: cldchgues
+  implicit none
+
+! Declare passed variables
+  integer(i_kind)                     ,intent(in   ) :: nstep
+  real(r_kind),dimension(max(1,nstep)),intent(in   ) :: sges
+  real(r_quad),dimension(max(1,nstep)),intent(  out) :: out
+  type(gsi_bundle)                    ,intent(in   ) :: rval,sval
+
+! Declare local variables
+  integer(i_kind) i,j,kk,ier,istatus
+  real(r_kind) cldch,cx
+  real(r_kind),pointer,dimension(:,:) :: rg,sg
+
+  out=zero_quad
+
+  if (factcldch==zero) return
+
+! Retrieve pointers
+! Simply return if any pointer not found
+  ier=0
+  call gsi_bundlegetpointer(sval,'cldch',sg,istatus);ier=istatus+ier
+  call gsi_bundlegetpointer(rval,'cldch',rg,istatus);ier=istatus+ier
+  if(ier/=0)return
+
+! Loop over interior of subdomain
+  if(nstep > 0)then
+     do j = 2,lon1+1
+        do i = 2,lat1+1
+
+!          Values for cldch using stepsizes
+           cldch  = cldchgues(i,j) + sg(i,j)
+           do kk=1,nstep
+              cx = cldch + sges(kk)*rg(i,j)
+              if(cx < zero)then
+                 out(kk)=out(kk)+factcldch*cx*cx/(cldchgues(i,j)*cldchgues(i,j))
+              end if
+           end do
+        end do
+     end do
+  end if
+
+  do kk=2,nstep
+     out(kk)=out(kk)-out(1)
+  end do
+  return
+end subroutine stplimcldch
+
+subroutine stpliml(rval,sval,sges,out,nstep)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    stpliml     calculate penalty and stepsize for limit of q 
+!   prgmmr: derber           org: np23                date: 1996-11-19
+!
+! abstract: calculate stepsize contribution and penalty for limiting q
+!
+! program history log:
+!   2012-04-23  zhu
+!
+!   input argument list:
+!     rg       - search direction                               
+!     sg       - increment in grid space
+!     sges     - step size estimates (4)
+!     nstep    - number of step size estimates if == 0 then just do outer loop
+!
+!   output argument list:
+!     out(1:nstep)  - current penalty for negative lcbas sges(1:nstep)
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+  use gridmod, only: lat1,lon1
+  use jfunc, only: factl
+  use derivsmod, only: lgues
+  implicit none
+
+! Declare passed variables
+  integer(i_kind)                     ,intent(in   ) :: nstep
+  real(r_kind),dimension(max(1,nstep)),intent(in   ) :: sges
+  real(r_quad),dimension(max(1,nstep)),intent(  out) :: out
+  type(gsi_bundle)                    ,intent(in   ) :: rval,sval
+
+! Declare local variables
+  integer(i_kind) i,j,kk,ier,istatus
+  real(r_kind) lcbas,vx
+  real(r_kind),pointer,dimension(:,:) :: rg,sg
+  
+  out=zero_quad
+
+  if (factl==zero) return
+
+! Retrieve pointers
+! Simply return if any pointer not found
+  ier=0
+  call gsi_bundlegetpointer(sval,'lcbas',sg,istatus);ier=istatus+ier
+  call gsi_bundlegetpointer(rval,'lcbas',rg,istatus);ier=istatus+ier
+  if(ier/=0)return
+
+! Loop over interior of subdomain          
+  if(nstep > 0)then
+     do j = 2,lon1+1
+        do i = 2,lat1+1
+
+!          Values for lcbas using stepsizes
+           lcbas  = lgues(i,j) + sg(i,j)
+           do kk=1,nstep
+              vx = lcbas + sges(kk)*rg(i,j)
+              if(vx < zero)then
+                 out(kk)=out(kk)+factl*vx*vx/(lgues(i,j)*lgues(i,j))
+              end if
+           end do
+        end do
+     end do
+  end if
+
+  do kk=2,nstep
+     out(kk)=out(kk)-out(1)
+  end do
+  return
+end subroutine stpliml
+
+subroutine stpjcpdry(rval,sval,pen,b,c,nbins)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    stpjcpdry   penalty and stp size for mean dry ps conservation
@@ -390,6 +823,10 @@ subroutine stpjcpdry(rval,sval,pen,b,c)
 !   2010-08-18  hu      - add qpvals= to mpl_allreduce call
 !   2011-11-01  eliu    - add handling for ql & qi increments and search directions
 !   2013-05-05  todling - separate dry mass from the rest (zero-diff change)
+!   2020-05-28  todling - qh was missing from hydrometeor set
+!                       - bug fix: in case when cw is present together w/ hydrometeors,
+!                         only cw term was being used when hydrometeors were
+!                         present with contribution from latter being ignored
 !
 !   input argument list:
 !     rq       - q search direction
@@ -419,80 +856,125 @@ subroutine stpjcpdry(rval,sval,pen,b,c)
   implicit none
 
 ! Declare passed variables
-  type(gsi_bundle),intent(in   ) :: sval
-  type(gsi_bundle),intent(in   ) :: rval
+  type(gsi_bundle),dimension(nbins),intent(in   ) :: sval
+  type(gsi_bundle),dimension(nbins),intent(in   ) :: rval
   real(r_quad)    ,intent(  out) :: pen,b,c
+  integer(i_kind) ,intent(in   ) :: nbins
 
 ! Declare local variables
-  real(r_quad),dimension(2):: dmass
+  real(r_quad),dimension(2*nbins):: dmass
   real(r_quad) :: rcon,con
-  integer(i_kind) i,j,k,it,mm1,ii,ier,icw,iql,iqi,istatus
+  integer(i_kind) i,j,k,it,mm1,ii,ier,icw,iql,iqi,iqr,iqs,iqg,iqh,istatus,n  
   real(r_kind),pointer,dimension(:,:,:) :: rq,sq,rc,sc,rql,rqi,sql,sqi
+  real(r_kind),pointer,dimension(:,:,:) :: rqr,rqs,rqg,rqh,sqr,sqs,sqg,sqh       
   real(r_kind),pointer,dimension(:,:)   :: rp,sp
+  logical return_now
+  real(r_quad) :: dmn, dmn2
 
   pen=zero_quad ; b=zero_quad ; c=zero_quad
   it=ntguessig
 
-! Retrieve pointers
-! Simply return if any pointer not found
-  ier=0; icw=0; iql=0; iqi=0
-  call gsi_bundlegetpointer(sval,'q' ,sq, istatus);ier=istatus+ier
-  call gsi_bundlegetpointer(sval,'cw',sc, istatus);icw=istatus+icw
-  call gsi_bundlegetpointer(sval,'ql',sql,istatus);iql=istatus+iql
-  call gsi_bundlegetpointer(sval,'qi',sqi,istatus);iqi=istatus+iqi
-  call gsi_bundlegetpointer(sval,'ps',sp, istatus);ier=istatus+ier
-  call gsi_bundlegetpointer(rval,'q' ,rq, istatus);ier=istatus+ier
-  call gsi_bundlegetpointer(rval,'cw',rc, istatus);icw=istatus+icw
-  call gsi_bundlegetpointer(rval,'ql',rql,istatus);iql=istatus+iql
-  call gsi_bundlegetpointer(rval,'qi',rqi,istatus);iqi=istatus+iqi
-  call gsi_bundlegetpointer(rval,'ps',rp, istatus);ier=istatus+ier
-  if(ier+icw*(iql+iqi)/=0)then
-    if (mype==0) write(6,*)'stpjcpdry: checking ier+icw*(iql+iqi)=', ier+icw*(iql+iqi)
-    return
-  end if
- 
   dmass=zero_quad
   rcon=one_quad/(two_quad*float(nlon))
   mm1=mype+1
+  return_now = .false.
+  do n=1,nbins
+!    Retrieve pointers
+!    Simply return if any pointer not found
+     ier=0; icw=0; iql=0; iqi=0; iqr=0; iqs=0; iqg=0; iqh=0; istatus=0
+     call gsi_bundlegetpointer(sval(n),'q' ,sq, istatus) ; ier=istatus+ier
+     call gsi_bundlegetpointer(sval(n),'cw',sc, istatus) ; icw=istatus+icw
+     call gsi_bundlegetpointer(sval(n),'ql',sql,istatus) ; iql=istatus+iql
+     call gsi_bundlegetpointer(sval(n),'qi',sqi,istatus) ; iqi=istatus+iqi
+     call gsi_bundlegetpointer(sval(n),'qr',sqr,istatus) ; iqr=istatus+iqr
+     call gsi_bundlegetpointer(sval(n),'qs',sqs,istatus) ; iqs=istatus+iqs
+     call gsi_bundlegetpointer(sval(n),'qg',sqg,istatus) ; iqg=istatus+iqg
+     call gsi_bundlegetpointer(sval(n),'qh',sqh,istatus) ; iqh=istatus+iqh
+     call gsi_bundlegetpointer(sval(n),'ps',sp, istatus) ; ier=istatus+ier
 
-! Calculate mean surface pressure contribution in subdomain
-  do j=2,lon2-1
-    do i=2,lat2-1
-      ii=istart(mm1)+i-2
-      con=wgtlats(ii)*rcon
-      dmass(1)=dmass(1)+sp(i,j)*con
-      dmass(2)=dmass(2)+rp(i,j)*con
-    end do
-  end do
-! Remove water to get incremental dry ps
-  do k=1,nsig
+     call gsi_bundlegetpointer(rval(n),'q' ,rq, istatus) ; ier=istatus+ier
+     call gsi_bundlegetpointer(rval(n),'cw',rc, istatus) ; icw=istatus+icw
+     call gsi_bundlegetpointer(rval(n),'ql',rql,istatus) ; iql=istatus+iql
+     call gsi_bundlegetpointer(rval(n),'qi',rqi,istatus) ; iqi=istatus+iqi
+     call gsi_bundlegetpointer(rval(n),'qr',rqr,istatus) ; iqr=istatus+iqr
+     call gsi_bundlegetpointer(rval(n),'qs',rqs,istatus) ; iqs=istatus+iqs
+     call gsi_bundlegetpointer(rval(n),'qg',rqg,istatus) ; iqg=istatus+iqg
+     call gsi_bundlegetpointer(rval(n),'qh',rqh,istatus) ; iqh=istatus+iqh
+     call gsi_bundlegetpointer(rval(n),'ps',rp, istatus) ; ier=istatus+ier
+     if( ier/=0 .or. ((iql+iqi)/=0 .and. icw/=0) ) then
+       if (mype==0) write(6,*) 'stpjcpdry: warning - missing some required variables' 
+       if (mype==0) write(6,*) 'stpjcpdry: dry mass constraint not performed' 
+       return
+     end if
+
+!    Calculate mean surface pressure contribution in subdomain
+     dmn = dmass(n)
+     dmn2 = dmass(n + nbins)
+!$omp parallel do private(i,j,ii) firstprivate(rcon,con) reduction(+:dmn) reduction(+:dmn2) collapse(2)
      do j=2,lon2-1
-        do i=2,lat2-1
-           ii=istart(mm1)+i-2
-           con=(ges_prsi(i,j,k,it)-ges_prsi(i,j,k+1,it))*wgtlats(ii)*rcon
-           dmass(1)=dmass(1) - sq(i,j,k)*con
-           dmass(2)=dmass(2) - rq(i,j,k)*con
-           if(icw==0)then
-              dmass(1)=dmass(1) - sc(i,j,k)*con
-              dmass(2)=dmass(2) - rc(i,j,k)*con
-           else
-              dmass(1)=dmass(1) - (sql(i,j,k)+sqi(i,j,k))*con
-              dmass(2)=dmass(2) - (rql(i,j,k)+rqi(i,j,k))*con
-           endif
+       do i=2,lat2-1
+         ii=istart(mm1)+i-2
+         con=wgtlats(ii)*rcon
+         dmn=dmn+sp(i,j)*con
+         dmn2=dmn2+rp(i,j)*con
+       end do
+     end do
+!$omp end parallel do
+     dmass(n) = dmn
+     dmass(n+nbins) = dmn2
+!    Remove water to get incremental dry ps
+!$omp parallel do private(k,j,i,ii) firstprivate(rcon,con) reduction(-:dmn) reduction(-:dmn2) collapse(2)
+     do k=1,nsig
+        do j=2,lon2-1
+           do i=2,lat2-1
+              ii=istart(mm1)+i-2
+              con=(ges_prsi(i,j,k,it)-ges_prsi(i,j,k+1,it))*wgtlats(ii)*rcon
+              dmn=dmn - sq(i,j,k)*con
+              dmn2=dmn2 - rq(i,j,k)*con
+              if(iql==0.and.iqi==0)then
+                 dmn=dmn - (sql(i,j,k)+sqi(i,j,k))*con
+                 dmn2=dmn2 - (rql(i,j,k)+rqi(i,j,k))*con
+                 if (iqr==0) then
+                    dmn = dmn - sqr(i,j,k)*con 
+                    dmn2= dmn2- rqr(i,j,k)*con 
+                 endif
+                 if (iqs==0) then
+                    dmn = dmn - sqs(i,j,k)*con 
+                    dmn2= dmn2- rqs(i,j,k)*con 
+                 endif
+                 if (iqg==0) then
+                    dmn = dmn - sqg(i,j,k)*con 
+                    dmn2= dmn2- rqg(i,j,k)*con 
+                 endif
+                 if (iqh==0) then
+                    dmn = dmn - sqh(i,j,k)*con 
+                    dmn2= dmn2- rqh(i,j,k)*con 
+                 endif
+              else
+                 if(icw==0)then
+                    dmn=dmn - sc(i,j,k)*con
+                    dmn2=dmn2 - rc(i,j,k)*con
+                 endif
+              endif
+           end do
         end do
      end do
+!$omp end parallel do
+     dmass(n) = dmn
+     dmass(n+nbins) = dmn2
   end do
 
-  call mpl_reduce(2,0,qpvals=dmass)
-
-  if (mype==0) then
+  call mpl_reduce(2*nbins,0,qpvals=dmass)
 
 !    Now penalize non-zero global mean dry ps increment
 !    Notice there will only be a contribution from PE=0
+  if(mype == 0)then
 
-     pen = bamp_jcpdry*dmass(1)*dmass(1)
-     b  = -bamp_jcpdry*dmass(2)*dmass(1)
-     c  =  bamp_jcpdry*dmass(2)*dmass(2)
+     do n=1,nbins
+        pen = pen + bamp_jcpdry*dmass(n)*dmass(n)
+        b  = b - bamp_jcpdry*dmass(n+nbins)*dmass(n)
+        c  = c + bamp_jcpdry*dmass(n+nbins)*dmass(n+nbins)
+     end do
   end if
 
   return

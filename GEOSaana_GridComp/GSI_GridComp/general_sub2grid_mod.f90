@@ -47,8 +47,9 @@ module general_sub2grid_mod
 !                             lnames:    optional level index for each variable (assigned as user desires)
 !                             names:     optional names for each variable (assigned as desired)
 !   2012-06-25  parrish  - add subroutine general_sub2grid_destroy_info.
-!   2013-08-03  todling  - protect write-out with verbose (set to false)
+!   2013-08-03  todling  - protect write-out with print_verbose (set to false)
 !   2013-10-25  todling  - nullify work pointers
+!   2014-12-03  derber   - optimization changes
 !
 ! subroutines included:
 !   sub general_sub2grid_r_single  - convert from subdomains to grid for real single precision (4 byte)
@@ -64,7 +65,7 @@ module general_sub2grid_mod
 !
 !$$$ end documentation block
 
-   use kinds, only: r_double,i_kind,i_long,r_single
+   use kinds, only: r_double,i_kind,i_long,r_single,r_kind
 
    implicit none
 
@@ -142,66 +143,66 @@ module general_sub2grid_mod
 
    type sub2grid_info
 
-      integer(i_kind) inner_vars      ! number of inner-most loop variables
-      integer(i_kind) lat1            ! no. of lats on subdomain (no buffer)
-      integer(i_kind) lon1            ! no. of lons on subdomain (no buffer)
-      integer(i_kind) lat2            ! no. of lats on subdomain (buffer)
-      integer(i_kind) lon2            ! no. of lons on subdomain (buffer)
-      integer(i_kind) latlon11        ! no. of points on subdomain (including buffer)
-      integer(i_kind) latlon1n        ! latlon11*nsig
-      integer(i_kind) nlat            ! no. of latitudes
-      integer(i_kind) nlon            ! no. of longitudes
-      integer(i_kind) nsig            ! no. of vertical levels
-      integer(i_kind) num_fields      ! total number of fields/levels
-      integer(i_kind) iglobal         ! number of horizontal points on global grid
-      integer(i_kind) itotsub         ! number of horizontal points of all subdomains combined
-      integer(i_kind) kbegin_loc      ! starting slab index for local processor
-      integer(i_kind) kend_loc        ! ending slab index for local processor
-      integer(i_kind) kend_alloc      ! kend_loc can = kbegin_loc - 1, for a processor not involved.
-                                      !  this causes problems with array allocation:
-                                      !  to correct this, use kend_alloc=max(kend_loc,kbegin_loc)
-      integer(i_kind) nlevs_loc       ! number of active local levels ( = kend_loc-kbegin_loc+1)
-      integer(i_kind) nlevs_alloc     ! number of allocatec local levels ( = kend_alloc-kbegin_loc+1)
-      integer(i_kind) npe             ! total number of processors
-      integer(i_kind) mype            ! local processor
-      integer(i_kind) nskip           ! # of processors skipped between full horizontal fields in grid mode.
-      logical periodic                ! logical flag for periodic e/w domains
-      logical,pointer :: periodic_s(:) => NULL()    ! logical flag for periodic e/w subdomain (all tasks)
-      logical,pointer :: vector(:)     => NULL()    ! logical flag, true for vector variables
-      integer(i_kind),pointer :: ilat1(:)       => NULL()    !  no. of lats for each subdomain (no buffer)
-      integer(i_kind),pointer :: jlon1(:)       => NULL()    !  no. of lons for each subdomain (no buffer)
-      integer(i_kind),pointer :: istart(:)      => NULL()    !  start lat of the whole array on each pe
-      integer(i_kind),pointer :: jstart(:)      => NULL()    !  start lon of the whole array on each pe
-      integer(i_kind),pointer :: recvcounts(:)  => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer ::  displs_g(:)   => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer :: rdispls(:)     => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer :: sendcounts(:)  => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer :: sdispls(:)     => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer :: ijn(:)         => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer :: ltosj(:)       => NULL()    !  lat index for reordering slab
-      integer(i_kind),pointer :: ltosi(:)       => NULL()    !  lon index for reordering slab
-      integer(i_kind),pointer :: recvcounts_s(:)=> NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer ::     irc_s(:)   => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer ::     ird_s(:)   => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer ::     isc_g(:)   => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer ::     isd_g(:)   => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer ::  displs_s(:)   => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer :: rdispls_s(:)   => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer :: sendcounts_s(:)=> NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer :: sdispls_s(:)   => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer :: ijn_s(:)       => NULL()    !  for mpi_alltoallv (sub2grid)
-      integer(i_kind),pointer :: ltosj_s(:)     => NULL()    !  lat index for reordering slab
-      integer(i_kind),pointer :: ltosi_s(:)     => NULL()    !  lon index for reordering slab
-      integer(i_kind),pointer :: kbegin(:)      => NULL()    !  starting slab index for each processor
-      integer(i_kind),pointer :: kend(:)        => NULL()    !  ending slab index for each processor
-      integer(i_kind),pointer :: lnames(:,:)    => NULL()    !  optional level index for each variable
-      character(64),pointer   :: names(:,:)     => NULL()    !  optional variable names
+      integer(i_kind):: inner_vars=0    ! number of inner-most loop variables
+      integer(i_kind):: lat1=0          ! no. of lats on subdomain (no buffer)
+      integer(i_kind):: lon1=0          ! no. of lons on subdomain (no buffer)
+      integer(i_kind):: lat2=0          ! no. of lats on subdomain (buffer)
+      integer(i_kind):: lon2=0          ! no. of lons on subdomain (buffer)
+      integer(i_kind):: latlon11=0      ! no. of points on subdomain (including buffer)
+      integer(i_kind):: latlon1n=0      ! latlon11*nsig
+      integer(i_kind):: nlat=0          ! no. of latitudes
+      integer(i_kind):: nlon=0          ! no. of longitudes
+      integer(i_kind):: nsig=0          ! no. of vertical levels
+      integer(i_kind):: num_fields=0    ! total number of fields/levels
+      integer(i_kind):: iglobal=0       ! number of horizontal points on global grid
+      integer(i_kind):: itotsub=0       ! number of horizontal points of all subdomains combined
+      integer(i_kind):: kbegin_loc=0    ! starting slab index for local processor
+      integer(i_kind):: kend_loc=0      ! ending slab index for local processor
+      integer(i_kind):: kend_alloc=0    ! kend_loc can = kbegin_loc - 1, for a processor not involved.
+                                        !  this causes problems with array allocation:
+                                        !  to correct this, use kend_alloc=max(kend_loc,kbegin_loc)
+      integer(i_kind):: nlevs_loc=0     ! number of active local levels ( = kend_loc-kbegin_loc+1)
+      integer(i_kind):: nlevs_alloc=0   ! number of allocatec local levels ( = kend_alloc-kbegin_loc+1)
+      integer(i_kind):: npe=0           ! total number of processors
+      integer(i_kind):: mype=-1         ! local processor
+      integer(i_kind):: nskip=0         ! # of processors skipped between full horizontal fields in grid mode.
+      logical:: periodic=.false.        ! logical flag for periodic e/w domains
+      logical,pointer :: periodic_s(:) => null()    ! logical flag for periodic e/w subdomain (all tasks)
+      logical,pointer :: vector(:)     => null()    ! logical flag, true for vector variables
+      integer(i_kind),pointer :: ilat1(:)       => null()    !  no. of lats for each subdomain (no buffer)
+      integer(i_kind),pointer :: jlon1(:)       => null()    !  no. of lons for each subdomain (no buffer)
+      integer(i_kind),pointer :: istart(:)      => null()    !  start lat of the whole array on each pe
+      integer(i_kind),pointer :: jstart(:)      => null()    !  start lon of the whole array on each pe
+      integer(i_kind),pointer :: recvcounts(:)  => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer ::  displs_g(:)   => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer :: rdispls(:)     => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer :: sendcounts(:)  => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer :: sdispls(:)     => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer :: ijn(:)         => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer :: ltosj(:)       => null()    !  lat index for reordering slab
+      integer(i_kind),pointer :: ltosi(:)       => null()    !  lon index for reordering slab
+      integer(i_kind),pointer :: recvcounts_s(:)=> null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer ::     irc_s(:)   => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer ::     ird_s(:)   => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer ::     isc_g(:)   => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer ::     isd_g(:)   => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer ::  displs_s(:)   => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer :: rdispls_s(:)   => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer :: sendcounts_s(:)=> null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer :: sdispls_s(:)   => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer :: ijn_s(:)       => null()    !  for mpi_alltoallv (sub2grid)
+      integer(i_kind),pointer :: ltosj_s(:)     => null()    !  lat index for reordering slab
+      integer(i_kind),pointer :: ltosi_s(:)     => null()    !  lon index for reordering slab
+      integer(i_kind),pointer :: kbegin(:)      => null()    !  starting slab index for each processor
+      integer(i_kind),pointer :: kend(:)        => null()    !  ending slab index for each processor
+      integer(i_kind),pointer :: lnames(:,:)    => null()    !  optional level index for each variable
+      character(64),pointer   :: names(:,:)     => null()    !  optional variable names
       logical:: lallocated = .false.
     
 
    end type sub2grid_info
 
-   logical :: verbose=.false.
+   logical :: print_verbose=.false.
 
 !  other declarations  ...
 
@@ -430,7 +431,7 @@ module general_sub2grid_mod
       if(.not.present(nskip).and.s%num_fields<s%npe) then
          call get_iuse_pe(s%npe,s%num_fields,idoit)
          npe_used=s%num_fields
-         if(s%mype==0.and.verbose) &
+         if(s%mype==0.and.print_verbose) &
            write(6,*)' npe,num_fields,npe_used,idoit=',s%npe,s%num_fields,npe_used,idoit
       else
          idoit=0
@@ -454,7 +455,7 @@ module general_sub2grid_mod
       do k=0,s%npe-1
          s%kend(k)=s%kbegin(k+1)-1
       end do
-      if(s%mype == 0.and.verbose) then
+      if(s%mype == 0.and.print_verbose) then
          do k=0,s%npe-1
             write(6,*)' in general_sub2grid_create_info, k,kbegin,kend,nlevs_loc,nlevs_alloc=', &
                k,s%kbegin(k),s%kend(k),s%kend(k)-s%kbegin(k)+1,max(s%kbegin(k),s%kend(k))-s%kbegin(k)+1
@@ -501,51 +502,43 @@ module general_sub2grid_mod
 
 subroutine get_iuse_pe(npe,nz,iuse_pe)
 
-  use constants, only: one
+  use constants, only: one,zero
+  use mpimod, only: mype
   implicit none
 
   integer(i_kind),intent(in) ::npe,nz
   integer(i_kind),intent(out)::iuse_pe(0:npe-1)
 
-  integer(i_kind) iskip_start,iskip,iskiptest,i,icount,left,iright
+  integer(i_kind) i,icount,nskip,ipoint
+  real(r_kind) :: point,skip2
 
 
-     iskip_start= nint((npe-one)/nz)
-     iskip=0
-     do iskiptest=iskip_start+1,1,-1
-        icount=0
-        do i=1,npe,iskiptest
-           icount=icount+1
-        end do
-        if(icount>=nz) then
-           iskip=iskiptest
-           exit
+     iuse_pe=1
+     if(npe <= nz) then
+        write(6,*)' nz,npe=',nz,npe,' ---- no iskip found, all processors used'
+     else                    
+        nskip=npe-nz
+        if(nskip > 0)then
+          skip2=float(npe)/float(nskip)
+          point=zero
+          do i=1,nskip
+            ipoint=min(max(0,nint(point)),npe) 
+            iuse_pe(ipoint)=0
+            point=point+skip2
+          end do
         end if
-     end do
-     if(iskip==0) then
-        write(6,*)' nz,npe=',nz,npe,' ---- no iskip found, program stops'
-        call stop2(999)
+        icount=0
+        do i=0,npe-1
+           if(iuse_pe(i) > 0)icount = icount+1
+        end do
+        if(icount /= nz) then
+           write(6,*)' get_pe2 - inconsistent icount,nz ',nz,icount,'program stops',npe,skip2
+           call stop2(999)
+        end if
+        if(mype == 0 .and. print_verbose)write(6,*) ' in get_pe2 ',nz,icount,npe,skip2
+   
      end if
-     icount=0
-     iuse_pe(:)=0
-     do i=npe-1,0,-iskip
-        icount=icount+1
-        iuse_pe(i)=1
-        if(icount==nz) exit
-     end do
-     left=0
-     do i=0,npe-1
-        if(iuse_pe(i)==1) exit
-        left=left+1
-     end do
-     iright=left/2
-     iuse_pe(:)=0
-     icount=0
-     do i=npe-1-iright,0,-iskip
-        icount=icount+1
-        iuse_pe(i)=1
-        if(icount==nz) exit
-     end do
+     return
      
 end subroutine get_iuse_pe
 
@@ -712,87 +705,65 @@ end subroutine get_iuse_pe
 !
 ! !REVISION HISTORY:
 !   2011-04-07 todling  embed in this package; update argument list
+!   2015-02-17 trayanov revamp; made consistent with MAPL
 !
 !EOP
 !-------------------------------------------------------------------------
 
 ! Declare local variables
 
-  integer(i_kind) i,j,k,iinum,jjnum,iistart,jjstart
-  integer(i_kind) lsetx,lsety,nxseg,nyseg
-  integer(i_kind),allocatable,dimension(:) :: imxy, jmxy
-  integer(i_kind) im,jm,mm1,ierr
+  integer(i_kind) :: i,j,k,istart0, jstart0
+  integer(i_kind) :: imxy(nxpe), jmxy(nype)
+  integer(i_kind) :: im,jm,mm1
 
 ! start
 
   periodic=.false.
   periodic_s=.false.
   im=nlon; jm=nlat
-  allocate(imxy(0:nxpe-1),jmxy(0:nype-1), stat=ierr)
-  if(ierr /= 0) then
-     write(6,*)' DETER_SUBDOMAIN: ALLOCATE ERROR.'
-     call stop2(30)
-  end if
  
-  call GET_LOCAL_DIMS_ ( im,imxy,nxpe )
-  call GET_LOCAL_DIMS_ ( jm,jmxy,nype )
+  call get_local_dims_ ( im,imxy,nxpe )
+  call get_local_dims_ ( jm,jmxy,nype )
 
 ! compute subdomain boundaries  (axis indices)
 
-  k=0
-  iinum=imxy(0)
-  jjnum=jmxy(0)
-  nxseg=2
-  nyseg=2
-  istart=1
-  jstart=1
-  iistart=1
-  jjstart=1
-  lsetx=npe/nype
-  lsety=npe/nype
-  do j=0,nype-1
-     do i=0,nxpe-1
-        k=k+1
-        if(i>0) then
-           if(imxy(i)<imxy(i-1)) iinum = imxy(i)
+! compute local subdomain (offset and sizes)
+
+  K=0
+  jstart0 = 1
+  do j=1,nype
+     istart0 = 1
+     if (j>1) then
+        jstart0 = jstart0 + jmxy(J-1)
+     end if
+     do i=1,nxpe
+        k = k + 1
+        ilat1(k) = jmxy(j)
+        istart(k) = jstart0
+        jlon1(k) = imxy(i)
+        if (i>1) then
+           istart0 = istart0 + imxy(i-1)
         end if
-        if(j>0) then
-           if(jmxy(j)<jmxy(j-1)) jjnum = jmxy(j)
-        end if
-        ilat1(k)=jjnum
-        jlon1(k)=iinum
-            if (jlon1(k)==nlon.and..not.regional) then  ! _RT I have no idea if
-                                                        !     this is correct
-               periodic=.true.
-               periodic_s(k)=.true.
-            endif
-        if(k>1) then
-           if(nxseg<=lsetx) then
-              jstart(k)=iistart+jlon1(k)
-              iistart=jstart(k)
-              nxseg=nxseg+1
-           else
-              jstart(k)=1
-              iistart=1
-              nxseg=2
-           end if
-           if(nyseg<=lsety) then
-              istart(k)=jjstart
-              nyseg=nyseg+1
-           else
-              if(ilat1(k)<ilat1(k-1)) then
-                 istart(k)=jjstart+ilat1(k)+1
-              else
-                 istart(k)=jjstart+ilat1(k)
-              end if
-              jjstart=istart(k)
-              nyseg=2
-           end if
-        end if
-        if(mype == 0 .and. verbose) &
+        jstart(k) = istart0
+
+        if (jlon1(k)==nlon.and..not.regional) then
+           periodic=.true.
+           periodic_s(k)=.true.
+        endif
+!@        if (.not.regional) then
+!@           if (I==1 .or. I==NXPE) then
+!@              periodic_s(k) = .true.
+!@           end if
+!@        end if
+     END DO
+  END DO
+
+  if ( print_verbose ) then
+     do k=1,nxpe*nype
+        if(mype == 0) &
              write(6,100) k,istart(k),jstart(k),ilat1(k),jlon1(k)
      end do
-  end do
+  end if
 
 100 format('general_DETER_SUBDOMAIN_withlayout:  task,istart,jstart,ilat1,jlon1=',5(i6,1x))
   
@@ -803,22 +774,16 @@ end subroutine get_iuse_pe
   lon1=jlon1(mm1)
   lat2=lat1+2
   lon2=lon1+2
-
-  deallocate(imxy,jmxy, stat=ierr)
-  if(ierr /= 0) then
-     write(6,*)' DETER_SUBDOMAIN: DEALLOCATE ERROR.'
-     call stop2(30)
-  end if 
-
+!@  periodic=periodic_s(mm1)
 
   return
 
   end subroutine general_deter_subdomain_withLayout
 
-  subroutine GET_LOCAL_DIMS_ ( dim_world,dim,NDEs )
+  subroutine get_local_dims_ ( dim_world,dim,ndes )
 !$$$  subprogram documentation block
 !                .      .    .                                       .
-! subprogram:    GET_LOCAL_DIMS
+! subprogram:    get_local_dims
 !   prgmmr:                  org                      date:
 !
 ! abstract:
@@ -828,7 +793,7 @@ end subroutine get_iuse_pe
 !
 !   input argument list:
 !    dim_world
-!    NDEs
+!    ndes
 !    dim
 !
 !   output argument list:
@@ -842,18 +807,18 @@ end subroutine get_iuse_pe
 
    implicit   none
 
-   integer(i_kind),intent(in   ) :: dim_world, NDEs
-   integer(i_kind),intent(inout) :: dim(0:NDEs-1)
+   integer(i_kind),intent(in   ) :: dim_world, ndes
+   integer(i_kind),intent(inout) :: dim(0:ndes-1)
 
    integer(i_kind)    n,im,rm
 
-   im = dim_world/NDEs
-   rm = dim_world-NDEs*im
-   do n=0,NDEs-1
+   im = dim_world/ndes
+   rm = dim_world-ndes*im
+   do n=0,ndes-1
       dim(n) = im
       if( n<=rm-1 ) dim(n) = im+1
    enddo
-   end subroutine GET_LOCAL_DIMS_
+   end subroutine get_local_dims_
 
    subroutine general_deter_subdomain_nolayout(npe,mype,nlat,nlon,regional, &
                     periodic,periodic_s,lon1,lon2,lat1,lat2,ilat1,istart,jlon1,jstart)
@@ -890,7 +855,6 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_kind,i_kind
       implicit none
 
 !     Declare passed variables
@@ -949,7 +913,7 @@ end subroutine get_iuse_pe
                periodic=.true.
                periodic_s(k)=.true.
             endif
-            if(mype == 0 .and. verbose) &
+            if(mype == 0 .and. print_verbose) &
                  write(6,100) k-1,istart(k),jstart(k),ilat1(k),jlon1(k)
          end do
       end do
@@ -978,6 +942,8 @@ end subroutine get_iuse_pe
 ! program history log:
 !   2010-02-11  parrish, initial documentation
 !   2011-07-26  todling, rank-1 interface
+!   2014-12-03  derber - make similar optimization changes already in code for
+!                      double precision.
 !
 !   input argument list:
 !     s          - structure variable, contains all necessary information for
@@ -993,13 +959,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single),     intent(in   ) :: sub_vars(:)
-      real(r_single),    intent(  out)  :: grid_vars(:)
+      real(r_single),    intent(inout)  :: grid_vars(:)
 
       real(r_single),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
       real(r_single),pointer,dimension(:,:,:,:) :: grid_vars_r4=>NULL()
@@ -1038,7 +1003,6 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
@@ -1100,10 +1064,11 @@ end subroutine get_iuse_pe
 
       real(r_single) :: sub_vars0(s%inner_vars,s%lat1,s%lon1,s%num_fields)
       real(r_single) :: work(s%inner_vars,s%itotsub*(s%kend_alloc-s%kbegin_loc+1)) 
-      integer(i_kind) iloc,iskip,i,i0,ii,j,j0,k,n,k_in,ilat,jlon,ierror
+      integer(i_kind) iloc,iskip,i,i0,ii,j,j0,k,n,k_in,ilat,jlon,ierror,ioffset
       integer(i_long) mpi_string
 
 !    remove halo row
+!$omp parallel do  schedule(dynamic,1) private(k,j,j0,i0,i,ii)
       do k=1,s%num_fields
          do j=2,s%lon2-1
             j0=j-1
@@ -1125,8 +1090,8 @@ end subroutine get_iuse_pe
 
       k_in=s%kend_loc-s%kbegin_loc+1
 
-
-! Load temp array in desired order
+! Load grid_vars array in desired order
+!$omp parallel do  schedule(dynamic,1) private(k,iskip,iloc,n,i,ilat,jlon,ii,ioffset)
       do k=s%kbegin_loc,s%kend_loc
          iskip=0
          iloc=0
@@ -1134,12 +1099,13 @@ end subroutine get_iuse_pe
             if (n/=1) then
                iskip=iskip+s%ijn(n-1)*k_in
             end if
+            ioffset=iskip+(k-s%kbegin_loc)*s%ijn(n)
             do i=1,s%ijn(n)
                iloc=iloc+1
                ilat=s%ltosi(iloc)
                jlon=s%ltosj(iloc)
                do ii=1,s%inner_vars
-                  grid_vars(ii,ilat,jlon,k)=work(ii,i + iskip + (k-s%kbegin_loc)*s%ijn(n))
+                  grid_vars(ii,ilat,jlon,k)=work(ii,i + ioffset)
                end do
             end do
          end do
@@ -1173,13 +1139,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single), intent(in   )     :: grid_vars(:)
-      real(r_single),     intent(  out) :: sub_vars(:)
+      real(r_single),     intent(inout) :: sub_vars(:)
 
       real(r_single),pointer,dimension(:,:,:,:) :: grid_vars_r4=>NULL()
       real(r_single),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
@@ -1218,13 +1183,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single), intent(in   )     :: grid_vars(s%inner_vars,s%nlat,s%nlon,s%kbegin_loc:s%kend_alloc)
-      real(r_single),     intent(  out) :: sub_vars(:)
+      real(r_single),     intent(inout) :: sub_vars(:)
 
       real(r_single),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
       integer(i_kind) mold4(2,2,2,2)
@@ -1257,6 +1221,8 @@ end subroutine get_iuse_pe
 ! program history log:
 !   2010-02-11  parrish, initial documentation
 !   2010-03-02  parrish - remove setting halo to zero in output
+!   2014-12-03  derber - make similar optimization changes already in code for
+!                      double precision.
 !
 !   input argument list:
 !     s          - structure variable, contains all necessary information for
@@ -1280,59 +1246,39 @@ end subroutine get_iuse_pe
       real(r_single), intent(in   )     :: grid_vars(s%inner_vars,s%nlat,s%nlon,s%kbegin_loc:s%kend_alloc)
       real(r_single),     intent(  out) :: sub_vars(s%inner_vars,s%lat2,s%lon2,s%num_fields)
 
-      real(r_single),allocatable :: temp(:,:),work(:,:,:)
-      integer(i_kind) iloc,iskip,i,ii,k,n,ilat,jlon,ierror
+      real(r_single) :: temp(s%inner_vars,s%itotsub*(s%kend_loc-s%kbegin_loc+1))
+      integer(i_kind) iloc,i,ii,k,n,ilat,jlon,ierror,icount
+      integer(i_kind),dimension(s%npe) ::iskip
       integer(i_long) mpi_string
 
-      allocate(temp(s%inner_vars,s%itotsub*(s%kend_alloc-s%kbegin_loc+1)))
-      allocate(work(s%inner_vars,s%itotsub,s%kbegin_loc:s%kend_alloc))
 !     reorganize for eventual distribution to local domains
-      do k=s%kbegin_loc,s%kend_loc
-         do i=1,s%itotsub
-            ilat=s%ltosi_s(i)
-            jlon=s%ltosj_s(i)
-            do ii=1,s%inner_vars
-               work(ii,i,k)=grid_vars(ii,ilat,jlon,k)
-            end do
-         end do
+      iskip(1)=0
+      do n=2,s%npe
+        iskip(n)=iskip(n-1)+s%ijn_s(n-1)*(s%kend_loc-s%kbegin_loc+1)
       end do
-
-!     load temp array in order of subdomains
-      iloc=0
-      iskip=0
-      do n=1,s%npe
-         if (n/=1) then
-            iskip=iskip+s%ijn_s(n-1)
-         end if
-
-         do k=s%kbegin_loc,s%kend_loc
+!$omp parallel do  schedule(dynamic,1) private(n,k,i,jlon,ii,ilat,iloc,icount)
+      do k=s%kbegin_loc,s%kend_loc
+         icount=0
+         do n=1,s%npe
+            iloc=iskip(n)+(k-s%kbegin_loc)*s%ijn_s(n)
             do i=1,s%ijn_s(n)
                iloc=iloc+1
+               icount=icount+1
+               ilat=s%ltosi_s(icount)
+               jlon=s%ltosj_s(icount)
                do ii=1,s%inner_vars
-                  temp(ii,iloc)=work(ii,iskip+i,k)
+                  temp(ii,iloc)=grid_vars(ii,ilat,jlon,k)
                end do
             end do
          end do
       end do
 
-!     Now load the temp array back into work
-      iloc=0
-      do k=s%kbegin_loc,s%kend_loc
-         do i=1,s%itotsub
-            iloc=iloc+1
-            do ii=1,s%inner_vars
-               work(ii,i,k)=temp(ii,iloc)
-            end do
-         end do
-      end do
-      deallocate(temp)
 
       call mpi_type_contiguous(s%inner_vars,mpi_real4,mpi_string,ierror)
       call mpi_type_commit(mpi_string,ierror)
 
-      call mpi_alltoallv(work,s%sendcounts_s,s%sdispls_s,mpi_string, &
+      call mpi_alltoallv(temp,s%sendcounts_s,s%sdispls_s,mpi_string, &
                         sub_vars,s%recvcounts_s,s%rdispls_s,mpi_string,mpi_comm_world,ierror)
-      deallocate(work)
       call mpi_type_free(mpi_string,ierror)
 
    end subroutine general_grid2sub_r_single_rank4
@@ -1363,13 +1309,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: sub_vars(:)
-      real(r_double),     intent(  out) :: grid_vars(:)
+      real(r_double),     intent(inout) :: grid_vars(:)
 
       real(r_double),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
       real(r_double),pointer,dimension(:,:,:,:) :: grid_vars_r4=>NULL()
@@ -1408,7 +1353,6 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
@@ -1497,7 +1441,7 @@ end subroutine get_iuse_pe
       k_in=s%kend_loc-s%kbegin_loc+1
 
 
-! Load temp array in desired order
+! Load grid_vars array in desired order
 !$omp parallel do  schedule(dynamic,1) private(k,iskip,iloc,n,i,ilat,jlon,ii,ioffset)
       do k=s%kbegin_loc,s%kend_loc
          iskip=0
@@ -1550,7 +1494,7 @@ end subroutine get_iuse_pe
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: grid_vars(:)
-      real(r_double),     intent(  out) :: sub_vars(:)
+      real(r_double),     intent(inout) :: sub_vars(:)
 
       real(r_double),pointer,dimension(:,:,:,:) :: grid_vars_r4=>NULL()
       real(r_double),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
@@ -1589,13 +1533,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: grid_vars(s%inner_vars,s%nlat,s%nlon,s%kbegin_loc:s%kend_alloc)
-      real(r_double),     intent(  out) :: sub_vars(:)
+      real(r_double),     intent(inout) :: sub_vars(:)
 
       real(r_double),pointer,dimension(:,:,:,:) :: sub_vars_r4=>NULL()
       integer(i_kind) mold4(2,2,2,2)
@@ -1713,13 +1656,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single),     intent(in   ) :: sub_vars(:)
-      real(r_single),    intent(  out)  :: grid_vars(:)
+      real(r_single),    intent(inout)  :: grid_vars(:)
       integer(i_kind),    intent(in   ) :: gridpe
 
       real(r_single),pointer,dimension(:,:,:) :: sub_vars_r3=>NULL()
@@ -1765,7 +1707,6 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
@@ -1898,13 +1839,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: sub_vars(:)
-      real(r_double),     intent(  out) :: grid_vars(:)
+      real(r_double),     intent(inout) :: grid_vars(:)
       integer(i_kind),    intent(in   ) :: gridpe
 
       real(r_double),pointer,dimension(:,:,:) :: sub_vars_r3=>NULL()
@@ -1944,7 +1884,6 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
@@ -2083,13 +2022,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single), intent(in   )     :: grid_vars(:)
-      real(r_single),     intent(  out) :: sub_vars(:)
+      real(r_single),     intent(inout) :: sub_vars(:)
       integer(i_kind),intent(in   )     :: gridpe
 
       real(r_single),pointer,dimension(:,:,:) :: grid_vars_r3=>NULL()
@@ -2129,13 +2067,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_single), intent(in   )     :: grid_vars(s%inner_vars,s%nlat,s%nlon)
-      real(r_single),     intent(  out) :: sub_vars(:)
+      real(r_single),     intent(inout) :: sub_vars(:)
       integer(i_kind),intent(in   )     :: gridpe
 
       real(r_single),pointer,dimension(:,:,:) :: sub_vars_r3=>NULL()
@@ -2240,13 +2177,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: grid_vars(:)
-      real(r_double),     intent(  out) :: sub_vars(:)
+      real(r_double),     intent(inout) :: sub_vars(:)
       integer(i_kind),intent(in   )     :: gridpe
 
       real(r_double),pointer,dimension(:,:,:) :: grid_vars_r3=>NULL()
@@ -2286,13 +2222,12 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),intent(in   ) :: s
       real(r_double),     intent(in   ) :: grid_vars(s%inner_vars,s%nlat,s%nlon)
-      real(r_double),     intent(  out) :: sub_vars(:)
+      real(r_double),     intent(inout) :: sub_vars(:)
       integer(i_kind),    intent(in   ) :: gridpe
 
       real(r_double),pointer,dimension(:,:,:) :: sub_vars_r3=>NULL()
@@ -2399,7 +2334,6 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use egrid2agrid_mod, only: g_egrid2agrid,egrid2agrid_parm
       use m_rerank, only: rerank
       implicit none
@@ -2407,7 +2341,7 @@ end subroutine get_iuse_pe
       type(sub2grid_info),   intent(in   ) :: se,sa
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
       real(r_single),        intent(in   ) :: sube_vars(:)
-      real(r_single),        intent(  out) :: suba_vars(:)
+      real(r_single),        intent(inout) :: suba_vars(:)
       logical,               intent(in   ) :: regional
 
       real(r_single),pointer,dimension(:,:,:,:) :: sube_vars_r4=>NULL()
@@ -2512,7 +2446,6 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use egrid2agrid_mod, only: g_egrid2agrid,egrid2agrid_parm
       use m_rerank, only: rerank
       implicit none
@@ -2520,7 +2453,7 @@ end subroutine get_iuse_pe
       type(sub2grid_info),   intent(in   ) :: se,sa
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
       real(r_double),        intent(in   ) :: sube_vars(:)
-      real(r_double),        intent(  out) :: suba_vars(:)
+      real(r_double),        intent(inout) :: suba_vars(:)
       logical,               intent(in   ) :: regional
 
       real(r_double),pointer,dimension(:,:,:,:) :: sube_vars_r4=>NULL()
@@ -2624,14 +2557,13 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use egrid2agrid_mod, only: g_egrid2agrid_ad,egrid2agrid_parm
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),   intent(in   ) :: se,sa
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
-      real(r_single),        intent(  out) :: sube_vars(:)
+      real(r_single),        intent(inout) :: sube_vars(:)
       real(r_single),        intent(in   ) :: suba_vars(:)
       logical,               intent(in   ) :: regional
 
@@ -2734,14 +2666,13 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use egrid2agrid_mod, only: g_egrid2agrid_ad,egrid2agrid_parm
       use m_rerank, only: rerank
       implicit none
 
       type(sub2grid_info),   intent(in   ) :: se,sa
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
-      real(r_double),        intent(  out) :: sube_vars(:)
+      real(r_double),        intent(inout) :: sube_vars(:)
       real(r_double),        intent(in   ) :: suba_vars(:)
       logical,               intent(in   ) :: regional
 
@@ -2844,7 +2775,6 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_single,i_kind
       use egrid2agrid_mod, only: g_agrid2egrid,egrid2agrid_parm
       use m_rerank, only: rerank
       implicit none
@@ -2852,7 +2782,7 @@ end subroutine get_iuse_pe
       type(sub2grid_info),   intent(in   ) :: sa,se
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
       real(r_single),        intent(in   ) :: suba_vars(:)
-      real(r_single),        intent(  out) :: sube_vars(:)
+      real(r_single),        intent(inout) :: sube_vars(:)
       logical,               intent(in   ) :: regional
 
       real(r_single),pointer,dimension(:,:,:,:) :: suba_vars_r4=>NULL()
@@ -2956,7 +2886,6 @@ end subroutine get_iuse_pe
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-      use kinds, only: r_double,i_kind
       use egrid2agrid_mod, only: g_agrid2egrid,egrid2agrid_parm
       use m_rerank, only: rerank
       implicit none
@@ -2964,7 +2893,7 @@ end subroutine get_iuse_pe
       type(sub2grid_info),   intent(in   ) :: sa,se
       type(egrid2agrid_parm),intent(in   ) :: p_e2a
       real(r_double),        intent(in   ) :: suba_vars(:)
-      real(r_double),        intent(  out) :: sube_vars(:)
+      real(r_double),        intent(inout) :: sube_vars(:)
       logical,               intent(in   ) :: regional
 
       real(r_double),pointer,dimension(:,:,:,:) :: suba_vars_r4=>NULL()

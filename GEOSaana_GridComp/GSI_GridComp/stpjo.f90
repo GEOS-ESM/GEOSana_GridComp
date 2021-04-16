@@ -1,4 +1,88 @@
-subroutine stpjo(yobs,dval,dbias,xval,xbias,sges,pbcjo,nstep)
+module stpjomod
+
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    stpjo     calculate penalty and stepsize
+!   prgmmr: derber           org: np23                date: 2003-12-18
+!
+! abstract: calculate observation term to penalty and estimate stepsize
+!               (nonlinear qc version)
+!
+! program history log:
+!   2003-12-18  derber,j.       -
+!   2016-08-22  guo, j.         - Wrapped simple subroutines to a module, with
+!                                 private module variables from obsmod.F90 moved
+!                                 here.
+!                               . For the earlier program history log, see the
+!                                 "program history log" blocks below, in
+!                                 individual subroutines/module-procedures.
+!                               . Changed if/elseif/else blocks to select-case
+!                                 blocks, using enumerated i_ob_type to replace
+!                                 locally hard-wired index values (ll=1,2,3,..).
+!                                 This is a step moving toward using type-bound-
+!                                 procedures.
+!   2018-08-10  guo     - a new implementation replacing typs specific stpXYZ()
+!                         calls to polymorphic %stpjo() calls.
+
+  use kinds , only: i_kind
+
+  implicit none
+
+  private
+
+        ! Usecase 1: as-is
+        !       call stpjo_setup(yobs,size(yobs))
+        !       call stpjo(yobs,dval,dbias,xval,xbias,sges,pbcjo,nstep,size(yobs))
+  public:: stpjo
+  public:: stpjo_setup
+
+        ! Usecase 2: Renamed with the same functionalities but more explicit names
+  public:: stpjo_reset  ! always re-set, either undefined or already defined.
+           interface stpjo_reset; module procedure stpjo_setup; end interface
+  public:: stpjo_calc   ! 
+           interface stpjo_calc ; module procedure stpjo      ; end interface
+
+! Moved here from obsmod.F90
+!   def stpcnt         - number of non-zero obs types (including time domain) on
+!                        processor - used for threading of stpjo
+!   def ll_jo          - points at ob type for location in stpcnt - used for
+!                        threading of stpjo
+!   def ib_jo          - points at time bin for location in stpcnt - used for
+!                        threading of stpjo
+
+  integer(i_kind),save:: stpcnt                          ! count of stpjo threads
+  integer(i_kind),save,allocatable,dimension(:):: ll_jo  ! enumerated iobtype of threads
+  integer(i_kind),save,allocatable,dimension(:):: ib_jo  ! ob-bin index values of threads
+  logical:: omptasks_configured_ = .false.
+
+  character(len=*),parameter:: myname="stpjomod"
+contains
+
+subroutine init_(nobs_type,nobs_bins)
+!> initialize a task distribution list (stpcnt, ll_jo(:),ib_jo(:))
+  implicit none
+  integer(i_kind),intent(in):: nobs_type
+  integer(i_kind),intent(in):: nobs_bins
+
+  if(omptasks_configured_) call final_()
+
+  allocate(ll_jo(nobs_bins*nobs_type), &
+           ib_jo(nobs_bins*nobs_type)  )
+
+  ll_jo(:)=0
+  ib_jo(:)=0
+  stpcnt  =0
+end subroutine init_
+
+subroutine final_()
+  implicit none
+  if(allocated(ll_jo)) deallocate(ll_jo)
+  if(allocated(ib_jo)) deallocate(ib_jo)
+  stpcnt=0
+  omptasks_configured_=.false.
+end subroutine final_
+
+subroutine stpjo(dval,dbias,xval,xbias,sges,pbcjo,nstep)
 
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -114,7 +198,6 @@ subroutine stpjo(yobs,dval,dbias,xval,xbias,sges,pbcjo,nstep)
 !   2006-09-18  derber - modify output from nonlinear operators to make same as linear operators
 !   2006-09-20  derber - add sensible temperatures for conventional obs.
 !   2006-10-12  treadon - replace virtual temperature with sensible in stppcp
-!   2007-02-15  rancic  - add foto
 !   2007-03-19  tremolet - binning of observations
 !   2007-04-13  tremolet - split jo from other components of stpcalc
 !   2007-04-16  kleist  - modified calls to tendency and constraint routines
@@ -135,6 +218,17 @@ subroutine stpjo(yobs,dval,dbias,xval,xbias,sges,pbcjo,nstep)
 !   2010-10-15  pagowski - add stppm2_5 call 
 !   2011-02-24  zhu    - add gust,vis,pblh calls
 !   2013-05-23  zhu    - add bias correction contribution from aircraft T bias correction
+!   2014-03-19  pondeca - add wspd10m
+!   2014-04-10  pondeca - add td2m,mxtm,mitm,pmsl
+!   2014-05-07  pondeca - add howv
+!   2014-06-17  carley/zhu - add lcbas and tcamt
+!   2015-07-10  pondeca - add cldch
+!   2016-05-05  pondeca - add uwnd10m, vwnd10m
+!   2016-08-26  guo     - separated a single stpoz() call into stpozlay() and
+!                         stpozlev() calls.  This is a next-step fix of the
+!                         minimum fix in stpjo_setup() below, to let output
+!                         pbcjo(:,:,:) to reflect individual ob-types correctly.
+!   2018-01-01  apodaca - add lightning (light) call
 !
 !   input argument list:
 !     yobs
@@ -165,145 +259,162 @@ subroutine stpjo(yobs,dval,dbias,xval,xbias,sges,pbcjo,nstep)
 !
 !$$$
   use kinds, only: i_kind,r_kind,r_quad
-  use obsmod, only: obs_handle, &
-                  & i_ps_ob_type, i_t_ob_type, i_w_ob_type, i_q_ob_type, &
-                  & i_spd_ob_type, i_srw_ob_type, i_rw_ob_type, i_dw_ob_type, &
-                  & i_sst_ob_type, i_pw_ob_type, i_oz_ob_type, i_colvk_ob_type, &
-                  & i_gps_ob_type, i_rad_ob_type, i_pcp_ob_type,i_tcp_ob_type, &
-                  &i_pm2_5_ob_type, i_gust_ob_type, i_vis_ob_type, i_pblh_ob_type, &
-                    nobs_type
-  use stptmod, only: stpt
-  use stpwmod, only: stpw
-  use stppsmod, only: stpps
-  use stppwmod, only: stppw
-  use stpqmod, only: stpq
-  use stpradmod, only: stprad
-  use stpgpsmod, only: stpgps
-  use stprwmod, only: stprw
-  use stpspdmod, only: stpspd
-  use stpsrwmod, only: stpsrw
-  use stpsstmod, only: stpsst
-  use stptcpmod, only: stptcp
-  use stpdwmod, only: stpdw
-  use stppcpmod, only: stppcp
-  use stpozmod, only: stpoz
-  use stpcomod, only: stpco
-  use stppm2_5mod, only: stppm2_5
-  use stpgustmod, only: stpgust
-  use stpvismod, only: stpvis
-  use stppblhmod, only: stppblh
   use bias_predictors, only: predictors
-  use aircraftinfo, only: aircraft_t_bc_pof,aircraft_t_bc
   use gsi_bundlemod, only: gsi_bundle
-  use control_vectors, only: cvars2d
-  use mpeu_util, only: getindex
+
+  use gsi_obOper, only: obOper
+  use m_obsdiags, only: obOper_create
+  use m_obsdiags, only: obOper_destroy
+  use gsi_obOperTypeManager, only: obOper_typeInfo
+
+  use intradmod, only: setrad
+
+  use mpeu_util, only: perr,die
+  use mpeu_util, only: tell
+  use mpeu_mpif, only: MPI_comm_world
   implicit none
 
 ! Declare passed variables
-  type(obs_handle)                    ,intent(in   ) :: yobs
-  type(gsi_bundle)                    ,intent(in   ) :: dval
-  type(predictors)                    ,intent(in   ) :: dbias
-  type(gsi_bundle)                    ,intent(in   ) :: xval
-  type(predictors)                    ,intent(in   ) :: xbias
-  integer(i_kind)                     ,intent(in   ) :: nstep
-  real(r_kind),dimension(max(1,nstep)),intent(in   ) :: sges
-  real(r_quad),dimension(4,nobs_type)    ,intent(inout) :: pbcjo
+  type(gsi_bundle)   ,dimension(:),intent(in   ) :: dval        ! (nobs_bins)
+  type(predictors)                ,intent(in   ) :: dbias
+  type(gsi_bundle)   ,dimension(:),intent(in   ) :: xval        ! (nobs_bins)
+  type(predictors)                ,intent(in   ) :: xbias
+  integer(i_kind)                 ,intent(in   ) :: nstep
+  real(r_kind),dimension(max(1,nstep)) ,intent(in   ) :: sges
+  real(r_quad),dimension(:,:,:)  ,intent(inout) :: pbcjo        !  (:,obOper_count,nobs_bins)
 
 ! Declare local variables
+  character(len=*),parameter:: myname_=myname//"::stpjo"
 
+  integer(i_kind) :: ll,mm,ib
+  class(obOper),pointer:: it_obOper
 !************************************************************************************  
-!$omp parallel sections
 
-!$omp section
-!   penalty, b, and c for radiances
-    call stprad(yobs%rad,dval,xval,dbias%predr,xbias%predr,&
-                pbcjo(1,i_rad_ob_type),sges,nstep)
+  call setrad(xval(1))
 
-!$omp section
-!   penalty, b, and c for temperature
-    if (.not. (aircraft_t_bc_pof .or. aircraft_t_bc)) then
-       call stpt(yobs%t,dval,xval,pbcjo(1,i_t_ob_type),sges,nstep) 
-    else
-       call stpt(yobs%t,dval,xval,pbcjo(1,i_t_ob_type),sges,nstep, &
-                 dbias%predt,xbias%predt) 
-    end if
+!$omp parallel do  schedule(dynamic,1) private(ll,mm,ib,it_obOper)
+  do mm=1,stpcnt
+    ll=ll_jo(mm)
+    ib=ib_jo(mm)
 
-!$omp section
-!   penalty, b, and c for winds
-    call stpw(yobs%w,dval,xval,pbcjo(1,i_w_ob_type),sges,nstep)
+    it_obOper => obOper_create(ll)
 
-!$omp section
-!   penalty, b, and c for precipitable water
-    call stppw(yobs%pw,dval,xval,pbcjo(1,i_pw_ob_type),sges,nstep)
+        if(.not.associated(it_obOper)) then
+          call perr(myname_,'unexpected obOper, associated(it_obOper) =',associated(it_obOper))
+          call perr(myname_,'                  obOper_typeInfo(ioper) =',obOper_typeInfo(ll))
+          call perr(myname_,'                                   iOper =',ll)
+          call perr(myname_,'                                    ibin =',ib)
+          call perr(myname_,'                                      mm =',mm)
+          call perr(myname_,'                                  stpcnt =',stpcnt)
+          call  die(myname_)
+        endif
 
-!$omp section
-!   penalty, b, and c for ozone
-    call stpco(yobs%colvk,dval,xval,pbcjo(1,i_colvk_ob_type),sges,nstep)
+        if(.not.associated(it_obOper%obsLL)) then
+          call perr(myname_,'unexpected components, associated(%obsLL) =',associated(it_obOper%obsLL))
+          call perr(myname_,'                   obOper_typeInfo(ioper) =',obOper_typeInfo(ll))
+          call perr(myname_,'                                    iOper =',ll)
+          call perr(myname_,'                                     ibin =',ib)
+          call perr(myname_,'                                       mm =',mm)
+          call perr(myname_,'                                   stpcnt =',stpcnt)
+          call  die(myname_)
+        endif
 
-!$omp section
-!   penalty, b, and c for ozone
-    call stppm2_5(yobs%pm2_5,dval,xval,pbcjo(1,i_pm2_5_ob_type),sges,nstep)
+    call it_obOper%stpjo(ib,dval(ib),xval(ib),pbcjo(:,ll,ib),sges,nstep,dbias,xbias) 
+    call obOper_destroy(it_obOper)
+  enddo
 
-!$omp section
-!   penalty, b, and c for wind lidar
-    call stpdw(yobs%dw,dval,xval,pbcjo(1,i_dw_ob_type),sges,nstep) 
+return
+end subroutine stpjo
 
-!$omp section
-!   penalty, b, and c for radar
-    call stprw(yobs%rw,dval,xval,pbcjo(1,i_rw_ob_type),sges,nstep) 
+subroutine stpjo_setup(nobs_bins)
 
-!$omp section
-!   penalty, b, and c for moisture
-    call stpq(yobs%q,dval,xval,pbcjo(1,i_q_ob_type),sges,nstep)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    stpjo_setup     setup loops for stpjo
+!   prgmmr: derber           org: np23                date: 2003-12-18
+!
+! abstract: setup parallel loops for stpjo
+!
+! program history log:
+!   2015-01-18  derber,j.
+!   2016-08-26  guo, j.   - patched with ".or.associated(yobs%o3l)" checking at
+!                           the checking of "associated(yobs%oz)", as a minimum
+!                           bug fix.
+!
+!   input argument list:
+!     yobs
+!     nobs_bins - number of obs bins
+!
+!   output argument list:
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+  use kinds, only: i_kind,r_kind,r_quad
+  use gsi_bundlemod, only: gsi_bundle
+  use gsi_obOperTypeManager, only: obOper_count
+  use gsi_obOperTypeManager, only: obOper_typeInfo
+  use gsi_obOper, only: obOper
+  use m_obsdiags, only: obOper_create
+  use m_obsdiags, only: obOper_destroy
+  use m_obsNode , only: obsNode
+  use m_obsLList, only: obsLList_headNode
+  use mpeu_util , only: perr, die
+  use mpeu_util , only: tell
+  implicit none
 
-!$omp section
-!   penalty, b, and c for ozone
-    call stpoz(yobs%oz,yobs%o3l,dval,xval,pbcjo(1,i_oz_ob_type),sges,nstep)
+! Declare passed variables
+  integer(i_kind),intent(in):: nobs_bins
 
-!$omp section
-!   penalty, b, and c for radar superob wind
-    call stpsrw(yobs%srw,dval,xval,pbcjo(1,i_srw_ob_type),sges,nstep)
+! Declare local variables
+  character(len=*),parameter:: myname_=myname//"::stpjo_setup"
 
-!$omp section
-!   penalty, b, and c for GPS local observation
-    call stpgps(yobs%gps,dval,xval,pbcjo(1,i_gps_ob_type),sges,nstep) 
+  integer(i_kind) ll,ib
+  class(obsNode),pointer:: headNode
+  class(obOper ),pointer:: it_obOper
+!************************************************************************************
+  call init_(obOper_count,nobs_bins)
 
-!$omp section
-!   penalty, b, and c for conventional sst
-    call stpsst(yobs%sst,dval,xval,pbcjo(1,i_sst_ob_type),sges,nstep)
+    stpcnt = 0
+    do ll = 1, obOper_count       ! Not nobs_type anymore
 
-!$omp section
-!   penalty, b, and c for wind speed
-    call stpspd(yobs%spd,dval,xval,pbcjo(1,i_spd_ob_type),sges,nstep) 
+      it_obOper => obOper_create(ll)
 
-!$omp section
-!   penalty, b, and c for precipitation
-    call stppcp(yobs%pcp,dval,xval,pbcjo(1,i_pcp_ob_type),sges,nstep)
+        if(.not.associated(it_obOper)) then
+          call perr(myname_,'unexpected obOper, associated(it_obOper) =',associated(it_obOper))
+          call perr(myname_,'                  obOper_typeInfo(ioper) =',obOper_typeInfo(ll))
+          call perr(myname_,'                                   ioper =',ll)
+          call perr(myname_,'                            obOper_count =',obOper_count)
+          call  die(myname_)
+        endif
 
-!$omp section
-!   penalty, b, and c for surface pressure
-    call stpps(yobs%ps,dval,xval,pbcjo(1,i_ps_ob_type),sges,nstep)
+        if(.not.associated(it_obOper%obsLL)) then
+          call perr(myname_,'unexpected component, associated(%obsLL) =',associated(it_obOper%obsLL))
+          call perr(myname_,'                  obOper_typeInfo(ioper) =',obOper_typeInfo(ll))
+          call perr(myname_,'                                   ioper =',ll)
+          call perr(myname_,'                            obOper_count =',obOper_count)
+          call  die(myname_)
+        endif
 
-!$omp section
-!   penalty, b, and c for MSLP TC obs
-    call stptcp(yobs%tcp,dval,xval,pbcjo(1,i_tcp_ob_type),sges,nstep)
+      do ib = 1,size(it_obOper%obsLL)   ! for all bins
+        headNode => obsLList_headNode(it_obOper%obsLL(ib))
+        if(.not.associated(headNode)) cycle     ! there is no observation node in this bin
 
-!$omp section
-!   penalty, b, and c for conventional gust
-    if (getindex(cvars2d,'gust')>0) &
-    call stpgust(yobs%gust,dval,xval,pbcjo(1,i_gust_ob_type),sges,nstep)
+        stpcnt = stpcnt +1
+        ll_jo(stpcnt) = ll
+        ib_jo(stpcnt) = ib
 
-!$omp section
-!   penalty, b, and c for conventional vis
-    if (getindex(cvars2d,'vis')>0) &
-    call stpvis(yobs%vis,dval,xval,pbcjo(1,i_vis_ob_type),sges,nstep)
+      enddo     ! ib
+      headNode => null()
+      call obOper_destroy(it_obOper)
+    enddo       ! ll, i.e. ioper of 1:obOper_ubound
 
-!$omp section
-!   penalty, b, and c for conventional pblh
-    if (getindex(cvars2d,'pblh')>0) &
-    call stppblh(yobs%pblh,dval,xval,pbcjo(1,i_pblh_ob_type),sges,nstep)
-
-!$omp end parallel sections
+    omptasks_configured_ = .true.
 
   return
-end subroutine stpjo
+end subroutine stpjo_setup
+
+end module stpjomod

@@ -24,6 +24,11 @@ subroutine evaljgrad(xhat,fjcost,gradx,lupdfgs,nprt,calledby)
 !   2014-01-30  todling - adding components to enable ens-hyb option
 !   2014-02-07  todling - update bias when doing 4dvar
 !   2014-10-14  todling - write-all only called at last outer iteration
+!   2015-09-03  guo     - obsmod::yobs has been replaced with m_obsHeadBundle,
+!                         where yobs is created and destroyed when and where it
+!                         is needed.
+!   2018-08-10  guo     - replace intjo() related implementations with a new
+!                         polymoprhic implementation of intjomod::intjo().
 !
 !   input argument list:
 !    xhat - current state estimate (in control space)
@@ -46,11 +51,12 @@ use gsi_4dvar, only: nobs_bins, nsubwin, l4dvar, ltlint, iwrtinc
 use constants, only: zero,zero_quad
 use mpimod, only: mype
 use jfunc, only: xhatsave
+use jfunc, only: nrclen,nsclen,npclen,ntclen
 use jfunc, only: jiter,miter
 use jcmod, only: ljcdfi
-use gridmod, only: lat2,lon2,nsig,twodvar_regional
+use gridmod, only: twodvar_regional
 use hybrid_ensemble_parameters, only: l_hyb_ens,ntlevs_ens
-use obsmod, only: yobs, lsaveobsens, l_do_adjoint
+use obsmod, only: lsaveobsens, l_do_adjoint
 use obs_sensitivity, only: fcsens
 use mod_strong, only: l_tlnmc,baldiag_inc
 use control_vectors, only: control_vector,prt_control_norms,dot_product,assignment(=)
@@ -66,6 +72,7 @@ use gsi_bundlemod, only: gsi_bundleDestroy
 use gsi_bundlemod, only: self_add,assignment(=)
 use xhat_vordivmod, only : xhat_vordiv_init, xhat_vordiv_calc, xhat_vordiv_clean
 use mpeu_util, only: die
+use mpl_allreducemod, only: mpl_allreduce
 
 implicit none
 
@@ -86,10 +93,13 @@ type(gsi_bundle),dimension(nobs_bins) :: adtest_sval, adtest_rval
 type(gsi_bundle),dimension(nsubwin  ) :: adtest_mval
 type(predictors) :: sbias, rbias
 real(r_quad) :: zjb,zjo,zjc,zjl
-integer(i_kind) :: ii,iobs,ibin
+integer(i_kind) :: ii,iobs,ibin,i
 logical :: llprt,llouter
 logical,parameter:: pertmod_adtest=.true.
 character(len=255) :: seqcalls
+character(len=8)   :: xincfile
+real(r_quad),dimension(max(1,nrclen)) :: qpred
+
 
 !**********************************************************************
 
@@ -185,10 +195,26 @@ do ii=1,nsubwin
    mval(ii)=zero
 end do
 
+qpred=zero_quad
+
 ! Compare obs to solution and transpose back to grid (H^T R^{-1} H)
-do ibin=1,nobs_bins
-   call intjo(yobs(ibin),rval(ibin),rbias,sval(ibin),sbias,ibin)
+call intjo(rval,qpred,sval,sbias)
+
+! Take care of background error for bias correction terms
+
+call mpl_allreduce(nrclen,qpvals=qpred)
+
+do i=1,nsclen
+  rbias%predr(i)=rbias%predr(i)+qpred(i)
 end do
+do i=1,npclen
+   rbias%predp(i)=rbias%predp(i)+qpred(nsclen+i)
+end do
+if (ntclen>0) then
+   do i=1,ntclen
+      rbias%predt(i)=rbias%predt(i)+qpred(nsclen+npclen+i)
+   end do
+end if
 
 ! Evaluate Jo
 call evaljo(zjo,iobs,nprt,llouter)
@@ -279,8 +305,14 @@ if (lupdfgs) then
    if (iwrtinc>0) then
       if (nprt>=1.and.mype==0) write(6,*)trim(seqcalls),': evaljgrad: Setting increment for output'
       call inc2guess(sval)
-      call view_st (sval,'xinc')
-      call write_all(iwrtinc,mype)
+      if (miter==1) then
+          xincfile='xinc'
+      else
+          xincfile='xinc.ZZZ'
+          write(xincfile(6:8),'(i3.3)') jiter
+      endif
+      call view_st (sval,xincfile)
+      call write_all(iwrtinc)
       ! NOTE: presently in 4dvar, we handle the biases in a slightly inconsistent when
       ! as when in 3dvar - that is, the state is not updated, but the biases are.
       ! This assumes GSI handles a single iteration of the outer loop at a time
@@ -289,7 +321,7 @@ if (lupdfgs) then
    else
       if (nprt>=1.and.mype==0) write(6,*)trim(seqcalls),': evaljgrad: Updating guess'
       call update_guess(sval,sbias)
-      if(jiter == miter)call write_all(-1,mype)
+      if(jiter == miter)call write_all(-1)
    endif
    call xhat_vordiv_clean
 endif

@@ -12,10 +12,10 @@ subroutine model_tl(xini,xobs,ldprt)
 ! !USES:
 
 use kinds, only: r_kind,i_kind
-use gsi_4dvar, only: nsubwin,nobs_bins,winlen,winsub,hr_obsbin
-use gsi_4dvar, only: iadatebgn,idmodel
+use gsi_4dvar, only: nsubwin,nobs_bins,winlen,winsub,mn_obsbin
+use gsi_4dvar, only: iadatebgn
 use gsi_4dvar, only: liauon
-use constants, only: zero,r3600
+use constants, only: zero,r3600,r60
 use state_vectors, only: allocate_state,deallocate_state,dot_product
 use gsi_bundlemod, only: gsi_bundle
 use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -28,7 +28,6 @@ use gsi_4dcouplermod, only: gsi_4dcoupler_final_model_tl
 use m_tick, only: tick
 use timermod, only: timer_ini,timer_fnl
 use mpeu_util,only: die,tell
-use mpimod, only: mype
 
 #ifdef _LAG_MODEL_
 use lag_fields, only: nlocal_orig_lag, ntotal_orig_lag
@@ -69,6 +68,7 @@ type(gsi_bundle), target, intent(inout) :: xobs(nobs_bins) ! State variable at o
 !  13Oct2010  Guo      - cleaned up idmodel related operations.  idmodel
 !			 mode of pertmod is now controled by its actual
 !			 implementation behind module gsi_4dcouplermod.
+!  2020-02-26  todling - reset obsbin from hr to min
 !
 !EOP
 !-----------------------------------------------------------------------
@@ -115,14 +115,14 @@ call gsi_4dcoupler_init_model_tl(xini(1),xxpert,nymdi,nhmsi,ndtpert,rc=ierr)
 xxpert = zero	! this initialization is made explicit
 
 ! Determine corresponding GSI time step parameters.
-! A GSI time step is a hr_obsbin time interval.
-ndt    = NINT(hr_obsbin*r3600/ndtpert)	! count of pertmod_TL time step in 1 hr_obsbin
+! A GSI time step is a mn_obsbin time interval.
+ndt    = NINT(mn_obsbin*r60/ndtpert)	! count of pertmod_TL time step in 1 mn_obsbin
 dt     = ndt*ndtpert			! one GSI time step in seconds
 tstep  = dt				! one GSI time step in seconds
 
 nstep  = NINT(winlen*r3600/tstep)
 nfrctl = NINT(winsub*r3600/tstep)
-nfrobs = NINT(hr_obsbin*r3600/tstep)
+nfrobs = NINT(mn_obsbin*r60/tstep)
 
 wt= 0.
 if(iau_on_) then
@@ -145,8 +145,8 @@ if (ABS(winsub*r3600   -zz)>epsilon(zz)) then
    call stop2(148)
 end if
 zz=real(nfrobs,r_kind)*tstep
-if (ABS(hr_obsbin*r3600-zz)>epsilon(zz)) then
-   write(6,*)'model_tl: error nfrobs',hr_obsbin,zz
+if (ABS(mn_obsbin*r60-zz)>epsilon(zz)) then
+   write(6,*)'model_tl: error nfrobs',mn_obsbin,zz
    call stop2(149)
 end if
 if (ndt<1)then

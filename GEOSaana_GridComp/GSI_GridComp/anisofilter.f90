@@ -32,6 +32,12 @@ module anisofilter
 !   2013-10-19  todling - metguess now holds background
 !   2013-10-24  todling - general interface to strip
 !                       - reposition ltosi and others to commvars
+!   2014-03-19  pondeca - add wspd10m
+!   2014-04-10  pondeca - add td2m,mxtm,mitm,pmsl
+!   2014-05-07  pondeca - add howv
+!   2014-06-09  carley/zhu - add ceiling
+!   2015-07-10  pondeca - add cldch
+!   2016-03-07  pondeca  - add uwnd10m,vwnd10m
 !
 !
 ! subroutines included:
@@ -120,16 +126,17 @@ module anisofilter
 
   use raflib,only: init_raf4_wrap,raf_sm4_wrap,raf_sm4_ad_wrap
 
-  use jfunc, only: varq,qoption
+  use jfunc, only: varq,qoption,R_option,varcw,cwoption
 
   use control_vectors, only: cvars2d,cvars3d,cvarsmd
   use control_vectors, only: nvars,nrf,nrf3_loc,nrf2_loc,nrf_3d,nrf_var
   use control_vectors, only: nrf3 => nc3d
   use control_vectors, only: nrf2 => nc2d
+  use control_vectors, only: nmotl_loc,mvars
   use control_vectors, only: an_amp0
 
   use guess_grids, only: ges_prsl,ntguessig,&
-                         ges_prslavg,ges_psfcavg,ges_tsen
+                         ges_prslavg,ges_psfcavg,ges_tsen,wgt_lcbas
 
   use mpimod, only: npe,levs_id,nvar_id,ierror,&
                     mpi_real8,mpi_real4,mpi_integer4,mpi_rtype,&
@@ -174,9 +181,13 @@ module anisofilter
   public :: isotropic_scales_subdomain_option
 ! set passed variables to public
   public :: theta0zf,theta0f,asp3_max,u0f,v0zf,v0f,u0zf,tx1_slab,hfilter,hfine,tx2_slab,asp2_max,asp1_max,tx3_slab
-  public :: qltv_wind,qlth_wind,qltv_temp,eampmax,pgesmax,pgesmin,eampmin,asp10f,rh0f,z0f,z0f2,asp20f,qlth_temp,psg,asp30f
+  public :: vis0f,cldch0f,valleys0f
+  public :: z0f_std
+  public :: bckg_stdz0f,bckg_stdp0f
+  public :: bckg_stdmax_z,bckg_stdfact_z,bckg_valleyfact_z,bckg_stdmax_p,bckg_stdfact_p,bckg_valleyfact_p
+  public :: qltv_wind,qlth_wind,qltv_temp,eampmax,pgesmax,pgesmin,eampmin,asp10f,rh0f,z0f,z0f2,z0f3,asp20f,qlth_temp,psg,asp30f
   public :: qlth_wind0,qltv_temp0,qlth_temp0,qltv_wind0,scalex3,scalex2,scalex1,lreadnorm
-  public :: r015,corp,corz,rfact0v,hwll,aspect,vz,hwllp,stpcode_ensdata,stpcode_namelist,stpcode_alloc
+  public :: r015,corp,corz,rfact0v,hwll,aspect,vz,hwllp,hwllp_lcbas,stpcode_ensdata,stpcode_namelist,stpcode_alloc
   public :: stpcode_statdata,rfact0h,ks,mlat,rllatf,ensamp
 
 ! Declare passed variables
@@ -202,7 +213,7 @@ module anisofilter
   real(r_kind),parameter:: qls_rh       = 5.e+05_r_kind
 
   real(r_kind) scalex1,scalex2,scalex3
-
+  real(r_kind) R_f
   real(r_single),parameter:: EAMPMAX=2.0_r_single
   real(r_single),parameter:: EAMPMIN=0.5_r_single
 
@@ -216,18 +227,25 @@ module anisofilter
   real(r_kind)  ,allocatable::rfact0h(:),rfact0v(:)
 ! real(r_kind)  ,allocatable::corz(:,:,:),corp(:),hwll(:,:,:),hwllp(:),vz(:,:,:)
   real(r_kind)  ,allocatable::corz(:,:,:),corp(:,:),hwll(:,:,:),hwllp(:,:),vz(:,:,:)
+  real(r_kind)  ,allocatable::hwllp_lcbas(:,:)
 
   real(r_kind)  ,allocatable,dimension(:,:)    :: dxf,dyf,rllatf,hfilter
   real(r_kind)  ,allocatable,dimension(:,:,:)  :: hfine
   real(r_single),allocatable,dimension(:,:,:,:):: aspect
-  real(r_single),allocatable,dimension(:,:,:)  :: theta0f,theta0zf,u0f,u0zf,v0f,v0zf,z0f,z0f2,rh0f,vis0f ! for regional / zonal patch
+  real(r_single),allocatable,dimension(:,:,:)  :: theta0f,theta0zf,u0f,u0zf,v0f,v0zf,z0f,z0f2,z0f3,rh0f ! for regional / zonal patch
+  real(r_single),allocatable,dimension(:,:,:)  :: vis0f,cldch0f,valleys0f
+  real(r_single),allocatable,dimension(:,:,:)  :: z0f_std
+  real(r_single),allocatable,dimension(:,:,:,:):: bckg_stdz0f,bckg_stdp0f
   real(r_kind)  ,allocatable,dimension(:,:)    :: asp10f,asp20f,asp30f ! for regional / zonal patch
   real(r_kind)  ,allocatable,dimension(:,:,:)  :: psg
+  real(r_single),allocatable,dimension(:,:,:)  :: wgt0f
 
   real(r_single),allocatable,dimension(:,:,:)::tx1_slab,tx2_slab,tx3_slab
   real(r_kind),allocatable::asp1_max(:,:),asp2_max(:,:),asp3_max(:,:)
   real(r_kind),allocatable::qlth_temp(:),qltv_temp(:)
   real(r_kind),allocatable::qlth_wind(:),qltv_wind(:)
+  real(r_kind),allocatable::bckg_stdmax_z(:),bckg_stdfact_z(:),bckg_valleyfact_z(:)
+  real(r_kind),allocatable::bckg_stdmax_p(:),bckg_stdfact_p(:),bckg_valleyfact_p(:)
 
 !--- For Ensemble Aspect
   integer(i_kind),parameter::ngrds=3        !# of supported grids
@@ -254,17 +272,64 @@ module anisofilter
   integer(i_kind) :: llamp_levtop
   real   (r_kind) :: llamp_coeff
 
-  real(r_kind) hsteep
+  real(r_kind) hsteep, hsteep_wind
   logical volpreserve
   logical lsmoothterrain
   logical lwater_scaleinfl
+  logical glerl_on
   integer(i_kind) nhscale_pass
-  real(r_kind) water_scalefact(10),hsmooth_len
+  integer(i_kind) n_valley_pass
+  real(r_kind) hsmooth_len,hsmooth_len_lcbas
+  real(r_kind):: glerl_scalefact
+  real(r_kind),allocatable,dimension(:):: water_scalefact
   real(r_kind),allocatable,dimension(:,:,:)::rsliglb      !sea-land-ice mask on analysis grid. type real
-  real(r_kind):: rltop,rltop_wind,rltop_temp,rltop_q,rltop_psfc,rltop_gust,rltop_vis,rltop_pblh
+  real(r_kind):: rltop,rltop_wind,rltop_temp,rltop_q,rltop_psfc,rltop_gust,rltop_vis,rltop_pblh, &
+                 rltop_wspd10m,rltop_td2m,rltop_mxtm,rltop_mitm,rltop_pmsl,rltop_howv,rltop_tcamt,rltop_lcbas, & 
+                 rltop_cldch,rltop_uwnd10m,rltop_vwnd10m
+
+  logical::      turnoff_all_stdmodels, stdmodel_z_based,& 
+                 lstdmodel_st, lstdmodel_vp, lstdmodel_t, lstdmodel_q, lstdmodel_oz, lstdmodel_qw, lstdmodel_ps, lstdmodel_sst, & 
+                 lstdmodel_gust, lstdmodel_vis, lstdmodel_pblh, lstdmodel_wspd10m, lstdmodel_td2m, lstdmodel_mxtm, & 
+                 lstdmodel_mitm, lstdmodel_pmsl, lstdmodel_howv, lstdmodel_tcamt, lstdmodel_lcbas, lstdmodel_cldch, & 
+                 lstdmodel_uwnd10m, lstdmodel_vwnd10m, lstdmodel_lst, lstdmodel_ist, lstdmodel_sfwter, lstdmodel_vpwter, & 
+                 lstdmodel_twter, lstdmodel_qwter, lstdmodel_pswter, lstdmodel_gustwter, lstdmodel_wspd10mwter, & 
+                 lstdmodel_td2mwter, lstdmodel_mxtmwter, lstdmodel_mitmwter, lstdmodel_uwnd10mwter, lstdmodel_vwnd10mwter, & 
+                 writeout_stdmodel_diagnostics
+
+  real(r_kind):: fstdmax_st, fstdmax_vp, fstdmax_t, fstdmax_q, fstdmax_oz, fstdmax_qw, fstdmax_ps, fstdmax_sst, & 
+                 fstdmax_gust, fstdmax_vis, fstdmax_pblh, fstdmax_wspd10m, fstdmax_td2m, fstdmax_mxtm, & 
+                 fstdmax_mitm, fstdmax_pmsl, fstdmax_howv, fstdmax_tcamt, fstdmax_lcbas, fstdmax_cldch, & 
+                 fstdmax_uwnd10m, fstdmax_vwnd10m, fstdmax_lst, fstdmax_ist, fstdmax_sfwter, fstdmax_vpwter, & 
+                 fstdmax_twter, fstdmax_qwter, fstdmax_pswter, fstdmax_gustwter, fstdmax_wspd10mwter, & 
+                 fstdmax_td2mwter, fstdmax_mxtmwter, fstdmax_mitmwter, fstdmax_uwnd10mwter, fstdmax_vwnd10mwter
+
+  real(r_kind):: std_radius, & 
+                 stdfact_st, stdfact_vp, stdfact_t, stdfact_q, stdfact_oz, stdfact_qw, stdfact_ps, stdfact_sst, & 
+                 stdfact_gust, stdfact_vis, stdfact_pblh, stdfact_wspd10m, stdfact_td2m, stdfact_mxtm, & 
+                 stdfact_mitm, stdfact_pmsl, stdfact_howv, stdfact_tcamt, stdfact_lcbas, stdfact_cldch, & 
+                 stdfact_uwnd10m, stdfact_vwnd10m, stdfact_lst, stdfact_ist, stdfact_sfwter, stdfact_vpwter, & 
+                 stdfact_twter, stdfact_qwter, stdfact_pswter, stdfact_gustwter, stdfact_wspd10mwter, & 
+                 stdfact_td2mwter, stdfact_mxtmwter, stdfact_mitmwter, stdfact_uwnd10mwter, stdfact_vwnd10mwter
+
+  real(r_kind):: & 
+                 valleyfact_st, valleyfact_vp, valleyfact_t, valleyfact_q, valleyfact_oz, valleyfact_qw, valleyfact_ps, valleyfact_sst, & 
+                 valleyfact_gust, valleyfact_vis, valleyfact_pblh, valleyfact_wspd10m, valleyfact_td2m, valleyfact_mxtm, & 
+                 valleyfact_mitm, valleyfact_pmsl, valleyfact_howv, valleyfact_tcamt, valleyfact_lcbas, valleyfact_cldch, & 
+                 valleyfact_uwnd10m, valleyfact_vwnd10m, valleyfact_lst, valleyfact_ist, valleyfact_sfwter, valleyfact_vpwter, & 
+                 valleyfact_twter, valleyfact_qwter, valleyfact_pswter, valleyfact_gustwter, valleyfact_wspd10mwter, & 
+                 valleyfact_td2mwter, valleyfact_mxtmwter, valleyfact_mitmwter, valleyfact_uwnd10mwter, valleyfact_vwnd10mwter
+
+  integer(i_kind):: npass_for_std 
 
   integer(i_kind):: nrf3_oz,nrf3_t,nrf3_sf,nrf3_vp,nrf3_q,nrf3_cw
-  integer(i_kind):: nrf2_ps,nrf2_sst,nrf2_gust,nrf2_vis,nrf2_pblh,nrf2_stl,nrf2_sti
+  integer(i_kind):: nrf2_ps,nrf2_sst,nrf2_gust,nrf2_vis,nrf2_pblh,nrf2_stl,nrf2_sti, &
+                    nrf2_wspd10m,nrf2_td2m,nrf2_mxtm,nrf2_mitm,nrf2_pmsl,nrf2_howv, &
+                    nrf2_uwnd10m,nrf2_vwnd10m
+  integer(i_kind):: nrf3_sfwter,nrf3_vpwter,nrf2_twter,nrf2_qwter,nrf2_pswter,nrf2_gustwter, &
+                    nrf2_wspd10mwter,nrf2_td2mwter,nrf2_mxtmwter,nrf2_mitmwter
+  integer(i_kind):: nrf2_tcamt,nrf2_lcbas,nrf2_cldch,nrf2_uwnd10mwter,nrf2_vwnd10mwter
+
+  character(20), allocatable, dimension(:):: cvarstype    !static3d, static2d, motley
 
 !_RT  integer(i_kind),allocatable,dimension(:) :: nrf2_loc,nrf3_loc  ! should !become local
   character(len=*),parameter::myname='anisofilter'
@@ -299,6 +364,7 @@ subroutine anprewgt_reg(mype)
 !                      are almost same, so they are moved back to anprewgt.
 !                      Some processes were moved to new subroutine.
 !   2010-03-10  zhu  - use nrf* for generalized control variable
+!   2014-06-09  carley/zhu  - add tcamt and lcbas
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -319,6 +385,8 @@ subroutine anprewgt_reg(mype)
 ! Declare local parameters
   real(r_single),parameter:: vis0fmin=6000._r_single
   real(r_single),parameter:: vis0fmax=6000._r_single
+  real(r_single),parameter:: cldch0fmin=6000._r_single
+  real(r_single),parameter:: cldch0fmax=6000._r_single
 
 ! Declare local variables
   integer(i_kind):: n,i,j,k,ivar,kvar,k1,l,lp,igauss,nlatf,nlonf,ierr
@@ -326,9 +394,8 @@ subroutine anprewgt_reg(mype)
   real(r_kind)  ,allocatable,dimension(:,:):: bckgvar,bckgvar0f,zaux,zsmooth
   real(r_single),allocatable,dimension(:,:):: bckgvar4,zsmooth4
   real(r_single),allocatable,dimension(:,:):: region_dx4,region_dy4,psg4
-  real(r_single) thisvis0f
 
-  character(len=10):: chvarname
+  character(len=12):: chvarname
   character(len= 4):: clun
 
 !---
@@ -356,6 +423,29 @@ subroutine anprewgt_reg(mype)
   nrf2_pblh = getindex(cvars2d,'pblh')
   nrf2_stl  = getindex(cvarsmd,'stl')
   nrf2_sti  = getindex(cvarsmd,'sti')
+  nrf2_wspd10m = getindex(cvars2d,'wspd10m')
+  nrf2_td2m = getindex(cvars2d,'td2m')
+  nrf2_mxtm = getindex(cvars2d,'mxtm')
+  nrf2_mitm = getindex(cvars2d,'mitm')
+  nrf2_pmsl = getindex(cvars2d,'pmsl')
+  nrf2_howv = getindex(cvars2d,'howv')
+  nrf2_tcamt = getindex(cvars2d,'tcamt')
+  nrf2_lcbas = getindex(cvars2d,'lcbas')
+  nrf2_cldch = getindex(cvars2d,'cldch')
+  nrf2_uwnd10m = getindex(cvars2d,'uwnd10m')
+  nrf2_vwnd10m = getindex(cvars2d,'vwnd10m')
+  nrf3_sfwter = getindex(cvars3d,'sfwter')
+  nrf3_vpwter = getindex(cvars3d,'vpwter')
+  nrf2_twter = getindex(cvarsmd,'twter')
+  nrf2_qwter = getindex(cvarsmd,'qwter')
+  nrf2_pswter = getindex(cvarsmd,'pswter')
+  nrf2_gustwter = getindex(cvarsmd,'gustwter')
+  nrf2_wspd10mwter = getindex(cvarsmd,'wspd10mwter')
+  nrf2_td2mwter = getindex(cvarsmd,'td2mwter')
+  nrf2_mxtmwter = getindex(cvarsmd,'mxtmwter')
+  nrf2_mitmwter = getindex(cvarsmd,'mitmwter')
+  nrf2_uwnd10mwter = getindex(cvarsmd,'uwnd10mwter')
+  nrf2_vwnd10mwter = getindex(cvarsmd,'vwnd10mwter')
 
   call init_anisofilter_reg(mype)
   call read_bckgstats(mype)
@@ -508,9 +598,7 @@ subroutine anprewgt_reg(mype)
            lp=min((l+1),mlat)
            dl2=rllatf(i,j)-float(l)
            dl1=one-dl2
-           if (ivar>nrf) then
-              factk=one
-           else
+           if (ivar <= nrf) then
               if (nrf_3d(ivar)) then
                  do n=1,nrf3
                     if (nrf3_loc(n)==ivar) then
@@ -531,16 +619,22 @@ subroutine anprewgt_reg(mype)
                           factk=zero_3
                        else
                           factk=dl1*corp(l,n)+dl2*corp(lp,n)
-                          if (nrf_var(ivar)=='vis' .or. nrf_var(ivar)=='VIS') then
-                             thisvis0f=min(vis0fmax, max(vis0fmin,vis0f(i,j,1)))
-                             factk=factk/(log(ten)*thisvis0f)        !in other words,trust the smaller bckg vis values more than the larger ones
+                          if (nrf_var(ivar)=='lcbas' .or. nrf_var(ivar)=='LCBAS') then
+                             factk=factk/(log(ten)*8000.0_r_kind) 
                           end if
                        end if
                        exit
                     end if
                  end do
-              end if ! end of nrf_3d
-           end if    ! end of ivar       
+              end if
+           else
+              do n=1,mvars
+                 if (nmotl_loc(n)==ivar) then
+                    factk=dl1*corp(l,nrf2+n)+dl2*corp(lp,nrf2+n)
+                    exit
+                 end if
+              end do
+           end if
 
            do igauss=1,ngauss
               factor=anhswgt(igauss)*factk*an_amp(igauss,ivar)/sqrt(anhswgtsum)
@@ -618,9 +712,11 @@ subroutine anprewgt_reg(mype)
 ! deallocate(dxf,dyf,rllatf,theta0f,theta0zf)
   deallocate(corp,hwll,hwllp,vz,aspect)
   deallocate(dxf,dyf,theta0f,theta0zf)
-  deallocate(u0f,u0zf,v0f,v0zf,z0f,z0f2,rh0f,vis0f,psg,rsliglb)
+  deallocate(u0f,u0zf,v0f,v0zf,z0f,z0f2,rh0f,vis0f,cldch0f,psg,rsliglb)
 
   deallocate(rfact0h,rfact0v)
+  deallocate(water_scalefact)
+  deallocate(cvarstype)
   deallocate(hfine,hfilter)
 
 end subroutine anprewgt_reg
@@ -650,6 +746,7 @@ subroutine get_aspect_reg_2d
 !                         in which some procedures are moved
 !                         to the parent subroutine anprewgt_reg().
 !   2008-11-26  zhu  - use nrf* for generalized control variable
+!   2014-06-09  carley/zhu  - add tcamt and lcbas
 !
 !   input argument list:
 !
@@ -661,20 +758,24 @@ subroutine get_aspect_reg_2d
 !
 !$$$ end documentation block
   use anberror, only: afact0
+  use gsi_io, only: verbose
   implicit none
 
 ! Declare passed variables
 
 ! Declare local variables
   integer(i_kind):: i,j,k,k1,ip,im,jp,jm,ivar
-
+  logical no_elev_grad
   real(r_kind):: fx2,fx1,fx3,dxi,dyi
   real(r_kind):: asp1,asp2,asp3
   real(r_kind):: afact,deta0,deta1
 
   integer(i_kind):: nlatf,nlonf
-  character(len=5) cvar
+  character(len=8) cvar
+  logical print_verbose
 
+  print_verbose=.false.
+  if(verbose) print_verbose=.true.
   nlatf=pf2aP1%nlatf
   nlonf=pf2aP1%nlonf
 
@@ -707,7 +808,32 @@ subroutine get_aspect_reg_2d
            fx2= dxi*real(z0f(i,jp,k)-z0f(i,jm,k),r_kind)
            fx3= zero
 
-           if (nrf_var(ivar)=='vis' .or. nrf_var(ivar)=='VIS') then !no land/water elev gradient artifact for visibility
+ 
+           no_elev_grad=nrf_var(ivar)=='vis' .or. nrf_var(ivar)=='VIS'
+           no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='tcamt' .or. nrf_var(ivar)=='TCAMT')
+           no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='lcbas' .or. nrf_var(ivar)=='LCBAS')
+           no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='cldch' .or. nrf_var(ivar)=='CLDCH')
+!          if (nrf2_wspd10m>0 .and. nrf2_wspd10mwter>0) then
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='wspd10m' .or. nrf_var(ivar)=='WSPD10M')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='wspd10mwter' .or. nrf_var(ivar)=='WSPD10MWTER')
+!          endif
+!          if (nrf2_uwnd10m>0 .and. nrf2_uwnd10mwter>0 .and. nrf2_vwnd10m>0 .and. nrf2_vwnd10mwter>0) then
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='uwnd10m' .or. nrf_var(ivar)=='UWND10M')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='uwnd10mwter' .or. nrf_var(ivar)=='UWND10MWTER')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='vwnd10m' .or. nrf_var(ivar)=='VWND10M')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='vwnd10mwter' .or. nrf_var(ivar)=='VWND10MWTER')
+!          endif
+!          if (nrf2_gust>0 .and. nrf2_gustwter>0) then
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='gust' .or. nrf_var(ivar)=='GUST')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='gustwter' .or. nrf_var(ivar)=='GUSTWTER')
+!          endif
+!          if (nrf3_sf>0 .and. nrf3_sfwter>0 .and. nrf3_vp>0 .and. nrf3_vpwter>0) then
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='sf' .or. nrf_var(ivar)=='SF')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='sfwter' .or. nrf_var(ivar)=='SFWTER')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='vp' .or. nrf_var(ivar)=='VP')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='vpwter' .or. nrf_var(ivar)=='VPWTER')
+!          endif
+           if (no_elev_grad) then !no land/water elev gradient artifact
               fx1= dyi*real(z0f2(ip,j,k)-z0f2(im,j,k),r_kind)
               fx2= dxi*real(z0f2(i,jp,k)-z0f2(i,jm,k),r_kind)
            endif
@@ -725,6 +851,31 @@ subroutine get_aspect_reg_2d
               case('gust','GUST'); rltop=rltop_gust
               case('vis','VIS'); rltop=rltop_vis
               case('pblh','PBLH'); rltop=rltop_pblh
+              case('wspd10m','WSPD10M'); rltop=rltop_wspd10m
+              case('td2m','TD2M'); rltop=rltop_td2m
+              case('mxtm','MXTM'); rltop=rltop_mxtm
+              case('mitm','MITM'); rltop=rltop_mitm
+              case('pmsl','PMSL'); rltop=rltop_pmsl
+              case('howv','HOWV'); rltop=rltop_howv
+              case('tcamt','TCAMT'); rltop=rltop_tcamt
+              case('lcbas','LCBAS'); rltop=rltop_lcbas
+              case('cldch','CLDCH'); rltop=rltop_cldch
+              case('uwnd10m','UWND10M'); rltop=rltop_uwnd10m
+              case('vwnd10m','VWND10M'); rltop=rltop_vwnd10m
+              case('sfwter','SFWTER'); rltop=rltop_wind
+              case('vpwter','VPWTER'); rltop=rltop_wind
+              case('pswter','PSWTER'); rltop=rltop_psfc
+              case('twter','TWTER'); rltop=rltop_temp
+              case('qwter','QWTER'); rltop=rltop_q
+              case('gustwter','GUSTWTER'); rltop=rltop_gust
+              case('wspd10mwter','WSPD10MWTER'); rltop=rltop_wspd10m
+              case('td2mwter','TD2MWTER'); rltop=rltop_td2m
+              case('mxtmwter','MXTMWTER'); rltop=rltop_mxtm
+              case('mitmwter','MITMWTER'); rltop=rltop_mitm
+              case('tcamtwter','TCAMTWTER'); rltop=rltop_tcamt
+              case('lcbaswter','LCBASWTER'); rltop=rltop_lcbas
+              case('uwnd10mwter','UWND10MWTER'); rltop=rltop_uwnd10m
+              case('vwnd10mwter','VWND10MWTER'); rltop=rltop_vwnd10m
            end select
            afact=afact0(ivar)
            if (cvar=='pblh' .or. cvar=='PBLH') afact=zero    ! for now, Geoff preferrs this due to lacking of obs
@@ -760,7 +911,7 @@ subroutine get_aspect_reg_2d
      asp3=asp30f(i,j)
      asp1=scalex1*asp1
      asp2=scalex2*asp2
-     call writeout_isoscaleinfo(ivar,k1,asp1,asp2,asp3,dxf(i,j),dyf(i,j))
+     if(print_verbose)call writeout_isoscaleinfo(ivar,k1,asp1,asp2,asp3,dxf(i,j),dyf(i,j))
 
   end do
 
@@ -879,7 +1030,7 @@ subroutine get_aspect_reg_pt(mype)
 
            if ( (nvar_id(k)==nrf3_loc(nrf3_sf) .or. nvar_id(k)==nrf3_loc(nrf3_vp) &
               .or. nvar_id(k)==nrf3_loc(nrf3_t)) .and. afact0(nvar_id(k))>zero ) then
-              afact=real(afact0(nvar_id(k)),r_single)
+              afact=afact0(nvar_id(k))
               asp1=scalex1*asp1
               asp2=scalex2*asp2
               asp3=scalex3*asp3
@@ -985,7 +1136,7 @@ subroutine fact_qopt2(factk,rh,kvar)
 end subroutine fact_qopt2
 !=======================================================================
 !=======================================================================
-  character*10 function fvarname(ivar)
+  character*12 function fvarname(ivar)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    fvarname
@@ -995,6 +1146,14 @@ end subroutine fact_qopt2
 !
 ! program history log:
 !   2008-11-28  zhu
+!   2014-06-09
+!   2014-06-09  carley/zhu  - add tcamt and lcbas
+!   2015-05-02  parrish - this routine fails in debug mode when
+!                 nrf3_sf, etc <=0, because arrays nrf3_loc, etc. are not
+!                 allowed to have dimension <= 0.  This also required fixes to
+!                 control_vectors.f90 and m_berror_stats_reg.f90 to make sure
+!                 all arrays have dimension at least 1, even when there are no
+!                 variables of that type.
 !
 !   input argument list:
 !
@@ -1014,39 +1173,340 @@ end subroutine fact_qopt2
 ! Declar passed variables
   integer(i_kind) ivar
 
-  if (ivar==nrf3_loc(nrf3_sf)) fvarname='psi'
-  if (ivar==nrf3_loc(nrf3_vp)) fvarname='chi'
-  if (ivar==nrf3_loc(nrf3_t))  fvarname='t'
-  if (ivar==nrf3_loc(nrf3_q))  fvarname='pseudorh'
-  if (nrf3_oz>0) then
-     if(ivar==nrf3_loc(nrf3_oz)) fvarname='oz'
-  end if
-  if (nrf3_cw>0) then
-     if(ivar==nrf3_loc(nrf3_cw)) fvarname='qw'
-  end if
-  if (ivar==nrf2_loc(nrf2_ps)) fvarname='ps'
-  if (nrf2_sst>0) then
-     if(ivar==nrf2_loc(nrf2_sst)) fvarname='sst'
-  end if
-  if (nrf2_gust>0) then
-     if(ivar==nrf2_loc(nrf2_gust)) fvarname='gust'
-  end if
-  if (nrf2_vis>0) then
-     if(ivar==nrf2_loc(nrf2_vis)) fvarname='vis'
-  end if
-  if (nrf2_pblh>0) then
-     if(ivar==nrf2_loc(nrf2_pblh)) fvarname='pblh'
-  end if
-  if (nrf2_sst>0) then
-     if(ivar==nrf+1) fvarname='lst'   ! _RTod this is a disaster!
-  end if
-  if (nrf2_sst>0) then
-     if(ivar==nrf+2) fvarname='ist'   ! _RTod this is a disaster!
-  end if
+  if (nrf3_sf>0.and.ivar==nrf3_loc(max(1,nrf3_sf))) fvarname='psi'
+  if (nrf3_vp>0.and.ivar==nrf3_loc(max(1,nrf3_vp))) fvarname='chi'
+  if (nrf3_t>0.and.ivar==nrf3_loc(max(1,nrf3_t)))  fvarname='t'
+  if (nrf3_q>0.and.ivar==nrf3_loc(max(1,nrf3_q)))  fvarname='pseudorh'
+  if (nrf3_oz>0.and.ivar==nrf3_loc(max(1,nrf3_oz))) fvarname='oz'
+  if (nrf3_cw>0.and.ivar==nrf3_loc(max(1,nrf3_cw))) fvarname='qw'
+  if (nrf2_ps>0.and.ivar==nrf2_loc(max(1,nrf2_ps))) fvarname='ps'
+  if (nrf2_sst>0.and.ivar==nrf2_loc(max(1,nrf2_sst))) fvarname='sst'
+  if (nrf2_gust>0.and.ivar==nrf2_loc(max(1,nrf2_gust))) fvarname='gust'
+  if (nrf2_vis>0.and.ivar==nrf2_loc(max(1,nrf2_vis))) fvarname='vis'
+  if (nrf2_pblh>0.and.ivar==nrf2_loc(max(1,nrf2_pblh))) fvarname='pblh'
+  if (nrf2_wspd10m>0.and.ivar==nrf2_loc(max(1,nrf2_wspd10m))) fvarname='wspd10m'
+  if (nrf2_td2m>0.and.ivar==nrf2_loc(max(1,nrf2_td2m))) fvarname='td2m'
+  if (nrf2_mxtm>0.and.ivar==nrf2_loc(max(1,nrf2_mxtm))) fvarname='mxtm'
+  if (nrf2_mitm>0.and.ivar==nrf2_loc(max(1,nrf2_mitm))) fvarname='mitm'
+  if (nrf2_pmsl>0.and.ivar==nrf2_loc(max(1,nrf2_pmsl))) fvarname='pmsl'
+  if (nrf2_howv>0.and.ivar==nrf2_loc(max(1,nrf2_howv))) fvarname='howv'
+  if (nrf2_tcamt>0.and.ivar==nrf2_loc(max(1,nrf2_tcamt))) fvarname='tcamt'
+  if (nrf2_lcbas>0.and.ivar==nrf2_loc(max(1,nrf2_lcbas))) fvarname='lcbas'
+  if (nrf2_cldch>0.and.ivar==nrf2_loc(max(1,nrf2_cldch))) fvarname='cldch'
+  if (nrf2_uwnd10m>0.and.ivar==nrf2_loc(max(1,nrf2_uwnd10m))) fvarname='uwnd10m'
+  if (nrf2_vwnd10m>0.and.ivar==nrf2_loc(max(1,nrf2_vwnd10m))) fvarname='vwnd10m'
+  if (nrf2_sst>0.and.ivar==nrf+1) fvarname='lst'   ! _RTod this is a disaster!
+  if (nrf2_sst>0.and.ivar==nrf+2) fvarname='ist'   ! _RTod this is a disaster!
+  if (nrf3_sfwter>0.and.ivar==nrf3_loc(max(1,nrf3_sfwter))) fvarname='sfwter'
+  if (nrf3_vpwter>0.and.ivar==nrf3_loc(max(1,nrf3_vpwter))) fvarname='vpwter'
+  if (nrf2_twter>0.and.ivar==nmotl_loc(max(1,nrf2_twter))) fvarname='twter'
+  if (nrf2_qwter>0.and.ivar==nmotl_loc(max(1,nrf2_qwter))) fvarname='qwter'
+  if (nrf2_pswter>0.and.ivar==nmotl_loc(max(1,nrf2_pswter))) fvarname='pswter'
+  if (nrf2_gustwter>0.and.ivar==nmotl_loc(max(1,nrf2_gustwter))) fvarname='gustwter'
+  if (nrf2_wspd10mwter>0.and.ivar==nmotl_loc(max(1,nrf2_wspd10mwter))) fvarname='wspd10mwter'
+  if (nrf2_td2mwter>0.and.ivar==nmotl_loc(max(1,nrf2_td2mwter))) fvarname='td2mwter'
+  if (nrf2_mxtmwter>0.and.ivar==nmotl_loc(max(1,nrf2_mxtmwter))) fvarname='mxtmwter'
+  if (nrf2_mitmwter>0.and.ivar==nmotl_loc(max(1,nrf2_mitmwter))) fvarname='mitmwter'
+  if (nrf2_uwnd10mwter>0.and.ivar==nmotl_loc(max(1,nrf2_uwnd10mwter))) fvarname='uwnd10mwter'
+  if (nrf2_vwnd10mwter>0.and.ivar==nmotl_loc(max(1,nrf2_vwnd10mwter))) fvarname='vwnd10mwter'
 
   return
 end function fvarname
 
+!=======================================================================
+!=======================================================================
+function stdfact(chvarname)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:   stdfact
+! prgmmr: pondeca          org: np22                date: 2017-04-20
+!
+! abstract: retrieve parameter of background error model
+!
+!
+! program history log:
+!   2017-04-20  pondeca
+!
+!   input argument list:
+!    mype     - mpi task id
+!
+!   output argument list:
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+  implicit none
+
+! Declare passed variables
+  real(r_kind) stdfact
+  character(12),intent(in   ) :: chvarname
+
+  stdfact=zero
+
+
+  if ( trim(chvarname) =='psi'         )  stdfact=stdfact_st 
+  if ( trim(chvarname) =='chi'         )  stdfact=stdfact_vp
+  if ( trim(chvarname) =='t'           )  stdfact=stdfact_t
+  if ( trim(chvarname) =='pseudorh'    )  stdfact=stdfact_q
+  if ( trim(chvarname) =='oz'          )  stdfact=stdfact_oz
+  if ( trim(chvarname) =='qw'          )  stdfact=stdfact_qw
+  if ( trim(chvarname) =='ps'          )  stdfact=stdfact_ps
+  if ( trim(chvarname) =='sst'         )  stdfact=stdfact_sst
+  if ( trim(chvarname) =='gust'        )  stdfact=stdfact_gust
+  if ( trim(chvarname) =='vis'         )  stdfact=stdfact_vis
+  if ( trim(chvarname) =='pblh'        )  stdfact=stdfact_pblh
+  if ( trim(chvarname) =='wspd10m'     )  stdfact=stdfact_wspd10m
+  if ( trim(chvarname) =='td2m'        )  stdfact=stdfact_td2m
+  if ( trim(chvarname) =='mxtm'        )  stdfact=stdfact_mxtm
+  if ( trim(chvarname) =='mitm'        )  stdfact=stdfact_mitm
+  if ( trim(chvarname) =='pmsl'        )  stdfact=stdfact_pmsl
+  if ( trim(chvarname) =='howv'        )  stdfact=stdfact_howv
+  if ( trim(chvarname) =='tcamt'       )  stdfact=stdfact_tcamt
+  if ( trim(chvarname) =='lcbas'       )  stdfact=stdfact_lcbas
+  if ( trim(chvarname) =='cldch'       )  stdfact=stdfact_cldch
+  if ( trim(chvarname) =='uwnd10m'     )  stdfact=stdfact_uwnd10m
+  if ( trim(chvarname) =='vwnd10m'     )  stdfact=stdfact_vwnd10m
+  if ( trim(chvarname) =='lst'         )  stdfact=stdfact_lst
+  if ( trim(chvarname) =='ist'         )  stdfact=stdfact_ist
+  if ( trim(chvarname) =='sfwter'      )  stdfact=stdfact_sfwter
+  if ( trim(chvarname) =='vpwter'      )  stdfact=stdfact_vpwter
+  if ( trim(chvarname) =='twter'       )  stdfact=stdfact_twter
+  if ( trim(chvarname) =='qwter'       )  stdfact=stdfact_qwter
+  if ( trim(chvarname) =='pswter'      )  stdfact=stdfact_pswter
+  if ( trim(chvarname) =='gustwter'    )  stdfact=stdfact_gustwter
+  if ( trim(chvarname) =='wspd10mwter' )  stdfact=stdfact_wspd10mwter
+  if ( trim(chvarname) =='td2mwter'    )  stdfact=stdfact_td2mwter
+  if ( trim(chvarname) =='mxtmwter'    )  stdfact=stdfact_mxtmwter
+  if ( trim(chvarname) =='mitmwter'    )  stdfact=stdfact_mitmwter
+  if ( trim(chvarname) =='uwnd10mwter' )  stdfact=stdfact_uwnd10mwter
+  if ( trim(chvarname) =='vwnd10mwter' )  stdfact=stdfact_vwnd10mwter
+
+end function stdfact
+!=======================================================================
+!=======================================================================
+function valleyfact(chvarname)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:   valleyfact
+! prgmmr: pondeca          org: np22                date: 2017-08-21
+!
+! abstract: retrieve parameter of background error model
+!
+!
+! program history log:
+!   2017-04-20  pondeca
+!
+!   input argument list:
+!    mype     - mpi task id
+!
+!   output argument list:
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+  implicit none
+
+! Declare passed variables
+  real(r_kind) valleyfact
+  character(12),intent(in   ) :: chvarname
+
+  valleyfact=one
+
+
+  if ( trim(chvarname) =='psi'         )  valleyfact=valleyfact_st 
+  if ( trim(chvarname) =='chi'         )  valleyfact=valleyfact_vp
+  if ( trim(chvarname) =='t'           )  valleyfact=valleyfact_t
+  if ( trim(chvarname) =='pseudorh'    )  valleyfact=valleyfact_q
+  if ( trim(chvarname) =='oz'          )  valleyfact=valleyfact_oz
+  if ( trim(chvarname) =='qw'          )  valleyfact=valleyfact_qw
+  if ( trim(chvarname) =='ps'          )  valleyfact=valleyfact_ps
+  if ( trim(chvarname) =='sst'         )  valleyfact=valleyfact_sst
+  if ( trim(chvarname) =='gust'        )  valleyfact=valleyfact_gust
+  if ( trim(chvarname) =='vis'         )  valleyfact=valleyfact_vis
+  if ( trim(chvarname) =='pblh'        )  valleyfact=valleyfact_pblh
+  if ( trim(chvarname) =='wspd10m'     )  valleyfact=valleyfact_wspd10m
+  if ( trim(chvarname) =='td2m'        )  valleyfact=valleyfact_td2m
+  if ( trim(chvarname) =='mxtm'        )  valleyfact=valleyfact_mxtm
+  if ( trim(chvarname) =='mitm'        )  valleyfact=valleyfact_mitm
+  if ( trim(chvarname) =='pmsl'        )  valleyfact=valleyfact_pmsl
+  if ( trim(chvarname) =='howv'        )  valleyfact=valleyfact_howv
+  if ( trim(chvarname) =='tcamt'       )  valleyfact=valleyfact_tcamt
+  if ( trim(chvarname) =='lcbas'       )  valleyfact=valleyfact_lcbas
+  if ( trim(chvarname) =='cldch'       )  valleyfact=valleyfact_cldch
+  if ( trim(chvarname) =='uwnd10m'     )  valleyfact=valleyfact_uwnd10m
+  if ( trim(chvarname) =='vwnd10m'     )  valleyfact=valleyfact_vwnd10m
+  if ( trim(chvarname) =='lst'         )  valleyfact=valleyfact_lst
+  if ( trim(chvarname) =='ist'         )  valleyfact=valleyfact_ist
+  if ( trim(chvarname) =='sfwter'      )  valleyfact=valleyfact_sfwter
+  if ( trim(chvarname) =='vpwter'      )  valleyfact=valleyfact_vpwter
+  if ( trim(chvarname) =='twter'       )  valleyfact=valleyfact_twter
+  if ( trim(chvarname) =='qwter'       )  valleyfact=valleyfact_qwter
+  if ( trim(chvarname) =='pswter'      )  valleyfact=valleyfact_pswter
+  if ( trim(chvarname) =='gustwter'    )  valleyfact=valleyfact_gustwter
+  if ( trim(chvarname) =='wspd10mwter' )  valleyfact=valleyfact_wspd10mwter
+  if ( trim(chvarname) =='td2mwter'    )  valleyfact=valleyfact_td2mwter
+  if ( trim(chvarname) =='mxtmwter'    )  valleyfact=valleyfact_mxtmwter
+  if ( trim(chvarname) =='mitmwter'    )  valleyfact=valleyfact_mitmwter
+  if ( trim(chvarname) =='uwnd10mwter' )  valleyfact=valleyfact_uwnd10mwter
+  if ( trim(chvarname) =='vwnd10mwter' )  valleyfact=valleyfact_vwnd10mwter
+
+end function valleyfact
+!=======================================================================
+!=======================================================================
+!=======================================================================
+!=======================================================================
+function fstdmax(chvarname)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:   get_hwllp_lcbas_subdomain_option
+! prgmmr: pondeca          org: np22                date: 2017-04-20
+!
+! abstract: retrieve parameter of background error model
+!
+!
+! program history log:
+!   2017-04-20  pondeca
+!
+!   input argument list:
+!    mype     - mpi task id
+!
+!   output argument list:
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+  implicit none
+
+! Declare passed variables
+  real(r_kind) fstdmax
+  character(12),intent(in   ) :: chvarname
+
+  fstdmax=zero
+
+
+  if ( trim(chvarname) =='psi'         )  fstdmax=fstdmax_st 
+  if ( trim(chvarname) =='chi'         )  fstdmax=fstdmax_vp
+  if ( trim(chvarname) =='t'           )  fstdmax=fstdmax_t
+  if ( trim(chvarname) =='pseudorh'    )  fstdmax=fstdmax_q
+  if ( trim(chvarname) =='oz'          )  fstdmax=fstdmax_oz
+  if ( trim(chvarname) =='qw'          )  fstdmax=fstdmax_qw
+  if ( trim(chvarname) =='ps'          )  fstdmax=fstdmax_ps
+  if ( trim(chvarname) =='sst'         )  fstdmax=fstdmax_sst
+  if ( trim(chvarname) =='gust'        )  fstdmax=fstdmax_gust
+  if ( trim(chvarname) =='vis'         )  fstdmax=fstdmax_vis
+  if ( trim(chvarname) =='pblh'        )  fstdmax=fstdmax_pblh
+  if ( trim(chvarname) =='wspd10m'     )  fstdmax=fstdmax_wspd10m
+  if ( trim(chvarname) =='td2m'        )  fstdmax=fstdmax_td2m
+  if ( trim(chvarname) =='mxtm'        )  fstdmax=fstdmax_mxtm
+  if ( trim(chvarname) =='mitm'        )  fstdmax=fstdmax_mitm
+  if ( trim(chvarname) =='pmsl'        )  fstdmax=fstdmax_pmsl
+  if ( trim(chvarname) =='howv'        )  fstdmax=fstdmax_howv
+  if ( trim(chvarname) =='tcamt'       )  fstdmax=fstdmax_tcamt
+  if ( trim(chvarname) =='lcbas'       )  fstdmax=fstdmax_lcbas
+  if ( trim(chvarname) =='cldch'       )  fstdmax=fstdmax_cldch
+  if ( trim(chvarname) =='uwnd10m'     )  fstdmax=fstdmax_uwnd10m
+  if ( trim(chvarname) =='vwnd10m'     )  fstdmax=fstdmax_vwnd10m
+  if ( trim(chvarname) =='lst'         )  fstdmax=fstdmax_lst
+  if ( trim(chvarname) =='ist'         )  fstdmax=fstdmax_ist
+  if ( trim(chvarname) =='sfwter'      )  fstdmax=fstdmax_sfwter
+  if ( trim(chvarname) =='vpwter'      )  fstdmax=fstdmax_vpwter
+  if ( trim(chvarname) =='twter'       )  fstdmax=fstdmax_twter
+  if ( trim(chvarname) =='qwter'       )  fstdmax=fstdmax_qwter
+  if ( trim(chvarname) =='pswter'      )  fstdmax=fstdmax_pswter
+  if ( trim(chvarname) =='gustwter'    )  fstdmax=fstdmax_gustwter
+  if ( trim(chvarname) =='wspd10mwter' )  fstdmax=fstdmax_wspd10mwter
+  if ( trim(chvarname) =='td2mwter'    )  fstdmax=fstdmax_td2mwter
+  if ( trim(chvarname) =='mxtmwter'    )  fstdmax=fstdmax_mxtmwter
+  if ( trim(chvarname) =='mitmwter'    )  fstdmax=fstdmax_mitmwter
+  if ( trim(chvarname) =='uwnd10mwter' )  fstdmax=fstdmax_uwnd10mwter
+  if ( trim(chvarname) =='vwnd10mwter' )  fstdmax=fstdmax_vwnd10mwter
+
+end function fstdmax
+!=======================================================================
+!=======================================================================
+function lstdmodel(chvarname)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:   get_hwllp_lcbas_subdomain_option
+! prgmmr: pondeca          org: np22                date: 2017-04-20
+!
+! abstract: retrieve parameter of background error model
+!
+!
+! program history log:
+!   2017-04-20  pondeca
+!
+!   input argument list:
+!    mype     - mpi task id
+!
+!   output argument list:
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+  implicit none
+
+! Declare passed variables
+  logical lstdmodel
+  character(12),intent(in   ) :: chvarname
+
+  if (.not.turnoff_all_stdmodels) then
+     if ( trim(chvarname) =='psi'         )  lstdmodel=lstdmodel_st 
+     if ( trim(chvarname) =='chi'         )  lstdmodel=lstdmodel_vp
+     if ( trim(chvarname) =='t'           )  lstdmodel=lstdmodel_t
+     if ( trim(chvarname) =='pseudorh'    )  lstdmodel=lstdmodel_q
+     if ( trim(chvarname) =='oz'          )  lstdmodel=lstdmodel_oz
+     if ( trim(chvarname) =='qw'          )  lstdmodel=lstdmodel_qw
+     if ( trim(chvarname) =='ps'          )  lstdmodel=lstdmodel_ps
+     if ( trim(chvarname) =='sst'         )  lstdmodel=lstdmodel_sst
+     if ( trim(chvarname) =='gust'        )  lstdmodel=lstdmodel_gust
+     if ( trim(chvarname) =='vis'         )  lstdmodel=lstdmodel_vis
+     if ( trim(chvarname) =='pblh'        )  lstdmodel=lstdmodel_pblh
+     if ( trim(chvarname) =='wspd10m'     )  lstdmodel=lstdmodel_wspd10m
+     if ( trim(chvarname) =='td2m'        )  lstdmodel=lstdmodel_td2m
+     if ( trim(chvarname) =='mxtm'        )  lstdmodel=lstdmodel_mxtm
+     if ( trim(chvarname) =='mitm'        )  lstdmodel=lstdmodel_mitm
+     if ( trim(chvarname) =='pmsl'        )  lstdmodel=lstdmodel_pmsl
+     if ( trim(chvarname) =='howv'        )  lstdmodel=lstdmodel_howv
+     if ( trim(chvarname) =='tcamt'       )  lstdmodel=lstdmodel_tcamt
+     if ( trim(chvarname) =='lcbas'       )  lstdmodel=lstdmodel_lcbas
+     if ( trim(chvarname) =='cldch'       )  lstdmodel=lstdmodel_cldch
+     if ( trim(chvarname) =='uwnd10m'     )  lstdmodel=lstdmodel_uwnd10m
+     if ( trim(chvarname) =='vwnd10m'     )  lstdmodel=lstdmodel_vwnd10m
+     if ( trim(chvarname) =='lst'         )  lstdmodel=lstdmodel_lst
+     if ( trim(chvarname) =='ist'         )  lstdmodel=lstdmodel_ist
+     if ( trim(chvarname) =='sfwter'      )  lstdmodel=lstdmodel_sfwter
+     if ( trim(chvarname) =='vpwter'      )  lstdmodel=lstdmodel_vpwter
+     if ( trim(chvarname) =='twter'       )  lstdmodel=lstdmodel_twter
+     if ( trim(chvarname) =='qwter'       )  lstdmodel=lstdmodel_qwter
+     if ( trim(chvarname) =='pswter'      )  lstdmodel=lstdmodel_pswter
+     if ( trim(chvarname) =='gustwter'    )  lstdmodel=lstdmodel_gustwter
+     if ( trim(chvarname) =='wspd10mwter' )  lstdmodel=lstdmodel_wspd10mwter
+     if ( trim(chvarname) =='td2mwter'    )  lstdmodel=lstdmodel_td2mwter
+     if ( trim(chvarname) =='mxtmwter'    )  lstdmodel=lstdmodel_mxtmwter
+     if ( trim(chvarname) =='mitmwter'    )  lstdmodel=lstdmodel_mitmwter
+     if ( trim(chvarname) =='uwnd10mwter' )  lstdmodel=lstdmodel_uwnd10mwter
+     if ( trim(chvarname) =='vwnd10mwter' )  lstdmodel=lstdmodel_vwnd10mwter
+    else
+     lstdmodel=.false.
+  endif
+
+end function lstdmodel
+!=======================================================================
+!=======================================================================
+!=======================================================================
 !=======================================================================
 subroutine init_anisofilter_reg(mype)
 !$$$  subprogram documentation block
@@ -1060,6 +1520,7 @@ subroutine init_anisofilter_reg(mype)
 !   2006-08-01  pondeca
 !   2010-03-31  zhu - make changes using nvars,nrf* for generaling control variable
 !   2010-11-09  treadon - initialize rltop_* to huge_single
+!   2014-06-09  carley/zhu  - add tcamt and lcbas
 !
 !   input argument list:
 !    mype
@@ -1073,34 +1534,102 @@ subroutine init_anisofilter_reg(mype)
 !
 !$$$ end documentation block
   use anberror, only: afact0
+  use gsi_io, only: verbose
   implicit none
 
 ! Declare passed variables
   integer(i_kind),intent(in   ) :: mype
 
+! Declare local parameters
+  real(r_kind),parameter::r0_27=0.27_r_kind
+  real(r_kind),parameter::r0_36=0.36_r_kind
+  real(r_kind),parameter::r1_2=1.2_r_kind
+  real(r_kind),parameter::r1_25=1.25_r_kind
+  real(r_kind),parameter::r1_5=1.5_r_kind
+
 ! Declare local variables
   integer(i_kind):: i,n
-  logical:: fexist
+  logical:: fexist,print_verbose
   integer(i_kind)           :: nlatf,nlonf
 
-  real(r_double) svpsi,svchi,svpsfc,svtemp,svshum,svgust,svvis,svpblh
-  real(r_kind) sclpsi,sclchi,sclpsfc,scltemp,sclhum,sclgust,sclvis,sclpblh
+  real(r_double) svpsi,svchi,svpsfc,svtemp,svshum,svgust,svvis,svpblh,svwspd10m, &
+                 svtd2m,svmxtm,svmitm,svpmsl,svhowv,svtcamt,svlcbas,svcldch, &
+                 svuwnd10m,svvwnd10m, &
+                 svpsi_w,svchi_w,svpsfc_w,svtemp_w,svshum_w,svgust_w,svwspd10m_w, &
+                 svtd2m_w,svmxtm_w,svmitm_w,svtcamt_w,svlcbas_w, & 
+                 svuwnd10m_w,svvwnd10m_w
+  real(r_kind) sclpsi,sclchi,sclpsfc,scltemp,sclhum,sclgust,sclvis,sclpblh,sclwspd10m, &
+               scltd2m,sclmxtm,sclmitm,sclpmsl,sclhowv,scltcamt,scllcbas,sclcldch, &
+               scluwnd10m,sclvwnd10m, &
+               sclpsi_w,sclchi_w,sclpsfc_w,scltemp_w,sclhum_w,sclgust_w,sclwspd10m_w, &
+               scltd2m_w,sclmxtm_w,sclmitm_w,scltcamt_w,scllcbas_w, & 
+               scluwnd10m_w,sclvwnd10m_w
   real(r_kind) water_scalefactpsi,water_scalefactchi,water_scalefacttemp, &
                water_scalefactq,water_scalefactpsfc,water_scalefactgust, &
-               water_scalefactpblh,water_scalefactvis
+               water_scalefactpblh,water_scalefactvis,water_scalefactwspd10m,water_scalefacttcamt, &
+               water_scalefactlcbas,water_scalefacttd2m,water_scalefactmxtm,water_scalefactmitm,water_scalefactpmsl, & 
+               water_scalefactuwnd10m,water_scalefactvwnd10m
 
   namelist/parmcardanisof/latdepend,scalex1,scalex2,scalex3,afact0,hsteep, &
-          lsmoothterrain,hsmooth_len,volpreserve, &
+          lsmoothterrain,hsmooth_len,hsmooth_len_lcbas,R_f,volpreserve, &
           lwater_scaleinfl,water_scalefactpsi,water_scalefactchi, &
           water_scalefacttemp,water_scalefactq,water_scalefactpsfc, &
           water_scalefactgust,water_scalefactvis,water_scalefactpblh, &
-          nhscale_pass, &
+          water_scalefactwspd10m,water_scalefacttd2m, &
+          water_scalefactuwnd10m,water_scalefactvwnd10m, &
+          water_scalefactmxtm,water_scalefactmitm,water_scalefactpmsl,&
+          water_scalefacttcamt,water_scalefactlcbas,nhscale_pass, &
           rltop_wind,rltop_temp,rltop_q,rltop_psfc, &
-          rltop_gust,rltop_vis,rltop_pblh, &
-          svpsi,svchi,svpsfc,svtemp,svshum,svgust,svvis,svpblh, &
-          sclpsi,sclchi,sclpsfc,scltemp,sclhum,sclgust,sclvis,sclpblh
+          rltop_gust,rltop_vis,rltop_pblh,rltop_wspd10m,rltop_tcamt,rltop_lcbas, &
+          rltop_td2m,rltop_mxtm,rltop_mitm,rltop_pmsl,rltop_howv,rltop_cldch, &
+          rltop_uwnd10m,rltop_vwnd10m, &
+          svpsi,svchi,svpsfc,svtemp,svshum,svgust,svvis,svpblh,svwspd10m, &
+          svtd2m,svmxtm,svmitm,svpmsl,svhowv,svtcamt,svlcbas,svcldch, &
+          svuwnd10m,svvwnd10m, &
+          svpsi_w,svchi_w,svpsfc_w,svtemp_w,svshum_w,svgust_w,svwspd10m_w, &
+          svtd2m_w,svmxtm_w,svmitm_w,svtcamt_w,svlcbas_w, &
+          svuwnd10m_w,svvwnd10m_w, &
+          sclpsi,sclchi,sclpsfc,scltemp,sclhum,sclgust,sclvis,sclpblh, &
+          sclwspd10m,scltd2m,sclmxtm,sclmitm,sclpmsl,sclhowv,scltcamt,scllcbas,sclcldch, &
+          scluwnd10m,sclvwnd10m, &
+          sclpsi_w,sclchi_w,sclpsfc_w,scltemp_w,sclhum_w,sclgust_w, &
+          sclwspd10m_w,scltd2m_w,sclmxtm_w,sclmitm_w,scltcamt_w,scllcbas_w, & 
+          scluwnd10m_w,sclvwnd10m_w, & 
+          glerl_on,glerl_scalefact,hsteep_wind,n_valley_pass
+
+  namelist/bckg_std_errormodel/ &
+                 turnoff_all_stdmodels, stdmodel_z_based,& 
+                 lstdmodel_st, lstdmodel_vp, lstdmodel_t, lstdmodel_q, lstdmodel_oz, lstdmodel_qw, lstdmodel_ps, lstdmodel_sst, & 
+                 lstdmodel_gust, lstdmodel_vis, lstdmodel_pblh, lstdmodel_wspd10m, lstdmodel_td2m, lstdmodel_mxtm, & 
+                 lstdmodel_mitm, lstdmodel_pmsl, lstdmodel_howv, lstdmodel_tcamt, lstdmodel_lcbas, lstdmodel_cldch, & 
+                 lstdmodel_uwnd10m, lstdmodel_vwnd10m, lstdmodel_lst, lstdmodel_ist, lstdmodel_sfwter, lstdmodel_vpwter, & 
+                 lstdmodel_twter, lstdmodel_qwter, lstdmodel_pswter, lstdmodel_gustwter, lstdmodel_wspd10mwter, & 
+                 lstdmodel_td2mwter, lstdmodel_mxtmwter, lstdmodel_mitmwter, lstdmodel_uwnd10mwter, lstdmodel_vwnd10mwter, &
+                 std_radius, npass_for_std, &
+                 stdfact_st, stdfact_vp, stdfact_t, stdfact_q, stdfact_oz, stdfact_qw, stdfact_ps, stdfact_sst, & 
+                 stdfact_gust, stdfact_vis, stdfact_pblh, stdfact_wspd10m, stdfact_td2m, stdfact_mxtm, & 
+                 stdfact_mitm, stdfact_pmsl, stdfact_howv, stdfact_tcamt, stdfact_lcbas, stdfact_cldch, & 
+                 stdfact_uwnd10m, stdfact_vwnd10m, stdfact_lst, stdfact_ist, stdfact_sfwter, stdfact_vpwter, & 
+                 stdfact_twter, stdfact_qwter, stdfact_pswter, stdfact_gustwter, stdfact_wspd10mwter, & 
+                 stdfact_td2mwter, stdfact_mxtmwter, stdfact_mitmwter, stdfact_uwnd10mwter, stdfact_vwnd10mwter, &
+                 valleyfact_st, valleyfact_vp, valleyfact_t, valleyfact_q, valleyfact_oz, valleyfact_qw, valleyfact_ps, valleyfact_sst, & 
+                 valleyfact_gust, valleyfact_vis, valleyfact_pblh, valleyfact_wspd10m, valleyfact_td2m, valleyfact_mxtm, & 
+                 valleyfact_mitm, valleyfact_pmsl, valleyfact_howv, valleyfact_tcamt, valleyfact_lcbas, valleyfact_cldch, & 
+                 valleyfact_uwnd10m, valleyfact_vwnd10m, valleyfact_lst, valleyfact_ist, valleyfact_sfwter, valleyfact_vpwter, & 
+                 valleyfact_twter, valleyfact_qwter, valleyfact_pswter, valleyfact_gustwter, valleyfact_wspd10mwter, & 
+                 valleyfact_td2mwter, valleyfact_mxtmwter, valleyfact_mitmwter, valleyfact_uwnd10mwter, valleyfact_vwnd10mwter, &
+                 fstdmax_st, fstdmax_vp, fstdmax_t, fstdmax_q, fstdmax_oz, fstdmax_qw, fstdmax_ps, fstdmax_sst, & 
+                 fstdmax_gust, fstdmax_vis, fstdmax_pblh, fstdmax_wspd10m, fstdmax_td2m, fstdmax_mxtm, & 
+                 fstdmax_mitm, fstdmax_pmsl, fstdmax_howv, fstdmax_tcamt, fstdmax_lcbas, fstdmax_cldch, & 
+                 fstdmax_uwnd10m, fstdmax_vwnd10m, fstdmax_lst, fstdmax_ist, fstdmax_sfwter, fstdmax_vpwter, & 
+                 fstdmax_twter, fstdmax_qwter, fstdmax_pswter, fstdmax_gustwter, fstdmax_wspd10mwter, & 
+                 fstdmax_td2mwter, fstdmax_mxtmwter, fstdmax_mitmwter, fstdmax_uwnd10mwter, fstdmax_vwnd10mwter, & 
+                 writeout_stdmodel_diagnostics
+
 !*******************************************************************
 
+  print_verbose=.false.
+  if(verbose)print_verbose=.true.
   nlatf=pf2aP1%nlatf
   nlonf=pf2aP1%nlonf
 
@@ -1149,27 +1678,58 @@ subroutine init_anisofilter_reg(mype)
 !---
   else
 
-     do n=1,nrf
+     do n=1,nvars
         select case(nrf_var(n))
-           case('sf','SF'); rfact0h(n)=one;  rfact0v(n)=1.50_r_kind
-           case('vp','VP'); rfact0h(n)=one;  rfact0v(n)=1.50_r_kind
-           case('t','T')  ; rfact0h(n)=1.5_r_kind;  rfact0v(n)=1.50_r_kind
-           case('q','Q')  ; rfact0h(n)=1.5_r_kind;  rfact0v(n)=1.25_r_kind
-           case('oz','OZ'); rfact0h(n)=one;  rfact0v(n)=1.25_r_kind
-           case('cw','CW'); rfact0h(n)=one;  rfact0v(n)=1.25_r_kind
-           case('ps','PS'); rfact0h(n)=1.2_r_kind;  rfact0v(n)=1.50_r_kind 
-           case('sst','SST'); rfact0h(n)=one    ;  rfact0v(n)=1.25_r_kind;
-                              rfact0h(nrf+1)=one;  rfact0v(nrf+1)=1.25_r_kind;
-                              rfact0h(nrf+2)=one;  rfact0v(nrf+2)=1.25_r_kind
-           case('gust','GUST'); rfact0h(n)=one    ;  rfact0v(n)=1.50_r_kind 
-           case('pblh','PBLH'); rfact0h(n)=one    ;  rfact0v(n)=1.50_r_kind 
-           case('vis','VIS')  ; rfact0h(n)=one    ;  rfact0v(n)=1.50_r_kind 
+           case('sf','SF');                   rfact0h(n)=one;     rfact0v(n)=r1_5  !rfact0v is not used in 2DVar mode
+           case('vp','VP');                   rfact0h(n)=one;     rfact0v(n)=r1_5
+           case('t','T')  ;                   rfact0h(n)=r1_5;    rfact0v(n)=r1_5
+           case('q','Q')  ;                   rfact0h(n)=r1_5;    rfact0v(n)=r1_25
+           case('oz','OZ');                   rfact0h(n)=one;     rfact0v(n)=r1_25
+           case('cw','CW');                   rfact0h(n)=one;     rfact0v(n)=r1_25
+           case('ps','PS');                   rfact0h(n)=r1_2;    rfact0v(n)=r1_5
+
+           case('sst','SST');                 rfact0h(n)=one    ; rfact0v(n)=r1_25;
+                                              rfact0h(nrf+1)=one; rfact0v(nrf+1)=r1_25;
+                                              rfact0h(nrf+2)=one; rfact0v(nrf+2)=r1_25
+
+           case('gust','GUST');               rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('pblh','PBLH');               rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('vis','VIS')  ;               rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('wspd10m','WSPD10M');         rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('td2m','TD2M');               rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('mxtm','MXTM');               rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('mitm','MITM');               rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('pmsl','PMSL');               rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('howv','HOWV');               rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('tcamt','TCAMT');             rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('lcbas','LCBAS');             rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('cldch','CLDCH')  ;           rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('uwnd10m','UWND10M');         rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('vwnd10m','VWND10M');         rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('sfwter','SFWTER')  ;         rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('vpwter','VPWTER')  ;         rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('twter','TWTER')    ;         rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('qwter','QWTER')    ;         rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('pswter','PSWTER')  ;         rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('gustwter','GUSTWTER')  ;     rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('wspd10mwter','WSPD10MWTER'); rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('td2mwter','TD2MWTER');       rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('mxtmwter','MXTMWTER');       rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('mitmwter','MITMWTER');       rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('tcamtwter','TCAMTWTER');     rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('lcbaswter','LCBASWTER');     rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('uwnd10mwter','UWND10MWTER'); rfact0h(n)=one    ; rfact0v(n)=r1_5
+           case('vwnd10mwter','VWND10MWTER'); rfact0h(n)=one    ; rfact0v(n)=r1_5
+
+
         end select
      end do
 
      afact0=one     !(use "zero" for isotropic computations)
      hsteep=zero
+     hsteep_wind=zero
      hsmooth_len=10._r_kind
+     hsmooth_len_lcbas=10._r_kind
      lsmoothterrain=.false.
      volpreserve=.false.
      lwater_scaleinfl=.false.
@@ -1181,6 +1741,16 @@ subroutine init_anisofilter_reg(mype)
      water_scalefactgust=one
      water_scalefactvis=one
      water_scalefactpblh=one
+     water_scalefactwspd10m=one
+     water_scalefacttd2m=one
+     water_scalefactmxtm=one
+     water_scalefactmitm=one
+     water_scalefactpmsl=one
+     water_scalefacttcamt=one
+     water_scalefactlcbas=one
+     water_scalefactuwnd10m=one
+     water_scalefactvwnd10m=one
+
      nhscale_pass=0
 
      rltop_wind=huge_single
@@ -1190,6 +1760,17 @@ subroutine init_anisofilter_reg(mype)
      rltop_gust=huge_single
      rltop_vis=huge_single
      rltop_pblh=huge_single
+     rltop_wspd10m=huge_single
+     rltop_td2m=huge_single
+     rltop_mxtm=huge_single
+     rltop_mitm=huge_single
+     rltop_pmsl=huge_single
+     rltop_howv=huge_single
+     rltop_tcamt=huge_single
+     rltop_lcbas=huge_single
+     rltop_cldch=huge_single
+     rltop_uwnd10m=huge_single
+     rltop_vwnd10m=huge_single
 
      svpsi =0.35_r_double
      svchi =0.35_r_double*2.063_r_double
@@ -1199,23 +1780,85 @@ subroutine init_anisofilter_reg(mype)
      svgust=one
      svvis=one
      svpblh=one
+     svwspd10m=one
+     svtd2m=one
+     svmxtm=one
+     svmitm=one
+     svpmsl=one
+     svhowv=one
+     svtcamt=one
+     svlcbas=one
+     svcldch=one
+     svuwnd10m=one
+     svvwnd10m=one
+     svpsi_w =svpsi
+     svchi_w =svchi
+     svpsfc_w =svpsfc
+     svtemp_w =svtemp
+     svshum_w =svshum
+     svgust_w =svgust
+     svwspd10m_w =svwspd10m
+     svtd2m_w =svtd2m
+     svmxtm_w =svmxtm
+     svmitm_w =svmitm
+     svtcamt_w=one
+     svlcbas_w=one
+     svuwnd10m_w=svuwnd10m
+     svvwnd10m_w=svvwnd10m
 
-     sclpsi =0.3_r_kind*75._r_kind/100._r_kind*1.2_r_kind
-     sclchi =0.3_r_kind*75._r_kind/100._r_kind*1.2_r_kind
-     sclpsfc=0.3_r_kind*75._r_kind/100._r_kind*1.2_r_kind
-     scltemp=0.3_r_kind*1.2_r_kind
-     sclhum =0.3_r_kind*1.2_r_kind
-     sclgust=0.3_r_kind*1.2_r_kind
-     sclvis =0.3_r_kind*1.2_r_kind
-     sclpblh=0.3_r_kind*1.2_r_kind
+
+     sclpsi =r0_27
+     sclchi =r0_27
+     sclpsfc=r0_27
+     scltemp=r0_36
+     sclhum =r0_36
+     sclgust=r0_36
+     sclvis =r0_36
+     sclpblh=r0_36
+     sclwspd10m=r0_36
+     scltd2m=r0_36
+     sclmxtm=r0_36
+     sclmitm=r0_36
+     sclpmsl=r0_27
+     sclhowv=r0_27
+     scltcamt=r0_36
+     scllcbas=r0_36
+     sclcldch=r0_36
+     scluwnd10m=r0_36
+     sclvwnd10m=r0_36
+     sclpsi_w =sclpsi
+     sclchi_w =sclchi
+     sclpsfc_w =sclpsfc
+     scltemp_w =scltemp
+     sclhum_w =sclhum
+     sclgust_w =sclgust
+     sclwspd10m_w =sclwspd10m
+     scltd2m_w =scltd2m
+     sclmxtm_w =sclmxtm
+     sclmitm_w =sclmitm
+     scltcamt_w=scltcamt
+     scllcbas_w=scllcbas
+     scluwnd10m_w=scluwnd10m
+     sclvwnd10m_w=sclvwnd10m
+
+     allocate(water_scalefact(nvars))
 
      water_scalefact(:)=one
+
+     glerl_on=.false.
+     glerl_scalefact=one
+
+     n_valley_pass=1
+
+     R_f=one 
 
      inquire(file='parmcard_input',exist=fexist)
      if (fexist) then
         open(55,file='parmcard_input',form='formatted')
         read(55,parmcardanisof)
         close(55)
+     else
+        print*,'init_anisofilter_reg: WARNING - MISSING RTMA NAMELIST FILE: parmcard_input. RUNNING WITH DEFAULT SETTINGS'
      endif
 
           !Rescaling of bckg error variances
@@ -1223,7 +1866,7 @@ subroutine init_anisofilter_reg(mype)
           !Rescaling of correlation lengths over water only
      an_amp=0.60_r_double
      rfact0h=one
-     do n=1,nrf
+     do n=1,nvars
         select case(nrf_var(n))
            case('sf','SF') 
               an_amp(:,n) =svpsi
@@ -1258,12 +1901,113 @@ subroutine init_anisofilter_reg(mype)
               an_amp(:,n) =svpblh
               rfact0h(n)=sclpblh
               water_scalefact(n)=water_scalefactpblh
+           case('wspd10m','WSPD10M')
+              an_amp(:,n) =svwspd10m
+              rfact0h(n)=sclwspd10m
+              water_scalefact(n)=water_scalefactwspd10m
+           case('td2m','TD2M')
+              an_amp(:,n) =svtd2m
+              rfact0h(n)=scltd2m
+              water_scalefact(n)=water_scalefacttd2m
+           case('mxtm','MXTM')
+              an_amp(:,n) =svmxtm
+              rfact0h(n)=sclmxtm
+              water_scalefact(n)=water_scalefactmxtm
+           case('mitm','MITM')
+              an_amp(:,n) =svmitm
+              rfact0h(n)=sclmitm
+              water_scalefact(n)=water_scalefactmitm
+           case('pmsl','PMSL')
+              an_amp(:,n) =svpmsl
+              rfact0h(n)=sclpmsl
+              water_scalefact(n)=water_scalefactpmsl
+           case('howv','HOWV')
+              an_amp(:,n) =svhowv
+              rfact0h(n)=sclhowv
+              water_scalefact(n)=one
+           case('tcamt','TCAMT')
+              an_amp(:,n) =svtcamt
+              rfact0h(n)=scltcamt
+              water_scalefact(n)=water_scalefacttcamt
+           case('lcbas','LCBAS')
+              an_amp(:,n) =svlcbas
+              rfact0h(n)=scllcbas
+              water_scalefact(n)=water_scalefactlcbas
+           case('cldch','CLDCH')
+              an_amp(:,n) =svcldch
+              rfact0h(n)=sclcldch
+              water_scalefact(n)=one
+           case('uwnd10m','UWND10M')
+              an_amp(:,n) =svuwnd10m
+              rfact0h(n)=scluwnd10m
+              water_scalefact(n)=water_scalefactuwnd10m
+           case('vwnd10m','VWND10M')
+              an_amp(:,n) =svvwnd10m
+              rfact0h(n)=sclvwnd10m
+              water_scalefact(n)=water_scalefactvwnd10m
+           case('sfwter','SFWTER')
+              an_amp(:,n) =svpsi_w
+              rfact0h(n)=sclpsi_w
+              water_scalefact(n)=one
+           case('vpwter','VPWTER')
+              an_amp(:,n) =svchi_w
+              rfact0h(n)=sclchi_w
+              water_scalefact(n)=one
+           case('twter','TWTER')
+              an_amp(:,n) =svtemp_w
+              rfact0h(n)=scltemp_w
+              water_scalefact(n)=one
+           case('qwter','QWTER')
+              an_amp(:,n) =svshum_w
+              rfact0h(n)=sclhum_w
+              water_scalefact(n)=one
+           case('pswter','PSWTER')
+              an_amp(:,n) =svpsfc_w
+              rfact0h(n)=sclpsfc_w
+              water_scalefact(n)=one
+           case('gustwter','GUSTWTER')
+              an_amp(:,n) =svgust_w
+              rfact0h(n)=sclgust_w
+              water_scalefact(n)=one
+           case('wspd10mwter','WSPD10MWTER')
+              an_amp(:,n) =svwspd10m_w
+              rfact0h(n)=sclwspd10m_w
+              water_scalefact(n)=one
+           case('td2mwter','TD2MWTER')
+              an_amp(:,n) =svtd2m_w
+              rfact0h(n)=scltd2m_w
+              water_scalefact(n)=one
+           case('mxtmwter','MXTMWTER')
+              an_amp(:,n) =svmxtm_w
+              rfact0h(n)=sclmxtm_w
+              water_scalefact(n)=one
+           case('mitmwter','MITMWTER')
+              an_amp(:,n) =svmitm_w
+              rfact0h(n)=sclmitm_w
+              water_scalefact(n)=one
+           case('tcamtwter','TCAMTWTER')
+              an_amp(:,n) =svtcamt_w
+              rfact0h(n)=scltcamt_w
+              water_scalefact(n)=one
+           case('lcbaswter','LCBASWTER')
+              an_amp(:,n) =svlcbas_w
+              rfact0h(n)=scllcbas_w
+              water_scalefact(n)=one
+           case('uwnd10mwter','UWND10MWTER')
+              an_amp(:,n) =svuwnd10m_w
+              rfact0h(n)=scluwnd10m_w
+              water_scalefact(n)=one
+           case('vwnd10mwter','VWND10MWTER')
+              an_amp(:,n) =svvwnd10m_w
+              rfact0h(n)=sclvwnd10m_w
+              water_scalefact(n)=one
         end select
      end do
 
-     if (mype==0) then
+     if (mype==0 .and. print_verbose) then
         print*,'in init_anisofilter_reg: hsteep=',hsteep
         print*,'in init_anisofilter_reg: hsmooth_len=',hsmooth_len
+        print*,'in init_anisofilter_reg: hsmooth_len_lcbas=',hsmooth_len_lcbas
         print*,'in init_anisofilter_reg: lsmoothterrain=',lsmoothterrain
         print*,'in init_anisofilter_reg: volpreserve=',volpreserve
         print*,'in init_anisofilter_reg: lwater_scaleinfl=',lwater_scaleinfl
@@ -1275,6 +2019,15 @@ subroutine init_anisofilter_reg(mype)
         print*,'in init_anisofilter_reg: water_scalefactgust=',water_scalefactgust
         print*,'in init_anisofilter_reg: water_scalefactvis=',water_scalefactvis
         print*,'in init_anisofilter_reg: water_scalefactpblh=',water_scalefactpblh
+        print*,'in init_anisofilter_reg: water_scalefactwspd10m=',water_scalefactwspd10m
+        print*,'in init_anisofilter_reg: water_scalefacttd2m=',water_scalefacttd2m
+        print*,'in init_anisofilter_reg: water_scalefactmxtm=',water_scalefactmxtm
+        print*,'in init_anisofilter_reg: water_scalefactmitm=',water_scalefactmitm
+        print*,'in init_anisofilter_reg: water_scalefactpmsl=',water_scalefactpmsl
+        print*,'in init_anisofilter_reg: water_scalefacttcamt=',water_scalefacttcamt
+        print*,'in init_anisofilter_reg: water_scalefactlcbas=',water_scalefactlcbas
+        print*,'in init_anisofilter_reg: water_scalefactuwnd10m=',water_scalefactuwnd10m
+        print*,'in init_anisofilter_reg: water_scalefactvwnd10m=',water_scalefactvwnd10m
 
         print*,'in init_anisofilter_reg: latdepend=',latdepend
         print*,'in init_anisofilter_reg: scalex1=',scalex1
@@ -1288,6 +2041,17 @@ subroutine init_anisofilter_reg(mype)
         print*,'in init_anisofilter_reg: rltop_gust=',rltop_gust
         print*,'in init_anisofilter_reg: rltop_vis=',rltop_vis
         print*,'in init_anisofilter_reg: rltop_pblh=',rltop_pblh
+        print*,'in init_anisofilter_reg: rltop_wspd10m=',rltop_wspd10m
+        print*,'in init_anisofilter_reg: rltop_td2m=',rltop_td2m
+        print*,'in init_anisofilter_reg: rltop_mxtm=',rltop_mxtm
+        print*,'in init_anisofilter_reg: rltop_mitm=',rltop_mitm
+        print*,'in init_anisofilter_reg: rltop_pmsl=',rltop_pmsl
+        print*,'in init_anisofilter_reg: rltop_howv=',rltop_howv
+        print*,'in init_anisofilter_reg: rltop_tcamt=',rltop_tcamt
+        print*,'in init_anisofilter_reg: rltop_lcbas=',rltop_lcbas
+        print*,'in init_anisofilter_reg: rltop_cldch=',rltop_cldch
+        print*,'in init_anisofilter_reg: rltop_uwnd10m=',rltop_uwnd10m
+        print*,'in init_anisofilter_reg: rltop_vwnd10m=',rltop_vwnd10m
 
         print*,'in init_anisofilter_reg: svpsi=',svpsi
         print*,'in init_anisofilter_reg: svchi=',svchi
@@ -1297,6 +2061,32 @@ subroutine init_anisofilter_reg(mype)
         print*,'in init_anisofilter_reg: svgust=',svgust
         print*,'in init_anisofilter_reg: svvis=',svvis
         print*,'in init_anisofilter_reg: svpblh=',svpblh
+        print*,'in init_anisofilter_reg: svwspd10m=',svwspd10m
+        print*,'in init_anisofilter_reg: svtd2m=',svtd2m
+        print*,'in init_anisofilter_reg: svmxtm=',svmxtm
+        print*,'in init_anisofilter_reg: svmitm=',svmitm
+        print*,'in init_anisofilter_reg: svpmsl=',svpmsl
+        print*,'in init_anisofilter_reg: svhowv=',svhowv
+        print*,'in init_anisofilter_reg: svtcamt=',svtcamt
+        print*,'in init_anisofilter_reg: svlcbas=',svlcbas
+        print*,'in init_anisofilter_reg: svcldch=',svcldch
+        print*,'in init_anisofilter_reg: svuwnd10m=',svuwnd10m
+        print*,'in init_anisofilter_reg: svvwnd10m=',svvwnd10m
+        print*,'in init_anisofilter_reg: svpsi_w=',svpsi_w
+        print*,'in init_anisofilter_reg: svchi_w=',svchi_w
+        print*,'in init_anisofilter_reg: svpsfc_w=',svpsfc_w
+        print*,'in init_anisofilter_reg: svtemp_w=',svtemp_w
+        print*,'in init_anisofilter_reg: svshum_w=',svshum_w
+        print*,'in init_anisofilter_reg: svgust_w=',svgust_w
+        print*,'in init_anisofilter_reg: svwspd10m_w=',svwspd10m_w
+        print*,'in init_anisofilter_reg: svtd2m_w=',svtd2m_w
+        print*,'in init_anisofilter_reg: svmxtm_w=',svmxtm_w
+        print*,'in init_anisofilter_reg: svmitm_w=',svmitm_w
+        print*,'in init_anisofilter_reg: svtcamt=_w',svtcamt_w
+        print*,'in init_anisofilter_reg: svlcbas=_w',svlcbas_w
+        print*,'in init_anisofilter_reg: svuwnd10m_w=',svuwnd10m_w
+        print*,'in init_anisofilter_reg: svvwnd10m_w=',svvwnd10m_w
+
 
         print*,'in init_anisofilter_reg: sclpsi=',sclpsi
         print*,'in init_anisofilter_reg: sclchi=',sclchi
@@ -1306,17 +2096,150 @@ subroutine init_anisofilter_reg(mype)
         print*,'in init_anisofilter_reg: sclgust=',sclgust
         print*,'in init_anisofilter_reg: sclvis=',sclvis
         print*,'in init_anisofilter_reg: sclpblh=',sclpblh
+        print*,'in init_anisofilter_reg: sclwspd10m=',sclwspd10m
+        print*,'in init_anisofilter_reg: scltd2m=',scltd2m
+        print*,'in init_anisofilter_reg: sclmxtm=',sclmxtm
+        print*,'in init_anisofilter_reg: sclmitm=',sclmitm
+        print*,'in init_anisofilter_reg: sclpmsl=',sclpmsl
+        print*,'in init_anisofilter_reg: sclhowv=',sclhowv
+        print*,'in init_anisofilter_reg: scltcamt=',scltcamt
+        print*,'in init_anisofilter_reg: scllcbas=',scllcbas
+        print*,'in init_anisofilter_reg: sclcldch=',sclcldch
+        print*,'in init_anisofilter_reg: scluwnd10m=',scluwnd10m
+        print*,'in init_anisofilter_reg: sclvwnd10m=',sclvwnd10m
+        print*,'in init_anisofilter_reg: sclpsi_w=',sclpsi_w
+        print*,'in init_anisofilter_reg: sclchi_w=',sclchi_w
+        print*,'in init_anisofilter_reg: sclsfc_w=',sclpsfc_w
+        print*,'in init_anisofilter_reg: scltemp_w=',scltemp_w
+        print*,'in init_anisofilter_reg: sclhum_w=',sclhum_w
+        print*,'in init_anisofilter_reg: sclgust_w=',sclgust_w
+        print*,'in init_anisofilter_reg: sclwspd10m_w=',sclwspd10m_w
+        print*,'in init_anisofilter_reg: scltd2m_w=',scltd2m_w
+        print*,'in init_anisofilter_reg: sclmxtm_w=',sclmxtm_w
+        print*,'in init_anisofilter_reg: sclmitm_w=',sclmitm_w
+        print*,'in init_anisofilter_reg: scltcamt_w=',scltcamt_w
+        print*,'in init_anisofilter_reg: scllcbas_w=',scllcbas_w
+        print*,'in init_anisofilter_reg: scluwnd10m_w=',scluwnd10m_w
+        print*,'in init_anisofilter_reg: sclvwnd10m_w=',sclvwnd10m_w
+        print*,'in init_anisofilter_reg: glerl_on=',glerl_on
+        print*,'in init_anisofilter_reg: glerl_scalefact=',glerl_scalefact
+        print*,'in init_anisofilter_reg: hsteep_wind=',hsteep_wind
 
         print*,'in init_anisofilter_reg: nhscale_pass=',nhscale_pass
+        print*,'in init_anisofilter_reg: n_valley_pass=',n_valley_pass
+        print*,'in init_anisofilter_reg: R_f=',R_f
      endif
   endif
 
-  if (mype==0) then
+  if (mype==0 .and. print_verbose) then
      do i=1,nvars
         print*,'in init_anisofilter_reg: i,rfact0h,rfact0v,afact0,an_amp(1,i)=',i,rfact0h(i),rfact0v(i),afact0(i),an_amp(1,i)
      enddo
   endif
 
+
+  turnoff_all_stdmodels=.true.
+  writeout_stdmodel_diagnostics=.false.
+  stdmodel_z_based=.false.
+
+  lstdmodel_st=.false. ;      lstdmodel_vp=.false. ;   lstdmodel_t=.false. ;      lstdmodel_q=.false. ;      lstdmodel_oz=.false.
+  lstdmodel_qw=.false.
+  lstdmodel_ps=.false. ;      lstdmodel_sst=.false.;   lstdmodel_gust=.false. ;   lstdmodel_vis=.false. ;    lstdmodel_pblh=.false.  
+  lstdmodel_wspd10m=.false. ; lstdmodel_td2m=.false. ; lstdmodel_mxtm=.false. ;   lstdmodel_mitm=.false. ;   lstdmodel_pmsl=.false.
+  lstdmodel_howv=.false.
+  lstdmodel_tcamt=.false. ;   lstdmodel_lcbas=.false. ; lstdmodel_cldch=.false. ; lstdmodel_uwnd10m=.false. ;lstdmodel_vwnd10m=.false.
+  lstdmodel_lst=.false.
+  lstdmodel_ist=.false.   ;   lstdmodel_sfwter=.false. ;lstdmodel_vpwter=.false.; lstdmodel_twter=.false. ;  lstdmodel_qwter=.false.
+  lstdmodel_pswter=.false.
+
+  lstdmodel_gustwter=.false. ;    lstdmodel_wspd10mwter=.false. ; lstdmodel_td2mwter=.false. ; lstdmodel_mxtmwter=.false.
+  lstdmodel_mitmwter=.false.
+  lstdmodel_uwnd10mwter=.false. ; lstdmodel_vwnd10mwter=.false. 
+
+
+  std_radius=40000._r_kind !meters
+  npass_for_std=0
+
+  stdfact_st=zero ;      stdfact_vp=zero ;   stdfact_t=zero ;      stdfact_q=zero ;      stdfact_oz=zero ;   stdfact_qw=zero
+  stdfact_ps=zero ;      stdfact_sst=zero;   stdfact_gust=zero ;   stdfact_vis=zero ;    stdfact_pblh=zero  
+  stdfact_wspd10m=zero ; stdfact_td2m=zero ; stdfact_mxtm=zero ;   stdfact_mitm=zero ;   stdfact_pmsl=zero ;  stdfact_howv=zero
+  stdfact_tcamt=zero ;   stdfact_lcbas=zero ; stdfact_cldch=zero ; stdfact_uwnd10m=zero ;stdfact_vwnd10m=zero ;stdfact_lst=zero
+  stdfact_ist=zero   ;   stdfact_sfwter=zero ;stdfact_vpwter=zero; stdfact_twter=zero ;  stdfact_qwter=zero ;  stdfact_pswter=zero
+
+  stdfact_gustwter=zero ;    stdfact_wspd10mwter=zero ; stdfact_td2mwter=zero ; stdfact_mxtmwter=zero ; stdfact_mitmwter=zero
+  stdfact_uwnd10mwter=zero ; stdfact_vwnd10mwter=zero 
+
+  valleyfact_st=one ;      valleyfact_vp=one ;   valleyfact_t=one ;      valleyfact_q=one ;      valleyfact_oz=one ;   valleyfact_qw=one
+  valleyfact_ps=one ;      valleyfact_sst=one;   valleyfact_gust=one ;   valleyfact_vis=one ;    valleyfact_pblh=one  
+  valleyfact_wspd10m=one ; valleyfact_td2m=one ; valleyfact_mxtm=one ;   valleyfact_mitm=one ;   valleyfact_pmsl=one ;  valleyfact_howv=one
+  valleyfact_tcamt=one ;   valleyfact_lcbas=one ; valleyfact_cldch=one ; valleyfact_uwnd10m=one ;valleyfact_vwnd10m=one ;valleyfact_lst=one
+  valleyfact_ist=one   ;   valleyfact_sfwter=one ;valleyfact_vpwter=one; valleyfact_twter=one ;  valleyfact_qwter=one ;  valleyfact_pswter=one
+
+  valleyfact_gustwter=one ;    valleyfact_wspd10mwter=one ; valleyfact_td2mwter=one ; valleyfact_mxtmwter=one ; valleyfact_mitmwter=one
+  valleyfact_uwnd10mwter=one ; valleyfact_vwnd10mwter=one 
+
+  fstdmax_st=one ;      fstdmax_vp=one ;   fstdmax_t=one ;      fstdmax_q=one ;      fstdmax_oz=one ;   fstdmax_qw=one
+  fstdmax_ps=one ;      fstdmax_sst=one;   fstdmax_gust=one ;   fstdmax_vis=one ;    fstdmax_pblh=one  
+  fstdmax_wspd10m=one ; fstdmax_td2m=one ; fstdmax_mxtm=one ;   fstdmax_mitm=one ;   fstdmax_pmsl=one ;  fstdmax_howv=one
+  fstdmax_tcamt=one ;   fstdmax_lcbas=one ; fstdmax_cldch=one ; fstdmax_uwnd10m=one ;fstdmax_vwnd10m=one ;fstdmax_lst=one
+  fstdmax_ist=one   ;   fstdmax_sfwter=one ;fstdmax_vpwter=one; fstdmax_twter=one ;  fstdmax_qwter=one ;  fstdmax_pswter=one
+
+  fstdmax_gustwter=one ;    fstdmax_wspd10mwter=one ; fstdmax_td2mwter=one ; fstdmax_mxtmwter=one ; fstdmax_mitmwter=one
+  fstdmax_uwnd10mwter=one ; fstdmax_vwnd10mwter=one 
+
+  inquire(file='bckg_std_errormodel_input',exist=fexist)
+  if (fexist) then
+     open(55,file='bckg_std_errormodel_input',form='formatted')
+     read(55,bckg_std_errormodel)
+     close(55)
+  else
+        print*,'init_anisofilter_reg: WARNING - MISSING BCKG ERROR MODEL NAMELIST FILE: bckg_std_errormodel_input. RUNNING WITH DEFAULT SETTINGS, &
+        &WHICH MEANS THAT THE VALLEY-MAP (AND BCKG FIELD VARIANCE)- DEPENDENT BCKG ERROR ENHANCEMENT IS TURNED OFF'
+  endif
+
+  if (mype==0) then
+     print*,'in init_anisofilter_reg: turnoff_all_stdmodels=',turnoff_all_stdmodels
+     print*,'in init_anisofilter_reg: stdmodel_z_based=',stdmodel_z_based
+     print*,'in init_anisofilter_reg: lstdmodel_st=',lstdmodel_st
+     print*,'in init_anisofilter_reg: lstdmodel_vp=',lstdmodel_vp
+     print*,'in init_anisofilter_reg: lstdmodel_t=',lstdmodel_t
+     print*,'in init_anisofilter_reg: lstdmodel_q=',lstdmodel_q
+     print*,'in init_anisofilter_reg: lstdmodel_oz=',lstdmodel_oz
+     print*,'in init_anisofilter_reg: lstdmodel_qw=',lstdmodel_qw
+     print*,'in init_anisofilter_reg: lstdmodel_ps=',lstdmodel_ps
+     print*,'in init_anisofilter_reg: lstdmodel_sst=',lstdmodel_sst 
+     print*,'in init_anisofilter_reg: lstdmodel_gust=',lstdmodel_gust
+     print*,'in init_anisofilter_reg: lstdmodel_vis=',lstdmodel_vis
+     print*,'in init_anisofilter_reg: lstdmodel_pblh=',lstdmodel_pblh
+     print*,'in init_anisofilter_reg: lstdmodel_wspd10m=',lstdmodel_wspd10m
+     print*,'in init_anisofilter_reg: lstdmodel_td2m=',lstdmodel_td2m
+     print*,'in init_anisofilter_reg: lstdmodel_mxtm=',lstdmodel_mxtm
+     print*,'in init_anisofilter_reg: lstdmodel_mitm=',lstdmodel_mitm
+     print*,'in init_anisofilter_reg: lstdmodel_pmsl=',lstdmodel_pmsl
+     print*,'in init_anisofilter_reg: lstdmodel_howv=',lstdmodel_howv
+     print*,'in init_anisofilter_reg: lstdmodel_tcamt=',lstdmodel_tcamt
+     print*,'in init_anisofilter_reg: lstdmodel_lcbas=',lstdmodel_lcbas
+     print*,'in init_anisofilter_reg: lstdmodel_cldch=',lstdmodel_cldch
+     print*,'in init_anisofilter_reg: lstdmodel_uwnd10m=',lstdmodel_uwnd10m
+     print*,'in init_anisofilter_reg: lstdmodel_vwnd10m=',lstdmodel_vwnd10m
+     print*,'in init_anisofilter_reg: lstdmodel_lst=',lstdmodel_lst 
+     print*,'in init_anisofilter_reg: lstdmodel_ist=',lstdmodel_ist
+     print*,'in init_anisofilter_reg: lstdmodel_sfwter=',lstdmodel_sfwter
+     print*,'in init_anisofilter_reg: lstdmodel_vpwter=',lstdmodel_vpwter
+     print*,'in init_anisofilter_reg: lstdmodel_twter=',lstdmodel_twter
+     print*,'in init_anisofilter_reg: lstdmodel_qwter=',lstdmodel_qwter
+     print*,'in init_anisofilter_reg: lstdmodel_pswter=',lstdmodel_pswter
+     print*,'in init_anisofilter_reg: lstdmodel_gustwter=',lstdmodel_gustwter
+     print*,'in init_anisofilter_reg: lstdmodel_wspd10mwter=',lstdmodel_wspd10mwter
+     print*,'in init_anisofilter_reg: lstdmodel_td2mwter=',lstdmodel_td2mwter
+     print*,'in init_anisofilter_reg: lstdmodel_mxtmwter=',lstdmodel_mxtmwter
+     print*,'in init_anisofilter_reg: lstdmodel_mitmwter=',lstdmodel_mitmwter
+     print*,'in init_anisofilter_reg: lstdmodel_uwnd10mwter=',lstdmodel_uwnd10mwter
+     print*,'in init_anisofilter_reg: lstdmodel_vwnd10mwter=',lstdmodel_vwnd10mwter
+     print*,'in init_anisofilter_reg: std_radius=',std_radius
+     print*,'in init_anisofilter_reg: npass_for_std=',npass_for_std
+     print*,'in init_anisofilter_reg: writeout_stdmodel_diagnostics=',writeout_stdmodel_diagnostics
+  endif
 !
 !-----------------------------------------------------------------------
 !==>get dxf,dyf,rllatf
@@ -1336,7 +2259,7 @@ subroutine init_anisofilter_reg(mype)
   dyf=pf2aP1%grid_ratio_lat*dyf             !  note that dyf = grid_ratio_lat*dy
   call agrid2fgrid(pf2aP1,rllat,rllatf)
 
-  if(mype==0) then
+  if(mype==0 .and. print_verbose) then
      write(6,*)'in anisofilter_reg, nlatf,nlonf=',nlatf,nlonf
      write(6,*)'in anisofilter_reg, min,max(rllat)=',minval(rllat),maxval(rllat)
      write(6,*)'in anisofilter_reg, min,max(rllatf)=',minval(rllatf),maxval(rllatf)
@@ -1350,6 +2273,20 @@ subroutine init_anisofilter_reg(mype)
      write(6,*)'in anisofilter_reg, min,max(dyf)=',minval(dyf),maxval(dyf)
  
   end if
+
+  allocate(cvarstype(nvars))
+  do n=1,nvars
+     cvarstype(n)='        '
+     do i=1,nrf3
+        if (trim(cvars3d(i))==trim(nrf_var(n))) cvarstype(n)='static3d'
+     enddo
+     do i=1,nrf2
+        if (trim(cvars2d(i))==trim(nrf_var(n))) cvarstype(n)='static2d'
+     enddo
+     do i=1,mvars
+        if (trim(cvarsmd(i))==trim(nrf_var(n)))  cvarstype(n)='motley'
+     enddo
+  enddo
 
 !_RT soon
 ! allocate(nrf3_loc(nrf3),nrf2_loc(nrf2))
@@ -1393,6 +2330,7 @@ subroutine read_bckgstats(mype)
 !$$$ end documentation block
 
   use m_berror_stats_reg, only: berror_get_dims_reg,berror_read_wgt_reg
+  use gsi_io, only: verbose
   implicit none
 
 ! Declare passed variables
@@ -1408,13 +2346,17 @@ subroutine read_bckgstats(mype)
   real(r_kind),allocatable:: corzavg(:,:),hwllavg(:,:)
   real(r_kind),allocatable:: corpavg(:),hwllpavg(:)
 
+  logical :: print_verbose
+
+  print_verbose=.false. .and. mype == 0
+  if(verbose .and. mype == 0) print_verbose=.true.
 ! Read dimension of stats file
   inerr=22
   call berror_get_dims_reg(msig,mlat,inerr)
 
 ! Allocate arrays in stats file
   allocate ( corz(1:mlat,1:nsig,1:nrf3) )
-  allocate ( corp(1:mlat,nrf2) )
+  allocate ( corp(1:mlat,nvars-nrf3) )
   allocate ( hwll(0:mlat+1,1:nsig,1:nrf3),hwllp(0:mlat+1,nvars-nrf3) )
   allocate ( vz(1:nsig,0:mlat+1,1:nrf3) )
 
@@ -1423,9 +2365,9 @@ subroutine read_bckgstats(mype)
 
 ! Read in background error stats and interpolate in vertical
 ! to that specified in namelist
-  call berror_read_wgt_reg(msig,mlat,corz,corp,hwll,hwllp,vz,rlsig,varq,qoption,mype,inerr)
+  call berror_read_wgt_reg(msig,mlat,corz,corp,hwll,hwllp,vz,rlsig,varq,qoption,varcw,cwoption,mype,inerr)
 
-  if(mype==0) write(6,*)'in read_bckgstats,mlat=',mlat
+  if(print_verbose) write(6,*)'in read_bckgstats,mlat=',mlat
 
 ! Normalize vz with del sigma and convert to vertical grid units!
   if(.not.twodvar_regional) then
@@ -1450,7 +2392,7 @@ subroutine read_bckgstats(mype)
 !----- apply scaling to vertical length scales.
 !      note:  parameter vs needs to be inverted
 
-  if(mype==0) write(6,*)'in read_bckgstats,an_vs=',an_vs
+  if(print_verbose) write(6,*)'in read_bckgstats,an_vs=',an_vs
   an_vs=one/an_vs
   vz=vz/an_vs
   if (twodvar_regional) vz(1:nsig,0:mlat+1,1:nrf3)=sqrt(one)
@@ -1467,7 +2409,7 @@ subroutine read_bckgstats(mype)
         vzimin(k,n)=minval(one/vz(k,0:mlat+1,n))
         vziavg(k,n)=sum((one/vz(k,0:mlat+1,n)))/float(mlat+2)
      end do
-     if(mype==0) then
+     if(print_verbose) then
         do k=1,nsig
            write(6,'(" var,k,max,min,avg vert corlen =",2i4,3f11.3)') &
                        n,k,vzimax(k,n),vzimin(k,n),vziavg(k,n)
@@ -1480,8 +2422,9 @@ subroutine read_bckgstats(mype)
 
      allocate(corzavg(1:nsig,1:nrf3))
      allocate(hwllavg(1:nsig,1:nrf3))
-     allocate(corpavg(1:nrf2))
-     allocate(hwllpavg(1:nrf2))
+     allocate(corpavg(1:nvars-nrf3))
+     allocate(hwllpavg(1:nvars-nrf3))
+
 
      do n=1,nrf3
         do k=1,nsig
@@ -1489,18 +2432,18 @@ subroutine read_bckgstats(mype)
            hwllavg(k,n)=sum(hwll(0:mlat+1,k,n))/float(mlat+2)
         end do
      end do
-     do n=1,nrf2
+     do n=1,nvars-nrf3
         corpavg(n)=sum(corp(1:mlat,n))/float(mlat)
         hwllpavg(n)=sum(hwllp(0:mlat+1,n))/float(mlat+2)
      end do
 
      do j=1,mlat
         corz(j,1:nsig,1:nrf3)=corzavg(1:nsig,1:nrf3)
-        corp(j,1:nrf2)=corpavg(1:nrf2)
+        corp(j,1:nvars-nrf3)=corpavg(1:nvars-nrf3)
      end do
      do j=0,mlat+1
         hwll(j,1:nsig,1:nrf3)=hwllavg(1:nsig,1:nrf3)
-        hwllp(j,1:nrf2)=hwllpavg(1:nrf2)
+        hwllp(j,1:nvars-nrf3)=hwllpavg(1:nvars-nrf3)
         vz(1:nsig,j,1:nrf3)=one/vziavg(1:nsig,1:nrf3)
      end do
 
@@ -1601,6 +2544,7 @@ subroutine get_background(mype)
   real(r_kind),dimension(:,:,:),pointer:: ges_v_it =>NULL()
   real(r_kind),dimension(:,:,:),pointer:: ges_tv_it=>NULL()
   real(r_kind),dimension(:,:,:),pointer:: ges_q_it =>NULL()
+  real(r_kind),dimension(:,:  ),pointer:: ges_cldch_it=>NULL()
 
   real(r_kind),allocatable,dimension(:,:,:)::field
   logical:: ice
@@ -1628,6 +2572,7 @@ subroutine get_background(mype)
   allocate(z0f(nlatf,nlonf,nsig1o),rh0f(nlatf,nlonf,nsig1o))
   allocate(psg(nlat ,nlon ,nsig1o),rsliglb(nlat,nlon,nsig1o))
   allocate(vis0f(nlatf,nlonf,nsig1o))
+  allocate(cldch0f(nlatf,nlonf,nsig1o))
   allocate(z0f2(nlatf,nlonf,nsig1o))
 
   it=ntguessig
@@ -1727,6 +2672,22 @@ subroutine get_background(mype)
      endif
   endif
 
+  !-------------
+  ! CLDCH (2d full grid)
+  call gsi_bundlegetpointer (gsi_metguess_bundle(it),'cldch', ges_cldch_it, istatus)
+  if (istatus==0) then
+     field(:,:,1)=ges_cldch_it(:,:)
+     call sub2fslab2d(field(1,1,1),cldch0f)
+
+     if(nsig1o>1) then
+        do j=1,nlonf
+           do i=1,nlatf
+              cldch0f(i,j,2:nsig1o)=cldch0f(i,j,1)
+           end do
+        end do
+     endif
+  endif
+
   call destroy_sub2fslab
   deallocate(field)
 
@@ -1795,6 +2756,7 @@ subroutine get_background(mype)
 
   call raf_sm_reg(rh0f,ngauss_smooth)
   call raf_sm_reg(vis0f,ngauss_smooth)
+  call raf_sm_reg(cldch0f,ngauss_smooth)
 
 end subroutine get_background
 !=======================================================================
@@ -1889,45 +2851,56 @@ subroutine isotropic_scales(scale1,scale2,scale3,k)
   do j=1,nlonf
      do i=1,nlatf
 
-!       3d analysis variables
-        nn=-1
-        do n=1,nrf3
-           if (nrf3_loc(n)==ivar) then
-              nn=n
-              if (nn==nrf3_oz) then  
-                 if(k1 <= nsig*3/4)then
-                    hwll_loc=r400000
-                 else
-                    hwll_loc=(r800000-r400000*(nsig-k1)/(nsig-nsig*3/4))
-                 end if
-                 l=int(rllatf(nlatf/2,nlonf/2))
-                 scale3(i,j)=one/vz(k1,l,nn)
-              else
-                 if(k1 >= ks(k))then
+        if (trim(cvarstype(ivar))=='static3d') then
+           do n=1,nrf3
+              if (nrf3_loc(n)==ivar) then
+                 if (n==nrf3_oz) then  
+                    if(k1 <= nsig*3/4)then
+                       hwll_loc=r400000
+                    else
+                       hwll_loc=(r800000-r400000*(nsig-k1)/(nsig-nsig*3/4))
+                    end if
                     l=int(rllatf(nlatf/2,nlonf/2))
-                    hwll_loc=hwll(l,k1,nn)
+                    scale3(i,j)=one/vz(k1,l,n)
                  else
-                    l =max(min(int(rllatf(i,j)),mlat),1)
-                    lp=min((l+1),mlat)
-                    dl2=rllatf(i,j)-float(l)
-                    dl1=one-dl2
-                    hwll_loc=dl1*hwll(l,k1,nn)+dl2*hwll(lp,k1,nn)
+                    if(k1 >= ks(k))then
+                       l=int(rllatf(nlatf/2,nlonf/2))
+                       hwll_loc=hwll(l,k1,n)
+                    else
+                       l =max(min(int(rllatf(i,j)),mlat),1)
+                       lp=min((l+1),mlat)
+                       dl2=rllatf(i,j)-float(l)
+                       dl1=one-dl2
+                       hwll_loc=dl1*hwll(l,k1,n)+dl2*hwll(lp,k1,n)
+                    end if
+                    scale3(i,j)=one/vz(k1,l,n)
                  end if
-                 scale3(i,j)=one/vz(k1,l,nn)
+                 exit
               end if
-              exit
-           end if
-        end do
-
-        if (nn==-1) then
+           end do
+         else if (trim(cvarstype(ivar))=='static2d') then
            do n=1,nrf2
-              if (nrf2_loc(n)==ivar .or. ivar>nrf) then
-                 nn=n
-                 if (ivar>nrf) nn=ivar-nrf3
-
+              if (nrf2_loc(n)==ivar) then
                  cc=one
-                 if (nn==nrf2_sst) cc=half
-                 if (ivar>nrf) cc=quarter 
+                 if (n==nrf2_sst) cc=half
+
+                 l =max(min(int(rllatf(i,j)),mlat),1)
+                 lp=min((l+1),mlat)
+                 dl2=rllatf(i,j)-float(l)
+                 dl1=one-dl2
+                 hwll_loc=cc*(dl1*hwllp(l,n)+dl2*hwllp(lp,n))
+                 scale3(i,j)=one
+                 exit
+              end if
+           end do
+         else if (trim(cvarstype(ivar))=='motley') then
+           do n=1,mvars
+              if (nmotl_loc(n)==ivar) then
+                 nn=nrf2+n
+                 cc=one
+                 if (trim(cvarsmd(n))=='stl') cc=quarter
+                 if (trim(cvarsmd(n))=='sti') cc=quarter
+
                  l =max(min(int(rllatf(i,j)),mlat),1)
                  lp=min((l+1),mlat)
                  dl2=rllatf(i,j)-float(l)
@@ -1970,7 +2943,7 @@ subroutine isotropic_scales(scale1,scale2,scale3,k)
      enddo
   enddo
 
-  if (lwater_scaleinfl .and. water_scalefact(nvar_id(k))/=one) then
+  if (twodvar_regional .and. lwater_scaleinfl .and. water_scalefact(nvar_id(k))/=one) then
      call fgrid2agrid(pf2aP1,scale1,scaleaux1)
      call fgrid2agrid(pf2aP1,scale2,scaleaux2)
      do j=1,nlon
@@ -2017,6 +2990,7 @@ subroutine get_theta_corrl_lenghts(mype)
 !   machine:  ibm RS/6000 SP
 !
 !$$$  end documentation block
+  use gsi_io, only: verbose
   implicit none
 
 ! Declare passed variables
@@ -2034,7 +3008,10 @@ subroutine get_theta_corrl_lenghts(mype)
                qltv,qlth
 
   integer(i_kind) nlatf,nlonf,it
+  logical print_verbose
 
+  print_verbose=.false. .and. mype == 0
+  if(verbose .and. mype == 0)print_verbose=.true.
   nlatf=pf2aP1%nlatf
   nlonf=pf2aP1%nlonf
 
@@ -2051,7 +3028,7 @@ subroutine get_theta_corrl_lenghts(mype)
      call mpi_allreduce(pbar4a,pbar4(k),1,mpi_real8,mpi_sum,mpi_comm_world,ierror)
      call mpi_allreduce(mcount0,mcount,1,mpi_integer4,mpi_sum,mpi_comm_world,ierror)
      pbar4(k)=pbar4(k)/float(mcount)
-     if(mype==0) write(6,*)'in get_theta_corrl_lenghts,k,pbar4=',k,pbar4(k)
+     if(print_verbose) write(6,*)'in get_theta_corrl_lenghts,k,pbar4=',k,pbar4(k)
      call w3fa03(pbar4(k),hgt4(k),tbar4(k),thetabar4(k))
   end do
 
@@ -2062,16 +3039,16 @@ subroutine get_theta_corrl_lenghts(mype)
      dzi=one/(kp-km)
      dthetabarz(k)=dzi*(thetabar4(kp)-thetabar4(km))
      dthetabarzmax=max(dthetabarz(k),dthetabarzmax)
-     if(mype==0) then
+     if(print_verbose)then
         write(6,'("in get_theta_corrl_lenghts,k,pbar4,hgt4,tbar4=",i4,3f11.3)') k,pbar4(k),hgt4(k),tbar4(k)
         write(6,'("in get_theta_corrl_lenghts,k,thetabar4,dthetabarz=",i4,2f11.3)') k,thetabar4(k),dthetabarz(k)
      endif
   end do
-  if(mype==0) write(6,*)'in get_theta_corrl_lenghts,dthetabarzmax=',dthetabarzmax
+  if(print_verbose) write(6,*)'in get_theta_corrl_lenghts,dthetabarzmax=',dthetabarzmax
 
   do k=1,nsig
      dthetabarz(k)=dthetabarz(k)/dthetabarzmax
-     if(mype==0) then
+     if(print_verbose) then
         write(6,*)'in get_theta_corrl_lenghts,k,normalized dthetabarz=',k,dthetabarz(k)
      endif
   end do
@@ -2091,7 +3068,7 @@ subroutine get_theta_corrl_lenghts(mype)
   call hanning_smther(qltv_temp, nsig, 5)
   call hanning_smther(qltv_wind, nsig, 5)
 
-  if (mype==0) then
+  if (print_verbose) then
      do k=1,nsig
         write(6,*)'in get3berr_reg,k,qltv_temp,qltv_wind=',k,qltv_temp(k),qltv_wind(k)
      enddo
@@ -3946,6 +4923,14 @@ subroutine get2berr_reg_subdomain_option(mype)
 !   2010-03-10  zhu   - make changes for generalizing control variable
 !   2010-12-05  pondeca   - bug fix: add chvarname=fvarname(ivar) before reading
 !                           in RF normalization coefficients
+!   2014-06-09  carley/zhu  - add tcamt and lcbas
+!   2015-05-02  parrish - add rtma_bkerr_sub2slab and other changes to allow
+!                         dual resolution in subdomain mode.  There are 2 grids, analysis and filter.
+!                         general_sub2grid type variables s2g_raf and s2g_rff are introduced for easier
+!                         conversion between analysis and filter grids.  The aspect tensor is computed
+!                         on the analysis grid, then converted to filter grid in new routine change_a2f.
+!                         When rtma_bkerr_sub2slab=.true., new routine sub2slab_init_raf4 is used 
+!                         to obtain the structure variable filter_all for slab mode on the filter grid.
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -3958,9 +4943,12 @@ subroutine get2berr_reg_subdomain_option(mype)
 !   machine:  ibm RS/6000 SP
 !
 !$$$ end documentation block
-  use anberror, only: afact0
+  use anberror, only: afact0,rtma_bkerr_sub2slab
   use gridmod, only: istart,jstart
   use raflib, only: init_raf4
+  use anberror, only: s2g_rff
+  use general_commvars_mod, only: s2g_raf
+  use gsi_io, only: verbose
   implicit none
 
 ! Declare passed variables
@@ -3969,10 +4957,14 @@ subroutine get2berr_reg_subdomain_option(mype)
 ! Declare local parameters
   real(r_single),parameter:: vis0fmin=6000._r_single
   real(r_single),parameter:: vis0fmax=6000._r_single
+  real(r_single),parameter:: cldch0fmin=6000._r_single
+  real(r_single),parameter:: cldch0fmax=6000._r_single
 
 ! Declare local variables
   integer(i_kind) n,i,j,k,l,lp,k1,kvar,ivar,im,ip,jm,jp,mm1,iloc,iploc,imloc,jloc,jploc,jmloc,igauss
+  integer(i_kind) nn
   integer(i_kind) iglob,jglob
+  logical no_elev_grad
 
   real(r_kind) dl1,dl2,factk,factor,anhswgtsum
   real(r_kind) a1,a2,a3,a4,a5,a6,detai
@@ -3980,33 +4972,73 @@ subroutine get2berr_reg_subdomain_option(mype)
   real(r_kind) fx2,fx1,fx3,dxi,dyi
   real(r_kind) asp1,asp2,asp3,factoz,afact
   real(r_kind) deta0,deta1
-  real(r_single) thisvis0f
 
+  real(r_kind) rstd,berrmax 
+
+  real(r_single),allocatable,dimension(:,:,:,:):: aspectf
+  real(r_single),allocatable,dimension(:,:,:,:):: ampsub(:,:,:,:)
   real(r_kind),allocatable,dimension(:,:,:):: bckgvar0f
-  real(r_single),allocatable,dimension(:,:)::bckgvar4,bckgvar4a,zsmooth4,zsmooth4a
+  real(r_single),allocatable,dimension(:,:)::bckgvar4,zsmooth4,zsmooth4a,hwllp_lcbas4,hwllp_lcbas4a
+  real(r_single),allocatable,dimension(:,:)::bckgvar4f,bckgvar4t
+  real(r_kind),allocatable,dimension(:,:)::bckgvar8f,bckgvar8a
   real(r_single),allocatable,dimension(:,:)::region_dx4,region_dy4,psg4,psg4a
   real(r_single),allocatable,dimension(:,:,:):: fltvals0,fltvals
-  character(10) chvarname
-  character(5) cvar
+  logical lstdmodel0
+  real(r_single),allocatable,dimension(:,:):: slab00,slab11   !for diagnostic purposes only
+  character(12) chvarname
+  character(8) cvar
 
   integer(i_kind):: ids,ide,jds,jde,kds,kde,ips,ipe,jps,jpe,kps,kpe
-  integer(i_kind):: nlatf,nlonf
+  integer(i_kind):: ims,ime,jms,jme
+  integer(i_kind):: idsf,idef,jdsf,jdef,ipsf,ipef,jpsf,jpef
+  integer(i_kind):: imsf,imef,jmsf,jmef
+  integer(i_kind):: nlata,nlona,nlatf,nlonf,inner_vars
+  logical print_verbose
 
+  print_verbose=.false.
+  if(verbose)print_verbose=.true.
+  nlata=s2g_raf%nlat
+  nlona=s2g_raf%nlon
+  nlatf=s2g_rff%nlat
+  nlonf=s2g_rff%nlon
+  ids=1 ; ide=nlata
+  jds=1 ; jde=nlona
+  kds=1           ; kde=s2g_raf%num_fields
+  ips=s2g_raf%istart(s2g_raf%mype+1)
+  ipe=s2g_raf%istart(s2g_raf%mype+1)+s2g_raf%lat1-1
+  jps=s2g_raf%jstart(s2g_raf%mype+1)
+  jpe=s2g_raf%jstart(s2g_raf%mype+1)+s2g_raf%lon1-1
+  kps=1           ; kpe=s2g_raf%num_fields
+  ims=s2g_raf%istart(s2g_raf%mype+1)-1
+  ime=s2g_raf%istart(s2g_raf%mype+1)+s2g_raf%lat1
+  jms=s2g_raf%jstart(s2g_raf%mype+1)-1
+  jme=s2g_raf%jstart(s2g_raf%mype+1)+s2g_raf%lon1
 
-  ids=indices%ids; ide=indices%ide
-  jds=indices%jds; jde=indices%jde
-  kds=indices%kds; kde=indices%kde
-  ips=indices%ips; ipe=indices%ipe
-  jps=indices%jps; jpe=indices%jpe
-  kps=indices%kps; kpe=indices%kpe
-  nlatf=pf2aP1%nlatf
-  nlonf=pf2aP1%nlonf
+  idsf=1 ; idef=nlatf
+  jdsf=1 ; jdef=nlonf
+  ipsf=s2g_rff%istart(s2g_rff%mype+1)
+  ipef=s2g_rff%istart(s2g_rff%mype+1)+s2g_rff%lat1-1
+  jpsf=s2g_rff%jstart(s2g_rff%mype+1)
+  jpef=s2g_rff%jstart(s2g_rff%mype+1)+s2g_rff%lon1-1
+  imsf=s2g_rff%istart(s2g_rff%mype+1)-1
+  imef=s2g_rff%istart(s2g_rff%mype+1)+s2g_rff%lat1
+  jmsf=s2g_rff%jstart(s2g_rff%mype+1)-1
+  jmef=s2g_rff%jstart(s2g_rff%mype+1)+s2g_rff%lon1
 
   allocate(asp10f(lat2,lon2))
   allocate(asp20f(lat2,lon2))
   allocate(asp30f(lat2,lon2))
+  asp10f=0
+  asp20f=0
+  asp30f=0
 
   call get_background_subdomain_option(mype)
+
+  if (R_option) then
+     allocate(hwllp_lcbas(lat2,lon2))
+     call get_hwllp_lcbas_subdomain_option(mype)
+  end if
+
 
 !-----define the anisotropic aspect tensor-----------------------------
 !-------------------------------------------------------------------------------------
@@ -4022,6 +5054,7 @@ subroutine get2berr_reg_subdomain_option(mype)
   do k=kds,kde
      ivar=jdvar(k)
      k1=levs_jdvar(k)
+     chvarname=fvarname(ivar)
      call isotropic_scales_subdomain_option(asp10f,asp20f,asp30f,k,mype)
 
      do j=jps,jpe
@@ -4033,12 +5066,12 @@ subroutine get2berr_reg_subdomain_option(mype)
            asp2=asp20f(iloc,jloc)
            asp3=asp30f(iloc,jloc)
 
-           jp=min(nlonf,j+1) ; jm=max(1,j-1)
+           jp=min(nlona,j+1) ; jm=max(1,j-1)
            jploc=jp-jstart(mm1)+2
            jmloc=jm-jstart(mm1)+2
            dxi=one/(jp-jm)
  
-           ip=min(nlatf,i+1) ; im=max(1,i-1)
+           ip=min(nlata,i+1) ; im=max(1,i-1)
            iploc=ip-istart(mm1)+2
            imloc=im-istart(mm1)+2
            dyi=one/(ip-im)
@@ -4047,9 +5080,40 @@ subroutine get2berr_reg_subdomain_option(mype)
            fx2= dxi*(z0f(iloc,jploc,k1)-z0f(iloc,jmloc,k1))
            fx3= zero
 
-           if (nrf_var(ivar)=='vis' .or. nrf_var(ivar)=='VIS') then !no land/water elev gradient artifact for visibility
+
+           no_elev_grad=nrf_var(ivar)=='vis' .or. nrf_var(ivar)=='VIS'
+           no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='tcamt' .or. nrf_var(ivar)=='TCAMT')
+           no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='lcbas' .or. nrf_var(ivar)=='LCBAS')
+           no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='cldch' .or. nrf_var(ivar)=='CLDCH')
+!          if (nrf2_wspd10m>0 .and. nrf2_wspd10mwter>0) then
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='wspd10m' .or.  nrf_var(ivar)=='WSPD10M')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='wspd10mwter' .or.  nrf_var(ivar)=='WSPD10MWTER')
+!          endif
+!          if (nrf2_uwnd10m>0 .and. nrf2_uwnd10mwter>0 .and. nrf2_vwnd10m>0 .and. nrf2_vwnd10mwter>0) then
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='uwnd10m' .or. nrf_var(ivar)=='UWND10M')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='uwnd10mwter' .or. nrf_var(ivar)=='UWND10MWTER')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='vwnd10m' .or. nrf_var(ivar)=='VWND10M')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='vwnd10mwter' .or. nrf_var(ivar)=='VWND10MWTER')
+!          endif
+!          if (nrf2_gust>0 .and. nrf2_gustwter>0) then
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='gust' .or.  nrf_var(ivar)=='GUST')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='gustwter' .or.  nrf_var(ivar)=='GUSTWTER')
+!          endif
+!          if (nrf3_sf>0 .and. nrf3_sfwter>0 .and. nrf3_vp>0 .and. nrf3_vpwter>0) then
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='sf' .or. nrf_var(ivar)=='SF')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='sfwter' .or. nrf_var(ivar)=='SFWTER')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='vp' .or. nrf_var(ivar)=='VP')
+              no_elev_grad=no_elev_grad .or. (nrf_var(ivar)=='vpwter' .or. nrf_var(ivar)=='VPWTER')
+!          endif
+           if (no_elev_grad) then !no land/water elev gradient artifact
               fx1= dyi*(z0f2(iploc,jloc,k1)-z0f2(imloc,jloc,k1))
               fx2= dxi*(z0f2(iloc,jploc,k1)-z0f2(iloc,jmloc,k1))
+           endif
+
+           if (glerl_on .and. (trim(chvarname)=='wspd10m' .or. trim(chvarname)=='uwnd10m' .or. & 
+                               trim(chvarname)=='vwnd10m' ) ) then 
+              fx1= dyi*(z0f3(iploc,jloc,k1)-z0f3(imloc,jloc,k1))
+              fx2= dxi*(z0f3(iloc,jploc,k1)-z0f3(iloc,jmloc,k1))
            endif
 
            rltop=rltop_wind
@@ -4065,6 +5129,31 @@ subroutine get2berr_reg_subdomain_option(mype)
               case('gust','GUST'); rltop=rltop_gust
               case('vis','VIS'); rltop=rltop_vis
               case('pblh','PBLH'); rltop=rltop_pblh
+              case('wspd10m','WSPD10M'); rltop=rltop_wspd10m
+              case('td2m','TD2M'); rltop=rltop_td2m
+              case('mxtm','MXTM'); rltop=rltop_mxtm
+              case('mitm','MITM'); rltop=rltop_mitm
+              case('pmsl','PMSL'); rltop=rltop_pmsl
+              case('howv','HOWV'); rltop=rltop_howv
+              case('tcamt','TCAMT'); rltop=rltop_tcamt
+              case('lcbas','LCBAS'); rltop=rltop_lcbas
+              case('cldch','CLDCH'); rltop=rltop_cldch
+              case('uwnd10m','UWND10M'); rltop=rltop_uwnd10m
+              case('vwnd10m','VWND10M'); rltop=rltop_vwnd10m
+              case('sfwter','SFWTER'); rltop=rltop_wind
+              case('vpwter','VPWTER'); rltop=rltop_wind
+              case('pswter','PSWTER'); rltop=rltop_psfc
+              case('twter','TWTER'); rltop=rltop_temp
+              case('qwter','QWTER'); rltop=rltop_q
+              case('gustwter','GUSTWTER'); rltop=rltop_gust
+              case('wspd10mwter','WSPD10MWTER'); rltop=rltop_wspd10m
+              case('td2mwter','TD2MWTER'); rltop=rltop_td2m
+              case('mxtmwter','MXTMWTER'); rltop=rltop_mxtm
+              case('mitmwter','MITMWTER'); rltop=rltop_mitm
+              case('tcamtwter','TCAMTWTER'); rltop=rltop_tcamt
+              case('lcbaswter','LCBASWTER'); rltop=rltop_lcbas
+              case('uwnd10mwter','UWND10MWTER'); rltop=rltop_uwnd10m
+              case('vwnd10mwter','VWND10MWTER'); rltop=rltop_vwnd10m
            end select
            afact=afact0(ivar)  !(use "zero" for isotropic computations)
            if (cvar=='pblh' .or. cvar=='PBLH') afact=zero
@@ -4075,11 +5164,11 @@ subroutine get2berr_reg_subdomain_option(mype)
            endif
 
 
-           if(i==nlatf/2.and.j==nlonf/2) then
+           if(i==nlata/2.and.j==nlona/2 .and. print_verbose) then
               write(6,'("at domain center, var,k1,asp1,asp2,asp3 =",2i4,3f11.3)') &
                      jdvar(k),k1,asp1,asp2,asp3
               write(6,'("at domain center, var,k1,dxf,dyf =",2i4,3f11.3)') &
-                     jdvar(k),k1,dxf(i,j),dyf(i,j)
+                     jdvar(k),k1,region_dx(i,j),region_dy(i,j)
            end if
 
            aspect(1,i,j,k) =   one/asp1**2 + afact*fx1*fx1/rltop**2  ! 1st (y) direction    x1*x1
@@ -4131,29 +5220,51 @@ subroutine get2berr_reg_subdomain_option(mype)
   end do
 
 
-  if(mype==0) write(6,*)'rltop_wind,rltop_temp,rltop_q,rltop_psfc=,rltop_gust,rltop_vis,rltop_pblh=',&
-                         rltop_wind,rltop_temp,rltop_q,rltop_psfc,rltop_gust,rltop_vis,rltop_pblh
+!Next, smooth interpolate aspect to aspectf
 
-  if(mype==0) write(6,*)' in get2berr_reg, nlat,nlon,nlatf,nlonf=',nlat,nlon,nlatf,nlonf
+  allocate(aspectf(7,ipsf:ipef,jpsf:jpef,kps:kpe))
+  inner_vars=7
+  if(rtma_bkerr_sub2slab) then
+     call change_a2f(s2g_raf,s2g_rff,pf2ap1,aspect,aspectf,inner_vars, &
+                        ips,ipe,jps,jpe,ipsf,ipef,jpsf,jpef,s2g_raf%num_fields)
+  else
+     aspectf=aspect
+  end if
 
-  if(mype==0) write(6,*)' in get2berr_reg, ids,ide=',ids,ide
-  if(mype==0) write(6,*)' in get2berr_reg, jds,jde=',jds,jde
-  write(6,*)'in get2berr_reg, mype,ips,ipe,jps,jpe,kps,kpe=',mype,ips,ipe,jps,jpe,kps,kpe
+  if(mype==0 .and. print_verbose) write(6,*)'rltop_wind,rltop_temp,rltop_q,rltop_psfc,rltop_gust,rltop_vis,rltop_pblh, &
+                         &rltop_wspd10m,rltop_td2m,rltop_mxtm,rltop_mitm,rltop_pmsl,rltop_howv,rltop_tcamt,rltop_lcbas,rltop_cldch, & 
+                         &rltop_uwnd10m,rltop_vwnd10m=',&
+                         rltop_wind,rltop_temp,rltop_q,rltop_psfc,rltop_gust,rltop_vis,rltop_pblh, &
+                         &rltop_wspd10m,rltop_td2m,rltop_mxtm,rltop_mitm,rltop_pmsl,rltop_howv,rltop_tcamt,rltop_lcbas,rltop_cldch, &
+                         &rltop_uwnd10m,rltop_vwnd10m
 
   if(lreadnorm) normal=0
 
-  call init_raf4(aspect,triad4,ngauss,rgauss,npass,normal,binom,ifilt_ord,filter_all, &
+  allocate(ampsub(ngauss,ipsf:ipef,jpsf:jpef,kps:kpe))
+  if(print_verbose)write(6,'(" before sub2slab_init_raf4, min,max(aspectf)=",2e12.3)') &
+                   minval(aspectf),maxval(aspectf)
+  if(rtma_bkerr_sub2slab) then
+     call sub2slab_init_raf4(aspectf,triad4,ngauss,rgauss,npass,normal,binom,ifilt_ord,filter_all, &
               nsmooth,nsmooth_shapiro, &
               nvars,idvar,kvar_start,kvar_end,var_names, &
-              ids, ide, jds, jde, kds, kde, &         ! domain indices
-              ips, ipe, jps, jpe, kps, kpe, &         ! patch indices
+              kds, kde, &         ! input domain indices
+              ipsf, ipef, jpsf, jpef, kps, kpe, &         ! input patch indices
+              mype, npe,nlatf,nlonf)
+     call get_ampsub(filter_all,ampsub,ngauss,ipsf,ipef,jpsf,jpef,kps,kpe)
+  else
+     call init_raf4(aspectf,triad4,ngauss,rgauss,npass,normal,binom,ifilt_ord,filter_all, &
+              nsmooth,nsmooth_shapiro, &
+              nvars,idvar,kvar_start,kvar_end,var_names, &
+              idsf, idef, jdsf, jdef, kds, kde, &         ! domain indices
+              ipsf, ipef, jpsf, jpef, kps, kpe, &         ! patch indices
               mype, npe)
+     ampsub=filter_all(1)%amp
+  end if
 
-  call antest_maps0_subdomain_option(mype,theta0f,z0f)
+! call antest_maps0_subdomain_option(mype,theta0f,z0f)
 
   allocate(fltvals0(ngauss,nlatf,nlonf))
   allocate(fltvals(ngauss,nlatf,nlonf))
-
 
   do k=kps,kpe!      Effectively counting number of analysis variables
 
@@ -4174,12 +5285,12 @@ subroutine get2berr_reg_subdomain_option(mype)
      endif
 
      do igauss=1,ngauss
-        do j=jps,jpe
-           do i=ips,ipe
+        do j=jpsf,jpef
+           do i=ipsf,ipef
               if(lreadnorm) then
-                 filter_all(1)%amp(igauss,i,j,k)=fltvals(igauss,i,j)
+                 ampsub(igauss,i,j,k)=fltvals(igauss,i,j)
               else
-                 fltvals(igauss,i,j)=filter_all(1)%amp(igauss,i,j,k)
+                 fltvals(igauss,i,j)=ampsub(igauss,i,j,k)
               endif
            enddo
         enddo
@@ -4192,7 +5303,7 @@ subroutine get2berr_reg_subdomain_option(mype)
      if (mype==0) close(94)
   enddo
 
-  allocate(bckgvar0f(ips:ipe,jps:jpe,kps:kpe))
+  allocate(bckgvar0f(ipsf:ipef,jpsf:jpef,kps:kpe))
   bckgvar0f=zero
 
 !  filter normalized to unit amplitude.  now adjust amplitude to correspond
@@ -4206,65 +5317,107 @@ subroutine get2berr_reg_subdomain_option(mype)
   do k=kps,kpe
      ivar=jdvar(k)
      kvar=levs_jdvar(k)
-     do j=jps,jpe
-        jloc=j-jstart(mm1)+2
-        do i=ips,ipe
-           iloc=i-istart(mm1)+2
+     chvarname=fvarname(ivar)
+     lstdmodel0=lstdmodel(chvarname)
+     do j=jpsf,jpef
+        jloc=j-s2g_rff%jstart(mm1)+2
+        do i=ipsf,ipef
+           iloc=i-s2g_rff%istart(mm1)+2
 
            l=max(min(int(rllatf(i,j)),mlat),1)
            lp=min((l+1),mlat)
            dl2=rllatf(i,j)-float(l)
            dl1=one-dl2
-           if (nrf_3d(ivar)) then
-              do n=1,nrf3
-                 if (nrf3_loc(n)==ivar) then
-                    factk=dl1*corz(l,kvar,n)+dl2*corz(lp,kvar,n)
-                    exit
-                 end if
-              end do
-           else
-              do n=1,nrf2
-                 if (nrf2_loc(n)==ivar) then
-                    factk=dl1*corp(l,n)+dl2*corp(lp,n)
-                    if (nrf_var(ivar)=='vis' .or. nrf_var(ivar)=='VIS') then
-                       thisvis0f=min(vis0fmax, max(vis0fmin,vis0f(iloc,jloc,1)))
-                       factk=factk/(log(ten)*thisvis0f)        !in other words,trust the smaller bckg vis values more than the larger ones
+           if (ivar <= nrf) then
+              if (nrf_3d(ivar)) then
+                 do n=1,nrf3
+                    if (nrf3_loc(n)==ivar) then
+                       factk=dl1*corz(l,kvar,n)+dl2*corz(lp,kvar,n)
+                       if (lstdmodel0) then
+                          factk=max(bckg_stdfact_z(n)*bckg_stdz0f(iloc,jloc,1,n),factk)
+                          rstd=(bckg_valleyfact_z(n)-one)*(one-valleys0f(iloc,jloc,1))+one
+                          berrmax=bckg_stdmax_z(n)
+                       endif
+                       exit
                     end if
+                 end do
+              else
+                 do n=1,nrf2
+                    if (nrf2_loc(n)==ivar) then
+                       factk=dl1*corp(l,n)+dl2*corp(lp,n)
+                       if (nrf_var(ivar)=='lcbas' .or. nrf_var(ivar)=='LCBAS') then
+                          factk=factk/(log(ten)*8000.0_r_kind)
+                       end if
+                       if (lstdmodel0) then
+                          factk=max(bckg_stdfact_p(n)*bckg_stdp0f(iloc,jloc,1,n),factk)
+                          rstd=(bckg_valleyfact_p(n)-one)*(one-valleys0f(iloc,jloc,1))+one
+                          berrmax=bckg_stdmax_p(n)
+                       endif
+                       exit
+                    end if
+                 end do
+              end if
+           else
+              do n=1,mvars
+                 if (nmotl_loc(n)==ivar) then
+                    factk=dl1*corp(l,nrf2+n)+dl2*corp(lp,nrf2+n)
+                    if (lstdmodel0) then
+                       factk=max(bckg_stdfact_p(nrf2+n)*bckg_stdp0f(iloc,jloc,1,nrf2+n),factk)
+                       rstd=(bckg_valleyfact_p(nrf2+n)-one)*(one-valleys0f(iloc,jloc,1))+one
+                       berrmax=bckg_stdmax_p(nrf2+n)
+                    endif
                     exit
                  end if
               end do
            end if
 
            do igauss=1,ngauss
-              ! if (j==(jps+2) .and. (i==(ips+2) .or. i==(ips+8))) then
-              !    print*,'in anisofilter,mype,k,ivar,i,j,factk=',mype,k,ivar,i,j,factk
-              ! endif
               factor=anhswgt(igauss)*factk*an_amp(igauss,ivar)/sqrt(anhswgtsum)
-              filter_all(1)%amp(igauss,i,j,k)=factor*filter_all(1)%amp(igauss,i,j,k)
+              if (lstdmodel0 .and. rstd > one ) factor=min(factor*rstd,berrmax)
+              ampsub(igauss,i,j,k)=factor*ampsub(igauss,i,j,k)
               bckgvar0f(i,j,k)=factor
            end do
         end do
      end do
   end do
 
+!   move ampsub to filter_all(1)%amp
+
+  if(rtma_bkerr_sub2slab) then
+     call put_ampsub(filter_all,ampsub,ngauss,ipsf,ipef,jpsf,jpef,kps,kpe)
+  else
+     filter_all(1)%amp=ampsub
+  end if
+  deallocate(ampsub)
+
+! for below, need to interpolate from filter grid back to analysis grid for output maps
 
 ! write out a few bckg fields and the error variances. For layer constant
 ! statistics, these are good for post-processing purposes on the real
 ! model grid. Interface between filter grid and model domain needed
 ! for non-constant statistics!
 
-  allocate(bckgvar4a(nlat,nlon))
-  allocate(bckgvar4(nlat,nlon))
+  allocate(bckgvar4t(nlatf,nlonf))
+  allocate(bckgvar4f(nlatf,nlonf))
+  allocate(bckgvar4(nlata,nlona))
+  allocate(bckgvar8f(nlatf,nlonf))
+  allocate(bckgvar8a(nlata,nlona))
 
 
   do k=kps,kpe
-     bckgvar4a=zero
-     do j=jps,jpe
-        do i=ips,ipe
-           bckgvar4a(i,j)=bckgvar0f(i,j,k)
+     bckgvar4t=0.0_r_kind
+     do j=jpsf,jpef
+        do i=ipsf,ipef
+           bckgvar4t(i,j)=real(bckgvar0f(i,j,k),kind=r_single)
         end do
      end do
-     call mpi_reduce(bckgvar4a,bckgvar4,nlat*nlon,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+     call mpi_reduce(bckgvar4t,bckgvar4f,nlatf*nlonf,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+!
+!     CONVERT bckgvar4 FROM FILTER GRID TO ANALYSIS GRID BEFORE WRITING OUT
+!
+     bckgvar8f=bckgvar4f
+     call fgrid2agrid(pf2aP1,bckgvar8f,bckgvar8a)
+     bckgvar4=bckgvar8a
      if(mype==0) then
         ivar=jdvar(k)
         chvarname=fvarname(ivar)
@@ -4273,30 +5426,70 @@ subroutine get2berr_reg_subdomain_option(mype)
         close(94)
      end if
   enddo
+  deallocate(bckgvar4t,bckgvar4f,bckgvar4,bckgvar8f,bckgvar8a,bckgvar0f)
 
-  allocate(zsmooth4a(nlat,nlon))
-  allocate(zsmooth4(nlat,nlon))
+!!!!!!!!!!!!! OK, z0f is on analysis grid
+  allocate(zsmooth4a(nlata,nlona))
+  allocate(zsmooth4(nlata,nlona))
   zsmooth4a=zero
-  do j=2,lon2-1
-     jglob=j+jstart(mm1)-2
-     do i=2,lat2-1
-        iglob=i+istart(mm1)-2
+  do j=2,s2g_raf%lon2-1
+     jglob=j+s2g_raf%jstart(mm1)-2
+     do i=2,s2g_raf%lat2-1
+        iglob=i+s2g_raf%istart(mm1)-2
         zsmooth4a(iglob,jglob)=z0f(i,j,1)
      end do
   end do
-  call mpi_reduce(zsmooth4a,zsmooth4,nlat*nlon,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+  call mpi_reduce(zsmooth4a,zsmooth4,nlata*nlona,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
 
-  allocate(psg4a(nlat,nlon))
-  allocate(psg4(nlat,nlon))
+!!!!!!!!!!!!! OK, psg is on analysis grid
+  allocate(psg4a(nlata,nlona))
+  allocate(psg4(nlata,nlona))
   psg4a=zero
-  do j=2,lon2-1
-     jglob=j+jstart(mm1)-2
-     do i=2,lat2-1
-        iglob=i+istart(mm1)-2
+  do j=2,s2g_raf%lon2-1
+     jglob=j+s2g_raf%jstart(mm1)-2
+     do i=2,s2g_raf%lat2-1
+        iglob=i+s2g_raf%istart(mm1)-2
         psg4a(iglob,jglob)=psg(i,j,1)
      end do
   end do
-  call mpi_reduce(psg4a,psg4,nlat*nlon,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+  call mpi_reduce(psg4a,psg4,nlata*nlona,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+
+  if (R_option) then
+     allocate(hwllp_lcbas4a(nlat,nlon))
+     allocate(hwllp_lcbas4(nlat,nlon))
+     hwllp_lcbas4a=zero
+     hwllp_lcbas4=zero
+     do j=2,lon2-1
+        jglob=j+jstart(mm1)-2
+        do i=2,lat2-1
+           iglob=i+istart(mm1)-2
+           hwllp_lcbas4a(iglob,jglob)=hwllp_lcbas(i,j)
+        end do
+     end do
+     call mpi_reduce(hwllp_lcbas4a,hwllp_lcbas4,nlat*nlon,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+     if (mype==0) then
+        open (95,file='hwllp_lcbas.dat',form='unformatted')
+        write(95) hwllp_lcbas4
+        close(95)
+     end if
+
+     hwllp_lcbas4a=zero
+     hwllp_lcbas4=zero
+     do j=2,lon2-1
+        jglob=j+jstart(mm1)-2
+        do i=2,lat2-1
+           iglob=i+istart(mm1)-2
+           hwllp_lcbas4a(iglob,jglob)=wgt0f(i,j,1)
+        end do
+     end do
+     call mpi_reduce(hwllp_lcbas4a,hwllp_lcbas4,nlat*nlon,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+     if (mype==0) then
+        open (95,file='wgt0f.dat',form='unformatted')
+        write(95) hwllp_lcbas4
+        close(95)
+     end if
+     deallocate(hwllp_lcbas4,hwllp_lcbas4a)
+  end if
 
   allocate(region_dy4(nlat,nlon),region_dx4(nlat,nlon))
 
@@ -4316,14 +5509,137 @@ subroutine get2berr_reg_subdomain_option(mype)
      close(94)
   end if
 
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+!simple diagnostic output 
+ if (.not.turnoff_all_stdmodels .and. writeout_stdmodel_diagnostics) then
+    allocate(slab00(nlat,nlon),slab11(nlat,nlon))
 
-  deallocate(bckgvar0f)
-  deallocate(bckgvar4a)
-  deallocate(bckgvar4)
+    do n=1,nrf3
+       ivar=nrf3_loc(n)
+       chvarname=fvarname(ivar)
+       lstdmodel0=lstdmodel(chvarname) 
+       if (.not.lstdmodel0) cycle
+
+       slab00=zero_single
+       slab11=zero_single
+       do j=2,lon2-1
+          jglob=j+jstart(mm1)-2
+          do i=2,lat2-1
+             iglob=i+istart(mm1)-2
+             slab00(iglob,jglob)=bckg_stdz0f(i,j,1,n)
+          end do
+       end do
+       call mpi_reduce(slab00,slab11,nlat*nlon,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+       if (mype==0) print*,'3D-n:chvarname,slab11,min,max=',n,trim(chvarname),minval(slab11),maxval(slab11)
+       if (mype==0) then
+          open (54,file='FLD_STD.dat_'//trim(chvarname),form='unformatted')
+          write(54) slab11
+          close(54)
+       endif
+    enddo
+
+    do n=1,nrf2
+       ivar=nrf2_loc(n)
+       chvarname=fvarname(ivar)
+       lstdmodel0=lstdmodel(chvarname) 
+       if (.not.lstdmodel0) cycle
+
+       slab00=zero_single
+       slab11=zero_single
+       do j=2,lon2-1
+          jglob=j+jstart(mm1)-2
+          do i=2,lat2-1
+             iglob=i+istart(mm1)-2
+             slab00(iglob,jglob)=bckg_stdp0f(i,j,1,n)
+          end do
+       end do
+       call mpi_reduce(slab00,slab11,nlat*nlon,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+       if (mype==0) print*,'2D-n:chvarname,slab11,min,max=',n,trim(chvarname),minval(slab11),maxval(slab11)
+       if (mype==0) then
+          open (54,file='FLD_STD.dat_'//trim(chvarname),form='unformatted')
+          write(54) slab11
+          close(54)
+       endif
+    enddo
+
+    do n=1,mvars
+       ivar=nmotl_loc(n)
+       lstdmodel0=lstdmodel(chvarname) 
+       if (.not.lstdmodel0) cycle
+
+       nn=nrf2+n
+
+       slab00=zero_single
+       slab11=zero_single
+       do j=2,lon2-1
+          jglob=j+jstart(mm1)-2
+          do i=2,lat2-1
+             iglob=i+istart(mm1)-2
+             slab00(iglob,jglob)=bckg_stdp0f(i,j,1,nn)
+          end do
+       end do
+       call mpi_reduce(slab00,slab11,nlat*nlon,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+       if (mype==0) print*,'2D-n:chvarname,slab11,min,max=',n,trim(chvarname),minval(slab11),maxval(slab11)
+       if (mype==0) then
+          open (54,file='FLD_STD.dat_'//trim(chvarname),form='unformatted')
+          write(54) slab11
+          close(54)
+       endif
+    enddo
+
+    chvarname='terrain'
+    slab00=zero_single
+    slab11=zero_single
+    do j=2,lon2-1
+       jglob=j+jstart(mm1)-2
+       do i=2,lat2-1
+          iglob=i+istart(mm1)-2
+          slab00(iglob,jglob)=z0f_std(i,j,1)
+       end do
+    end do
+    call mpi_reduce(slab00,slab11,nlat*nlon,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+    if (mype==0) print*,'2D-n:chvarname,slab11,min,max=',n,trim(chvarname),minval(slab11),maxval(slab11)
+    if (mype==0) then
+       open (54,file='FLD_STD.dat_'//trim(chvarname),form='unformatted')
+       write(54) slab11
+       close(54)
+    endif
+
+    chvarname='valleymap'
+    slab00=zero_single
+    slab11=zero_single
+    do j=2,lon2-1
+       jglob=j+jstart(mm1)-2
+       do i=2,lat2-1
+          iglob=i+istart(mm1)-2
+          slab00(iglob,jglob)=valleys0f(i,j,1)
+       end do
+    end do
+    call mpi_reduce(slab00,slab11,nlat*nlon,mpi_real4,mpi_sum,0,mpi_comm_world,ierror)
+    if (mype==0) print*,'2D-n:chvarname,slab11,min,max=',n,trim(chvarname),minval(slab11),maxval(slab11)
+    if (mype==0) then
+       open (54,file='FLD_STD.dat_'//trim(chvarname),form='unformatted')
+       write(54) slab11
+       close(54)
+    endif
+
+    deallocate(slab00,slab11)
+ endif
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
   deallocate(region_dy4,region_dx4)
-  deallocate(corz,corp,hwll,hwllp,vz,aspect)
+  deallocate(corz,corp,hwll,hwllp,vz,aspect,aspectf)
+  if (R_option) deallocate(hwllp_lcbas,wgt0f)
+  deallocate(rfact0h,rfact0v)
+  deallocate(water_scalefact)
+  deallocate(cvarstype)
   deallocate(dxf,dyf,rllatf,theta0f)
-  deallocate(u0f,v0f,z0f,z0f2)
+  deallocate(u0f,v0f,z0f,z0f2,z0f3)
+  deallocate(vis0f,cldch0f,valleys0f)
+  deallocate(z0f_std)
+  deallocate(bckg_stdz0f,bckg_stdp0f)
+  deallocate(bckg_stdmax_z,bckg_stdfact_z,bckg_valleyfact_z)
+  deallocate(bckg_stdmax_p,bckg_stdfact_p,bckg_valleyfact_p)
   deallocate(zsmooth4a,psg4a)
   deallocate(zsmooth4,psg4)
   deallocate(fltvals0)
@@ -4340,11 +5656,14 @@ subroutine get_background_subdomain_option(mype)
 !
 ! abstract: compute background fields and their spatial derivatives
 !           on filter grid for use in anisotropic covariance model.
-!           built from parrish's old anprewgt_reg
+!           built from parrish's old anprewgt_reg.  No interpolation
+!           done here.  Evarything is on analysis grid, so several
+!           changes added for this.
 !
 !
 ! program history log:
 !   2006-08-01  pondeca
+!   2015-05-02  parrish -
 !
 !   input argument list:
 !    mype     - mpi task id
@@ -4358,13 +5677,31 @@ subroutine get_background_subdomain_option(mype)
 !
 !$$$ end documentation block
   use raflib, only: init_raf4,raf_sm4,raf_sm4_ad
-  use gridmod, only: istart,jstart
+  use gridmod, only: istart,jstart,region_lat,region_lon
   use anberror, only: halo_update_reg
   use guess_grids, only: isli2
+  use general_commvars_mod, only: s2g_raf
+  use constants, only: fv, rad2deg
   implicit none
 
 ! Declare passed variables
   integer(i_kind),intent(in   ) :: mype
+
+! Declare local parameters
+!    Great Lakes
+  real(r_kind),parameter::flon1=-93._r_kind
+  real(r_kind),parameter::flon2=-75._r_kind
+  real(r_kind),parameter::flat1=40.5_r_kind
+  real(r_kind),parameter::flat2=49.5_r_kind
+
+!    Great Salt Lake
+  real(r_kind),parameter::slon1=-113._r_kind
+  real(r_kind),parameter::slon2=-112._r_kind
+  real(r_kind),parameter::slat1=40.6_r_kind
+  real(r_kind),parameter::slat2=41.7_r_kind
+
+!
+  real(r_single),parameter:: sone=1._r_single
 
 ! Declare local variables
   character(len=*),parameter::myname_=myname//'*get_background_subdomain_option'
@@ -4375,8 +5712,10 @@ subroutine get_background_subdomain_option(mype)
   integer(i_kind),allocatable::idvar0(:),kvar_start0(:),kvar_end0(:)
   character(80),allocatable::var_names0(:)
 
-  real(r_kind),allocatable,dimension(:,:,:)::field2,field3
-  real(r_single),allocatable,dimension(:,:,:)::field,fieldaux
+  real(r_kind),allocatable,dimension(:,:,:)::field2,field3,gfield2
+  real(r_single),allocatable,dimension(:,:,:)::field,fieldaux,gfield
+  real(r_single),allocatable,dimension(:,:):: valleys
+  real(r_single),allocatable,dimension(:,:,:):: slab0,slab1
 
   integer(i_long):: ngauss_smooth,npass_smooth,normal_smooth,ifilt_ord_smooth
   integer(i_long):: nsmooth_smooth,nsmooth_shapiro_smooth
@@ -4388,34 +5727,45 @@ subroutine get_background_subdomain_option(mype)
   real(r_kind),dimension(:,:,:),pointer:: ges_u_it=>NULL()
   real(r_kind),dimension(:,:,:),pointer:: ges_v_it=>NULL()
   real(r_kind),dimension(:,:,:),pointer:: ges_tv_it=>NULL()
+  real(r_kind),dimension(:,:  ),pointer:: ges_cldch_it=>NULL()
+
+  real(r_kind),dimension(:,:,:),pointer:: ges_q_it=>NULL()
+
+  real(r_kind),dimension(:,:  ),pointer:: ges_wrk2d=>NULL()
 
   integer(i_kind):: ids,ide,jds,jde,kds,kde,ips,ipe,jps,jpe,kps,kpe
-  integer(i_kind):: nlatf,nlonf,it
+  integer(i_kind):: it
+  integer(i_kind):: iglob,jglob
+  integer(i_kind):: nlata,nlona
+  integer(i_kind):: kk,ivar,kvar,nn
+  character(len=12):: chvarname
+  logical l_nostd
+  logical lstdmodel0
+  real(r_kind) :: fstdmax0
 
-  ids=indices%ids; ide=indices%ide
-  jds=indices%jds; jde=indices%jde
-  kds=indices%kds; kde=indices%kde
-  ips=indices%ips; ipe=indices%ipe
-  jps=indices%jps; jpe=indices%jpe
-  kps=indices%kps; kpe=indices%kpe
-  nlatf=pf2aP1%nlatf
-  nlonf=pf2aP1%nlonf
+  logical fexist,gexist
 
-!   get dxf,dyf,rllatf
+  real(r_kind) flon,flat
+  logical glerlarea
+
+  ids=1 ; ide=s2g_raf%nlat
+  jds=1 ; jde=s2g_raf%nlon
+  kds=1           ; kde=s2g_raf%num_fields
+  ips=s2g_raf%istart(s2g_raf%mype+1)
+  ipe=s2g_raf%istart(s2g_raf%mype+1)+s2g_raf%lat1-1
+  jps=s2g_raf%jstart(s2g_raf%mype+1)
+  jpe=s2g_raf%jstart(s2g_raf%mype+1)+s2g_raf%lon1-1
+  kps=1           ; kpe=s2g_raf%num_fields
+  nlata=pf2aP1%nlata
+  nlona=pf2aP1%nlona
+
+!   get dxf,!yf,rllatf
 !       note: if filter grid coarser than analysis grid, then normalized
 !       adjoint of filter to analysis interpolation used to transfer fields
 !       from analysis grid to filter grid. otherwise, normal interpolation
 !       is done. this is transparent at this level. it appears in the
 !       definition of the interpolation and adjoint of interpolation
 !       weights. check for accuracy.(done).
-
-  if(nlat/=nlatf.or.nlon/=nlonf) then
-     if(mype==0) &
-        write(6,*)' rtma_subdomain_option true, nlat ne nlatf and/or nlon ne nlonf, nlat,nlatf,nlon,nlonf=', &
-                          nlat,nlatf,nlon,nlonf
-     call mpi_finalize(i)
-     stop
-  end if
 
   mm1=mype+1
 
@@ -4480,16 +5830,24 @@ subroutine get_background_subdomain_option(mype)
   ier=ier+istatus
   call gsi_bundlegetpointer (gsi_metguess_bundle(it),'tv',ges_tv_it, istatus)
   ier=ier+istatus
+  call gsi_bundlegetpointer (gsi_metguess_bundle(it),'q', ges_q_it, istatus)
+  ier=ier+istatus
   if(ier/=0) call die(myname_,'missing fields, ier= ', ier)
 
   allocate(field(ips:ipe,jps:jpe,kps0:kpe0),field2(lat2,lon2,nsig))
   allocate(fieldaux(ips:ipe,jps:jpe,kps0:kpe0),field3(lat2,lon2,nsig))
+  allocate(gfield(ips:ipe,jps:jpe,kps0:kpe0),gfield2(lat2,lon2,nsig))
   allocate(theta0f(lat2,lon2,nsig))
   allocate(    u0f(lat2,lon2,nsig))
   allocate(    v0f(lat2,lon2,nsig))
   allocate(    z0f(lat2,lon2,nsig))
   allocate(    z0f2(lat2,lon2,nsig))
+  allocate(    z0f3(lat2,lon2,nsig))
   allocate(    vis0f(lat2,lon2,nsig))
+  allocate(    cldch0f(lat2,lon2,nsig))
+  field=zero_single ; field2=zero ; fieldaux=zero_single ; field3=zero ; theta0f=zero_single
+  u0f=zero_single ; v0f=zero_single ; z0f=zero_single ; z0f2=zero_single ; vis0f=zero_single ; cldch0f=zero_single
+  z0f3=zero_single ; gfield=zero_single ; gfield2=zero
   do n=1,4
  
      do k=kps0,kpe0
@@ -4506,6 +5864,18 @@ subroutine get_background_subdomain_option(mype)
                  else
                     field(i,j,k)=ges_z_it(iloc,jloc)
                  end if
+
+                 flat=region_lat(i,j)*rad2deg
+                 flon=region_lon(i,j)*rad2deg
+                 glerlarea=(flat>=flat1.and.flat<=flat2).and.(flon>=flon1.and.flon<=flon2)
+                 !glerlarea=glerlarea.or.((flat>=slat1.and.flat<=slat2).and.(flon>=slon1.and.flon<=slon2))
+
+                 if ( glerlarea .and. min(max(isli2(iloc,jloc),0),1)==0 ) then
+                     gfield(i,j,k)=ges_z_it(iloc,jloc)-hsteep_wind
+                   else
+                     gfield(i,j,k)=ges_z_it(iloc,jloc)
+                 endif
+
                  fieldaux(i,j,k)=ges_z_it(iloc,jloc)
               endif
            end do
@@ -4517,6 +5887,9 @@ subroutine get_background_subdomain_option(mype)
         if (n==4) then
            call raf_sm4(fieldaux,filter_all,ngauss_smooth,ips,ipe,jps,jpe,kps0,kpe0,npe)
            call raf_sm4_ad(fieldaux,filter_all,ngauss_smooth,ips,ipe,jps,jpe,kps0,kpe0,npe)
+
+           call raf_sm4(gfield,filter_all,ngauss_smooth,ips,ipe,jps,jpe,kps0,kpe0,npe)
+           call raf_sm4_ad(gfield,filter_all,ngauss_smooth,ips,ipe,jps,jpe,kps0,kpe0,npe)
         endif
      endif
      do k=kps0,kpe0
@@ -4525,12 +5898,18 @@ subroutine get_background_subdomain_option(mype)
            do i=ips,ipe
               iloc=i-istart(mm1)+2
               field2(iloc,jloc,k)=field(i,j,k)
-              if (n==4) field3(iloc,jloc,k)=fieldaux(i,j,k)
+              if (n==4) then 
+                 field3(iloc,jloc,k)=fieldaux(i,j,k)
+                 gfield2(iloc,jloc,k)=gfield(i,j,k)
+              end if
            end do
         end do
      end do
      call halo_update_reg(field2,nsig)
-     if (n==4) call halo_update_reg(field3,nsig)
+     if (n==4) then
+         call halo_update_reg(field3,nsig)
+         call halo_update_reg(gfield2,nsig)
+     end if
      do k=1,nsig
         do j=1,lon2
            do i=1,lat2
@@ -4540,6 +5919,7 @@ subroutine get_background_subdomain_option(mype)
               if (n==4) then
                   z0f(i,j,k)=field2(i,j,k)
                   z0f2(i,j,k)=field3(i,j,k)
+                  z0f3(i,j,k)=gfield2(i,j,k)
               endif
            end do
         end do
@@ -4547,6 +5927,7 @@ subroutine get_background_subdomain_option(mype)
   end do
 
   allocate(psg(lat2,lon2,nsig))
+  psg=0
   do k=1,nsig
      do j=1,lon2
         do i=1,lat2
@@ -4564,13 +5945,485 @@ subroutine get_background_subdomain_option(mype)
         end do
      end do
   endif
+  call gsi_bundlegetpointer (gsi_metguess_bundle(it),'cldch', ges_cldch_it, istatus)
+  if (istatus==0) then
+     do k=1,nsig
+        do j=1,lon2
+           do i=1,lat2
+              cldch0f(i,j,k)=ges_cldch_it(i,j)
+           end do
+        end do
+     end do
+  endif
 
- deallocate(field,fieldaux)
- deallocate(field2,field3)
+  allocate( z0f_std(lat2,lon2,nsig) )
+  allocate( bckg_stdz0f(lat2,lon2,nsig,nrf3) )
+  allocate( bckg_stdp0f(lat2,lon2,nsig,nvars-nrf3) )
+
+  allocate (bckg_stdmax_z(nrf3))
+  allocate (bckg_stdfact_z(nrf3))
+  allocate (bckg_valleyfact_z(nrf3))
+  allocate (bckg_stdmax_p(nvars-nrf3))
+  allocate (bckg_stdfact_p(nvars-nrf3))
+  allocate (bckg_valleyfact_p(nvars-nrf3))
+
+  allocate(slab0(ids:ide , jds:jde , 1:nsig))
+  allocate(slab1(ids:ide , jds:jde , 1:nsig))
+
+  z0f_std=sone
+  bckg_stdz0f=sone
+  bckg_stdp0f=sone
+  bckg_stdfact_z=zero
+  bckg_valleyfact_z=one
+  bckg_stdmax_z=huge(bckg_stdmax_z)
+  bckg_stdfact_p=zero
+  bckg_valleyfact_p=one
+  bckg_stdmax_p=huge(bckg_stdmax_p)
+
+  do kk=kps,kpe!    Looping through analysis variables
+
+     ivar=jdvar(kk)
+     kvar=levs_jdvar(kk)
+     chvarname=fvarname(ivar)
+     lstdmodel0=lstdmodel(chvarname)
+
+     l_nostd=trim(chvarname)=='psi'.or.trim(chvarname)=='chi'.or. & 
+             trim(chvarname)=='sfwter'.or.trim(chvarname)=='vpwter'
+
+     slab0=zero_single
+     slab1=zero_single
+
+     if (trim(cvarstype(ivar))=='static3d') then
+        do n=1,nrf3
+           if (nrf3_loc(n)==ivar) then
+             if (lstdmodel0) then
+
+               if (l_nostd) then 
+                   bckg_stdz0f(:,:,:,n) = 1._r_single
+                 else
+                   do k=1,nsig
+                      do j=2,lon2-1
+                         jglob=j+jstart(mm1)-2
+                         if(jglob<1.or.jglob>nlona) cycle
+                         do i=2,lat2-1
+                            iglob=i+istart(mm1)-2
+                            if(iglob<1.or.iglob>nlata) cycle
+                            if (trim(chvarname)=='t')        slab0 (iglob,jglob,k) = ges_tv_it (i,j,k)/(one+fv*ges_q_it(i,j,k))
+                            if (trim(chvarname)=='pseudorh') slab0 (iglob,jglob,k) = ges_q_it  (i,j,k)
+                         end do 
+                      end do
+                   end do
+
+                   call mpi_allreduce(slab0,slab1,(ide-ids+1)*(jde-jds+1)*nsig,mpi_real4,mpi_sum,mpi_comm_world,ierror)
+                   call get_fldstd(slab1,ids,ide,jds,jde,1,nsig,std_radius,npass_for_std,mype)
+
+                   do k=1,nsig
+                      do j=1,lon2
+                         jglob=j+jstart(mm1)-2
+                         if(jglob<1.or.jglob>nlona) cycle
+                         do i=1,lat2
+                            iglob=i+istart(mm1)-2
+                            if(iglob<1.or.iglob>nlata) cycle
+                            bckg_stdz0f (i,j,k,n) = slab1 (iglob,jglob,k)
+                         end do
+                      end do
+                   end do
+               end if
+
+               bckg_stdfact_z(n)=stdfact(chvarname)
+               bckg_valleyfact_z(n)=valleyfact(chvarname)
+               fstdmax0=fstdmax(chvarname)
+               bckg_stdmax_z(n)=maxval(corz(:,kvar,n))*an_amp(1,ivar)*fstdmax0
+               if (mype==0) print*,'chvarname=',trim(chvarname)
+               if (mype==0) print*,'kk,n,bckg_stdfact_z(n),bckg_stdmax_z(n)=',kk,n,bckg_stdfact_z(n),bckg_stdmax_z(n)
+               if (mype==0) print*,'kk,n,bckg_valleyfact_z(n)=',kk,n,bckg_valleyfact_z(n)
+               if (mype==0) print*,'kk,n,ivar,an_amp(1,ivar)=',kk,n,ivar,an_amp(1,ivar)
+               if (mype==0) print*,'kk,slab1,min,max=',kk,minval(slab1),maxval(slab1)
+               if (mype==0) print*,'================================='
+               if (mype==0) print*,'================================='
+             end if
+             exit
+           end if
+        end do
+
+      else if (trim(cvarstype(ivar))=='static2d') then
+        do n=1,nrf2
+           if (nrf2_loc(n)==ivar) then
+              if (lstdmodel0) then
+                call gsi_bundlegetpointer (gsi_metguess_bundle(it),trim(chvarname), ges_wrk2d, istatus)
+
+                do k=1,nsig
+                   do j=2,lon2-1
+                      jglob=j+jstart(mm1)-2
+                      if(jglob<1.or.jglob>nlona) cycle
+                      do i=2,lat2-1
+                         iglob=i+istart(mm1)-2
+                         if(iglob<1.or.iglob>nlata) cycle
+                         slab0 (iglob,jglob,k) = ges_wrk2d(i,j)
+                      end do 
+                   end do
+                end do
+                if (trim(chvarname)=='ps')    slab0 = slab0*1000._r_single
+
+                call mpi_allreduce(slab0,slab1,(ide-ids+1)*(jde-jds+1)*nsig,mpi_real4,mpi_sum,mpi_comm_world,ierror)
+                call get_fldstd(slab1,ids,ide,jds,jde,1,nsig,std_radius,npass_for_std,mype)
+  
+                do k=1,nsig
+                   do j=1,lon2
+                      jglob=j+jstart(mm1)-2
+                      if(jglob<1.or.jglob>nlona) cycle
+                      do i=1,lat2
+                         iglob=i+istart(mm1)-2
+                         if(iglob<1.or.iglob>nlata) cycle
+                         bckg_stdp0f (i,j,k,n) = slab1 (iglob,jglob,k)
+                      end do
+                   end do
+                end do
+
+                bckg_stdfact_p(n)=stdfact(chvarname)
+                bckg_valleyfact_p(n)=valleyfact(chvarname)
+                fstdmax0=fstdmax(chvarname)
+                bckg_stdmax_p(n)=maxval(corp(:,n))*an_amp(1,ivar)*fstdmax0
+                if (mype==0) print*,'chvarname=',trim(chvarname)
+                if (mype==0) print*,'kk,n,bckg_stdfact_p(n),bckg_stdmax_p(n)=',kk,n,bckg_stdfact_p(n),bckg_stdmax_p(n)
+                if (mype==0) print*,'kk,n,bckg_valleyfact_p(n)=',kk,n,bckg_valleyfact_p(n)
+                if (mype==0) print*,'kk,n,ivar,an_amp(1,ivar)=',kk,n,ivar,an_amp(1,ivar)
+                if (mype==0) print*,'kk,slab1,min,max=',kk,minval(slab1),maxval(slab1)
+                if (mype==0) print*,'================================='
+                if (mype==0) print*,'================================='
+              end if
+              exit
+           end if
+        end do
+     end if
+  end do 
+
+  do kk=kps,kpe!    address motley variables
+     ivar=jdvar(kk)
+     kvar=levs_jdvar(kk)
+     chvarname=fvarname(ivar)
+     lstdmodel0=lstdmodel(chvarname)
+
+     if (trim(cvarstype(ivar))=='motley') then
+        do n=1,mvars
+           if (nmotl_loc(n)==ivar) then
+              nn=nrf2+n
+              do k=1,nsig
+                 do j=1,lon2
+                    do i=1,lat2
+                       if (trim(chvarname)=='twter')       bckg_stdp0f(i,j,k,nn) = bckg_stdz0f(i,j,k,nrf3_t)
+                       if (trim(chvarname)=='qwter')       bckg_stdp0f(i,j,k,nn) = bckg_stdz0f(i,j,k,nrf3_q)
+                       if (trim(chvarname)=='pswter')      bckg_stdp0f(i,j,k,nn) = bckg_stdp0f(i,j,k,nrf2_ps)
+                       if (trim(chvarname)=='gustwter')    bckg_stdp0f(i,j,k,nn) = bckg_stdp0f(i,j,k,nrf2_gust)
+                       if (trim(chvarname)=='wspd10mwter') bckg_stdp0f(i,j,k,nn) = bckg_stdp0f(i,j,k,nrf2_wspd10m)
+                       if (trim(chvarname)=='td2mwter')    bckg_stdp0f(i,j,k,nn) = bckg_stdp0f(i,j,k,nrf2_td2m)
+                       if (trim(chvarname)=='mxtmwter')    bckg_stdp0f(i,j,k,nn) = bckg_stdp0f(i,j,k,nrf2_mxtm)
+                       if (trim(chvarname)=='mitmwter')    bckg_stdp0f(i,j,k,nn) = bckg_stdp0f(i,j,k,nrf2_mitm)
+                       if (trim(chvarname)=='uwnd10mwter') bckg_stdp0f(i,j,k,nn) = bckg_stdp0f(i,j,k,nrf2_uwnd10m)
+                       if (trim(chvarname)=='vwnd10mwter') bckg_stdp0f(i,j,k,nn) = bckg_stdp0f(i,j,k,nrf2_vwnd10m)
+                    end do
+                 end do
+              end do
+              if (lstdmodel0) then
+                 bckg_stdfact_p(nn)=stdfact(chvarname)
+                 bckg_valleyfact_p(nn)=valleyfact(chvarname)
+                 fstdmax0=fstdmax(chvarname)
+                 bckg_stdmax_p(nn)=maxval(corp(:,nn))*an_amp(1,ivar)*fstdmax0
+                 if (mype==0) print*,'chvarname=',trim(chvarname)
+                 if (mype==0) print*,'kk,nn,bckg_stdfact_p(nn),bckg_stdmax_p(nn)=',kk,n,bckg_stdfact_p(nn),bckg_stdmax_p(nn)
+                 if (mype==0) print*,'kk,nn,bckg_valleyfact_p(nn)=',kk,n,bckg_valleyfact_p(nn)
+                 if (mype==0) print*,'kk,nn,ivar,an_amp(1,ivar)=',kk,nn,ivar,an_amp(1,ivar)
+                 if (mype==0) print*,'kk,slab1,min,max=',kk,minval(slab1),maxval(slab1)
+                 if (mype==0) print*,'================================='
+                 if (mype==0) print*,'================================='
+              end if
+              exit
+           end if
+        end do
+     end if
+  end do 
+
+  if (stdmodel_z_based) then
+  slab0=zero_single
+  do k=1,nsig
+     do j=2,lon2-1
+        jglob=j+jstart(mm1)-2
+        if(jglob<1.or.jglob>nlona) cycle
+        do i=2,lat2-1
+           iglob=i+istart(mm1)-2
+           if(iglob<1.or.iglob>nlata) cycle
+           slab0 (iglob,jglob,k) = max(ges_z_it  (i,j) ,zero)
+        end do
+     end do
+  end do
+
+  slab1=zero_single
+  call mpi_allreduce(slab0,slab1,(ide-ids+1)*(jde-jds+1)*nsig,mpi_real4,mpi_sum,mpi_comm_world,ierror)
+  call get_fldstd(slab1,ids,ide,jds,jde,1,nsig,std_radius,npass_for_std,mype)
+
+  do k=1,nsig
+     do j=1,lon2
+        jglob=j+jstart(mm1)-2
+        if(jglob<1.or.jglob>nlona) cycle
+        do i=1,lat2
+           iglob=i+istart(mm1)-2
+           if(iglob<1.or.iglob>nlata) cycle
+           z0f_std (i,j,k) = slab1 (iglob,jglob,k) 
+        end do
+     end do
+  end do
+  if (mype==0) print*,'for z0f_std:slab1,min,max=',minval(slab1),maxval(slab1)
+  end if!stdmodel_z_based condition
+
+  deallocate(slab0)
+  deallocate(slab1)
+
+  allocate( valleys0f(lat2,lon2,nsig) )
+  valleys0f=1._r_single
+
+  if (.not.turnoff_all_stdmodels) then
+     allocate(valleys(jds:jde , ids:ide))                             !Note the transpose
+
+     inquire(file='valley_map_unsmoothed.dat',exist=fexist)
+     if (fexist) then
+        if (mype==0) then
+            open (55,file='valley_map_unsmoothed.dat',form='unformatted')
+            read(55) valleys
+            close(55)
+        endif
+        call mpi_bcast (valleys, (jde-jds+1)*(ide-ids+1), mpi_real4, 0, mpi_comm_world, ierror)
+
+        do k=kps0,kpe0
+           do j=jps,jpe
+              do i=ips,ipe
+                 field(i,j,k)=valleys(j,i)
+              enddo
+           enddo
+        enddo
+
+        do n=1,n_valley_pass
+           call raf_sm4(field,filter_all,ngauss_smooth,ips,ipe,jps,jpe,kps0,kpe0,npe)
+           call raf_sm4_ad(field,filter_all,ngauss_smooth,ips,ipe,jps,jpe,kps0,kpe0,npe)
+        enddo
+
+        do k=kps0,kpe0
+           do j=jps,jpe
+              jloc=j-jstart(mm1)+2
+              do i=ips,ipe
+                 iloc=i-istart(mm1)+2
+                 field2(iloc,jloc,k)=field(i,j,k)
+              end do
+           end do
+        end do
+        call halo_update_reg(field2,nsig)
+
+        do k=1,nsig
+           do j=1,lon2
+              do i=1,lat2
+                 valleys0f(i,j,k)=field2(i,j,k)
+              end do
+           end do
+        end do
+
+      else
+        inquire(file='valley_map.dat',exist=gexist)
+        if (gexist) then
+           if (mype==0) then
+               open (55,file='valley_map.dat',form='unformatted')
+               read(55) valleys
+               close(55)
+           endif
+
+           call mpi_bcast (valleys, (jde-jds+1)*(ide-ids+1), mpi_real4, 0, mpi_comm_world, ierror)
+
+           do k=1,nsig
+              do j=1,lon2
+                 jglob=j+jstart(mm1)-2
+                 if(jglob<1.or.jglob>nlona) cycle
+                 do i=1,lat2
+                    iglob=i+istart(mm1)-2
+                    if(iglob<1.or.iglob>nlata) cycle
+                    valleys0f(i,j,k)=valleys(jglob,iglob)
+                 enddo
+              enddo
+           enddo
+         else
+           if (mype==0) print*,'in get_background_subdomain_option: could not find valley_map.dat ... aborting'
+           call mpi_finalize(ierror)
+           stop
+        endif
+     endif
+     deallocate(valleys)
+  endif
+
+
+ deallocate(field,fieldaux,gfield)
+ deallocate(field2,field3,gfield2)
  deallocate(aspect)
  deallocate(idvar0,kvar_start0,kvar_end0,var_names0)
 
+
 end subroutine get_background_subdomain_option
+!=======================================================================
+!=======================================================================
+subroutine get_hwllp_lcbas_subdomain_option(mype)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:   get_hwllp_lcbas_subdomain_option
+! prgmmr: pondeca          org: np22                date: 2006-08-01
+!
+! abstract: compute background fields and their spatial derivatives
+!           on filter grid for use in anisotropic covariance model.
+!           built from parrish's old anprewgt_reg
+!
+!
+! program history log:
+!   2012-05-07  yanqiu zhu    
+!   2015-05-02  parrish - modify so always done on analysis grid, not filter grid.
+!
+!   input argument list:
+!    mype     - mpi task id
+!
+!   output argument list:
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+  use raflib, only: init_raf4,raf_sm4,raf_sm4_ad
+  use gridmod, only: istart,jstart
+  use anberror, only: halo_update_reg
+  use general_commvars_mod, only: s2g_raf
+  implicit none
+
+! Declare passed variables
+  integer(i_kind),intent(in   ) :: mype
+
+! Declare local variables
+  integer(i_kind) i,j,k,mm1
+  integer(i_kind) iloc,jloc
+  integer(i_kind) kds0,kde0,kps0,kpe0
+  integer(i_kind) nvars0
+  integer(i_kind),allocatable::idvar0(:),kvar_start0(:),kvar_end0(:)
+  character(80),allocatable::var_names0(:)
+
+  real(r_kind),allocatable,dimension(:,:,:)::field2
+  real(r_single),allocatable,dimension(:,:,:)::field
+
+  integer(i_long):: ngauss_smooth,npass_smooth,normal_smooth,ifilt_ord_smooth
+  integer(i_long):: nsmooth_smooth,nsmooth_shapiro_smooth
+  real(r_double) :: rgauss_smooth(1)
+
+  integer(i_kind):: ids,ide,jds,jde,kds,kde,ips,ipe,jps,jpe,kps,kpe
+
+  ids=1 ; ide=s2g_raf%nlat
+  jds=1 ; jde=s2g_raf%nlon
+  kds=1           ; kde=s2g_raf%num_fields
+  ips=s2g_raf%istart(s2g_raf%mype+1)
+  ipe=s2g_raf%istart(s2g_raf%mype+1)+s2g_raf%lat1-1
+  jps=s2g_raf%jstart(s2g_raf%mype+1)
+  jpe=s2g_raf%jstart(s2g_raf%mype+1)+s2g_raf%lon1-1
+  kps=1           ; kpe=s2g_raf%num_fields
+
+  mm1=mype+1
+
+! define local vertical index for smoothing single variables
+  kds0=1
+  kde0=nsig
+  kps0=kds0
+  kpe0=kde0
+  nvars0=1
+  allocate(idvar0(kds0:kde0),kvar_start0(nvars0),kvar_end0(nvars0))
+  allocate(var_names0(nvars0))
+  idvar0=1
+  kvar_start0=1
+  kvar_end0=nsig
+  var_names0(1)='background'
+! ------------------------------------------------------------
+! ------------ in this section, set up isotropic filter for
+! ------------ generating smoothed guess
+! ------------------------------------------------------------
+
+  allocate(aspect(7,ips:ipe,jps:jpe,kps0:kpe0))
+
+  do k=kps0,kpe0
+     do j=jps,jpe
+        do i=ips,ipe
+
+           aspect(1,i,j,k)=hsmooth_len_lcbas**2
+           aspect(2,i,j,k)=hsmooth_len_lcbas**2
+           aspect(3,i,j,k)=one**2
+           aspect(4:7,i,j,k)=zero
+ 
+        end do
+     end do
+  end do
+
+  ngauss_smooth=1
+  rgauss_smooth=one
+  npass_smooth=1
+  normal_smooth=0
+  ifilt_ord_smooth=4
+  nsmooth_smooth=0
+  nsmooth_shapiro_smooth=0
+  call init_raf4(aspect,triad4,ngauss_smooth,rgauss_smooth, &
+                 npass_smooth,normal_smooth,binom, &
+                 ifilt_ord_smooth,filter_all, &
+                 nsmooth_smooth,nsmooth_shapiro_smooth, &
+                 nvars0,idvar0,kvar_start0,kvar_end0,var_names0, &
+                 ids, ide, jds, jde, kds0, kde0, &         ! domain indices
+                 ips, ipe, jps, jpe, kps0, kpe0, &         ! patch indices
+                 mype, npe)
+
+  allocate(field(ips:ipe,jps:jpe,kps0:kpe0),field2(lat2,lon2,nsig))
+  allocate(wgt0f(lat2,lon2,nsig))
+ 
+  do k=kps0,kpe0
+     do j=jps,jpe
+        jloc=j-jstart(mm1)+2
+        do i=ips,ipe
+           iloc=i-istart(mm1)+2
+           field(i,j,k)=wgt_lcbas(iloc,jloc)
+        end do
+     end do
+  end do
+  call raf_sm4(field,filter_all,ngauss_smooth,ips,ipe,jps,jpe,kps0,kpe0,npe)
+  call raf_sm4_ad(field,filter_all,ngauss_smooth,ips,ipe,jps,jpe,kps0,kpe0,npe)
+  do k=kps0,kpe0
+     do j=jps,jpe
+        jloc=j-jstart(mm1)+2
+        do i=ips,ipe
+           iloc=i-istart(mm1)+2
+           field2(iloc,jloc,k)=field(i,j,k)
+        end do
+     end do
+  end do
+  call halo_update_reg(field2,nsig)
+  do k=1,nsig
+     do j=1,lon2
+        do i=1,lat2
+           wgt0f(i,j,k)=field2(i,j,k)
+           wgt0f(i,j,k)=max(0.0001_r_single,wgt0f(i,j,k))
+        end do
+     end do
+  end do
+
+  do j=1,lon2
+     do i=1,lat2
+        hwllp_lcbas(i,j)=R_f*min(region_dy(nlat/2,nlon/2),region_dx(nlat/2,nlon/2))/sqrt(wgt0f(i,j,1))
+     end do
+  end do
+  print*, "get_hwllp_lcbas_subdomain_option: dx=", min(region_dy(nlat/2,nlon/2),region_dx(nlat/2,nlon/2))
+  print*, "get_hwllp_lcbas_subdomain_option: wgt0f=", minval(wgt0f(:,:,1)),maxval(wgt0f(:,:,1))
+  print*, "get_hwllp_lcbas_subdomain_option: hwllp_lcbas=", minval(hwllp_lcbas),maxval(hwllp_lcbas)
+
+ deallocate(field)
+ deallocate(field2)
+ deallocate(aspect)
+ deallocate(idvar0,kvar_start0,kvar_end0,var_names0)
+end subroutine get_hwllp_lcbas_subdomain_option
 !=======================================================================
 !=======================================================================
 subroutine isotropic_scales_subdomain_option(scale1,scale2,scale3,k,mype)
@@ -4587,6 +6440,7 @@ subroutine isotropic_scales_subdomain_option(scale1,scale2,scale3,k,mype)
 !   2010-03-10  zhu - add flexibility for more control variables
 !   2010-12-05  pondeca - add computation of length scales
 !                         for oz, cw, sst, stl, sti
+!   2015-05-02  parrish - modify so no filter grid dimensions, only analysis grid.
 !
 !   input argument list:
 !    mype     - mpi task id
@@ -4603,8 +6457,9 @@ subroutine isotropic_scales_subdomain_option(scale1,scale2,scale3,k,mype)
 !   machine:  ibm RS/6000 SP
 !
 !$$$ end documentation block
-  use gridmod,only:istart,jstart
+  use gridmod,only:istart,jstart,region_lat,region_lon
   use guess_grids, only: isli2
+  use constants, only: rad2deg
   implicit none
 
 ! Declare passed variables
@@ -4614,17 +6469,34 @@ subroutine isotropic_scales_subdomain_option(scale1,scale2,scale3,k,mype)
   real(r_kind)   ,intent(  out) :: scale2(lat2,lon2)
   real(r_kind)   ,intent(  out) :: scale3(lat2,lon2)
 
+! Declare local parameters
+!    Great Lakes
+  real(r_kind),parameter::flon1=-93._r_kind
+  real(r_kind),parameter::flon2=-75._r_kind
+  real(r_kind),parameter::flat1=40.5_r_kind
+  real(r_kind),parameter::flat2=49.5_r_kind
+
+!    Great Salt Lake
+  real(r_kind),parameter::slon1=-113._r_kind
+  real(r_kind),parameter::slon2=-112._r_kind
+  real(r_kind),parameter::slat1=40.6_r_kind
+  real(r_kind),parameter::slat2=41.7_r_kind
+
 ! Declare local variables
   integer(i_kind) n,i,j,k1,ivar,l,lp,iglob,jglob,mm1,nn
 
   real(r_kind) dl1,dl2,hwll_loc,cc
-  real(r_kind),dimension(pf2aP1%nlatf,pf2aP1%nlonf):: &
+  real(r_kind),dimension(pf2aP1%nlata,pf2aP1%nlona):: &
                scaleaux1,scaleauxa, &
                scaleaux2,scaleauxb
 
-  integer(i_kind):: nlatf,nlonf,it
-  nlatf=pf2aP1%nlatf
-  nlonf=pf2aP1%nlonf
+  real(r_kind) flon,flat
+  character(12) chvarname
+  logical glerlarea
+
+  integer(i_kind):: nlata,nlona,it
+  nlata=pf2aP1%nlata
+  nlona=pf2aP1%nlona
 
   mm1=mype+1
 
@@ -4633,22 +6505,22 @@ subroutine isotropic_scales_subdomain_option(scale1,scale2,scale3,k,mype)
 
   do j=1,lon2
      jglob=j+jstart(mm1)-2
-     if(jglob<1.or.jglob>nlonf) cycle
+     if(jglob<1.or.jglob>nlona) cycle
      do i=1,lat2
         iglob=i+istart(mm1)-2
-        if(iglob<1.or.iglob>nlatf) cycle
+        if(iglob<1.or.iglob>nlata) cycle
 
-        if (nrf_3d(ivar)) then
+        if (trim(cvarstype(ivar))=='static3d') then
            do n=1,nrf3
               if (nrf3_loc(n)==ivar) then
                  if (n==nrf3_oz) then
                     hwll_loc=r800000
-                    l=int(rllatf(nlatf/2,nlonf/2))
+                    l=int(rllat(nlata/2,nlona/2))
                     scale3(i,j)=one/vz(k1,l,n)
                   else
-                    l=int(rllatf(iglob,jglob))
+                    l=int(rllat(iglob,jglob))
                     lp=l+1
-                    dl2=rllatf(iglob,jglob)-float(l)
+                    dl2=rllat(iglob,jglob)-float(l)
                     dl1=one-dl2
                     hwll_loc=dl1*hwll(l,k1,n)+dl2*hwll(lp,k1,n)
                     scale3(i,j)=one/vz(k1,l,n)
@@ -4656,18 +6528,32 @@ subroutine isotropic_scales_subdomain_option(scale1,scale2,scale3,k,mype)
                  exit
               end if
            end do
-        else
+         else if (trim(cvarstype(ivar))=='static2d') then
            do n=1,nrf2
-              if (nrf2_loc(n)==ivar .or. ivar>nrf) then
-                 nn=n
-                 if (ivar>nrf) nn=ivar-nrf3
-
+              if (nrf2_loc(n)==ivar) then
                  cc=one
-                 if (nn==nrf2_sst) cc=half
-                 if (ivar>nrf) cc=quarter
-                 l=int(rllatf(iglob,jglob))
+                 if (n==nrf2_sst) cc=half
+
+                 l=int(rllat(iglob,jglob))
                  lp=l+1
-                 dl2=rllatf(iglob,jglob)-float(l)
+                 dl2=rllat(iglob,jglob)-float(l)
+                 dl1=one-dl2
+                 hwll_loc=cc*(dl1*hwllp(l,n)+dl2*hwllp(lp,n))
+                 scale3(i,j)=one
+                 exit
+              end if
+           end do
+         else if (trim(cvarstype(ivar))=='motley') then
+           do n=1,mvars
+              if (nmotl_loc(n)==ivar) then
+                 nn=nrf2+n
+                 cc=one 
+                 if (trim(cvarsmd(n))=='stl') cc=quarter
+                 if (trim(cvarsmd(n))=='sti') cc=quarter
+
+                 l=int(rllat(iglob,jglob))
+                 lp=l+1
+                 dl2=rllat(iglob,jglob)-float(l)
                  dl1=one-dl2
                  hwll_loc=cc*(dl1*hwllp(l,nn)+dl2*hwllp(lp,nn))
                  scale3(i,j)=one
@@ -4676,9 +6562,8 @@ subroutine isotropic_scales_subdomain_option(scale1,scale2,scale3,k,mype)
            end do
         end if
 
-
-        scale1(i,j)=hwll_loc/dyf(iglob,jglob)
-        scale2(i,j)=hwll_loc/dxf(iglob,jglob)
+        scale1(i,j)=hwll_loc/region_dy(iglob,jglob)
+        scale2(i,j)=hwll_loc/region_dx(iglob,jglob)
 
         if (.not.latdepend) then
            scale1(i,j)=max(scale1(i,j),scale2(i,j))
@@ -4704,40 +6589,789 @@ subroutine isotropic_scales_subdomain_option(scale1,scale2,scale3,k,mype)
            endif
         enddo
      enddo
+  endif
 
+  if (glerl_on) then
+     chvarname=fvarname(ivar)
+     if (trim(chvarname)=='psi' .or. trim(chvarname)=='chi'.or. & 
+         trim(chvarname)=='uwnd10m' .or. trim(chvarname)=='vwnd10m' .or. & !!Must fix later so that this is only
+         trim(chvarname)=='wspd10m') then                                 !applicable when "wter" variables are turned off
+         do j=1,lon2
+            jglob=j+jstart(mm1)-2
+            if(jglob<1.or.jglob>nlona) cycle
+            do i=1,lat2
+               iglob=i+istart(mm1)-2
+               if(iglob<1.or.iglob>nlata) cycle
+
+               flat=region_lat(iglob,jglob)*rad2deg
+               flon=region_lon(iglob,jglob)*rad2deg
+               glerlarea=(flat>=flat1.and.flat<=flat2).and.(flon>=flon1.and.flon<=flon2)
+               !glerlarea=glerlarea.or.((flat>=slat1.and.flat<=slat2).and.(flon>=slon1.and.flon<=slon2))
+
+               if ( glerlarea .and. min(max(isli2(i,j),0),1)==0 ) then
+                  scale1(i,j)=glerl_scalefact*scale1(i,j)
+                  scale2(i,j)=glerl_scalefact*scale2(i,j)
+               end if
+            end do
+         end do
+     end if
+  end if
+
+  if ( (lwater_scaleinfl .and. water_scalefact(jdvar(k))/=zero) .or. glerl_on ) then
      if (nhscale_pass>0) then
         scaleauxa=zero
         scaleauxb=zero
         do j=2,lon2-1
            jglob=j+jstart(mm1)-2
-           if(jglob<1.or.jglob>nlonf) cycle
+           if(jglob<1.or.jglob>nlona) cycle
            do i=2,lat2-1
               iglob=i+istart(mm1)-2
-              if(iglob<1.or.iglob>nlatf) cycle
+              if(iglob<1.or.iglob>nlata) cycle
               scaleauxa(iglob,jglob)=scale1(i,j)
               scaleauxb(iglob,jglob)=scale2(i,j)
            enddo
         enddo
-        call mpi_allreduce(scaleauxa,scaleaux1,nlatf*nlonf,mpi_rtype,mpi_sum,mpi_comm_world,ierror)
-        call mpi_allreduce(scaleauxb,scaleaux2,nlatf*nlonf,mpi_rtype,mpi_sum,mpi_comm_world,ierror)
+        call mpi_allreduce(scaleauxa,scaleaux1,nlata*nlona,mpi_rtype,mpi_sum,mpi_comm_world,ierror)
+        call mpi_allreduce(scaleauxb,scaleaux2,nlata*nlona,mpi_rtype,mpi_sum,mpi_comm_world,ierror)
 
-        call smther_one_8(scaleaux1,1,nlatf,1,nlonf,nhscale_pass)
-        call smther_one_8(scaleaux2,1,nlatf,1,nlonf,nhscale_pass)
+        call smther_one_8(scaleaux1,1,nlata,1,nlona,nhscale_pass)
+        call smther_one_8(scaleaux2,1,nlata,1,nlona,nhscale_pass)
 
         do j=1,lon2
            jglob=j+jstart(mm1)-2
-           if(jglob<1.or.jglob>nlonf) cycle
+           if(jglob<1.or.jglob>nlona) cycle
            do i=1,lat2
               iglob=i+istart(mm1)-2
-              if(iglob<1.or.iglob>nlatf) cycle
+              if(iglob<1.or.iglob>nlata) cycle
               scale1(i,j)=scaleaux1(iglob,jglob)
               scale2(i,j)=scaleaux2(iglob,jglob)
            enddo
         enddo
      endif
   endif
-
   return
 end subroutine isotropic_scales_subdomain_option
 
 end module anisofilter
+
+subroutine sub2slab_init_raf4(aspectf,triad4,ngauss,rgauss,npass,normal,binom,ifilt_ord,filter_all, &
+              nsmooth,nsmooth_shapiro, &
+              nvars,idvar,kvar_start,kvar_end,var_names, &
+              kds, kde, &         ! input domain indices
+              ipsf, ipef, jpsf, jpef, kps, kpe, &         ! input patch indices
+              mype, npe,nlatf,nlonf)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    sub2slab_init_raf4
+! prgmmr: parrish          org: np22                date: 2015-04-03
+!
+! abstract: convert from subdomain to slab mode only for
+!             output type(filter_cons) variable filter_all.
+!
+! program history log:
+!   2015-04-03  parrish
+!
+!   input argument list:
+!     aspectf - aspect tensor in subdomain storage mode
+!     triad4,ngauss, etc.  - parameters for init_raf4
+!     nsmooth,...,var_names -- other input parameters
+!     idsf,...,kpe -- subdomain indices
+!     mype,npe -- current processor, total number of processors
+!
+!   output argument list:
+!     filter_all --output type(filter_cons) for slab mode
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+
+  use kinds, only: r_single,r_kind,i_kind,i_long,r_double
+  use anberror, only: s2g_rff
+  use raflib, only: filter_cons
+  use raflib, only: init_raf4
+  use general_sub2grid_mod, only: sub2grid_info,general_sub2grid,general_sub2grid_create_info
+  use general_sub2grid_mod, only: general_sub2grid_destroy_info
+  use mpi
+  implicit none
+
+  integer(i_kind),intent(in):: kds,kde
+  integer(i_kind),intent(in):: ipsf,ipef,jpsf,jpef,kps,kpe,mype,npe,nlatf,nlonf
+  real(r_single),intent(in):: aspectf(7,ipsf:ipef,jpsf:jpef,kps:kpe)
+  logical,intent(in):: triad4,binom
+  integer(i_long),intent(in):: ngauss,npass,normal,ifilt_ord
+  integer(i_long),intent(inout):: nsmooth,nsmooth_shapiro
+  integer(i_long),intent(in):: nvars
+  integer(i_kind),intent(in):: idvar(kds:kde),kvar_start(nvars),kvar_end(nvars)
+  real(r_double),intent(in):: rgauss(20)
+  type(filter_cons),intent(inout):: filter_all(7)
+  character(80),intent(in):: var_names(nvars)
+  
+  integer(i_kind) i,ii,j,jj,k
+  integer(i_kind) lat2,lon2,kbegin_loc,kend_loc,kend_alloc
+  real(r_single),allocatable::work(:,:,:,:)
+  real(r_single),allocatable:: aspect_slab(:,:,:,:)
+  
+  type(sub2grid_info) g7
+  integer(i_kind) nsig,num_fields
+
+  nsig=s2g_rff%nsig
+  lat2=s2g_rff%lat2
+  lon2=s2g_rff%lon2
+  num_fields=s2g_rff%num_fields
+  call general_sub2grid_create_info(g7,7,nlatf,nlonf,nsig,num_fields,.true.,s_ref=s2g_rff)
+  kbegin_loc=g7%kbegin_loc
+  kend_loc  =g7%kend_loc
+  kend_alloc=g7%kend_alloc
+  write(6,'(" g7:kbegin,end,end_alloc=",3i4,"  s2g_rff:begin-end-alloc=",3i4)') &
+         kbegin_loc,kend_loc,kend_alloc, &
+         s2g_rff%kbegin_loc,s2g_rff%kend_loc,s2g_rff%kend_alloc
+
+!  convert aspect to aspect_slab
+
+  allocate(work(7,lat2,lon2,kps:kpe))
+  allocate(aspect_slab(7,nlatf,nlonf,kbegin_loc:kend_alloc))
+  work=0
+  aspect_slab=0
+  do k=kps,kpe
+     jj=1
+     do j=jpsf,jpef
+        jj=jj+1
+        ii=1
+        do i=ipsf,ipef
+           ii=ii+1
+           work(:,ii,jj,k)=aspectf(:,i,j,k)
+        end do
+     end do
+  end do
+  call general_sub2grid(g7,work,aspect_slab)
+  deallocate(work)
+  call general_sub2grid_destroy_info(g7,s_ref=s2g_rff)
+
+  call init_raf4(aspect_slab,triad4,ngauss,rgauss,npass,normal,binom,ifilt_ord,filter_all, &
+                 nsmooth,nsmooth_shapiro, &
+                 nvars,idvar,kvar_start,kvar_end,var_names, &
+                 1,nlatf,1,nlonf,kds,kde,                                   &   ! domain indices
+                 1,nlatf,1,nlonf,kbegin_loc,kend_loc, &   ! patch indices
+                 mype, npe)
+     deallocate(aspect_slab)
+       
+end subroutine sub2slab_init_raf4
+
+subroutine get_ampsub(filter_all,ampsub,ngauss,ips,ipe,jps,jpe,kps,kpe)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    get_ampsub
+! prgmmr: parrish          org: np22                date: 2015-04-03
+!
+! abstract: copy filter_all%amp (slabs) to ampsub (subdomains)
+!
+! program history log:
+!   2015-04-03  parrish
+!
+!   input argument list:
+!     filter_all --input type(filter_cons) in slab mode
+!     ngauss,ips,ipe,jps,jpe,kps,kpe -- dimensions for output ampsub
+!
+!   output argument list:
+!     ampsub - 
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+
+  use kinds, only: r_single,r_kind,i_kind,i_long,r_double
+  use anberror, only: s2g_rff
+  use raflib, only: filter_cons
+  use general_sub2grid_mod, only: sub2grid_info,general_grid2sub,general_sub2grid_create_info
+  use general_sub2grid_mod, only: general_sub2grid_destroy_info
+  implicit none
+
+  type(filter_cons),intent(in):: filter_all(7)
+  integer(i_kind),intent(in):: ngauss,ips,ipe,jps,jpe,kps,kpe
+  real(r_single),intent(inout):: ampsub(ngauss,ips:ipe,jps:jpe,kps:kpe)
+  
+  integer(i_kind) i,ii,j,jj,k
+  integer(i_kind) nlat,nlon,nsig,lat2,lon2,kbegin_loc,kend_loc,kend_alloc,num_fields
+  real(r_single),allocatable::work(:,:,:,:)
+  type(sub2grid_info) gn
+
+    nlat=s2g_rff%nlat
+    nlon=s2g_rff%nlon
+    nsig=s2g_rff%nsig
+    lat2=s2g_rff%lat2
+    lon2=s2g_rff%lon2
+    num_fields=s2g_rff%num_fields
+    call general_sub2grid_create_info(gn,ngauss,nlat,nlon,nsig,num_fields,.true.,s_ref=s2g_rff)
+    kbegin_loc=gn%kbegin_loc
+    kend_loc  =gn%kend_loc
+    kend_alloc=gn%kend_alloc
+  
+!                        filter_all(1)%amp(ngauss,nlat,nlon,kbegin_loc:kend_alloc)
+
+    allocate(work(ngauss,lat2,lon2,kps:kpe))
+    call general_grid2sub(gn,filter_all(1)%amp,work)
+    call general_sub2grid_destroy_info(gn,s_ref=s2g_rff)
+                  
+    do k=kps,kpe
+       jj=1
+       do j=jps,jpe
+          jj=jj+1
+          ii=1
+          do i=ips,ipe
+             ii=ii+1
+             ampsub(:,i,j,k)=work(:,ii,jj,k)
+          end do
+       end do
+    end do
+    deallocate(work)
+
+end subroutine get_ampsub
+
+subroutine put_ampsub(filter_all,ampsub,ngauss,ips,ipe,jps,jpe,kps,kpe)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    put_ampsub
+! prgmmr: parrish          org: np22                date: 2015-04-03
+!
+! abstract: copy ampsub (subdomains) to filter_all%amp (slabs)
+!
+! program history log:
+!   2015-04-03  parrish
+!
+!   input argument list:
+!     filter_all --input type(filter_cons) in slab mode
+!     ngauss,ips,ipe,jps,jpe,kps,kpe -- dimensions for output ampsub
+!     ampsub
+!
+!   output argument list:
+!     filter_all
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+
+  use kinds, only: r_single,r_kind,i_kind,i_long,r_double
+  use anberror, only: s2g_rff
+  use raflib, only: filter_cons
+  use general_sub2grid_mod, only: sub2grid_info,general_sub2grid,general_sub2grid_create_info
+  use general_sub2grid_mod, only: general_sub2grid_destroy_info
+  implicit none
+
+  type(filter_cons),intent(inout):: filter_all(7)
+  integer(i_kind),intent(in):: ngauss,ips,ipe,jps,jpe,kps,kpe
+  real(r_single),intent(in):: ampsub(ngauss,ips:ipe,jps:jpe,kps:kpe)
+  
+  integer(i_kind) i,ii,j,jj,k
+  integer(i_kind) nlat,nlon,nsig,lat2,lon2,kbegin_loc,kend_loc,kend_alloc,num_fields
+  real(r_single),allocatable::work(:,:,:,:)
+  type(sub2grid_info) gn
+
+    nlat=s2g_rff%nlat
+    nlon=s2g_rff%nlon
+    nsig=s2g_rff%nsig
+    lat2=s2g_rff%lat2
+    lon2=s2g_rff%lon2
+    num_fields=s2g_rff%num_fields
+    call general_sub2grid_create_info(gn,ngauss,nlat,nlon,nsig,num_fields,.true.,s_ref=s2g_rff)
+    kbegin_loc=gn%kbegin_loc
+    kend_loc  =gn%kend_loc
+    kend_alloc=gn%kend_alloc
+  
+!                        filter_all(1)%amp(ngauss,nlat,nlon,kbegin_loc:kend_alloc)
+
+    allocate(work(ngauss,lat2,lon2,kps:kpe))
+                  
+    do k=kps,kpe
+       jj=1
+       do j=jps,jpe
+          jj=jj+1
+          ii=1
+          do i=ips,ipe
+             ii=ii+1
+             work(:,ii,jj,k)=ampsub(:,i,j,k)
+          end do
+       end do
+    end do
+    call general_sub2grid(gn,work,filter_all(1)%amp)
+    call general_sub2grid_destroy_info(gn,s_ref=s2g_rff)
+    deallocate(work)
+
+end subroutine put_ampsub
+
+subroutine change_a2f(sa,sf,pf2ap1,aspect,aspectf,inner_vars, &
+                        ips,ipe,jps,jpe,ipsf,ipef,jpsf,jpef,num_fields)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    change_a2f
+! prgmmr: parrish          org: np22                date: 2015-04-17
+!
+! abstract: convert input aspect tensor array on analysis grid to
+!            output aspect tensor array on filter grid.  input and
+!            output in subdomain storage mode.
+!
+! program history log:
+!   2015-04-17  parrish
+!
+!   input argument list:
+!     sa -- sub2grid info for analysis grid
+!     sf -- sub2grid info for filter grid
+!     pf2ap1 -- interpolation info for analysis grid to filter grid
+!     aspect -- input aspect tensor on analysis grid (subdomains)
+!     inner_vars - 1st dimension of aspect, aspectf
+!
+!   output argument list:
+!     aspectf - output aspect tensor on filter grid (subdomains)
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+
+  use constants, only: zero,one
+  use kinds, only: r_single,r_kind,i_kind,i_long,r_double
+  use general_sub2grid_mod, only: sub2grid_info,general_sub2grid_create_info
+  use general_sub2grid_mod, only: general_sub2grid_destroy_info
+  use general_sub2grid_mod, only: general_gather2grid,general_scatter2sub
+  use fgrid2agrid_mod, only: fgrid2agrid_parm,agrid2fgrid
+  implicit none
+
+  type(sub2grid_info),intent(inout)::sa,sf
+  type(fgrid2agrid_parm),intent(in)::pf2ap1
+  integer(i_kind),intent(in):: ips,ipe,jps,jpe
+  integer(i_kind),intent(in):: ipsf,ipef,jpsf,jpef,num_fields
+  real(r_single),intent(in)   :: aspect (inner_vars,ips:ipe,jps:jpe,num_fields)
+  real(r_single),intent(inout):: aspectf(inner_vars,ipsf:ipef,jpsf:jpef,num_fields)
+  integer(i_kind),intent(in):: inner_vars
+  
+  integer(i_kind) i,iloc,j,jloc,k,inner_4,nsig_1,num_fields_1,mype,npe
+  integer(i_kind) nlat,nlon,nlatf,nlonf
+  real(r_kind),allocatable::wsa(:,:,:),wsf(:,:,:)
+  real(r_kind),allocatable::wa(:,:,:),wf(:,:,:)
+  real(r_kind),allocatable::wa2(:,:,:)
+  real(r_kind),allocatable::da(:,:,:),dfx(:,:,:),df(:,:,:)
+  type(sub2grid_info) ga,gf
+  integer(i_kind) gridpe,hsmooth_lena
+  real(r_kind) grid_ratio_lon,grid_ratio_lat
+! integer(i_kind) ips,ipe,jps,jpe
+! integer(i_kind) ipsf,ipef,jpsf,jpef
+
+    mype=sf%mype
+    npe=sf%npe
+    hsmooth_lena=0.5
+    nlat=sa%nlat
+    nlon=sa%nlon
+    nlatf=sf%nlat
+    nlonf=sf%nlon
+    grid_ratio_lon=pf2aP1%grid_ratio_lon
+    grid_ratio_lat=pf2aP1%grid_ratio_lat
+    inner_4=4
+    nsig_1=1
+    num_fields_1=1
+    call general_sub2grid_create_info(ga,inner_4,nlat,nlon,nsig_1,num_fields_1,.true.)
+    call general_sub2grid_create_info(gf,inner_4,nlatf,nlonf,nsig_1,num_fields_1,.true.)
+    allocate(wsa(inner_4,ga%lat2,ga%lon2))
+    allocate(wsf(inner_4,gf%lat2,gf%lon2))
+    allocate(wa(inner_4,nlat,nlon))
+    allocate(wa2(inner_4,nlat,nlon))
+    allocate(wf(inner_4,nlatf,nlonf))
+    allocate(da(7,nlat,nlon))
+    allocate(dfx(7,nlat,nlonf))
+    allocate(df(7,nlatf,nlonf))
+
+    aspectf=0               ! a4=a5=a7=0 for 2d
+    gridpe=0
+    do k=1,num_fields
+
+       jloc=1
+       do j=jps,jpe
+          jloc=jloc+1
+          iloc=1
+          do i=ips,ipe
+             iloc=iloc+1
+             wsa(1,iloc,jloc)=aspect(1,i,j,k)     !  a11
+             wsa(2,iloc,jloc)=aspect(6,i,j,k)     !  a12
+             wsa(3,iloc,jloc)=aspect(2,i,j,k)     !  a22
+             wsa(4,iloc,jloc)=aspect(3,i,j,k)     !  a33
+          end do
+       end do
+       
+       call general_gather2grid(ga,wsa,wa,gridpe)
+       if(ga%mype==gridpe) then
+           wf=zero
+          call eigen_decomp(wa,da,nlat,nlon)
+          call eigen_interpx(da,dfx,nlat,nlon,nlonf)
+          call eigen_interpy(dfx,df,nlat,nlatf,nlonf)
+          call reconstruct_a(df,wf,nlatf,nlonf)
+       end if
+       call general_scatter2sub(gf,wf,wsf,gridpe)
+       jloc=1
+       do j=jpsf,jpef
+          jloc=jloc+1
+          iloc=1
+          do i=ipsf,ipef
+             iloc=iloc+1
+             aspectf(1,i,j,k)=wsf(1,iloc,jloc)     !  a11
+             aspectf(6,i,j,k)=wsf(2,iloc,jloc)     !  a12
+             aspectf(2,i,j,k)=wsf(3,iloc,jloc)     !  a22
+             aspectf(3,i,j,k)=wsf(4,iloc,jloc)     !  a33
+          end do
+       end do
+    end do
+
+    deallocate(wsa,wsf,wa,wf,da,df)
+
+!   rescale aspectf to allow for change in grid increments.
+
+    aspectf(1,:,:,:)=aspectf(1,:,:,:)/(grid_ratio_lat**2)
+    aspectf(2,:,:,:)=aspectf(2,:,:,:)/(grid_ratio_lon**2)
+    aspectf(6,:,:,:)=aspectf(6,:,:,:)/(grid_ratio_lat*grid_ratio_lon)
+
+    call general_sub2grid_destroy_info(ga,sa)
+    call general_sub2grid_destroy_info(gf,sf)
+      
+end subroutine change_a2f
+
+subroutine eigen_decomp(wa,da,nlat,nlon)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    eigen_decomp
+! prgmmr: parrish          org: np22                date: 2015-04-17
+!
+! abstract: decompose 2x2 subset of aspect tensor (because 2-d analysis)
+!            into 2 eigenvalues and eigenvectors.  Done on full
+!            horizontal domain.
+!
+! program history log:
+!   2015-04-17  parrish
+!
+!   input argument list:
+!     wa   - 2-d aspect tensor
+!     nlat - horizontal grid
+!     nlon - dimensions
+!
+!   output argument list:
+!     da   - eigenvalues and eigenvectors
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+
+   use kinds, only: r_kind,i_kind
+   use constants, only: zero
+   implicit none
+
+   integer(i_kind),intent(in):: nlat,nlon
+   real(r_kind),intent(in)::   wa(4,nlat,nlon)
+   real(r_kind),intent(inout)::da(7,nlat,nlon)
+
+   real(r_kind) a(3),r(2,2)
+   integer(i_kind) i,j
+   do j=1,nlon
+      do i=1,nlat
+         a(1)=wa(1,i,j)
+         a(2)=wa(2,i,j)
+         a(3)=wa(3,i,j)
+         call eigen(a,r,2,0)
+         da(1,i,j)=a(1)   ! 1st eigval
+         da(2,i,j)=a(3)   ! 2nd eigval
+         da(3,i,j)=r(1,1) ! 1st
+         da(4,i,j)=r(2,1) !  eigvec
+         da(5,i,j)=r(1,2) ! 2nd
+         da(6,i,j)=r(2,2) !  eigvec
+         da(7,i,j)=wa(4,i,j)  ! a33
+      end do
+   end do
+
+end subroutine eigen_decomp
+
+subroutine reconstruct_a(da,wa,nlat,nlon)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    reconstruct_a
+! prgmmr: parrish          org: np22                date: 2015-04-17
+!
+! abstract: recreate 2x2 subset of aspect tensor from eigenvalues/eigenvectors.
+!            Done on full horizontal domain.
+!
+! program history log:
+!   2015-04-17  parrish
+!
+!   input argument list:
+!     da   - eigenvalues and eigenvectors
+!     nlat - horizontal grid
+!     nlon - dimensions
+!
+!   output argument list:
+!     wa   - 2-d aspect tensor
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+
+   use kinds, only: r_kind,i_kind
+   implicit none
+
+   integer(i_kind),intent(in):: nlat,nlon
+   real(r_kind),intent(in)::da(7,nlat,nlon)
+   real(r_kind),intent(inout)::   wa(4,nlat,nlon)
+
+   real(r_kind) r(2,2),evals(2)
+   integer(i_kind) i,j
+
+   do j=1,nlon
+      do i=1,nlat
+         evals(1)=da(1,i,j)   ! 1st eigval
+         evals(2)=da(2,i,j)   ! 2nd eigval
+         r(1,1)=da(3,i,j) ! 1st`
+         r(2,1)=da(4,i,j) !  eigvec
+         r(1,2)=da(5,i,j) ! 2nd
+         r(2,2)=da(6,i,j) !  eigvec
+         wa(1,i,j)=r(1,1)*evals(1)*r(1,1)+r(1,2)*evals(2)*r(1,2)   ! a11
+         wa(2,i,j)=r(1,1)*evals(1)*r(2,1)+r(1,2)*evals(2)*r(2,2)   ! a12
+         wa(3,i,j)=r(2,1)*evals(1)*r(2,1)+r(2,2)*evals(2)*r(2,2)   ! a22
+         wa(4,i,j)=da(7,i,j)
+
+      end do
+   end do
+end subroutine reconstruct_a
+
+subroutine eigen_interpx(da,dfx,nlat,nlon,nlonf)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    eigen_interpx
+! prgmmr: parrish          org: np22                date: 2015-04-17
+!
+! abstract: interpolate eigenvalues and eigenvectors linearly in x dirction
+!            from analysis grid to filter grid.  Eigenvector with largest
+!            eigenvalue is rotated, then the 2nd eigenvector is reconstructed
+!            orthogonal to first.
+
+!
+! program history log:
+!   2015-04-17  parrish
+!
+!   input argument list:
+!     da   - eigen values/vectors on analysis grid
+!     nlat - analysis grid
+!     nlon - dimensions
+!     nlonf - filter grid 2nd dimension
+!
+!   output argument list:
+!     dfx  - eigenvalues/vectors interpolated in x (2nd index) direction
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+
+   use kinds, only: r_kind,i_kind
+   use constants, only: zero,one
+   implicit none
+
+   integer(i_kind),intent(in):: nlat,nlon,nlonf
+   real(r_kind),intent(in)::da(7,nlat,nlon)
+   real(r_kind),intent(inout)::dfx(7,nlat,nlonf)
+
+   integer(i_kind) i,ii,jf,j1,j2
+   real(r_kind) dxf,xf
+   real(r_kind) prod,theta12,theta0,d,omd,ctheta0,stheta0
+   real(r_kind) thetaa,thetab,pihalf
+   real(r_kind) rx1(2,2),rx2(2,2),rx0(2,2)
+
+!   +      +      +      +      +      +      +     nlon  dx=1  1<x<nlon
+!   +     +     +     +     +     +     +     +     nlonf dxf=(nlon-1)/(nlonf-1)
+
+!     x(j) = j  = 1+(j-1)*dx   dx=1    j=1:nlon
+!     xf(jf)= 1+(jf-1)*dxf     xf(1)=1,   xf(nlonf)=1+(nlonf-1)*(nlon-1)/(nlonf-1)=nlon=x(nlon)
+
+   pihalf=asin(one)
+   dxf=(nlon-one)/(nlonf-one)
+
+!  no interpolation required for end-points:
+
+   do i=1,nlat
+      do ii=1,7
+         dfx(ii,i,1)=da(ii,i,1)
+         dfx(ii,i,nlonf)=da(ii,i,nlon)
+      end do
+   end do
+
+!  interpolate interior points:
+
+   do jf=2,nlonf-1
+      xf=one+(jf-one)*dxf
+      j1=xf
+      j2=j1+1
+      d=xf-j1
+      omd=one-d
+      do i=1,nlat
+         rx1(1,1)=da(3,i,j1)
+         rx1(2,1)=da(4,i,j1)
+         rx1(1,2)=da(5,i,j1)
+         rx1(2,2)=da(6,i,j1)
+         rx2(1,1)=da(3,i,j2)
+         rx2(2,1)=da(4,i,j2)
+         rx2(1,2)=da(5,i,j2)
+         rx2(2,2)=da(6,i,j2)
+         prod=rx1(1,1)*rx2(1,1)+rx1(2,1)*rx2(2,1)
+         if(prod<zero) then
+            rx2(1,1)=-rx2(1,1)
+            rx2(2,1)=-rx2(2,1)
+         end if
+         prod=rx1(1,2)*rx2(1,2)+rx1(2,2)*rx2(2,2)
+         if(prod<zero) then
+            rx2(1,2)=-rx2(1,2)
+            rx2(2,2)=-rx2(2,2)
+         end if
+         theta12=acos(max(-one,min(rx1(1,1)*rx2(1,1)+rx1(2,1)*rx2(2,1),one)))
+         theta0=d*theta12
+         ctheta0=cos(theta0)
+         stheta0=sin(theta0)
+         rx0(1,1)= rx1(1,1)*ctheta0+rx1(2,1)*stheta0
+         rx0(2,1)=-rx1(1,1)*stheta0+rx1(2,1)*ctheta0
+         thetaa=atan2(rx0(2,1),rx0(1,1)) ; thetab=thetaa+pihalf
+         rx0(1,2)=cos(thetab)
+         rx0(2,2)=sin(thetab)
+
+         dfx(3,i,jf)=rx0(1,1)
+         dfx(4,i,jf)=rx0(2,1)
+         dfx(5,i,jf)=rx0(1,2)
+         dfx(6,i,jf)=rx0(2,2)
+         dfx(1,i,jf)=omd*da(1,i,j1)+d*da(1,i,j2)
+         dfx(2,i,jf)=omd*da(2,i,j1)+d*da(2,i,j2)
+         dfx(7,i,jf)=omd*da(7,i,j1)+d*da(7,i,j2)
+
+      end do
+   end do
+
+end subroutine eigen_interpx
+
+subroutine eigen_interpy(dfx,df,nlat,nlatf,nlonf)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    eigen_interpx
+! prgmmr: parrish          org: np22                date: 2015-04-17
+!
+! abstract: interpolate eigenvalues and eigenvectors linearly in y dirction
+!            from mixed grid to filter grid.  Eigenvector with largest
+!            eigenvalue is rotated, then the 2nd eigenvector is reconstructed
+!            orthogonal to first.
+
+!
+! program history log:
+!   2015-04-17  parrish
+!
+!   input argument list:
+!     dfx   - eigen values/vectors on mixed grid
+!     nlat  - analysis grid 2nd dimension
+!     nlatf - filter grid
+!     nlonf -  dimensions
+!
+!   output argument list:
+!     df   - eigenvalues/vectors interpolated to filter grid
+!
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+
+   use kinds, only: r_kind,i_kind
+   use constants, only: zero,one
+   implicit none
+
+   integer(i_kind),intent(in):: nlat,nlatf,nlonf
+   real(r_kind),intent(in)::dfx(7,nlat,nlonf)
+   real(r_kind),intent(inout)::df(7,nlatf,nlonf)
+
+   integer(i_kind) ii,if,i1,i2,j
+   real(r_kind) dyf,yf
+   real(r_kind) prod,theta12,theta0,d,omd,ctheta0,stheta0
+   real(r_kind) thetaa,thetab,pihalf
+   real(r_kind) ry1(2,2),ry2(2,2),ry0(2,2)
+
+!   +      +      +      +      +      +      +     nlat  dy=1  1<y<nlat
+!   +     +     +     +     +     +     +     +     nlatf dyf=(nlat-1)/(nlatf-1)
+
+!     y(i) = i  = 1+(if-1)*dyf    if=1:nlatf
+!     yf(if)= 1+(if-1)*dyf     yf(1)=1,   yf(nlatf)=1+(nlatf-1)*(nlat-1)/(nlatf-1)=nlat
+
+   pihalf=asin(one)
+   dyf=(nlat-one)/(nlatf-one)
+   do j=1,nlonf
+
+!  no interpolation required for end-points:
+
+      do ii=1,7
+         df(ii,1,j)=dfx(ii,1,j)
+         df(ii,nlatf,j)=dfx(ii,nlat,j)
+      end do
+
+!  interpolate interior points:
+
+      do if=2,nlatf-1
+         yf=one+(if-one)*dyf
+         i1=yf
+         i2=i1+1
+         d=yf-i1
+         omd=one-d
+
+         ry1(1,1)=dfx(3,i1,j)
+         ry1(2,1)=dfx(4,i1,j)
+         ry1(1,2)=dfx(5,i1,j)
+         ry1(2,2)=dfx(6,i1,j)
+         ry2(1,1)=dfx(3,i2,j)
+         ry2(2,1)=dfx(4,i2,j)
+         ry2(1,2)=dfx(5,i2,j)
+         ry2(2,2)=dfx(6,i2,j)
+         prod=ry1(1,1)*ry2(1,1)+ry1(2,1)*ry2(2,1)
+         if(prod<zero) then
+            ry2(1,1)=-ry2(1,1)
+            ry2(2,1)=-ry2(2,1)
+         end if
+         prod=ry1(1,2)*ry2(1,2)+ry1(2,2)*ry2(2,2)
+         if(prod<zero) then
+            ry2(1,2)=-ry2(1,2)
+            ry2(2,2)=-ry2(2,2)
+         end if
+         theta12=acos(max(-one,min(ry1(1,1)*ry2(1,1)+ry1(2,1)*ry2(2,1),one)))
+         theta0=d*theta12
+         ctheta0=cos(theta0)
+         stheta0=sin(theta0)
+         ry0(1,1)= ry1(1,1)*ctheta0+ry1(2,1)*stheta0
+         ry0(2,1)=-ry1(1,1)*stheta0+ry1(2,1)*ctheta0
+         thetaa=atan2(ry0(2,1),ry0(1,1)) ; thetab=thetaa+pihalf
+         ry0(1,2)=cos(thetab)
+         ry0(2,2)=sin(thetab)
+
+         df(3,if,j)=ry0(1,1)
+         df(4,if,j)=ry0(2,1)
+         df(5,if,j)=ry0(1,2)
+         df(6,if,j)=ry0(2,2)
+         df(1,if,j)=omd*dfx(1,i1,j)+d*dfx(1,i2,j)
+         df(2,if,j)=omd*dfx(2,i1,j)+d*dfx(2,i2,j)
+         df(7,if,j)=omd*dfx(7,i1,j)+d*dfx(7,i2,j)
+      end do
+   end do
+
+end subroutine eigen_interpy

@@ -27,6 +27,12 @@ module control_vectors
 !   2010-05-28  todling  - remove all nrf2/3_VAR-specific "pointers"
 !   2011-07-04  todling  - fixes to run either single or double precision
 !   2013-05-20  zhu      - add aircraft temperature bias correction coefficients as control variables
+!   2016-02-15  Johnson, Y. Wang, X. Wang - add variables to control reading
+!                                           state variables for radar DA. POC: xuguang.wang@ou.edu
+!   2019-03-14  eliu     - add logic to turn on using full set of hydrometeors
+!                          in obs operator and analysis 
+!   2019-07-11  Todling  - move WRF specific variables w_exist and dbz_exit to a new wrf_vars_mod.f90.
+!                        . move imp_physics and lupp to ncepnems_io.f90.
 !
 ! subroutines included:
 !   sub init_anacv   
@@ -58,6 +64,7 @@ module control_vectors
 !
 ! variable definitions:
 !   def n_ens     - number of ensemble perturbations (=0 except when hybrid ensemble option turned on)
+!   def lcalc_gfdl_cfrac - if T, calculate and use GFDL cloud fraction in obs operator 
 !
 ! attributes:
 !   language: f90
@@ -71,7 +78,7 @@ use constants, only: zero, one, two, three, zero_quad, tiny_r_kind
 use gsi_4dvar, only: iadatebgn
 use file_utility, only : get_lun
 use mpl_allreducemod, only: mpl_allreduce
-use hybrid_ensemble_parameters, only: beta1_inv,l_hyb_ens
+use hybrid_ensemble_parameters, only: beta_s0,l_hyb_ens
 use hybrid_ensemble_parameters, only: grd_ens
 use constants, only : max_varname_length
 
@@ -117,10 +124,13 @@ public nvars       ! total number of static plus motley fields
 public nrf_3d      ! when .t., indicates 3d-fields
 public as3d        ! normalized scale factor for background error 3d-variables
 public as2d        ! normalized scale factor for background error 2d-variables
+public be3d        ! normalized scale factor for ensemble background error 3d-variables
+public be2d        ! normalized scale factor for ensemble background error 2d-variables
 public atsfc_sdv   ! standard deviation of surface temperature error over (1) land (and (2) ice
 public an_amp0     ! multiplying factors on reference background error variances
+public lcalc_gfdl_cfrac ! when .t., calculate and use GFDL cloud fraction in obs operator 
 
-public nrf2_loc,nrf3_loc   ! what are these for??
+public nrf2_loc,nrf3_loc,nmotl_loc   ! what are these for??
 public ntracer
 
 type control_vector
@@ -142,12 +152,12 @@ character(len=*),parameter:: myname='control_vectors'
 integer(i_kind) :: nclen,nclen1,nsclen,npclen,ntclen,nrclen,nsubwin,nval_len
 integer(i_kind) :: latlon11,latlon1n,lat2,lon2,nsig,n_ens
 integer(i_kind) :: nval_lenz_en
-logical :: lsqrtb
+logical,save :: lsqrtb,lcalc_gfdl_cfrac  
 
 integer(i_kind) :: m_vec_alloc, max_vec_alloc, m_allocs, m_deallocs
 
 logical,allocatable,dimension(:):: nrf_3d
-integer(i_kind),allocatable,dimension(:):: nrf2_loc,nrf3_loc
+integer(i_kind),allocatable,dimension(:):: nrf2_loc,nrf3_loc,nmotl_loc
 integer(i_kind) nrf,nvars
 integer(i_kind) ntracer
 
@@ -160,6 +170,9 @@ character(len=max_varname_length),allocatable,dimension(:) :: evars3d  ! 3-d fie
 character(len=max_varname_length),allocatable,dimension(:) :: cvarsmd  ! motley variable names
 real(r_kind)    ,allocatable,dimension(:) :: as3d
 real(r_kind)    ,allocatable,dimension(:) :: as2d
+real(r_kind)    ,allocatable,dimension(:) :: be3d
+real(r_kind)    ,allocatable,dimension(:) :: be2d
+real(r_kind)    ,allocatable,dimension(:) :: bemo ! not public; not needed
 real(r_kind)    ,allocatable,dimension(:) :: atsfc_sdv
 real(r_kind)    ,allocatable,dimension(:) :: an_amp0
 
@@ -287,8 +300,9 @@ character(len=256),allocatable,dimension(:):: utable
 character(len=20) var,source,funcof
 character(len=*),parameter::myname_=myname//'*init_anacv'
 integer(i_kind) luin,ii,ntot
+integer(i_kind) ioflag
 integer(i_kind) ilev, itracer
-real(r_kind) aas,amp
+real(r_kind) aas,amp,bes
 
 ! load file
 luin=get_lun()
@@ -311,7 +325,10 @@ close(luin)
 ! Count variables first
 nc3d=0; nc2d=0;mvars=0
 do ii=1,nvars
-   read(utable(ii),*) var, ilev, itracer, aas, amp, source, funcof
+   read(utable(ii),*,IOSTAT=ioflag) var, ilev, itracer, aas, amp, source, funcof, bes
+   if (ioflag/=0) then
+      read(utable(ii),*) var, ilev, itracer, aas, amp, source, funcof
+   endif
    if(trim(adjustl(source))=='motley') then
       mvars=mvars+1
    else
@@ -325,35 +342,44 @@ enddo
 
 allocate(nrf_var(nvars),cvars3d(nc3d),cvars2d(nc2d))
 allocate(as3d(nc3d),as2d(nc2d))
+allocate(be3d(nc3d),be2d(nc2d),bemo(mvars))
 allocate(cvarsmd(mvars))
 allocate(atsfc_sdv(mvars))
 allocate(an_amp0(nvars))
 
 ! want to rid code from the following ...
 nrf=nc2d+nc3d
-allocate(nrf_3d(nrf),nrf2_loc(nc2d),nrf3_loc(nc3d))
+allocate(nrf_3d(nrf),nrf2_loc(nc2d),nrf3_loc(nc3d),nmotl_loc(max(1,mvars)))
 
 ! Now load information from table
 nc3d=0;nc2d=0;mvars=0
 nrf_3d=.false.
 do ii=1,nvars
-   read(utable(ii),*) var, ilev, itracer, aas, amp, source, funcof
+   read(utable(ii),*,IOSTAT=ioflag) var, ilev, itracer, aas, amp, source, funcof, bes
+   if (ioflag/=0) then
+      read(utable(ii),*) var, ilev, itracer, aas, amp, source, funcof
+      bes=-one
+   endif
    if(trim(adjustl(source))=='motley') then
        mvars=mvars+1
        cvarsmd(mvars)=trim(adjustl(var))
+       nmotl_loc(mvars)=ii
        atsfc_sdv(mvars)=aas
+       bemo(mvars)=bes
    else
       if(ilev==1) then
          nc2d=nc2d+1
          cvars2d(nc2d)=trim(adjustl(var))
          nrf2_loc(nc2d)=ii  ! rid of soon
          as2d(nc2d)=aas
+         be2d(nc2d)=bes
       else
          nc3d=nc3d+1
          cvars3d(nc3d)=trim(adjustl(var))
          nrf3_loc(nc3d)=ii  ! rid of soon
          nrf_3d(ii)=.true.
          as3d(nc3d)=aas
+         be3d(nc3d)=bes
       endif
    endif
    nrf_var(ii)=trim(adjustl(var))
@@ -377,13 +403,15 @@ if (mype==0) then
     write(6,*) myname_,': MOTLEY CONTROL VARIABLES ', cvarsmd
     write(6,*) myname_,': ALL CONTROL VARIABLES    ', nrf_var
 end if
+lcalc_gfdl_cfrac = .false.
 
 end subroutine init_anacv
 subroutine final_anacv
   implicit none
   deallocate(nrf_var)
-  deallocate(nrf_3d,nrf2_loc,nrf3_loc)
+  deallocate(nrf_3d,nrf2_loc,nrf3_loc,nmotl_loc)
   deallocate(as3d,as2d)
+  deallocate(be3d,be2d,bemo)
   deallocate(an_amp0)
   deallocate(atsfc_sdv)
   deallocate(cvarsmd)
@@ -426,6 +454,7 @@ subroutine allocate_cv(ycv)
   type(control_vector), intent(  out) :: ycv
   integer(i_kind) :: ii,jj,nn,ndim,ierror,n_step,n_aens
   character(len=256)::bname
+  character(len=max_varname_length)::ltmp(1) 
   type(gsi_grid) :: grid_motley
 
   if (ycv%lallocated) then
@@ -439,7 +468,7 @@ subroutine allocate_cv(ycv)
 
 ! If so, define grid of regular control vector
   n_step=0
-! if (beta1_inv>tiny_r_kind) then
+! if (beta_s0>tiny_r_kind) then
       ALLOCATE(ycv%step(nsubwin))
       call GSI_GridCreate(ycv%grid_step,lat2,lon2,nsig)
          if (lsqrtb) then
@@ -470,7 +499,7 @@ subroutine allocate_cv(ycv)
   do jj=1,nsubwin
 
 !    Set static part of control vector (non-ensemble-based)
-!    if (beta1_inv>tiny_r_kind) then
+!    if (beta_s0>tiny_r_kind) then
          ycv%step(jj)%values => ycv%values(ii+1:ii+n_step)
 
          write(bname,'(a,i3.3)') 'Static Control Bundle subwin-',jj
@@ -493,15 +522,16 @@ subroutine allocate_cv(ycv)
                 call stop2(109)
             endif
          endif
-!    endif ! beta1_inv
+!    endif ! beta_s0
 
 !    Set ensemble-based part of control vector
      if (l_hyb_ens) then
 
+         ltmp(1)='a_en'
          do nn=1,n_ens
             ycv%aens(jj,nn)%values => ycv%values(ii+1:ii+n_aens)
             write(bname,'(a,i3.3,a,i4.4)') 'Ensemble Control Bundle subwin-',jj,' and member-',nn
-            call GSI_BundleSet(ycv%aens(jj,nn),ycv%grid_aens,bname,ierror,names3d=(/'a_en'/),bundle_kind=r_kind)
+            call GSI_BundleSet(ycv%aens(jj,nn),ycv%grid_aens,bname,ierror,names3d=ltmp,bundle_kind=r_kind)
             if (ierror/=0) then
                 write(6,*)'allocate_cv: error alloc(ensemble bundle)'
                 call stop2(109)
@@ -605,12 +635,12 @@ subroutine deallocate_cv(ycv)
               call GSI_BundleUnset(ycv%aens(ii,nn),ierror)
            enddo
         endif
-!       if (beta1_inv>tiny_r_kind) then
+!       if (beta_s0>tiny_r_kind) then
            if(mvars>0) then
               call GSI_BundleDestroy(ycv%motley(ii),ierror)
            endif
            call GSI_BundleUnset(ycv%step(ii),ierror)
-!       endif ! beta1_inv
+!       endif ! beta_s0
      end do
      NULLIFY(ycv%predr)
      NULLIFY(ycv%predp)
@@ -1035,7 +1065,7 @@ real(r_kind) function dot_prod_cv(xcv,ycv)
 return
 end function dot_prod_cv
 ! ----------------------------------------------------------------------
-real(r_quad) function qdot_prod_cv(xcv,ycv,kind)
+real(r_quad) function qdot_prod_cv(xcv,ycv,mold)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    qdot_prod_cv
@@ -1045,10 +1075,11 @@ real(r_quad) function qdot_prod_cv(xcv,ycv,kind)
 !
 ! program history log:
 !   2009-08-04  lueken - added subprogram doc block
+!   2017-03-06  todling - rename interface variable to mold
 !
 !   input argument list:
 !    xcv,ycv
-!    kind
+!    mold      - interface device
 !
 !   output argument list:
 !
@@ -1059,7 +1090,7 @@ real(r_quad) function qdot_prod_cv(xcv,ycv,kind)
 !$$$ end documentation block
 
   implicit none
-  integer(i_kind)     , intent(in   ) :: kind
+  integer(i_kind)     , intent(in   ) :: mold
   type(control_vector), intent(in   ) :: xcv, ycv
 
 ! local variables
@@ -1077,7 +1108,7 @@ real(r_quad) function qdot_prod_cv(xcv,ycv,kind)
 return
 end function qdot_prod_cv
 ! ----------------------------------------------------------------------
-real(r_quad) function qdot_prod_cv_eb(xcv,ycv,kind,eb)
+real(r_quad) function qdot_prod_cv_eb(xcv,ycv,mold,eb)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    qdot_prod_cv_eb  copy of qdot_prod_cv for J_ens
@@ -1090,10 +1121,11 @@ real(r_quad) function qdot_prod_cv_eb(xcv,ycv,kind,eb)
 !
 ! program history log:
 !   2009-09-20  parrish - initial documentation
+!   2017-03-06  todling - rename interface variable to mold
 !
 !   input argument list:
 !    xcv,ycv
-!    kind
+!    mold      - interface device
 !    eb        - eb= 'cost_b' then return J_b in prods
 !                  = 'cost_e' then return J_ens in prods
 !
@@ -1106,7 +1138,7 @@ real(r_quad) function qdot_prod_cv_eb(xcv,ycv,kind,eb)
 !$$$ end documentation block
 
   implicit none
-  integer(i_kind)     , intent(in   ) :: kind
+  integer(i_kind)     , intent(in   ) :: mold
   character(len=*)    , intent(in   ) :: eb
   type(control_vector), intent(in   ) :: xcv, ycv
 

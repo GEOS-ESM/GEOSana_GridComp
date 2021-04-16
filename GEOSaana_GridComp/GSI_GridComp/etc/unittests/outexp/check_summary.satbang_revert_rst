@@ -1,0 +1,2154 @@
+
+ =====================
+ check_satbang summary
+ =====================
+
+ satbang_rst: outdir/satbang_revert_rst
+ satinfo.rc:  input/gmao_revert_satinfo.rc
+ tlapmean.rc: input/gmao_global_tlapmean.rc
+
+     0 recs filled in missing tlapmean from tlapmean.rc
+    57 recs with tlapmean different than tlapmean.rc
+   116 recs with tlapmean equal zero
+  1921 recs with tlapmean in satbang but not in tlapmean.rc
+
+     0 recs removed because instrument/channel not in satinfo.rc
+     0 recs added from satinfo.rc
+
+   281 recs renamed airs_aqua to airs281_aqua
+   399 recs renamed cris_npp to cris399_npp
+   616 recs renamed iasi_metop-a to iasi616_metop-a
+   616 recs renamed iasi_metop-b to iasi616_metop-b
+
+     8 recs where seviri_m08 channels were renumbered
+       - old: (4, 5, 6, 7, 8, 9, 10, 11)
+       - new: (1, 2, 3, 4, 5, 6, 7, 8)
+
+     8 recs where seviri_m09 channels were renumbered
+       - old: (4, 5, 6, 7, 8, 9, 10, 11)
+       - new: (1, 2, 3, 4, 5, 6, 7, 8)
+
+     8 recs where seviri_m10 channels were renumbered
+       - old: (4, 5, 6, 7, 8, 9, 10, 11)
+       - new: (1, 2, 3, 4, 5, 6, 7, 8)
+
+  2855 satbang recs before update
+  2855 satbang recs after update
+
+ new satbang file has been written: outdir/satbang_revert_rst.new
+ sortflag = "default"
+
+
+The following details are listed below:
+=======================================
+* records where satbang tlapmean differs from tlapmean.rc
+* records where no value found in satbang or tlapmean.rc
+* records where value found in satbang but not in tlapmean.rc
+
+
+* records where satbang tlapmean differs from tlapmean.rc
+---------------------------------------------------------
+instrument/channel          satbang_rst   tlapmean.rc    difference
+------------------          -----------   -----------    ----------
+('amsub_n15', '1')         0.830264E-02  0.894466E-02 -6.420200e-04
+('amsub_n15', '2')         0.157440E-01  0.159868E-01 -2.428000e-04
+('amsub_n15', '3')         0.774487E-01  0.997075E-01 -2.225880e-02
+('amsub_n15', '4')         0.565564E-01  0.656833E-01 -9.126900e-03
+('amsub_n15', '5')         0.370437E-01  0.393636E-01 -2.319900e-03
+('amsub_n16', '1')         0.835891E-02  0.880105E-02 -4.421400e-04
+('amsub_n16', '2')         0.156577E-01  0.157714E-01 -1.137000e-04
+('amsub_n16', '3')         0.773993E-01  0.968246E-01 -1.942530e-02
+('amsub_n16', '4')         0.566415E-01  0.640567E-01 -7.415200e-03
+('amsub_n16', '5')         0.366106E-01  0.383521E-01 -1.741500e-03
+('ssmi_f13', '1')          0.331569E-02  0.356279E-02 -2.471000e-04
+('ssmi_f13', '2')          0.321173E-02  0.344743E-02 -2.357000e-04
+('ssmi_f13', '3')          0.914554E-02  0.991000E-02 -7.644600e-04
+('ssmi_f13', '4')          0.498360E-02  0.551777E-02 -5.341700e-04
+('ssmi_f13', '5')          0.498351E-02  0.546954E-02 -4.860300e-04
+('ssmi_f13', '6')          0.124875E-01  0.136603E-01 -1.172800e-03
+('ssmi_f13', '7')          0.125508E-01  0.141136E-01 -1.562800e-03
+('ssmi_f14', '1')          0.331045E-02  0.357151E-02 -2.610600e-04
+('ssmi_f14', '2')          0.319389E-02  0.350095E-02 -3.070600e-04
+('ssmi_f14', '3')          0.907586E-02  0.985706E-02 -7.812000e-04
+('ssmi_f14', '4')          0.497869E-02  0.556717E-02 -5.884800e-04
+('ssmi_f14', '5')          0.497487E-02  0.556316E-02 -5.882900e-04
+('ssmi_f14', '6')          0.122653E-01  0.135086E-01 -1.243300e-03
+('ssmi_f14', '7')          0.123635E-01  0.139530E-01 -1.589500e-03
+('sndr_g12', '1')         -0.323051E-01 -0.306078E-01 -1.697300e-03
+('sndr_g12', '2')          0.954307E-02  0.127062E-01 -3.163130e-03
+('sndr_g12', '3')          0.524224E-01  0.500544E-01  2.368000e-03
+('sndr_g12', '4')          0.541001E-01  0.499611E-01  4.139000e-03
+('sndr_g12', '5')          0.448538E-01  0.400391E-01  4.814700e-03
+('sndr_g12', '6')          0.249006E-01  0.195868E-01  5.313800e-03
+('sndr_g12', '7')          0.169826E-01  0.122307E-01  4.751900e-03
+('sndr_g12', '8')          0.124965E-01  0.877006E-02  3.726440e-03
+('sndr_g12', '9')         -0.739462E-02 -0.105968E-01  3.202180e-03
+('sndr_g12', '10')         0.608882E-01  0.520971E-01  8.791100e-03
+('sndr_g12', '11')         0.815835E-01  0.698827E-01  1.170080e-02
+('sndr_g12', '12')         0.887403E-01  0.784056E-01  1.033470e-02
+('sndr_g12', '13')         0.400715E-01  0.385591E-01  1.512400e-03
+('sndr_g12', '14')         0.502557E-01  0.487598E-01  1.495900e-03
+('sndr_g12', '15')         0.458107E-01  0.423271E-01  3.483600e-03
+('sndr_g12', '16')         0.238177E-01  0.227650E-01  1.052700e-03
+('sndr_g12', '17')         0.590895E-02  0.553707E-02  3.718800e-04
+('sndr_g12', '18')         0.717759E-02  0.532826E-02  1.849330e-03
+('seviri_m08', '4')        0.112716E-01  0.107259E-01  5.457000e-04
+('seviri_m08', '5')       -0.738610E-02  0.939451E-01 -1.013312e-01
+('seviri_m08', '6')        0.101530E-01  0.667842E-01 -5.663120e-02
+('seviri_m08', '7')        0.135218E-01  0.112716E-01  2.250200e-03
+('seviri_m08', '8')        0.387980E-01 -0.738610E-02  4.618410e-02
+('seviri_m09', '4')        0.112716E-01  0.107259E-01  5.457000e-04
+('seviri_m09', '5')       -0.738610E-02  0.939451E-01 -1.013312e-01
+('seviri_m09', '6')        0.101530E-01  0.667842E-01 -5.663120e-02
+('seviri_m09', '7')        0.135218E-01  0.112716E-01  2.250200e-03
+('seviri_m09', '8')        0.387980E-01 -0.738610E-02  4.618410e-02
+('seviri_m10', '4')        0.960670E-02  0.895359E-02  6.531100e-04
+('seviri_m10', '5')       -0.737353E-02  0.813001E-01 -8.867363e-02
+('seviri_m10', '6')        0.872873E-02  0.577965E-01 -4.906777e-02
+('seviri_m10', '7')        0.113952E-01  0.960670E-02  1.788500e-03
+('seviri_m10', '8')        0.344970E-01 -0.737353E-02  4.187053e-02
+
+
+* records where no value found in satbang or tlapmean.rc
+--------------------------------------------------------
+('avhrr3_n16', '3')       tlapmean: -0.737353E-02
+('avhrr3_n16', '4')       tlapmean: -0.737353E-02
+('avhrr3_n16', '5')       tlapmean: -0.737353E-02
+('avhrr3_n17', '3')       tlapmean: -0.737353E-02
+('avhrr3_n17', '4')       tlapmean: -0.737353E-02
+('avhrr3_n17', '5')       tlapmean: -0.737353E-02
+('avhrr3_n18', '3')       tlapmean: -0.737353E-02
+('avhrr3_n18', '4')       tlapmean: -0.737353E-02
+('avhrr3_n18', '5')       tlapmean: -0.737353E-02
+('amsre_aqua', '1')       tlapmean: -0.737353E-02
+('amsre_aqua', '2')       tlapmean: -0.737353E-02
+('amsre_aqua', '3')       tlapmean: -0.737353E-02
+('amsre_aqua', '4')       tlapmean: -0.737353E-02
+('amsre_aqua', '5')       tlapmean: -0.737353E-02
+('amsre_aqua', '6')       tlapmean: -0.737353E-02
+('amsre_aqua', '7')       tlapmean: -0.737353E-02
+('amsre_aqua', '8')       tlapmean: -0.737353E-02
+('amsre_aqua', '9')       tlapmean: -0.737353E-02
+('amsre_aqua', '10')      tlapmean: -0.737353E-02
+('amsre_aqua', '11')      tlapmean: -0.737353E-02
+('amsre_aqua', '12')      tlapmean: -0.737353E-02
+('imgr_g11', '2')         tlapmean: -0.737353E-02
+('imgr_g11', '3')         tlapmean: -0.737353E-02
+('imgr_g11', '4')         tlapmean: -0.737353E-02
+('imgr_g11', '5')         tlapmean: -0.737353E-02
+('imgr_g12', '2')         tlapmean: -0.737353E-02
+('imgr_g12', '3')         tlapmean: -0.737353E-02
+('imgr_g12', '4')         tlapmean: -0.737353E-02
+('imgr_g12', '5')         tlapmean: -0.737353E-02
+('sndr_g13', '1')         tlapmean: -0.737353E-02
+('sndr_g13', '2')         tlapmean: -0.737353E-02
+('sndr_g13', '3')         tlapmean: -0.737353E-02
+('sndr_g13', '4')         tlapmean: -0.737353E-02
+('sndr_g13', '5')         tlapmean: -0.737353E-02
+('sndr_g13', '6')         tlapmean: -0.737353E-02
+('sndr_g13', '7')         tlapmean: -0.737353E-02
+('sndr_g13', '8')         tlapmean: -0.737353E-02
+('sndr_g13', '9')         tlapmean: -0.737353E-02
+('sndr_g13', '10')        tlapmean: -0.737353E-02
+('sndr_g13', '11')        tlapmean: -0.737353E-02
+('sndr_g13', '12')        tlapmean: -0.737353E-02
+('sndr_g13', '13')        tlapmean: -0.737353E-02
+('sndr_g13', '14')        tlapmean: -0.737353E-02
+('sndr_g13', '15')        tlapmean: -0.737353E-02
+('sndr_g13', '16')        tlapmean: -0.737353E-02
+('sndr_g13', '17')        tlapmean: -0.737353E-02
+('sndr_g13', '18')        tlapmean: -0.737353E-02
+('imgr_g13', '2')         tlapmean: -0.737353E-02
+('imgr_g13', '3')         tlapmean: -0.737353E-02
+('imgr_g13', '4')         tlapmean: -0.737353E-02
+('imgr_g13', '5')         tlapmean: -0.737353E-02
+('ssmis_f19', '1')        tlapmean: -0.737353E-02
+('ssmis_f19', '2')        tlapmean: -0.737353E-02
+('ssmis_f19', '3')        tlapmean: -0.737353E-02
+('ssmis_f19', '4')        tlapmean: -0.737353E-02
+('ssmis_f19', '5')        tlapmean: -0.737353E-02
+('ssmis_f19', '6')        tlapmean: -0.737353E-02
+('ssmis_f19', '7')        tlapmean: -0.737353E-02
+('ssmis_f19', '8')        tlapmean: -0.737353E-02
+('ssmis_f19', '9')        tlapmean: -0.737353E-02
+('ssmis_f19', '10')       tlapmean: -0.737353E-02
+('ssmis_f19', '11')       tlapmean: -0.737353E-02
+('ssmis_f19', '12')       tlapmean: -0.737353E-02
+('ssmis_f19', '13')       tlapmean: -0.737353E-02
+('ssmis_f19', '14')       tlapmean: -0.737353E-02
+('ssmis_f19', '15')       tlapmean: -0.737353E-02
+('ssmis_f19', '16')       tlapmean: -0.737353E-02
+('ssmis_f19', '17')       tlapmean: -0.737353E-02
+('ssmis_f19', '18')       tlapmean: -0.737353E-02
+('ssmis_f19', '19')       tlapmean: -0.737353E-02
+('ssmis_f19', '20')       tlapmean: -0.737353E-02
+('ssmis_f19', '21')       tlapmean: -0.737353E-02
+('ssmis_f19', '22')       tlapmean: -0.737353E-02
+('ssmis_f19', '23')       tlapmean: -0.737353E-02
+('ssmis_f19', '24')       tlapmean: -0.737353E-02
+('ssmis_f20', '1')        tlapmean: -0.737353E-02
+('ssmis_f20', '2')        tlapmean: -0.737353E-02
+('ssmis_f20', '3')        tlapmean: -0.737353E-02
+('ssmis_f20', '4')        tlapmean: -0.737353E-02
+('ssmis_f20', '5')        tlapmean: -0.737353E-02
+('ssmis_f20', '6')        tlapmean: -0.737353E-02
+('ssmis_f20', '7')        tlapmean: -0.737353E-02
+('ssmis_f20', '8')        tlapmean: -0.737353E-02
+('ssmis_f20', '9')        tlapmean: -0.737353E-02
+('ssmis_f20', '10')       tlapmean: -0.737353E-02
+('ssmis_f20', '11')       tlapmean: -0.737353E-02
+('ssmis_f20', '12')       tlapmean: -0.737353E-02
+('ssmis_f20', '13')       tlapmean: -0.737353E-02
+('ssmis_f20', '14')       tlapmean: -0.737353E-02
+('ssmis_f20', '15')       tlapmean: -0.737353E-02
+('ssmis_f20', '16')       tlapmean: -0.737353E-02
+('ssmis_f20', '17')       tlapmean: -0.737353E-02
+('ssmis_f20', '18')       tlapmean: -0.737353E-02
+('ssmis_f20', '19')       tlapmean: -0.737353E-02
+('ssmis_f20', '20')       tlapmean: -0.737353E-02
+('ssmis_f20', '21')       tlapmean: -0.737353E-02
+('ssmis_f20', '22')       tlapmean: -0.737353E-02
+('ssmis_f20', '23')       tlapmean: -0.737353E-02
+('ssmis_f20', '24')       tlapmean: -0.737353E-02
+('imgr_g14', '2')         tlapmean: -0.737353E-02
+('imgr_g14', '3')         tlapmean: -0.737353E-02
+('imgr_g14', '4')         tlapmean: -0.737353E-02
+('imgr_g14', '5')         tlapmean: -0.737353E-02
+('imgr_g15', '2')         tlapmean: -0.737353E-02
+('imgr_g15', '3')         tlapmean: -0.737353E-02
+('imgr_g15', '4')         tlapmean: -0.737353E-02
+('imgr_g15', '5')         tlapmean: -0.737353E-02
+('avhrr3_metop-b', '3')   tlapmean: -0.737353E-02
+('avhrr3_metop-b', '4')   tlapmean: -0.737353E-02
+('avhrr3_metop-b', '5')   tlapmean: -0.737353E-02
+('avhrr3_metop-a', '3')   tlapmean: -0.737353E-02
+('avhrr3_metop-a', '4')   tlapmean: -0.737353E-02
+('avhrr3_metop-a', '5')   tlapmean: -0.737353E-02
+('avhrr3_n19', '3')       tlapmean: -0.737353E-02
+('avhrr3_n19', '4')       tlapmean: -0.737353E-02
+('avhrr3_n19', '5')       tlapmean: -0.737353E-02
+
+
+* records where value found in satbang but not in tlapmean.rc
+-------------------------------------------------------------
+('iasi616_metop-a', '16') tlapmean in satbang_rst: -0.500422E-01
+('iasi616_metop-a', '29') tlapmean in satbang_rst: -0.438003E-01
+('iasi616_metop-a', '32') tlapmean in satbang_rst: -0.173864E-01
+('iasi616_metop-a', '35') tlapmean in satbang_rst: -0.446177E-01
+('iasi616_metop-a', '38') tlapmean in satbang_rst: -0.214636E-01
+('iasi616_metop-a', '41') tlapmean in satbang_rst: -0.450784E-01
+('iasi616_metop-a', '44') tlapmean in satbang_rst: -0.246964E-01
+('iasi616_metop-a', '47') tlapmean in satbang_rst: -0.450973E-01
+('iasi616_metop-a', '49') tlapmean in satbang_rst: -0.347309E-01
+('iasi616_metop-a', '50') tlapmean in satbang_rst: -0.261093E-01
+('iasi616_metop-a', '51') tlapmean in satbang_rst: -0.236601E-01
+('iasi616_metop-a', '53') tlapmean in satbang_rst: -0.449411E-01
+('iasi616_metop-a', '55') tlapmean in satbang_rst: -0.340967E-01
+('iasi616_metop-a', '56') tlapmean in satbang_rst: -0.251305E-01
+('iasi616_metop-a', '57') tlapmean in satbang_rst: -0.219615E-01
+('iasi616_metop-a', '59') tlapmean in satbang_rst: -0.438890E-01
+('iasi616_metop-a', '61') tlapmean in satbang_rst: -0.357213E-01
+('iasi616_metop-a', '62') tlapmean in satbang_rst: -0.274660E-01
+('iasi616_metop-a', '63') tlapmean in satbang_rst: -0.218157E-01
+('iasi616_metop-a', '66') tlapmean in satbang_rst: -0.428886E-01
+('iasi616_metop-a', '68') tlapmean in satbang_rst: -0.268126E-01
+('iasi616_metop-a', '70') tlapmean in satbang_rst: -0.318266E-01
+('iasi616_metop-a', '72') tlapmean in satbang_rst: -0.501544E-01
+('iasi616_metop-a', '74') tlapmean in satbang_rst: -0.389759E-01
+('iasi616_metop-a', '76') tlapmean in satbang_rst: -0.301293E-01
+('iasi616_metop-a', '78') tlapmean in satbang_rst: -0.417207E-01
+('iasi616_metop-a', '79') tlapmean in satbang_rst: -0.393528E-01
+('iasi616_metop-a', '81') tlapmean in satbang_rst: -0.386647E-01
+('iasi616_metop-a', '82') tlapmean in satbang_rst: -0.351006E-01
+('iasi616_metop-a', '83') tlapmean in satbang_rst: -0.345812E-01
+('iasi616_metop-a', '84') tlapmean in satbang_rst: -0.381289E-01
+('iasi616_metop-a', '85') tlapmean in satbang_rst: -0.361150E-01
+('iasi616_metop-a', '86') tlapmean in satbang_rst: -0.308101E-01
+('iasi616_metop-a', '87') tlapmean in satbang_rst: -0.339761E-01
+('iasi616_metop-a', '89') tlapmean in satbang_rst: -0.430311E-01
+('iasi616_metop-a', '92') tlapmean in satbang_rst: -0.274664E-01
+('iasi616_metop-a', '93') tlapmean in satbang_rst: -0.177891E-01
+('iasi616_metop-a', '95') tlapmean in satbang_rst: -0.428300E-01
+('iasi616_metop-a', '97') tlapmean in satbang_rst: -0.452885E-01
+('iasi616_metop-a', '99') tlapmean in satbang_rst: -0.471207E-01
+('iasi616_metop-a', '101') tlapmean in satbang_rst: -0.391089E-01
+('iasi616_metop-a', '103') tlapmean in satbang_rst: -0.304740E-01
+('iasi616_metop-a', '104') tlapmean in satbang_rst: -0.321863E-01
+('iasi616_metop-a', '106') tlapmean in satbang_rst: -0.450571E-01
+('iasi616_metop-a', '109') tlapmean in satbang_rst: -0.239495E-01
+('iasi616_metop-a', '110') tlapmean in satbang_rst: -0.255374E-01
+('iasi616_metop-a', '111') tlapmean in satbang_rst: -0.361293E-01
+('iasi616_metop-a', '113') tlapmean in satbang_rst: -0.463149E-01
+('iasi616_metop-a', '116') tlapmean in satbang_rst: -0.249179E-01
+('iasi616_metop-a', '119') tlapmean in satbang_rst: -0.472538E-01
+('iasi616_metop-a', '122') tlapmean in satbang_rst: -0.240515E-01
+('iasi616_metop-a', '125') tlapmean in satbang_rst: -0.482278E-01
+('iasi616_metop-a', '128') tlapmean in satbang_rst: -0.239463E-01
+('iasi616_metop-a', '131') tlapmean in satbang_rst: -0.454633E-01
+('iasi616_metop-a', '133') tlapmean in satbang_rst: -0.353043E-01
+('iasi616_metop-a', '135') tlapmean in satbang_rst: -0.239054E-01
+('iasi616_metop-a', '138') tlapmean in satbang_rst: -0.482012E-01
+('iasi616_metop-a', '141') tlapmean in satbang_rst: -0.214037E-01
+('iasi616_metop-a', '144') tlapmean in satbang_rst: -0.469818E-01
+('iasi616_metop-a', '146') tlapmean in satbang_rst: -0.301926E-01
+('iasi616_metop-a', '148') tlapmean in satbang_rst: -0.229549E-01
+('iasi616_metop-a', '150') tlapmean in satbang_rst: -0.452760E-01
+('iasi616_metop-a', '151') tlapmean in satbang_rst: -0.430965E-01
+('iasi616_metop-a', '154') tlapmean in satbang_rst: -0.181852E-01
+('iasi616_metop-a', '157') tlapmean in satbang_rst: -0.454299E-01
+('iasi616_metop-a', '159') tlapmean in satbang_rst: -0.228027E-01
+('iasi616_metop-a', '160') tlapmean in satbang_rst: -0.143869E-01
+('iasi616_metop-a', '161') tlapmean in satbang_rst: -0.177818E-01
+('iasi616_metop-a', '163') tlapmean in satbang_rst: -0.431011E-01
+('iasi616_metop-a', '167') tlapmean in satbang_rst: -0.959041E-02
+('iasi616_metop-a', '170') tlapmean in satbang_rst: -0.413451E-01
+('iasi616_metop-a', '173') tlapmean in satbang_rst: -0.239383E-02
+('iasi616_metop-a', '176') tlapmean in satbang_rst: -0.387710E-01
+('iasi616_metop-a', '179') tlapmean in satbang_rst: -0.147205E-02
+('iasi616_metop-a', '180') tlapmean in satbang_rst:  0.461873E-03
+('iasi616_metop-a', '185') tlapmean in satbang_rst:  0.305124E-02
+('iasi616_metop-a', '187') tlapmean in satbang_rst:  0.183190E-02
+('iasi616_metop-a', '191') tlapmean in satbang_rst: -0.293176E-02
+('iasi616_metop-a', '193') tlapmean in satbang_rst:  0.150670E-01
+('iasi616_metop-a', '197') tlapmean in satbang_rst: -0.774721E-02
+('iasi616_metop-a', '199') tlapmean in satbang_rst:  0.268837E-01
+('iasi616_metop-a', '200') tlapmean in satbang_rst:  0.123615E-01
+('iasi616_metop-a', '202') tlapmean in satbang_rst: -0.274044E-01
+('iasi616_metop-a', '203') tlapmean in satbang_rst: -0.124087E-01
+('iasi616_metop-a', '205') tlapmean in satbang_rst:  0.321786E-01
+('iasi616_metop-a', '207') tlapmean in satbang_rst:  0.736247E-02
+('iasi616_metop-a', '210') tlapmean in satbang_rst:  0.113903E-01
+('iasi616_metop-a', '212') tlapmean in satbang_rst:  0.355816E-01
+('iasi616_metop-a', '213') tlapmean in satbang_rst:  0.263304E-01
+('iasi616_metop-a', '214') tlapmean in satbang_rst:  0.191176E-02
+('iasi616_metop-a', '217') tlapmean in satbang_rst:  0.295816E-01
+('iasi616_metop-a', '218') tlapmean in satbang_rst:  0.403675E-01
+('iasi616_metop-a', '219') tlapmean in satbang_rst:  0.362445E-01
+('iasi616_metop-a', '222') tlapmean in satbang_rst:  0.664652E-02
+('iasi616_metop-a', '224') tlapmean in satbang_rst:  0.385012E-01
+('iasi616_metop-a', '225') tlapmean in satbang_rst:  0.399539E-01
+('iasi616_metop-a', '226') tlapmean in satbang_rst:  0.382477E-01
+('iasi616_metop-a', '228') tlapmean in satbang_rst:  0.668715E-02
+('iasi616_metop-a', '230') tlapmean in satbang_rst:  0.409139E-01
+('iasi616_metop-a', '231') tlapmean in satbang_rst:  0.384095E-01
+('iasi616_metop-a', '232') tlapmean in satbang_rst:  0.402011E-01
+('iasi616_metop-a', '236') tlapmean in satbang_rst:  0.451038E-01
+('iasi616_metop-a', '237') tlapmean in satbang_rst:  0.444542E-01
+('iasi616_metop-a', '239') tlapmean in satbang_rst:  0.467431E-01
+('iasi616_metop-a', '243') tlapmean in satbang_rst:  0.505578E-01
+('iasi616_metop-a', '246') tlapmean in satbang_rst:  0.483696E-01
+('iasi616_metop-a', '249') tlapmean in satbang_rst:  0.515906E-01
+('iasi616_metop-a', '252') tlapmean in satbang_rst:  0.527887E-01
+('iasi616_metop-a', '254') tlapmean in satbang_rst:  0.346316E-01
+('iasi616_metop-a', '259') tlapmean in satbang_rst:  0.518161E-01
+('iasi616_metop-a', '260') tlapmean in satbang_rst:  0.412344E-01
+('iasi616_metop-a', '262') tlapmean in satbang_rst:  0.508054E-01
+('iasi616_metop-a', '265') tlapmean in satbang_rst:  0.540686E-01
+('iasi616_metop-a', '267') tlapmean in satbang_rst:  0.426202E-01
+('iasi616_metop-a', '269') tlapmean in satbang_rst:  0.422237E-01
+('iasi616_metop-a', '275') tlapmean in satbang_rst:  0.507622E-01
+('iasi616_metop-a', '279') tlapmean in satbang_rst:  0.506066E-01
+('iasi616_metop-a', '282') tlapmean in satbang_rst:  0.408809E-01
+('iasi616_metop-a', '285') tlapmean in satbang_rst:  0.474150E-01
+('iasi616_metop-a', '294') tlapmean in satbang_rst:  0.456847E-01
+('iasi616_metop-a', '296') tlapmean in satbang_rst:  0.412916E-01
+('iasi616_metop-a', '299') tlapmean in satbang_rst:  0.156678E-01
+('iasi616_metop-a', '300') tlapmean in satbang_rst: -0.283684E-02
+('iasi616_metop-a', '303') tlapmean in satbang_rst: -0.300546E-01
+('iasi616_metop-a', '306') tlapmean in satbang_rst:  0.420299E-01
+('iasi616_metop-a', '309') tlapmean in satbang_rst:  0.497881E-01
+('iasi616_metop-a', '313') tlapmean in satbang_rst:  0.381142E-01
+('iasi616_metop-a', '320') tlapmean in satbang_rst:  0.444936E-01
+('iasi616_metop-a', '323') tlapmean in satbang_rst:  0.407200E-01
+('iasi616_metop-a', '326') tlapmean in satbang_rst:  0.439901E-01
+('iasi616_metop-a', '327') tlapmean in satbang_rst:  0.478401E-01
+('iasi616_metop-a', '329') tlapmean in satbang_rst:  0.415971E-01
+('iasi616_metop-a', '332') tlapmean in satbang_rst:  0.438610E-01
+('iasi616_metop-a', '335') tlapmean in satbang_rst:  0.394554E-01
+('iasi616_metop-a', '345') tlapmean in satbang_rst:  0.572378E-01
+('iasi616_metop-a', '347') tlapmean in satbang_rst:  0.432020E-01
+('iasi616_metop-a', '350') tlapmean in satbang_rst:  0.486376E-01
+('iasi616_metop-a', '354') tlapmean in satbang_rst:  0.416615E-01
+('iasi616_metop-a', '356') tlapmean in satbang_rst:  0.487958E-01
+('iasi616_metop-a', '360') tlapmean in satbang_rst:  0.397856E-01
+('iasi616_metop-a', '363') tlapmean in satbang_rst:  0.444858E-01
+('iasi616_metop-a', '366') tlapmean in satbang_rst:  0.401563E-01
+('iasi616_metop-a', '371') tlapmean in satbang_rst:  0.479039E-01
+('iasi616_metop-a', '372') tlapmean in satbang_rst:  0.441083E-01
+('iasi616_metop-a', '373') tlapmean in satbang_rst:  0.479355E-01
+('iasi616_metop-a', '375') tlapmean in satbang_rst:  0.458885E-01
+('iasi616_metop-a', '377') tlapmean in satbang_rst:  0.482571E-01
+('iasi616_metop-a', '379') tlapmean in satbang_rst:  0.474095E-01
+('iasi616_metop-a', '381') tlapmean in satbang_rst:  0.482962E-01
+('iasi616_metop-a', '383') tlapmean in satbang_rst:  0.555051E-01
+('iasi616_metop-a', '386') tlapmean in satbang_rst:  0.512085E-01
+('iasi616_metop-a', '389') tlapmean in satbang_rst:  0.476467E-01
+('iasi616_metop-a', '398') tlapmean in satbang_rst:  0.479549E-01
+('iasi616_metop-a', '401') tlapmean in satbang_rst:  0.513780E-01
+('iasi616_metop-a', '404') tlapmean in satbang_rst:  0.383820E-01
+('iasi616_metop-a', '405') tlapmean in satbang_rst:  0.310566E-01
+('iasi616_metop-a', '407') tlapmean in satbang_rst:  0.406181E-01
+('iasi616_metop-a', '408') tlapmean in satbang_rst:  0.478074E-01
+('iasi616_metop-a', '410') tlapmean in satbang_rst:  0.374649E-01
+('iasi616_metop-a', '411') tlapmean in satbang_rst:  0.304372E-01
+('iasi616_metop-a', '414') tlapmean in satbang_rst:  0.482796E-01
+('iasi616_metop-a', '416') tlapmean in satbang_rst:  0.379829E-01
+('iasi616_metop-a', '418') tlapmean in satbang_rst:  0.291381E-01
+('iasi616_metop-a', '423') tlapmean in satbang_rst:  0.238561E-01
+('iasi616_metop-a', '426') tlapmean in satbang_rst:  0.460034E-01
+('iasi616_metop-a', '428') tlapmean in satbang_rst:  0.342538E-01
+('iasi616_metop-a', '432') tlapmean in satbang_rst:  0.459939E-01
+('iasi616_metop-a', '433') tlapmean in satbang_rst:  0.428413E-01
+('iasi616_metop-a', '434') tlapmean in satbang_rst:  0.327610E-01
+('iasi616_metop-a', '439') tlapmean in satbang_rst:  0.523289E-01
+('iasi616_metop-a', '442') tlapmean in satbang_rst:  0.256481E-01
+('iasi616_metop-a', '445') tlapmean in satbang_rst:  0.422207E-01
+('iasi616_metop-a', '450') tlapmean in satbang_rst:  0.389366E-01
+('iasi616_metop-a', '457') tlapmean in satbang_rst:  0.335613E-01
+('iasi616_metop-a', '459') tlapmean in satbang_rst:  0.182361E-01
+('iasi616_metop-a', '472') tlapmean in satbang_rst:  0.166513E-01
+('iasi616_metop-a', '477') tlapmean in satbang_rst:  0.150156E-01
+('iasi616_metop-a', '483') tlapmean in satbang_rst:  0.149422E-01
+('iasi616_metop-a', '509') tlapmean in satbang_rst:  0.154469E-01
+('iasi616_metop-a', '515') tlapmean in satbang_rst:  0.145469E-01
+('iasi616_metop-a', '546') tlapmean in satbang_rst:  0.136795E-01
+('iasi616_metop-a', '552') tlapmean in satbang_rst:  0.143507E-01
+('iasi616_metop-a', '559') tlapmean in satbang_rst:  0.450440E-01
+('iasi616_metop-a', '566') tlapmean in satbang_rst:  0.140571E-01
+('iasi616_metop-a', '571') tlapmean in satbang_rst:  0.137027E-01
+('iasi616_metop-a', '573') tlapmean in satbang_rst:  0.136856E-01
+('iasi616_metop-a', '578') tlapmean in satbang_rst:  0.130083E-01
+('iasi616_metop-a', '584') tlapmean in satbang_rst:  0.135320E-01
+('iasi616_metop-a', '594') tlapmean in satbang_rst:  0.177861E-01
+('iasi616_metop-a', '625') tlapmean in satbang_rst:  0.135497E-01
+('iasi616_metop-a', '646') tlapmean in satbang_rst:  0.176597E-01
+('iasi616_metop-a', '662') tlapmean in satbang_rst:  0.122472E-01
+('iasi616_metop-a', '668') tlapmean in satbang_rst:  0.121089E-01
+('iasi616_metop-a', '705') tlapmean in satbang_rst:  0.115466E-01
+('iasi616_metop-a', '739') tlapmean in satbang_rst:  0.115071E-01
+('iasi616_metop-a', '756') tlapmean in satbang_rst:  0.109067E-01
+('iasi616_metop-a', '797') tlapmean in satbang_rst:  0.105617E-01
+('iasi616_metop-a', '867') tlapmean in satbang_rst:  0.996116E-02
+('iasi616_metop-a', '906') tlapmean in satbang_rst:  0.256123E-01
+('iasi616_metop-a', '921') tlapmean in satbang_rst:  0.949357E-02
+('iasi616_metop-a', '1027') tlapmean in satbang_rst:  0.869385E-02
+('iasi616_metop-a', '1046') tlapmean in satbang_rst:  0.145171E-01
+('iasi616_metop-a', '1090') tlapmean in satbang_rst:  0.848727E-02
+('iasi616_metop-a', '1098') tlapmean in satbang_rst:  0.843565E-02
+('iasi616_metop-a', '1121') tlapmean in satbang_rst:  0.201468E-01
+('iasi616_metop-a', '1133') tlapmean in satbang_rst:  0.799353E-02
+('iasi616_metop-a', '1173') tlapmean in satbang_rst:  0.805372E-02
+('iasi616_metop-a', '1191') tlapmean in satbang_rst:  0.110981E-01
+('iasi616_metop-a', '1194') tlapmean in satbang_rst:  0.767616E-02
+('iasi616_metop-a', '1222') tlapmean in satbang_rst:  0.761188E-02
+('iasi616_metop-a', '1271') tlapmean in satbang_rst:  0.696758E-02
+('iasi616_metop-a', '1283') tlapmean in satbang_rst:  0.757786E-02
+('iasi616_metop-a', '1338') tlapmean in satbang_rst:  0.684066E-02
+('iasi616_metop-a', '1409') tlapmean in satbang_rst:  0.108199E-02
+('iasi616_metop-a', '1414') tlapmean in satbang_rst:  0.836158E-03
+('iasi616_metop-a', '1420') tlapmean in satbang_rst:  0.338631E-03
+('iasi616_metop-a', '1424') tlapmean in satbang_rst:  0.656464E-03
+('iasi616_metop-a', '1427') tlapmean in satbang_rst:  0.229579E-02
+('iasi616_metop-a', '1430') tlapmean in satbang_rst: -0.121224E-02
+('iasi616_metop-a', '1434') tlapmean in satbang_rst: -0.512069E-04
+('iasi616_metop-a', '1440') tlapmean in satbang_rst: -0.146047E-02
+('iasi616_metop-a', '1442') tlapmean in satbang_rst: -0.507529E-03
+('iasi616_metop-a', '1445') tlapmean in satbang_rst: -0.207183E-02
+('iasi616_metop-a', '1450') tlapmean in satbang_rst: -0.373454E-02
+('iasi616_metop-a', '1454') tlapmean in satbang_rst: -0.222086E-02
+('iasi616_metop-a', '1460') tlapmean in satbang_rst: -0.523334E-03
+('iasi616_metop-a', '1463') tlapmean in satbang_rst:  0.314314E-03
+('iasi616_metop-a', '1469') tlapmean in satbang_rst: -0.639141E-02
+('iasi616_metop-a', '1474') tlapmean in satbang_rst: -0.500187E-02
+('iasi616_metop-a', '1479') tlapmean in satbang_rst:  0.880154E-03
+('iasi616_metop-a', '1483') tlapmean in satbang_rst: -0.604441E-02
+('iasi616_metop-a', '1487') tlapmean in satbang_rst: -0.716932E-02
+('iasi616_metop-a', '1494') tlapmean in satbang_rst: -0.568385E-02
+('iasi616_metop-a', '1496') tlapmean in satbang_rst: -0.878889E-02
+('iasi616_metop-a', '1502') tlapmean in satbang_rst: -0.867696E-02
+('iasi616_metop-a', '1505') tlapmean in satbang_rst: -0.865249E-02
+('iasi616_metop-a', '1509') tlapmean in satbang_rst: -0.677437E-02
+('iasi616_metop-a', '1510') tlapmean in satbang_rst: -0.825845E-02
+('iasi616_metop-a', '1513') tlapmean in satbang_rst: -0.914590E-02
+('iasi616_metop-a', '1518') tlapmean in satbang_rst: -0.988658E-02
+('iasi616_metop-a', '1521') tlapmean in satbang_rst: -0.900807E-02
+('iasi616_metop-a', '1526') tlapmean in satbang_rst: -0.877715E-02
+('iasi616_metop-a', '1529') tlapmean in satbang_rst: -0.104733E-01
+('iasi616_metop-a', '1532') tlapmean in satbang_rst: -0.682354E-02
+('iasi616_metop-a', '1536') tlapmean in satbang_rst: -0.547469E-02
+('iasi616_metop-a', '1537') tlapmean in satbang_rst: -0.970302E-02
+('iasi616_metop-a', '1541') tlapmean in satbang_rst: -0.665930E-02
+('iasi616_metop-a', '1545') tlapmean in satbang_rst: -0.124925E-01
+('iasi616_metop-a', '1548') tlapmean in satbang_rst: -0.826041E-02
+('iasi616_metop-a', '1553') tlapmean in satbang_rst: -0.145030E-01
+('iasi616_metop-a', '1560') tlapmean in satbang_rst: -0.203026E-01
+('iasi616_metop-a', '1568') tlapmean in satbang_rst: -0.181053E-01
+('iasi616_metop-a', '1574') tlapmean in satbang_rst: -0.178269E-01
+('iasi616_metop-a', '1579') tlapmean in satbang_rst: -0.198293E-01
+('iasi616_metop-a', '1583') tlapmean in satbang_rst: -0.208950E-01
+('iasi616_metop-a', '1585') tlapmean in satbang_rst: -0.189388E-01
+('iasi616_metop-a', '1587') tlapmean in satbang_rst: -0.187366E-01
+('iasi616_metop-a', '1606') tlapmean in satbang_rst: -0.918278E-02
+('iasi616_metop-a', '1626') tlapmean in satbang_rst: -0.830492E-02
+('iasi616_metop-a', '1639') tlapmean in satbang_rst: -0.116922E-01
+('iasi616_metop-a', '1643') tlapmean in satbang_rst: -0.222870E-02
+('iasi616_metop-a', '1652') tlapmean in satbang_rst: -0.109452E-01
+('iasi616_metop-a', '1658') tlapmean in satbang_rst: -0.105231E-01
+('iasi616_metop-a', '1659') tlapmean in satbang_rst: -0.114092E-01
+('iasi616_metop-a', '1666') tlapmean in satbang_rst: -0.110218E-01
+('iasi616_metop-a', '1671') tlapmean in satbang_rst: -0.101943E-01
+('iasi616_metop-a', '1675') tlapmean in satbang_rst: -0.997051E-02
+('iasi616_metop-a', '1681') tlapmean in satbang_rst: -0.240717E-02
+('iasi616_metop-a', '1694') tlapmean in satbang_rst:  0.142039E-02
+('iasi616_metop-a', '1697') tlapmean in satbang_rst:  0.587481E-02
+('iasi616_metop-a', '1710') tlapmean in satbang_rst:  0.862749E-02
+('iasi616_metop-a', '1786') tlapmean in satbang_rst:  0.234283E-01
+('iasi616_metop-a', '1791') tlapmean in satbang_rst:  0.441391E-02
+('iasi616_metop-a', '1805') tlapmean in satbang_rst:  0.405059E-02
+('iasi616_metop-a', '1839') tlapmean in satbang_rst:  0.456111E-02
+('iasi616_metop-a', '1884') tlapmean in satbang_rst:  0.417144E-02
+('iasi616_metop-a', '1913') tlapmean in satbang_rst:  0.480885E-02
+('iasi616_metop-a', '1946') tlapmean in satbang_rst:  0.325327E-02
+('iasi616_metop-a', '1947') tlapmean in satbang_rst:  0.387825E-02
+('iasi616_metop-a', '1991') tlapmean in satbang_rst:  0.515769E-02
+('iasi616_metop-a', '2019') tlapmean in satbang_rst:  0.331678E-01
+('iasi616_metop-a', '2094') tlapmean in satbang_rst:  0.544714E-02
+('iasi616_metop-a', '2119') tlapmean in satbang_rst:  0.593213E-01
+('iasi616_metop-a', '2213') tlapmean in satbang_rst:  0.453396E-01
+('iasi616_metop-a', '2239') tlapmean in satbang_rst:  0.639359E-02
+('iasi616_metop-a', '2271') tlapmean in satbang_rst:  0.472725E-01
+('iasi616_metop-a', '2289') tlapmean in satbang_rst:  0.109796E-01
+('iasi616_metop-a', '2321') tlapmean in satbang_rst:  0.611212E-01
+('iasi616_metop-a', '2333') tlapmean in satbang_rst:  0.964199E-02
+('iasi616_metop-a', '2346') tlapmean in satbang_rst:  0.752175E-02
+('iasi616_metop-a', '2349') tlapmean in satbang_rst:  0.782928E-02
+('iasi616_metop-a', '2352') tlapmean in satbang_rst:  0.116554E-01
+('iasi616_metop-a', '2359') tlapmean in satbang_rst:  0.791292E-02
+('iasi616_metop-a', '2367') tlapmean in satbang_rst:  0.265917E-01
+('iasi616_metop-a', '2374') tlapmean in satbang_rst:  0.169603E-01
+('iasi616_metop-a', '2398') tlapmean in satbang_rst:  0.629070E-01
+('iasi616_metop-a', '2426') tlapmean in satbang_rst:  0.309060E-01
+('iasi616_metop-a', '2562') tlapmean in satbang_rst:  0.292565E-01
+('iasi616_metop-a', '2701') tlapmean in satbang_rst:  0.780528E-01
+('iasi616_metop-a', '2741') tlapmean in satbang_rst:  0.600865E-01
+('iasi616_metop-a', '2745') tlapmean in satbang_rst:  0.308374E-01
+('iasi616_metop-a', '2760') tlapmean in satbang_rst:  0.391759E-01
+('iasi616_metop-a', '2819') tlapmean in satbang_rst:  0.771717E-01
+('iasi616_metop-a', '2889') tlapmean in satbang_rst:  0.484829E-01
+('iasi616_metop-a', '2907') tlapmean in satbang_rst:  0.573535E-01
+('iasi616_metop-a', '2910') tlapmean in satbang_rst:  0.737591E-01
+('iasi616_metop-a', '2919') tlapmean in satbang_rst:  0.846188E-01
+('iasi616_metop-a', '2921') tlapmean in satbang_rst:  0.757047E-01
+('iasi616_metop-a', '2939') tlapmean in satbang_rst:  0.744701E-01
+('iasi616_metop-a', '2944') tlapmean in satbang_rst:  0.500208E-01
+('iasi616_metop-a', '2945') tlapmean in satbang_rst:  0.472831E-01
+('iasi616_metop-a', '2948') tlapmean in satbang_rst:  0.534081E-01
+('iasi616_metop-a', '2951') tlapmean in satbang_rst:  0.504148E-01
+('iasi616_metop-a', '2958') tlapmean in satbang_rst:  0.521610E-01
+('iasi616_metop-a', '2971') tlapmean in satbang_rst:  0.711372E-01
+('iasi616_metop-a', '2977') tlapmean in satbang_rst:  0.674506E-01
+('iasi616_metop-a', '2985') tlapmean in satbang_rst:  0.724570E-01
+('iasi616_metop-a', '2988') tlapmean in satbang_rst:  0.613574E-01
+('iasi616_metop-a', '2990') tlapmean in satbang_rst:  0.653438E-01
+('iasi616_metop-a', '2991') tlapmean in satbang_rst:  0.652197E-01
+('iasi616_metop-a', '2993') tlapmean in satbang_rst:  0.703736E-01
+('iasi616_metop-a', '3002') tlapmean in satbang_rst:  0.872164E-01
+('iasi616_metop-a', '3008') tlapmean in satbang_rst:  0.754289E-01
+('iasi616_metop-a', '3014') tlapmean in satbang_rst:  0.829232E-01
+('iasi616_metop-a', '3027') tlapmean in satbang_rst:  0.634589E-01
+('iasi616_metop-a', '3029') tlapmean in satbang_rst:  0.618587E-01
+('iasi616_metop-a', '3030') tlapmean in satbang_rst:  0.615127E-01
+('iasi616_metop-a', '3036') tlapmean in satbang_rst:  0.714546E-01
+('iasi616_metop-a', '3047') tlapmean in satbang_rst:  0.644450E-01
+('iasi616_metop-a', '3049') tlapmean in satbang_rst:  0.607202E-01
+('iasi616_metop-a', '3052') tlapmean in satbang_rst:  0.561319E-01
+('iasi616_metop-a', '3053') tlapmean in satbang_rst:  0.559337E-01
+('iasi616_metop-a', '3055') tlapmean in satbang_rst:  0.614778E-01
+('iasi616_metop-a', '3058') tlapmean in satbang_rst:  0.563483E-01
+('iasi616_metop-a', '3064') tlapmean in satbang_rst:  0.581453E-01
+('iasi616_metop-a', '3069') tlapmean in satbang_rst:  0.812206E-01
+('iasi616_metop-a', '3087') tlapmean in satbang_rst:  0.776672E-01
+('iasi616_metop-a', '3093') tlapmean in satbang_rst:  0.859092E-01
+('iasi616_metop-a', '3098') tlapmean in satbang_rst:  0.514216E-01
+('iasi616_metop-a', '3105') tlapmean in satbang_rst:  0.807295E-01
+('iasi616_metop-a', '3107') tlapmean in satbang_rst:  0.774014E-01
+('iasi616_metop-a', '3110') tlapmean in satbang_rst:  0.735950E-01
+('iasi616_metop-a', '3116') tlapmean in satbang_rst:  0.724897E-01
+('iasi616_metop-a', '3127') tlapmean in satbang_rst:  0.664331E-01
+('iasi616_metop-a', '3129') tlapmean in satbang_rst:  0.652617E-01
+('iasi616_metop-a', '3136') tlapmean in satbang_rst:  0.770817E-01
+('iasi616_metop-a', '3146') tlapmean in satbang_rst:  0.760875E-01
+('iasi616_metop-a', '3151') tlapmean in satbang_rst:  0.728215E-01
+('iasi616_metop-a', '3160') tlapmean in satbang_rst:  0.788929E-01
+('iasi616_metop-a', '3165') tlapmean in satbang_rst:  0.872948E-01
+('iasi616_metop-a', '3168') tlapmean in satbang_rst:  0.436325E-01
+('iasi616_metop-a', '3175') tlapmean in satbang_rst:  0.797544E-01
+('iasi616_metop-a', '3178') tlapmean in satbang_rst:  0.729991E-01
+('iasi616_metop-a', '3189') tlapmean in satbang_rst:  0.636523E-01
+('iasi616_metop-a', '3207') tlapmean in satbang_rst:  0.823163E-01
+('iasi616_metop-a', '3228') tlapmean in satbang_rst:  0.811756E-01
+('iasi616_metop-a', '3244') tlapmean in satbang_rst:  0.876684E-01
+('iasi616_metop-a', '3248') tlapmean in satbang_rst:  0.375270E-01
+('iasi616_metop-a', '3252') tlapmean in satbang_rst:  0.828490E-01
+('iasi616_metop-a', '3256') tlapmean in satbang_rst:  0.828094E-01
+('iasi616_metop-a', '3263') tlapmean in satbang_rst:  0.821165E-01
+('iasi616_metop-a', '3281') tlapmean in satbang_rst:  0.514680E-01
+('iasi616_metop-a', '3295') tlapmean in satbang_rst:  0.763512E-01
+('iasi616_metop-a', '3303') tlapmean in satbang_rst:  0.849461E-01
+('iasi616_metop-a', '3309') tlapmean in satbang_rst:  0.494575E-01
+('iasi616_metop-a', '3312') tlapmean in satbang_rst:  0.860717E-01
+('iasi616_metop-a', '3322') tlapmean in satbang_rst:  0.856864E-01
+('iasi616_metop-a', '3326') tlapmean in satbang_rst:  0.625169E-01
+('iasi616_metop-a', '3354') tlapmean in satbang_rst:  0.727995E-01
+('iasi616_metop-a', '3366') tlapmean in satbang_rst:  0.858415E-01
+('iasi616_metop-a', '3375') tlapmean in satbang_rst:  0.866072E-01
+('iasi616_metop-a', '3378') tlapmean in satbang_rst:  0.799758E-01
+('iasi616_metop-a', '3411') tlapmean in satbang_rst:  0.881173E-01
+('iasi616_metop-a', '3416') tlapmean in satbang_rst:  0.496090E-01
+('iasi616_metop-a', '3432') tlapmean in satbang_rst:  0.845914E-01
+('iasi616_metop-a', '3438') tlapmean in satbang_rst:  0.879895E-01
+('iasi616_metop-a', '3440') tlapmean in satbang_rst:  0.853094E-01
+('iasi616_metop-a', '3442') tlapmean in satbang_rst:  0.607985E-01
+('iasi616_metop-a', '3444') tlapmean in satbang_rst:  0.404594E-01
+('iasi616_metop-a', '3446') tlapmean in satbang_rst:  0.699535E-01
+('iasi616_metop-a', '3448') tlapmean in satbang_rst:  0.458504E-01
+('iasi616_metop-a', '3450') tlapmean in satbang_rst:  0.440524E-01
+('iasi616_metop-a', '3452') tlapmean in satbang_rst:  0.754620E-01
+('iasi616_metop-a', '3454') tlapmean in satbang_rst:  0.745838E-01
+('iasi616_metop-a', '3458') tlapmean in satbang_rst:  0.861750E-01
+('iasi616_metop-a', '3467') tlapmean in satbang_rst:  0.868097E-01
+('iasi616_metop-a', '3476') tlapmean in satbang_rst:  0.835050E-01
+('iasi616_metop-a', '3484') tlapmean in satbang_rst:  0.879258E-01
+('iasi616_metop-a', '3491') tlapmean in satbang_rst:  0.509475E-01
+('iasi616_metop-a', '3497') tlapmean in satbang_rst:  0.874877E-01
+('iasi616_metop-a', '3499') tlapmean in satbang_rst:  0.876727E-01
+('iasi616_metop-a', '3504') tlapmean in satbang_rst:  0.754001E-01
+('iasi616_metop-a', '3506') tlapmean in satbang_rst:  0.352257E-01
+('iasi616_metop-a', '3509') tlapmean in satbang_rst:  0.810249E-01
+('iasi616_metop-a', '3518') tlapmean in satbang_rst:  0.877304E-01
+('iasi616_metop-a', '3527') tlapmean in satbang_rst:  0.879069E-01
+('iasi616_metop-a', '3555') tlapmean in satbang_rst:  0.631283E-01
+('iasi616_metop-a', '3575') tlapmean in satbang_rst:  0.602241E-01
+('iasi616_metop-a', '3577') tlapmean in satbang_rst:  0.297331E-01
+('iasi616_metop-a', '3580') tlapmean in satbang_rst:  0.648937E-01
+('iasi616_metop-a', '3582') tlapmean in satbang_rst:  0.361048E-01
+('iasi616_metop-a', '3586') tlapmean in satbang_rst:  0.800735E-01
+('iasi616_metop-a', '3589') tlapmean in satbang_rst:  0.330484E-01
+('iasi616_metop-a', '3599') tlapmean in satbang_rst:  0.856406E-01
+('iasi616_metop-a', '3610') tlapmean in satbang_rst:  0.826368E-01
+('iasi616_metop-a', '3626') tlapmean in satbang_rst:  0.831259E-01
+('iasi616_metop-a', '3638') tlapmean in satbang_rst:  0.515220E-01
+('iasi616_metop-a', '3646') tlapmean in satbang_rst:  0.862686E-01
+('iasi616_metop-a', '3653') tlapmean in satbang_rst:  0.545434E-01
+('iasi616_metop-a', '3658') tlapmean in satbang_rst:  0.676193E-01
+('iasi616_metop-a', '3661') tlapmean in satbang_rst:  0.401305E-01
+('iasi616_metop-a', '3673') tlapmean in satbang_rst:  0.852208E-01
+('iasi616_metop-a', '3689') tlapmean in satbang_rst:  0.830817E-01
+('iasi616_metop-a', '3700') tlapmean in satbang_rst:  0.413478E-01
+('iasi616_metop-a', '3710') tlapmean in satbang_rst:  0.833239E-01
+('iasi616_metop-a', '3726') tlapmean in satbang_rst:  0.275591E-01
+('iasi616_metop-a', '3763') tlapmean in satbang_rst:  0.714381E-01
+('iasi616_metop-a', '3814') tlapmean in satbang_rst:  0.696745E-01
+('iasi616_metop-a', '3841') tlapmean in satbang_rst:  0.717986E-01
+('iasi616_metop-a', '3888') tlapmean in satbang_rst:  0.275743E-01
+('iasi616_metop-a', '4032') tlapmean in satbang_rst:  0.436058E-01
+('iasi616_metop-a', '4059') tlapmean in satbang_rst:  0.817468E-01
+('iasi616_metop-a', '4068') tlapmean in satbang_rst:  0.874274E-01
+('iasi616_metop-a', '4082') tlapmean in satbang_rst:  0.827512E-01
+('iasi616_metop-a', '4095') tlapmean in satbang_rst:  0.778418E-01
+('iasi616_metop-a', '4160') tlapmean in satbang_rst:  0.308375E-01
+('iasi616_metop-a', '4234') tlapmean in satbang_rst:  0.876278E-01
+('iasi616_metop-a', '4257') tlapmean in satbang_rst:  0.797908E-01
+('iasi616_metop-a', '4411') tlapmean in satbang_rst:  0.828539E-01
+('iasi616_metop-a', '4498') tlapmean in satbang_rst:  0.811952E-01
+('iasi616_metop-a', '4520') tlapmean in satbang_rst:  0.834270E-01
+('iasi616_metop-a', '4552') tlapmean in satbang_rst:  0.675163E-01
+('iasi616_metop-a', '4567') tlapmean in satbang_rst:  0.634219E-01
+('iasi616_metop-a', '4608') tlapmean in satbang_rst:  0.809005E-01
+('iasi616_metop-a', '4646') tlapmean in satbang_rst:  0.579637E-01
+('iasi616_metop-a', '4698') tlapmean in satbang_rst:  0.496370E-01
+('iasi616_metop-a', '4808') tlapmean in satbang_rst:  0.715780E-01
+('iasi616_metop-a', '4849') tlapmean in satbang_rst:  0.439350E-01
+('iasi616_metop-a', '4920') tlapmean in satbang_rst:  0.422142E-01
+('iasi616_metop-a', '4939') tlapmean in satbang_rst:  0.563268E-01
+('iasi616_metop-a', '4947') tlapmean in satbang_rst:  0.363287E-01
+('iasi616_metop-a', '4967') tlapmean in satbang_rst:  0.457573E-01
+('iasi616_metop-a', '4991') tlapmean in satbang_rst:  0.522252E-01
+('iasi616_metop-a', '4996') tlapmean in satbang_rst:  0.590510E-01
+('iasi616_metop-a', '5015') tlapmean in satbang_rst:  0.363610E-01
+('iasi616_metop-a', '5028') tlapmean in satbang_rst:  0.519153E-01
+('iasi616_metop-a', '5056') tlapmean in satbang_rst:  0.605237E-01
+('iasi616_metop-a', '5128') tlapmean in satbang_rst:  0.390388E-01
+('iasi616_metop-a', '5130') tlapmean in satbang_rst:  0.335938E-01
+('iasi616_metop-a', '5144') tlapmean in satbang_rst:  0.287907E-01
+('iasi616_metop-a', '5170') tlapmean in satbang_rst:  0.389313E-01
+('iasi616_metop-a', '5178') tlapmean in satbang_rst:  0.403247E-01
+('iasi616_metop-a', '5183') tlapmean in satbang_rst:  0.465767E-01
+('iasi616_metop-a', '5188') tlapmean in satbang_rst:  0.786786E-01
+('iasi616_metop-a', '5191') tlapmean in satbang_rst:  0.762122E-01
+('iasi616_metop-a', '5368') tlapmean in satbang_rst:  0.319473E-01
+('iasi616_metop-a', '5371') tlapmean in satbang_rst:  0.467274E-01
+('iasi616_metop-a', '5379') tlapmean in satbang_rst:  0.406215E-01
+('iasi616_metop-a', '5381') tlapmean in satbang_rst:  0.391411E-01
+('iasi616_metop-a', '5383') tlapmean in satbang_rst:  0.422489E-01
+('iasi616_metop-a', '5397') tlapmean in satbang_rst:  0.391735E-01
+('iasi616_metop-a', '5399') tlapmean in satbang_rst:  0.325766E-01
+('iasi616_metop-a', '5401') tlapmean in satbang_rst:  0.289852E-01
+('iasi616_metop-a', '5403') tlapmean in satbang_rst:  0.268471E-01
+('iasi616_metop-a', '5405') tlapmean in satbang_rst:  0.248361E-01
+('iasi616_metop-a', '5446') tlapmean in satbang_rst:  0.177847E-01
+('iasi616_metop-a', '5455') tlapmean in satbang_rst:  0.285903E-01
+('iasi616_metop-a', '5472') tlapmean in satbang_rst:  0.189143E-01
+('iasi616_metop-a', '5480') tlapmean in satbang_rst:  0.271027E-01
+('iasi616_metop-a', '5483') tlapmean in satbang_rst:  0.335868E-01
+('iasi616_metop-a', '5485') tlapmean in satbang_rst:  0.435753E-01
+('iasi616_metop-a', '5492') tlapmean in satbang_rst:  0.485741E-01
+('iasi616_metop-a', '5497') tlapmean in satbang_rst:  0.667647E-01
+('iasi616_metop-a', '5502') tlapmean in satbang_rst:  0.283819E-01
+('iasi616_metop-a', '5507') tlapmean in satbang_rst:  0.214790E-01
+('iasi616_metop-a', '5509') tlapmean in satbang_rst:  0.227272E-01
+('iasi616_metop-a', '5517') tlapmean in satbang_rst:  0.210425E-01
+('iasi616_metop-a', '5528') tlapmean in satbang_rst:  0.612159E-01
+('iasi616_metop-a', '5558') tlapmean in satbang_rst:  0.285866E-01
+('iasi616_metop-a', '5697') tlapmean in satbang_rst:  0.295753E-01
+('iasi616_metop-a', '5714') tlapmean in satbang_rst:  0.257280E-01
+('iasi616_metop-a', '5749') tlapmean in satbang_rst:  0.372414E-01
+('iasi616_metop-a', '5766') tlapmean in satbang_rst:  0.202937E-01
+('iasi616_metop-a', '5785') tlapmean in satbang_rst:  0.172615E-01
+('iasi616_metop-a', '5798') tlapmean in satbang_rst:  0.111934E-01
+('iasi616_metop-a', '5799') tlapmean in satbang_rst:  0.122288E-01
+('iasi616_metop-a', '5801') tlapmean in satbang_rst:  0.177328E-01
+('iasi616_metop-a', '5817') tlapmean in satbang_rst:  0.179646E-01
+('iasi616_metop-a', '5833') tlapmean in satbang_rst:  0.139295E-01
+('iasi616_metop-a', '5834') tlapmean in satbang_rst:  0.208548E-01
+('iasi616_metop-a', '5836') tlapmean in satbang_rst:  0.535455E-02
+('iasi616_metop-a', '5849') tlapmean in satbang_rst:  0.930111E-02
+('iasi616_metop-a', '5851') tlapmean in satbang_rst:  0.249482E-01
+('iasi616_metop-a', '5852') tlapmean in satbang_rst:  0.156692E-01
+('iasi616_metop-a', '5865') tlapmean in satbang_rst:  0.821531E-02
+('iasi616_metop-a', '5869') tlapmean in satbang_rst:  0.135554E-01
+('iasi616_metop-a', '5881') tlapmean in satbang_rst:  0.410608E-01
+('iasi616_metop-a', '5884') tlapmean in satbang_rst:  0.283811E-01
+('iasi616_metop-a', '5897') tlapmean in satbang_rst: -0.151514E-02
+('iasi616_metop-a', '5900') tlapmean in satbang_rst:  0.202334E-01
+('iasi616_metop-a', '5916') tlapmean in satbang_rst:  0.188705E-01
+('iasi616_metop-a', '5932') tlapmean in satbang_rst:  0.174117E-01
+('iasi616_metop-a', '5948') tlapmean in satbang_rst:  0.221989E-01
+('iasi616_metop-a', '5963') tlapmean in satbang_rst:  0.318969E-01
+('iasi616_metop-a', '5968') tlapmean in satbang_rst:  0.304098E-01
+('iasi616_metop-a', '5978') tlapmean in satbang_rst:  0.412518E-01
+('iasi616_metop-a', '5988') tlapmean in satbang_rst:  0.716402E-02
+('iasi616_metop-a', '5992') tlapmean in satbang_rst:  0.556673E-02
+('iasi616_metop-a', '5994') tlapmean in satbang_rst:  0.511296E-02
+('iasi616_metop-a', '5997') tlapmean in satbang_rst:  0.674590E-02
+('iasi616_metop-a', '6003') tlapmean in satbang_rst:  0.381495E-01
+('iasi616_metop-a', '6008') tlapmean in satbang_rst:  0.144547E-01
+('iasi616_metop-a', '6023') tlapmean in satbang_rst:  0.137339E-01
+('iasi616_metop-a', '6026') tlapmean in satbang_rst:  0.202818E-01
+('iasi616_metop-a', '6039') tlapmean in satbang_rst:  0.301681E-01
+('iasi616_metop-a', '6053') tlapmean in satbang_rst:  0.214462E-01
+('iasi616_metop-a', '6056') tlapmean in satbang_rst:  0.134102E-01
+('iasi616_metop-a', '6067') tlapmean in satbang_rst:  0.327920E-01
+('iasi616_metop-a', '6071') tlapmean in satbang_rst:  0.193375E-01
+('iasi616_metop-a', '6082') tlapmean in satbang_rst:  0.233192E-01
+('iasi616_metop-a', '6085') tlapmean in satbang_rst:  0.189021E-01
+('iasi616_metop-a', '6098') tlapmean in satbang_rst:  0.348406E-01
+('iasi616_metop-a', '6112') tlapmean in satbang_rst:  0.376839E-01
+('iasi616_metop-a', '6126') tlapmean in satbang_rst:  0.381395E-01
+('iasi616_metop-a', '6135') tlapmean in satbang_rst:  0.187174E-01
+('iasi616_metop-a', '6140') tlapmean in satbang_rst:  0.364279E-01
+('iasi616_metop-a', '6149') tlapmean in satbang_rst:  0.196068E-01
+('iasi616_metop-a', '6154') tlapmean in satbang_rst:  0.416811E-01
+('iasi616_metop-a', '6158') tlapmean in satbang_rst:  0.258476E-01
+('iasi616_metop-a', '6161') tlapmean in satbang_rst:  0.382306E-01
+('iasi616_metop-a', '6168') tlapmean in satbang_rst:  0.495337E-01
+('iasi616_metop-a', '6174') tlapmean in satbang_rst:  0.409856E-01
+('iasi616_metop-a', '6182') tlapmean in satbang_rst:  0.464724E-01
+('iasi616_metop-a', '6187') tlapmean in satbang_rst:  0.378328E-01
+('iasi616_metop-a', '6205') tlapmean in satbang_rst:  0.400374E-01
+('iasi616_metop-a', '6209') tlapmean in satbang_rst:  0.435209E-01
+('iasi616_metop-a', '6213') tlapmean in satbang_rst:  0.446772E-01
+('iasi616_metop-a', '6317') tlapmean in satbang_rst:  0.429681E-01
+('iasi616_metop-a', '6339') tlapmean in satbang_rst:  0.298090E-01
+('iasi616_metop-a', '6342') tlapmean in satbang_rst:  0.401257E-01
+('iasi616_metop-a', '6366') tlapmean in satbang_rst:  0.399481E-01
+('iasi616_metop-a', '6381') tlapmean in satbang_rst:  0.463070E-01
+('iasi616_metop-a', '6391') tlapmean in satbang_rst:  0.441504E-01
+('iasi616_metop-a', '6489') tlapmean in satbang_rst: -0.623367E-02
+('iasi616_metop-a', '6962') tlapmean in satbang_rst:  0.549298E-01
+('iasi616_metop-a', '6966') tlapmean in satbang_rst:  0.640574E-01
+('iasi616_metop-a', '6970') tlapmean in satbang_rst:  0.617973E-01
+('iasi616_metop-a', '6975') tlapmean in satbang_rst:  0.637017E-01
+('iasi616_metop-a', '6977') tlapmean in satbang_rst:  0.620085E-01
+('iasi616_metop-a', '6982') tlapmean in satbang_rst:  0.560190E-01
+('iasi616_metop-a', '6985') tlapmean in satbang_rst:  0.526403E-01
+('iasi616_metop-a', '6987') tlapmean in satbang_rst:  0.475681E-01
+('iasi616_metop-a', '6989') tlapmean in satbang_rst:  0.470413E-01
+('iasi616_metop-a', '6991') tlapmean in satbang_rst:  0.448785E-01
+('iasi616_metop-a', '6993') tlapmean in satbang_rst:  0.430273E-01
+('iasi616_metop-a', '6995') tlapmean in satbang_rst:  0.417493E-01
+('iasi616_metop-a', '6997') tlapmean in satbang_rst:  0.404873E-01
+('iasi616_metop-a', '6999') tlapmean in satbang_rst:  0.395346E-01
+('iasi616_metop-a', '7000') tlapmean in satbang_rst:  0.391713E-01
+('iasi616_metop-a', '7004') tlapmean in satbang_rst:  0.377988E-01
+('iasi616_metop-a', '7008') tlapmean in satbang_rst:  0.367076E-01
+('iasi616_metop-a', '7013') tlapmean in satbang_rst:  0.353690E-01
+('iasi616_metop-a', '7016') tlapmean in satbang_rst:  0.346872E-01
+('iasi616_metop-a', '7021') tlapmean in satbang_rst:  0.336316E-01
+('iasi616_metop-a', '7024') tlapmean in satbang_rst:  0.314462E-01
+('iasi616_metop-a', '7027') tlapmean in satbang_rst:  0.308104E-01
+('iasi616_metop-a', '7029') tlapmean in satbang_rst:  0.304485E-01
+('iasi616_metop-a', '7032') tlapmean in satbang_rst:  0.300015E-01
+('iasi616_metop-a', '7038') tlapmean in satbang_rst:  0.290997E-01
+('iasi616_metop-a', '7043') tlapmean in satbang_rst:  0.284355E-01
+('iasi616_metop-a', '7046') tlapmean in satbang_rst:  0.279119E-01
+('iasi616_metop-a', '7049') tlapmean in satbang_rst:  0.280469E-01
+('iasi616_metop-a', '7069') tlapmean in satbang_rst:  0.252105E-01
+('iasi616_metop-a', '7072') tlapmean in satbang_rst:  0.249985E-01
+('iasi616_metop-a', '7076') tlapmean in satbang_rst:  0.245904E-01
+('iasi616_metop-a', '7081') tlapmean in satbang_rst:  0.241004E-01
+('iasi616_metop-a', '7084') tlapmean in satbang_rst:  0.240424E-01
+('iasi616_metop-a', '7089') tlapmean in satbang_rst:  0.234759E-01
+('iasi616_metop-a', '7099') tlapmean in satbang_rst:  0.229875E-01
+('iasi616_metop-a', '7209') tlapmean in satbang_rst:  0.168566E-01
+('iasi616_metop-a', '7222') tlapmean in satbang_rst:  0.171999E-01
+('iasi616_metop-a', '7231') tlapmean in satbang_rst:  0.166362E-01
+('iasi616_metop-a', '7235') tlapmean in satbang_rst:  0.163347E-01
+('iasi616_metop-a', '7247') tlapmean in satbang_rst:  0.140515E-01
+('iasi616_metop-a', '7267') tlapmean in satbang_rst:  0.124176E-01
+('iasi616_metop-a', '7269') tlapmean in satbang_rst:  0.121109E-01
+('iasi616_metop-a', '7284') tlapmean in satbang_rst:  0.122974E-01
+('iasi616_metop-a', '7389') tlapmean in satbang_rst:  0.707486E-02
+('iasi616_metop-a', '7419') tlapmean in satbang_rst:  0.583199E-02
+('iasi616_metop-a', '7423') tlapmean in satbang_rst:  0.550343E-02
+('iasi616_metop-a', '7424') tlapmean in satbang_rst:  0.549047E-02
+('iasi616_metop-a', '7426') tlapmean in satbang_rst:  0.550021E-02
+('iasi616_metop-a', '7428') tlapmean in satbang_rst:  0.540712E-02
+('iasi616_metop-a', '7431') tlapmean in satbang_rst:  0.578428E-02
+('iasi616_metop-a', '7436') tlapmean in satbang_rst:  0.537525E-02
+('iasi616_metop-a', '7444') tlapmean in satbang_rst:  0.516553E-02
+('iasi616_metop-a', '7475') tlapmean in satbang_rst:  0.452095E-02
+('iasi616_metop-a', '7549') tlapmean in satbang_rst:  0.603000E-02
+('iasi616_metop-a', '7584') tlapmean in satbang_rst:  0.495582E-02
+('iasi616_metop-a', '7665') tlapmean in satbang_rst:  0.645853E-02
+('iasi616_metop-a', '7666') tlapmean in satbang_rst:  0.460107E-02
+('iasi616_metop-a', '7831') tlapmean in satbang_rst:  0.212738E-02
+('iasi616_metop-a', '7836') tlapmean in satbang_rst:  0.274123E-02
+('iasi616_metop-a', '7853') tlapmean in satbang_rst:  0.149710E-01
+('iasi616_metop-a', '7865') tlapmean in satbang_rst:  0.124033E-02
+('iasi616_metop-a', '7885') tlapmean in satbang_rst:  0.684250E-03
+('iasi616_metop-a', '7888') tlapmean in satbang_rst:  0.692730E-03
+('iasi616_metop-a', '7912') tlapmean in satbang_rst:  0.170644E-01
+('iasi616_metop-a', '7950') tlapmean in satbang_rst:  0.120902E-02
+('iasi616_metop-a', '7972') tlapmean in satbang_rst:  0.985582E-02
+('iasi616_metop-a', '7980') tlapmean in satbang_rst:  0.296438E-02
+('iasi616_metop-a', '7995') tlapmean in satbang_rst:  0.246685E-02
+('iasi616_metop-a', '8007') tlapmean in satbang_rst:  0.122138E-02
+('iasi616_metop-a', '8015') tlapmean in satbang_rst:  0.252782E-02
+('iasi616_metop-a', '8055') tlapmean in satbang_rst:  0.211941E-02
+('iasi616_metop-a', '8078') tlapmean in satbang_rst:  0.255765E-02
+('airs281_aqua', '1')     tlapmean in satbang_rst: -0.262858E-01
+('airs281_aqua', '6')     tlapmean in satbang_rst: -0.254790E-01
+('airs281_aqua', '7')     tlapmean in satbang_rst: -0.132533E-01
+('airs281_aqua', '10')    tlapmean in satbang_rst: -0.345719E-01
+('airs281_aqua', '11')    tlapmean in satbang_rst: -0.400410E-01
+('airs281_aqua', '15')    tlapmean in satbang_rst: -0.183135E-01
+('airs281_aqua', '16')    tlapmean in satbang_rst: -0.304945E-01
+('airs281_aqua', '17')    tlapmean in satbang_rst: -0.403252E-01
+('airs281_aqua', '20')    tlapmean in satbang_rst: -0.192391E-01
+('airs281_aqua', '21')    tlapmean in satbang_rst: -0.174838E-01
+('airs281_aqua', '22')    tlapmean in satbang_rst: -0.270785E-01
+('airs281_aqua', '24')    tlapmean in satbang_rst: -0.387131E-01
+('airs281_aqua', '27')    tlapmean in satbang_rst: -0.179039E-01
+('airs281_aqua', '28')    tlapmean in satbang_rst: -0.233667E-01
+('airs281_aqua', '30')    tlapmean in satbang_rst: -0.406206E-01
+('airs281_aqua', '36')    tlapmean in satbang_rst: -0.416318E-01
+('airs281_aqua', '39')    tlapmean in satbang_rst: -0.196722E-01
+('airs281_aqua', '40')    tlapmean in satbang_rst: -0.179766E-01
+('airs281_aqua', '42')    tlapmean in satbang_rst: -0.406989E-01
+('airs281_aqua', '51')    tlapmean in satbang_rst: -0.222411E-01
+('airs281_aqua', '52')    tlapmean in satbang_rst: -0.193460E-01
+('airs281_aqua', '54')    tlapmean in satbang_rst: -0.426375E-01
+('airs281_aqua', '55')    tlapmean in satbang_rst: -0.444019E-01
+('airs281_aqua', '56')    tlapmean in satbang_rst: -0.382023E-01
+('airs281_aqua', '59')    tlapmean in satbang_rst: -0.247878E-01
+('airs281_aqua', '62')    tlapmean in satbang_rst: -0.324679E-01
+('airs281_aqua', '63')    tlapmean in satbang_rst: -0.324563E-01
+('airs281_aqua', '68')    tlapmean in satbang_rst: -0.303859E-01
+('airs281_aqua', '69')    tlapmean in satbang_rst: -0.248102E-01
+('airs281_aqua', '71')    tlapmean in satbang_rst: -0.337971E-01
+('airs281_aqua', '72')    tlapmean in satbang_rst: -0.380979E-01
+('airs281_aqua', '73')    tlapmean in satbang_rst: -0.287562E-01
+('airs281_aqua', '74')    tlapmean in satbang_rst: -0.232406E-01
+('airs281_aqua', '75')    tlapmean in satbang_rst: -0.289562E-01
+('airs281_aqua', '76')    tlapmean in satbang_rst: -0.301277E-01
+('airs281_aqua', '77')    tlapmean in satbang_rst: -0.345323E-01
+('airs281_aqua', '78')    tlapmean in satbang_rst: -0.389570E-01
+('airs281_aqua', '79')    tlapmean in satbang_rst: -0.393361E-01
+('airs281_aqua', '80')    tlapmean in satbang_rst: -0.393619E-01
+('airs281_aqua', '82')    tlapmean in satbang_rst: -0.412687E-01
+('airs281_aqua', '83')    tlapmean in satbang_rst: -0.420071E-01
+('airs281_aqua', '84')    tlapmean in satbang_rst: -0.334287E-01
+('airs281_aqua', '86')    tlapmean in satbang_rst: -0.250719E-01
+('airs281_aqua', '92')    tlapmean in satbang_rst: -0.187446E-01
+('airs281_aqua', '93')    tlapmean in satbang_rst: -0.242073E-01
+('airs281_aqua', '98')    tlapmean in satbang_rst: -0.198505E-01
+('airs281_aqua', '99')    tlapmean in satbang_rst: -0.232250E-01
+('airs281_aqua', '101')   tlapmean in satbang_rst: -0.421836E-01
+('airs281_aqua', '104')   tlapmean in satbang_rst: -0.194786E-01
+('airs281_aqua', '105')   tlapmean in satbang_rst: -0.226164E-01
+('airs281_aqua', '108')   tlapmean in satbang_rst: -0.389889E-01
+('airs281_aqua', '110')   tlapmean in satbang_rst: -0.191453E-01
+('airs281_aqua', '111')   tlapmean in satbang_rst: -0.217878E-01
+('airs281_aqua', '113')   tlapmean in satbang_rst: -0.419837E-01
+('airs281_aqua', '116')   tlapmean in satbang_rst: -0.189812E-01
+('airs281_aqua', '117')   tlapmean in satbang_rst: -0.213643E-01
+('airs281_aqua', '123')   tlapmean in satbang_rst: -0.199201E-01
+('airs281_aqua', '124')   tlapmean in satbang_rst: -0.299787E-01
+('airs281_aqua', '128')   tlapmean in satbang_rst: -0.173241E-01
+('airs281_aqua', '129')   tlapmean in satbang_rst: -0.183564E-01
+('airs281_aqua', '138')   tlapmean in satbang_rst: -0.374000E-02
+('airs281_aqua', '139')   tlapmean in satbang_rst: -0.174731E-02
+('airs281_aqua', '144')   tlapmean in satbang_rst:  0.611164E-02
+('airs281_aqua', '145')   tlapmean in satbang_rst:  0.541716E-02
+('airs281_aqua', '150')   tlapmean in satbang_rst:  0.111371E-01
+('airs281_aqua', '151')   tlapmean in satbang_rst:  0.946474E-02
+('airs281_aqua', '156')   tlapmean in satbang_rst:  0.227249E-01
+('airs281_aqua', '157')   tlapmean in satbang_rst:  0.128293E-01
+('airs281_aqua', '159')   tlapmean in satbang_rst: -0.264601E-01
+('airs281_aqua', '162')   tlapmean in satbang_rst:  0.266516E-01
+('airs281_aqua', '165')   tlapmean in satbang_rst: -0.205670E-01
+('airs281_aqua', '168')   tlapmean in satbang_rst:  0.308518E-01
+('airs281_aqua', '169')   tlapmean in satbang_rst:  0.218266E-01
+('airs281_aqua', '170')   tlapmean in satbang_rst: -0.366239E-02
+('airs281_aqua', '172')   tlapmean in satbang_rst:  0.107199E-01
+('airs281_aqua', '173')   tlapmean in satbang_rst:  0.331218E-01
+('airs281_aqua', '174')   tlapmean in satbang_rst:  0.360162E-01
+('airs281_aqua', '175')   tlapmean in satbang_rst:  0.268484E-01
+('airs281_aqua', '177')   tlapmean in satbang_rst: -0.109806E-02
+('airs281_aqua', '179')   tlapmean in satbang_rst:  0.353131E-01
+('airs281_aqua', '180')   tlapmean in satbang_rst:  0.379660E-01
+('airs281_aqua', '182')   tlapmean in satbang_rst:  0.248936E-02
+('airs281_aqua', '185')   tlapmean in satbang_rst:  0.347005E-01
+('airs281_aqua', '186')   tlapmean in satbang_rst:  0.376189E-01
+('airs281_aqua', '190')   tlapmean in satbang_rst:  0.488036E-01
+('airs281_aqua', '192')   tlapmean in satbang_rst:  0.472421E-01
+('airs281_aqua', '198')   tlapmean in satbang_rst:  0.576783E-01
+('airs281_aqua', '201')   tlapmean in satbang_rst:  0.560979E-01
+('airs281_aqua', '204')   tlapmean in satbang_rst:  0.597013E-01
+('airs281_aqua', '207')   tlapmean in satbang_rst:  0.496706E-01
+('airs281_aqua', '210')   tlapmean in satbang_rst:  0.541649E-01
+('airs281_aqua', '215')   tlapmean in satbang_rst:  0.607374E-01
+('airs281_aqua', '216')   tlapmean in satbang_rst:  0.499485E-01
+('airs281_aqua', '221')   tlapmean in satbang_rst:  0.548509E-01
+('airs281_aqua', '226')   tlapmean in satbang_rst:  0.501082E-01
+('airs281_aqua', '227')   tlapmean in satbang_rst:  0.526468E-01
+('airs281_aqua', '232')   tlapmean in satbang_rst:  0.472402E-01
+('airs281_aqua', '252')   tlapmean in satbang_rst:  0.503297E-01
+('airs281_aqua', '253')   tlapmean in satbang_rst:  0.497008E-01
+('airs281_aqua', '256')   tlapmean in satbang_rst:  0.375695E-01
+('airs281_aqua', '257')   tlapmean in satbang_rst:  0.367619E-01
+('airs281_aqua', '261')   tlapmean in satbang_rst:  0.408679E-01
+('airs281_aqua', '262')   tlapmean in satbang_rst:  0.437858E-01
+('airs281_aqua', '267')   tlapmean in satbang_rst:  0.434820E-01
+('airs281_aqua', '272')   tlapmean in satbang_rst:  0.426766E-01
+('airs281_aqua', '295')   tlapmean in satbang_rst:  0.459121E-01
+('airs281_aqua', '299')   tlapmean in satbang_rst:  0.455767E-01
+('airs281_aqua', '300')   tlapmean in satbang_rst:  0.451903E-01
+('airs281_aqua', '305')   tlapmean in satbang_rst:  0.452389E-01
+('airs281_aqua', '310')   tlapmean in satbang_rst:  0.475503E-01
+('airs281_aqua', '321')   tlapmean in satbang_rst:  0.492067E-01
+('airs281_aqua', '325')   tlapmean in satbang_rst:  0.400375E-01
+('airs281_aqua', '333')   tlapmean in satbang_rst:  0.303241E-01
+('airs281_aqua', '338')   tlapmean in satbang_rst:  0.293370E-01
+('airs281_aqua', '355')   tlapmean in satbang_rst:  0.406997E-01
+('airs281_aqua', '362')   tlapmean in satbang_rst:  0.259662E-01
+('airs281_aqua', '375')   tlapmean in satbang_rst:  0.166720E-01
+('airs281_aqua', '453')   tlapmean in satbang_rst:  0.166985E-01
+('airs281_aqua', '475')   tlapmean in satbang_rst:  0.131922E-01
+('airs281_aqua', '484')   tlapmean in satbang_rst:  0.146891E-01
+('airs281_aqua', '497')   tlapmean in satbang_rst:  0.138656E-01
+('airs281_aqua', '528')   tlapmean in satbang_rst:  0.106916E-01
+('airs281_aqua', '587')   tlapmean in satbang_rst:  0.993873E-02
+('airs281_aqua', '672')   tlapmean in satbang_rst:  0.235227E-01
+('airs281_aqua', '787')   tlapmean in satbang_rst:  0.793635E-02
+('airs281_aqua', '791')   tlapmean in satbang_rst:  0.103922E-01
+('airs281_aqua', '843')   tlapmean in satbang_rst:  0.747722E-02
+('airs281_aqua', '870')   tlapmean in satbang_rst:  0.213058E-01
+('airs281_aqua', '914')   tlapmean in satbang_rst:  0.718267E-02
+('airs281_aqua', '950')   tlapmean in satbang_rst:  0.657626E-02
+('airs281_aqua', '1003')  tlapmean in satbang_rst:  0.222893E-02
+('airs281_aqua', '1012')  tlapmean in satbang_rst: -0.880837E-03
+('airs281_aqua', '1019')  tlapmean in satbang_rst: -0.214052E-02
+('airs281_aqua', '1024')  tlapmean in satbang_rst:  0.114334E-02
+('airs281_aqua', '1030')  tlapmean in satbang_rst: -0.366198E-02
+('airs281_aqua', '1038')  tlapmean in satbang_rst: -0.660075E-02
+('airs281_aqua', '1048')  tlapmean in satbang_rst: -0.845886E-02
+('airs281_aqua', '1069')  tlapmean in satbang_rst: -0.658260E-02
+('airs281_aqua', '1079')  tlapmean in satbang_rst: -0.146557E-01
+('airs281_aqua', '1082')  tlapmean in satbang_rst: -0.153759E-01
+('airs281_aqua', '1083')  tlapmean in satbang_rst: -0.157266E-01
+('airs281_aqua', '1088')  tlapmean in satbang_rst: -0.173626E-01
+('airs281_aqua', '1090')  tlapmean in satbang_rst: -0.181801E-01
+('airs281_aqua', '1092')  tlapmean in satbang_rst: -0.173010E-01
+('airs281_aqua', '1095')  tlapmean in satbang_rst:  0.297453E-02
+('airs281_aqua', '1104')  tlapmean in satbang_rst: -0.142888E-01
+('airs281_aqua', '1111')  tlapmean in satbang_rst: -0.978487E-02
+('airs281_aqua', '1115')  tlapmean in satbang_rst: -0.104500E-01
+('airs281_aqua', '1116')  tlapmean in satbang_rst: -0.880378E-02
+('airs281_aqua', '1119')  tlapmean in satbang_rst: -0.690953E-02
+('airs281_aqua', '1120')  tlapmean in satbang_rst: -0.671374E-02
+('airs281_aqua', '1123')  tlapmean in satbang_rst: -0.958915E-03
+('airs281_aqua', '1130')  tlapmean in satbang_rst:  0.254250E-02
+('airs281_aqua', '1138')  tlapmean in satbang_rst:  0.922485E-02
+('airs281_aqua', '1142')  tlapmean in satbang_rst:  0.193320E-01
+('airs281_aqua', '1178')  tlapmean in satbang_rst:  0.469287E-02
+('airs281_aqua', '1199')  tlapmean in satbang_rst:  0.449081E-02
+('airs281_aqua', '1206')  tlapmean in satbang_rst:  0.223680E-01
+('airs281_aqua', '1221')  tlapmean in satbang_rst:  0.402762E-02
+('airs281_aqua', '1237')  tlapmean in satbang_rst:  0.428310E-02
+('airs281_aqua', '1252')  tlapmean in satbang_rst:  0.337391E-02
+('airs281_aqua', '1260')  tlapmean in satbang_rst:  0.340370E-01
+('airs281_aqua', '1263')  tlapmean in satbang_rst:  0.116683E-01
+('airs281_aqua', '1266')  tlapmean in satbang_rst:  0.404485E-01
+('airs281_aqua', '1285')  tlapmean in satbang_rst:  0.113242E-01
+('airs281_aqua', '1301')  tlapmean in satbang_rst:  0.278866E-01
+('airs281_aqua', '1304')  tlapmean in satbang_rst:  0.182790E-01
+('airs281_aqua', '1329')  tlapmean in satbang_rst:  0.275347E-01
+('airs281_aqua', '1371')  tlapmean in satbang_rst:  0.328732E-01
+('airs281_aqua', '1382')  tlapmean in satbang_rst:  0.367697E-01
+('airs281_aqua', '1415')  tlapmean in satbang_rst:  0.414868E-01
+('airs281_aqua', '1424')  tlapmean in satbang_rst:  0.535469E-01
+('airs281_aqua', '1449')  tlapmean in satbang_rst:  0.314086E-01
+('airs281_aqua', '1455')  tlapmean in satbang_rst:  0.421734E-01
+('airs281_aqua', '1466')  tlapmean in satbang_rst:  0.835496E-01
+('airs281_aqua', '1477')  tlapmean in satbang_rst:  0.423550E-01
+('airs281_aqua', '1500')  tlapmean in satbang_rst:  0.490771E-01
+('airs281_aqua', '1519')  tlapmean in satbang_rst:  0.535173E-01
+('airs281_aqua', '1538')  tlapmean in satbang_rst:  0.617754E-01
+('airs281_aqua', '1545')  tlapmean in satbang_rst:  0.500360E-01
+('airs281_aqua', '1565')  tlapmean in satbang_rst:  0.648133E-01
+('airs281_aqua', '1574')  tlapmean in satbang_rst:  0.768983E-01
+('airs281_aqua', '1583')  tlapmean in satbang_rst:  0.624309E-01
+('airs281_aqua', '1593')  tlapmean in satbang_rst:  0.582546E-01
+('airs281_aqua', '1614')  tlapmean in satbang_rst:  0.697277E-01
+('airs281_aqua', '1627')  tlapmean in satbang_rst:  0.667485E-01
+('airs281_aqua', '1636')  tlapmean in satbang_rst:  0.759956E-01
+('airs281_aqua', '1644')  tlapmean in satbang_rst:  0.692839E-01
+('airs281_aqua', '1652')  tlapmean in satbang_rst:  0.656215E-01
+('airs281_aqua', '1669')  tlapmean in satbang_rst:  0.771315E-01
+('airs281_aqua', '1674')  tlapmean in satbang_rst:  0.645343E-01
+('airs281_aqua', '1681')  tlapmean in satbang_rst:  0.731043E-01
+('airs281_aqua', '1694')  tlapmean in satbang_rst:  0.765490E-01
+('airs281_aqua', '1708')  tlapmean in satbang_rst:  0.809210E-01
+('airs281_aqua', '1717')  tlapmean in satbang_rst:  0.659833E-01
+('airs281_aqua', '1723')  tlapmean in satbang_rst:  0.834896E-01
+('airs281_aqua', '1740')  tlapmean in satbang_rst:  0.833806E-01
+('airs281_aqua', '1748')  tlapmean in satbang_rst:  0.852545E-01
+('airs281_aqua', '1751')  tlapmean in satbang_rst:  0.549260E-01
+('airs281_aqua', '1756')  tlapmean in satbang_rst:  0.823355E-01
+('airs281_aqua', '1763')  tlapmean in satbang_rst:  0.552438E-01
+('airs281_aqua', '1766')  tlapmean in satbang_rst:  0.773607E-01
+('airs281_aqua', '1771')  tlapmean in satbang_rst:  0.815582E-01
+('airs281_aqua', '1777')  tlapmean in satbang_rst:  0.828872E-01
+('airs281_aqua', '1780')  tlapmean in satbang_rst:  0.668208E-01
+('airs281_aqua', '1783')  tlapmean in satbang_rst:  0.834379E-01
+('airs281_aqua', '1794')  tlapmean in satbang_rst:  0.833729E-01
+('airs281_aqua', '1800')  tlapmean in satbang_rst:  0.832028E-01
+('airs281_aqua', '1803')  tlapmean in satbang_rst:  0.606326E-01
+('airs281_aqua', '1806')  tlapmean in satbang_rst:  0.831797E-01
+('airs281_aqua', '1812')  tlapmean in satbang_rst:  0.504593E-01
+('airs281_aqua', '1826')  tlapmean in satbang_rst:  0.711976E-01
+('airs281_aqua', '1843')  tlapmean in satbang_rst:  0.699644E-01
+('airs281_aqua', '1852')  tlapmean in satbang_rst:  0.722686E-01
+('airs281_aqua', '1865')  tlapmean in satbang_rst:  0.280699E-01
+('airs281_aqua', '1866')  tlapmean in satbang_rst:  0.310435E-01
+('airs281_aqua', '1868')  tlapmean in satbang_rst:  0.337612E-01
+('airs281_aqua', '1869')  tlapmean in satbang_rst:  0.346184E-01
+('airs281_aqua', '1872')  tlapmean in satbang_rst:  0.380223E-01
+('airs281_aqua', '1873')  tlapmean in satbang_rst:  0.366906E-01
+('airs281_aqua', '1876')  tlapmean in satbang_rst:  0.329295E-01
+('airs281_aqua', '1881')  tlapmean in satbang_rst:  0.431218E-01
+('airs281_aqua', '1882')  tlapmean in satbang_rst:  0.435908E-01
+('airs281_aqua', '1883')  tlapmean in satbang_rst:  0.437534E-01
+('airs281_aqua', '1911')  tlapmean in satbang_rst:  0.423525E-01
+('airs281_aqua', '1917')  tlapmean in satbang_rst:  0.457236E-01
+('airs281_aqua', '1918')  tlapmean in satbang_rst:  0.452064E-01
+('airs281_aqua', '1924')  tlapmean in satbang_rst:  0.451151E-01
+('airs281_aqua', '1928')  tlapmean in satbang_rst:  0.433607E-01
+('airs281_aqua', '1937')  tlapmean in satbang_rst:  0.422414E-01
+('airs281_aqua', '1941')  tlapmean in satbang_rst:  0.389164E-01
+('airs281_aqua', '2099')  tlapmean in satbang_rst: -0.266525E-01
+('airs281_aqua', '2100')  tlapmean in satbang_rst: -0.181871E-01
+('airs281_aqua', '2101')  tlapmean in satbang_rst: -0.903176E-02
+('airs281_aqua', '2103')  tlapmean in satbang_rst:  0.147271E-01
+('airs281_aqua', '2104')  tlapmean in satbang_rst:  0.275141E-01
+('airs281_aqua', '2106')  tlapmean in satbang_rst:  0.519852E-01
+('airs281_aqua', '2107')  tlapmean in satbang_rst:  0.594450E-01
+('airs281_aqua', '2108')  tlapmean in satbang_rst:  0.637520E-01
+('airs281_aqua', '2109')  tlapmean in satbang_rst:  0.642239E-01
+('airs281_aqua', '2110')  tlapmean in satbang_rst:  0.617835E-01
+('airs281_aqua', '2111')  tlapmean in satbang_rst:  0.572464E-01
+('airs281_aqua', '2112')  tlapmean in satbang_rst:  0.519479E-01
+('airs281_aqua', '2113')  tlapmean in satbang_rst:  0.467516E-01
+('airs281_aqua', '2114')  tlapmean in satbang_rst:  0.427364E-01
+('airs281_aqua', '2115')  tlapmean in satbang_rst:  0.398577E-01
+('airs281_aqua', '2116')  tlapmean in satbang_rst:  0.379767E-01
+('airs281_aqua', '2117')  tlapmean in satbang_rst:  0.366043E-01
+('airs281_aqua', '2118')  tlapmean in satbang_rst:  0.354748E-01
+('airs281_aqua', '2119')  tlapmean in satbang_rst:  0.344309E-01
+('airs281_aqua', '2120')  tlapmean in satbang_rst:  0.335269E-01
+('airs281_aqua', '2121')  tlapmean in satbang_rst:  0.327088E-01
+('airs281_aqua', '2122')  tlapmean in satbang_rst:  0.317814E-01
+('airs281_aqua', '2123')  tlapmean in satbang_rst:  0.310580E-01
+('airs281_aqua', '2128')  tlapmean in satbang_rst:  0.281519E-01
+('airs281_aqua', '2134')  tlapmean in satbang_rst:  0.252224E-01
+('airs281_aqua', '2141')  tlapmean in satbang_rst:  0.228504E-01
+('airs281_aqua', '2145')  tlapmean in satbang_rst:  0.178987E-01
+('airs281_aqua', '2149')  tlapmean in satbang_rst:  0.171569E-01
+('airs281_aqua', '2153')  tlapmean in satbang_rst:  0.155862E-01
+('airs281_aqua', '2164')  tlapmean in satbang_rst:  0.127241E-01
+('airs281_aqua', '2189')  tlapmean in satbang_rst:  0.733712E-02
+('airs281_aqua', '2197')  tlapmean in satbang_rst:  0.569939E-02
+('airs281_aqua', '2209')  tlapmean in satbang_rst:  0.497619E-02
+('airs281_aqua', '2226')  tlapmean in satbang_rst:  0.523783E-02
+('airs281_aqua', '2234')  tlapmean in satbang_rst:  0.724057E-02
+('airs281_aqua', '2280')  tlapmean in satbang_rst:  0.623336E-02
+('airs281_aqua', '2318')  tlapmean in satbang_rst:  0.580124E-02
+('airs281_aqua', '2321')  tlapmean in satbang_rst:  0.259878E-02
+('airs281_aqua', '2325')  tlapmean in satbang_rst:  0.114982E-01
+('airs281_aqua', '2328')  tlapmean in satbang_rst:  0.174425E-02
+('airs281_aqua', '2333')  tlapmean in satbang_rst:  0.851504E-03
+('airs281_aqua', '2339')  tlapmean in satbang_rst:  0.124982E-01
+('airs281_aqua', '2348')  tlapmean in satbang_rst:  0.218972E-02
+('airs281_aqua', '2353')  tlapmean in satbang_rst:  0.133264E-01
+('airs281_aqua', '2355')  tlapmean in satbang_rst:  0.399670E-02
+('airs281_aqua', '2357')  tlapmean in satbang_rst:  0.877125E-02
+('airs281_aqua', '2363')  tlapmean in satbang_rst:  0.722499E-02
+('airs281_aqua', '2370')  tlapmean in satbang_rst:  0.846303E-02
+('airs281_aqua', '2371')  tlapmean in satbang_rst:  0.666276E-02
+('airs281_aqua', '2377')  tlapmean in satbang_rst:  0.681549E-02
+('seviri_m08', '1')       tlapmean in satbang_rst:  0.107259E-01
+('seviri_m08', '2')       tlapmean in satbang_rst:  0.939451E-01
+('seviri_m08', '3')       tlapmean in satbang_rst:  0.667842E-01
+('seviri_m09', '1')       tlapmean in satbang_rst:  0.107259E-01
+('seviri_m09', '2')       tlapmean in satbang_rst:  0.939451E-01
+('seviri_m09', '3')       tlapmean in satbang_rst:  0.667842E-01
+('seviri_m10', '1')       tlapmean in satbang_rst:  0.895359E-02
+('seviri_m10', '2')       tlapmean in satbang_rst:  0.813001E-01
+('seviri_m10', '3')       tlapmean in satbang_rst:  0.577965E-01
+('cris399_npp', '27')     tlapmean in satbang_rst: -0.310198E-01
+('cris399_npp', '28')     tlapmean in satbang_rst: -0.306397E-01
+('cris399_npp', '31')     tlapmean in satbang_rst: -0.366101E-01
+('cris399_npp', '32')     tlapmean in satbang_rst: -0.399233E-01
+('cris399_npp', '33')     tlapmean in satbang_rst: -0.354175E-01
+('cris399_npp', '37')     tlapmean in satbang_rst: -0.311029E-01
+('cris399_npp', '49')     tlapmean in satbang_rst: -0.278875E-01
+('cris399_npp', '51')     tlapmean in satbang_rst: -0.286757E-01
+('cris399_npp', '53')     tlapmean in satbang_rst: -0.308932E-01
+('cris399_npp', '59')     tlapmean in satbang_rst: -0.194591E-01
+('cris399_npp', '61')     tlapmean in satbang_rst: -0.206611E-01
+('cris399_npp', '63')     tlapmean in satbang_rst: -0.210929E-01
+('cris399_npp', '64')     tlapmean in satbang_rst: -0.127171E-01
+('cris399_npp', '65')     tlapmean in satbang_rst: -0.141784E-01
+('cris399_npp', '67')     tlapmean in satbang_rst: -0.184496E-02
+('cris399_npp', '69')     tlapmean in satbang_rst: -0.196742E-02
+('cris399_npp', '71')     tlapmean in satbang_rst: -0.362089E-02
+('cris399_npp', '73')     tlapmean in satbang_rst:  0.266221E-02
+('cris399_npp', '75')     tlapmean in satbang_rst:  0.189510E-01
+('cris399_npp', '79')     tlapmean in satbang_rst:  0.221986E-01
+('cris399_npp', '80')     tlapmean in satbang_rst:  0.371085E-01
+('cris399_npp', '81')     tlapmean in satbang_rst:  0.260025E-01
+('cris399_npp', '83')     tlapmean in satbang_rst:  0.410067E-01
+('cris399_npp', '85')     tlapmean in satbang_rst:  0.470050E-01
+('cris399_npp', '87')     tlapmean in satbang_rst:  0.488116E-01
+('cris399_npp', '88')     tlapmean in satbang_rst:  0.558752E-01
+('cris399_npp', '89')     tlapmean in satbang_rst:  0.533797E-01
+('cris399_npp', '93')     tlapmean in satbang_rst:  0.645507E-01
+('cris399_npp', '95')     tlapmean in satbang_rst:  0.607380E-01
+('cris399_npp', '96')     tlapmean in satbang_rst:  0.640761E-01
+('cris399_npp', '99')     tlapmean in satbang_rst:  0.680469E-01
+('cris399_npp', '101')    tlapmean in satbang_rst:  0.654500E-01
+('cris399_npp', '102')    tlapmean in satbang_rst:  0.693290E-01
+('cris399_npp', '104')    tlapmean in satbang_rst:  0.674846E-01
+('cris399_npp', '106')    tlapmean in satbang_rst:  0.651537E-01
+('cris399_npp', '107')    tlapmean in satbang_rst:  0.667055E-01
+('cris399_npp', '111')    tlapmean in satbang_rst:  0.557364E-01
+('cris399_npp', '113')    tlapmean in satbang_rst: -0.922450E-02
+('cris399_npp', '116')    tlapmean in satbang_rst:  0.663075E-01
+('cris399_npp', '120')    tlapmean in satbang_rst:  0.567919E-01
+('cris399_npp', '123')    tlapmean in satbang_rst:  0.589766E-01
+('cris399_npp', '124')    tlapmean in satbang_rst:  0.629631E-01
+('cris399_npp', '125')    tlapmean in satbang_rst:  0.602857E-01
+('cris399_npp', '126')    tlapmean in satbang_rst:  0.614993E-01
+('cris399_npp', '130')    tlapmean in satbang_rst:  0.676507E-01
+('cris399_npp', '132')    tlapmean in satbang_rst:  0.665201E-01
+('cris399_npp', '133')    tlapmean in satbang_rst:  0.638126E-01
+('cris399_npp', '136')    tlapmean in satbang_rst:  0.625789E-01
+('cris399_npp', '137')    tlapmean in satbang_rst:  0.627564E-01
+('cris399_npp', '138')    tlapmean in satbang_rst:  0.617630E-01
+('cris399_npp', '142')    tlapmean in satbang_rst:  0.650176E-01
+('cris399_npp', '143')    tlapmean in satbang_rst:  0.636843E-01
+('cris399_npp', '144')    tlapmean in satbang_rst:  0.660664E-01
+('cris399_npp', '145')    tlapmean in satbang_rst:  0.686469E-01
+('cris399_npp', '147')    tlapmean in satbang_rst:  0.687832E-01
+('cris399_npp', '148')    tlapmean in satbang_rst:  0.659501E-01
+('cris399_npp', '150')    tlapmean in satbang_rst:  0.510157E-01
+('cris399_npp', '151')    tlapmean in satbang_rst:  0.580925E-01
+('cris399_npp', '153')    tlapmean in satbang_rst:  0.636546E-01
+('cris399_npp', '154')    tlapmean in satbang_rst:  0.542670E-01
+('cris399_npp', '155')    tlapmean in satbang_rst:  0.473531E-01
+('cris399_npp', '157')    tlapmean in satbang_rst:  0.468075E-01
+('cris399_npp', '158')    tlapmean in satbang_rst:  0.536641E-01
+('cris399_npp', '159')    tlapmean in satbang_rst:  0.495691E-01
+('cris399_npp', '160')    tlapmean in satbang_rst:  0.452873E-01
+('cris399_npp', '161')    tlapmean in satbang_rst:  0.461107E-01
+('cris399_npp', '162')    tlapmean in satbang_rst:  0.388298E-01
+('cris399_npp', '163')    tlapmean in satbang_rst:  0.467982E-01
+('cris399_npp', '164')    tlapmean in satbang_rst:  0.457976E-01
+('cris399_npp', '165')    tlapmean in satbang_rst:  0.482302E-01
+('cris399_npp', '166')    tlapmean in satbang_rst:  0.469657E-01
+('cris399_npp', '168')    tlapmean in satbang_rst:  0.574863E-01
+('cris399_npp', '170')    tlapmean in satbang_rst:  0.425872E-01
+('cris399_npp', '171')    tlapmean in satbang_rst:  0.379958E-01
+('cris399_npp', '173')    tlapmean in satbang_rst:  0.350551E-01
+('cris399_npp', '175')    tlapmean in satbang_rst:  0.309974E-01
+('cris399_npp', '181')    tlapmean in satbang_rst:  0.217371E-01
+('cris399_npp', '183')    tlapmean in satbang_rst:  0.215435E-01
+('cris399_npp', '198')    tlapmean in satbang_rst:  0.161521E-01
+('cris399_npp', '208')    tlapmean in satbang_rst:  0.258646E-01
+('cris399_npp', '211')    tlapmean in satbang_rst:  0.145585E-01
+('cris399_npp', '216')    tlapmean in satbang_rst:  0.413669E-01
+('cris399_npp', '224')    tlapmean in satbang_rst:  0.131646E-01
+('cris399_npp', '228')    tlapmean in satbang_rst:  0.403928E-01
+('cris399_npp', '236')    tlapmean in satbang_rst:  0.261949E-01
+('cris399_npp', '238')    tlapmean in satbang_rst:  0.420287E-01
+('cris399_npp', '242')    tlapmean in satbang_rst:  0.148774E-01
+('cris399_npp', '248')    tlapmean in satbang_rst:  0.179131E-01
+('cris399_npp', '266')    tlapmean in satbang_rst:  0.135307E-01
+('cris399_npp', '268')    tlapmean in satbang_rst:  0.121960E-01
+('cris399_npp', '279')    tlapmean in satbang_rst:  0.114783E-01
+('cris399_npp', '283')    tlapmean in satbang_rst:  0.122276E-01
+('cris399_npp', '311')    tlapmean in satbang_rst:  0.116995E-01
+('cris399_npp', '317')    tlapmean in satbang_rst:  0.122575E-01
+('cris399_npp', '330')    tlapmean in satbang_rst:  0.126065E-01
+('cris399_npp', '333')    tlapmean in satbang_rst:  0.107432E-01
+('cris399_npp', '334')    tlapmean in satbang_rst:  0.114651E-01
+('cris399_npp', '338')    tlapmean in satbang_rst:  0.102176E-01
+('cris399_npp', '340')    tlapmean in satbang_rst:  0.100598E-01
+('cris399_npp', '341')    tlapmean in satbang_rst:  0.101641E-01
+('cris399_npp', '342')    tlapmean in satbang_rst:  0.991333E-02
+('cris399_npp', '349')    tlapmean in satbang_rst:  0.998536E-02
+('cris399_npp', '352')    tlapmean in satbang_rst:  0.100579E-01
+('cris399_npp', '358')    tlapmean in satbang_rst:  0.100206E-01
+('cris399_npp', '361')    tlapmean in satbang_rst:  0.983609E-02
+('cris399_npp', '364')    tlapmean in satbang_rst:  0.100570E-01
+('cris399_npp', '366')    tlapmean in satbang_rst:  0.150095E-01
+('cris399_npp', '367')    tlapmean in satbang_rst:  0.162397E-01
+('cris399_npp', '368')    tlapmean in satbang_rst:  0.116138E-01
+('cris399_npp', '378')    tlapmean in satbang_rst:  0.984389E-02
+('cris399_npp', '390')    tlapmean in satbang_rst:  0.928931E-02
+('cris399_npp', '391')    tlapmean in satbang_rst:  0.932834E-02
+('cris399_npp', '392')    tlapmean in satbang_rst:  0.906659E-02
+('cris399_npp', '394')    tlapmean in satbang_rst:  0.930339E-02
+('cris399_npp', '395')    tlapmean in satbang_rst:  0.962510E-02
+('cris399_npp', '396')    tlapmean in satbang_rst:  0.974341E-02
+('cris399_npp', '397')    tlapmean in satbang_rst:  0.103003E-01
+('cris399_npp', '398')    tlapmean in satbang_rst:  0.995132E-02
+('cris399_npp', '399')    tlapmean in satbang_rst:  0.928053E-02
+('cris399_npp', '404')    tlapmean in satbang_rst:  0.893659E-02
+('cris399_npp', '427')    tlapmean in satbang_rst:  0.956213E-02
+('cris399_npp', '447')    tlapmean in satbang_rst:  0.110499E-01
+('cris399_npp', '464')    tlapmean in satbang_rst:  0.861521E-02
+('cris399_npp', '473')    tlapmean in satbang_rst:  0.101337E-01
+('cris399_npp', '482')    tlapmean in satbang_rst:  0.906418E-02
+('cris399_npp', '484')    tlapmean in satbang_rst:  0.858584E-02
+('cris399_npp', '501')    tlapmean in satbang_rst:  0.767356E-02
+('cris399_npp', '529')    tlapmean in satbang_rst:  0.833310E-02
+('cris399_npp', '556')    tlapmean in satbang_rst:  0.360480E-02
+('cris399_npp', '557')    tlapmean in satbang_rst:  0.346368E-02
+('cris399_npp', '558')    tlapmean in satbang_rst:  0.407081E-02
+('cris399_npp', '560')    tlapmean in satbang_rst:  0.422476E-02
+('cris399_npp', '561')    tlapmean in satbang_rst:  0.420725E-02
+('cris399_npp', '562')    tlapmean in satbang_rst:  0.423063E-02
+('cris399_npp', '564')    tlapmean in satbang_rst:  0.198869E-02
+('cris399_npp', '565')    tlapmean in satbang_rst:  0.158143E-02
+('cris399_npp', '566')    tlapmean in satbang_rst:  0.251170E-02
+('cris399_npp', '569')    tlapmean in satbang_rst:  0.983225E-03
+('cris399_npp', '573')    tlapmean in satbang_rst:  0.332918E-04
+('cris399_npp', '574')    tlapmean in satbang_rst:  0.271517E-03
+('cris399_npp', '577')    tlapmean in satbang_rst:  0.337353E-02
+('cris399_npp', '580')    tlapmean in satbang_rst: -0.138254E-02
+('cris399_npp', '581')    tlapmean in satbang_rst: -0.141814E-02
+('cris399_npp', '584')    tlapmean in satbang_rst:  0.230962E-02
+('cris399_npp', '585')    tlapmean in satbang_rst:  0.873166E-03
+('cris399_npp', '587')    tlapmean in satbang_rst: -0.223974E-02
+('cris399_npp', '590')    tlapmean in satbang_rst: -0.929043E-03
+('cris399_npp', '591')    tlapmean in satbang_rst: -0.329614E-02
+('cris399_npp', '594')    tlapmean in satbang_rst: -0.432800E-02
+('cris399_npp', '597')    tlapmean in satbang_rst: -0.401287E-02
+('cris399_npp', '598')    tlapmean in satbang_rst: -0.426319E-02
+('cris399_npp', '601')    tlapmean in satbang_rst: -0.510109E-02
+('cris399_npp', '604')    tlapmean in satbang_rst: -0.540913E-02
+('cris399_npp', '607')    tlapmean in satbang_rst: -0.121948E-02
+('cris399_npp', '611')    tlapmean in satbang_rst: -0.562969E-02
+('cris399_npp', '614')    tlapmean in satbang_rst: -0.655757E-02
+('cris399_npp', '616')    tlapmean in satbang_rst: -0.993991E-02
+('cris399_npp', '617')    tlapmean in satbang_rst: -0.109368E-01
+('cris399_npp', '619')    tlapmean in satbang_rst: -0.109109E-01
+('cris399_npp', '622')    tlapmean in satbang_rst: -0.129649E-01
+('cris399_npp', '626')    tlapmean in satbang_rst: -0.157298E-01
+('cris399_npp', '628')    tlapmean in satbang_rst: -0.658075E-02
+('cris399_npp', '634')    tlapmean in satbang_rst: -0.163078E-02
+('cris399_npp', '637')    tlapmean in satbang_rst: -0.878893E-02
+('cris399_npp', '638')    tlapmean in satbang_rst: -0.923924E-02
+('cris399_npp', '640')    tlapmean in satbang_rst: -0.707976E-02
+('cris399_npp', '641')    tlapmean in satbang_rst: -0.828984E-02
+('cris399_npp', '642')    tlapmean in satbang_rst: -0.981042E-02
+('cris399_npp', '644')    tlapmean in satbang_rst: -0.907895E-02
+('cris399_npp', '646')    tlapmean in satbang_rst: -0.117293E-01
+('cris399_npp', '647')    tlapmean in satbang_rst: -0.111642E-01
+('cris399_npp', '650')    tlapmean in satbang_rst: -0.475772E-02
+('cris399_npp', '651')    tlapmean in satbang_rst: -0.884834E-02
+('cris399_npp', '652')    tlapmean in satbang_rst: -0.887067E-02
+('cris399_npp', '654')    tlapmean in satbang_rst: -0.733631E-02
+('cris399_npp', '655')    tlapmean in satbang_rst: -0.562778E-02
+('cris399_npp', '657')    tlapmean in satbang_rst: -0.537693E-02
+('cris399_npp', '659')    tlapmean in satbang_rst: -0.610295E-02
+('cris399_npp', '663')    tlapmean in satbang_rst: -0.334234E-02
+('cris399_npp', '667')    tlapmean in satbang_rst:  0.161688E-01
+('cris399_npp', '670')    tlapmean in satbang_rst:  0.422644E-02
+('cris399_npp', '707')    tlapmean in satbang_rst:  0.179220E-01
+('cris399_npp', '710')    tlapmean in satbang_rst:  0.578342E-02
+('cris399_npp', '713')    tlapmean in satbang_rst:  0.527952E-02
+('cris399_npp', '716')    tlapmean in satbang_rst:  0.429265E-01
+('cris399_npp', '730')    tlapmean in satbang_rst:  0.203347E-01
+('cris399_npp', '735')    tlapmean in satbang_rst:  0.271789E-01
+('cris399_npp', '736')    tlapmean in satbang_rst:  0.296774E-01
+('cris399_npp', '739')    tlapmean in satbang_rst:  0.281882E-01
+('cris399_npp', '743')    tlapmean in satbang_rst:  0.346750E-01
+('cris399_npp', '744')    tlapmean in satbang_rst:  0.319316E-01
+('cris399_npp', '746')    tlapmean in satbang_rst:  0.301214E-01
+('cris399_npp', '748')    tlapmean in satbang_rst:  0.381044E-01
+('cris399_npp', '751')    tlapmean in satbang_rst:  0.374291E-01
+('cris399_npp', '754')    tlapmean in satbang_rst:  0.738569E-01
+('cris399_npp', '755')    tlapmean in satbang_rst:  0.686282E-01
+('cris399_npp', '756')    tlapmean in satbang_rst:  0.554519E-01
+('cris399_npp', '757')    tlapmean in satbang_rst:  0.538896E-01
+('cris399_npp', '758')    tlapmean in satbang_rst:  0.588203E-01
+('cris399_npp', '760')    tlapmean in satbang_rst:  0.637365E-01
+('cris399_npp', '761')    tlapmean in satbang_rst:  0.686281E-01
+('cris399_npp', '762')    tlapmean in satbang_rst:  0.714852E-01
+('cris399_npp', '763')    tlapmean in satbang_rst:  0.732375E-01
+('cris399_npp', '766')    tlapmean in satbang_rst:  0.528065E-01
+('cris399_npp', '767')    tlapmean in satbang_rst:  0.529383E-01
+('cris399_npp', '768')    tlapmean in satbang_rst:  0.511448E-01
+('cris399_npp', '771')    tlapmean in satbang_rst:  0.564453E-01
+('cris399_npp', '772')    tlapmean in satbang_rst:  0.568253E-01
+('cris399_npp', '773')    tlapmean in satbang_rst:  0.588024E-01
+('cris399_npp', '776')    tlapmean in satbang_rst:  0.667980E-01
+('cris399_npp', '777')    tlapmean in satbang_rst:  0.647478E-01
+('cris399_npp', '778')    tlapmean in satbang_rst:  0.577312E-01
+('cris399_npp', '779')    tlapmean in satbang_rst:  0.542365E-01
+('cris399_npp', '780')    tlapmean in satbang_rst:  0.551816E-01
+('cris399_npp', '782')    tlapmean in satbang_rst:  0.617377E-01
+('cris399_npp', '783')    tlapmean in satbang_rst:  0.678958E-01
+('cris399_npp', '784')    tlapmean in satbang_rst:  0.658912E-01
+('cris399_npp', '785')    tlapmean in satbang_rst:  0.592316E-01
+('cris399_npp', '786')    tlapmean in satbang_rst:  0.597295E-01
+('cris399_npp', '787')    tlapmean in satbang_rst:  0.612797E-01
+('cris399_npp', '788')    tlapmean in satbang_rst:  0.605170E-01
+('cris399_npp', '789')    tlapmean in satbang_rst:  0.511686E-01
+('cris399_npp', '790')    tlapmean in satbang_rst:  0.381391E-01
+('cris399_npp', '791')    tlapmean in satbang_rst:  0.423300E-01
+('cris399_npp', '792')    tlapmean in satbang_rst:  0.630816E-01
+('cris399_npp', '794')    tlapmean in satbang_rst:  0.547238E-01
+('cris399_npp', '796')    tlapmean in satbang_rst:  0.790458E-01
+('cris399_npp', '798')    tlapmean in satbang_rst:  0.679485E-01
+('cris399_npp', '800')    tlapmean in satbang_rst:  0.755405E-01
+('cris399_npp', '802')    tlapmean in satbang_rst:  0.854248E-01
+('cris399_npp', '803')    tlapmean in satbang_rst:  0.668418E-01
+('cris399_npp', '804')    tlapmean in satbang_rst:  0.567078E-01
+('cris399_npp', '806')    tlapmean in satbang_rst:  0.459469E-01
+('cris399_npp', '807')    tlapmean in satbang_rst:  0.481026E-01
+('cris399_npp', '808')    tlapmean in satbang_rst:  0.532330E-01
+('cris399_npp', '809')    tlapmean in satbang_rst:  0.538041E-01
+('cris399_npp', '811')    tlapmean in satbang_rst:  0.489421E-01
+('cris399_npp', '812')    tlapmean in satbang_rst:  0.535656E-01
+('cris399_npp', '814')    tlapmean in satbang_rst:  0.572681E-01
+('cris399_npp', '816')    tlapmean in satbang_rst:  0.814756E-01
+('cris399_npp', '819')    tlapmean in satbang_rst:  0.824332E-01
+('cris399_npp', '820')    tlapmean in satbang_rst:  0.630392E-01
+('cris399_npp', '821')    tlapmean in satbang_rst:  0.552026E-01
+('cris399_npp', '822')    tlapmean in satbang_rst:  0.531922E-01
+('cris399_npp', '823')    tlapmean in satbang_rst:  0.588839E-01
+('cris399_npp', '824')    tlapmean in satbang_rst:  0.643545E-01
+('cris399_npp', '825')    tlapmean in satbang_rst:  0.740341E-01
+('cris399_npp', '826')    tlapmean in satbang_rst:  0.744644E-01
+('cris399_npp', '827')    tlapmean in satbang_rst:  0.630548E-01
+('cris399_npp', '828')    tlapmean in satbang_rst:  0.579010E-01
+('cris399_npp', '829')    tlapmean in satbang_rst:  0.651772E-01
+('cris399_npp', '830')    tlapmean in satbang_rst:  0.777444E-01
+('cris399_npp', '831')    tlapmean in satbang_rst:  0.689723E-01
+('cris399_npp', '832')    tlapmean in satbang_rst:  0.636398E-01
+('cris399_npp', '833')    tlapmean in satbang_rst:  0.665331E-01
+('cris399_npp', '834')    tlapmean in satbang_rst:  0.764564E-01
+('cris399_npp', '835')    tlapmean in satbang_rst:  0.909883E-01
+('cris399_npp', '836')    tlapmean in satbang_rst:  0.977642E-01
+('cris399_npp', '838')    tlapmean in satbang_rst:  0.714243E-01
+('cris399_npp', '839')    tlapmean in satbang_rst:  0.623691E-01
+('cris399_npp', '840')    tlapmean in satbang_rst:  0.720062E-01
+('cris399_npp', '842')    tlapmean in satbang_rst:  0.758494E-01
+('cris399_npp', '843')    tlapmean in satbang_rst:  0.724900E-01
+('cris399_npp', '844')    tlapmean in satbang_rst:  0.880239E-01
+('cris399_npp', '845')    tlapmean in satbang_rst:  0.102633E+00
+('cris399_npp', '846')    tlapmean in satbang_rst:  0.101980E+00
+('cris399_npp', '847')    tlapmean in satbang_rst:  0.838917E-01
+('cris399_npp', '848')    tlapmean in satbang_rst:  0.770973E-01
+('cris399_npp', '849')    tlapmean in satbang_rst:  0.824318E-01
+('cris399_npp', '850')    tlapmean in satbang_rst:  0.782633E-01
+('cris399_npp', '851')    tlapmean in satbang_rst:  0.654705E-01
+('cris399_npp', '852')    tlapmean in satbang_rst:  0.634592E-01
+('cris399_npp', '853')    tlapmean in satbang_rst:  0.645923E-01
+('cris399_npp', '854')    tlapmean in satbang_rst:  0.723093E-01
+('cris399_npp', '856')    tlapmean in satbang_rst:  0.103788E+00
+('cris399_npp', '861')    tlapmean in satbang_rst:  0.997128E-01
+('cris399_npp', '862')    tlapmean in satbang_rst:  0.107742E+00
+('cris399_npp', '864')    tlapmean in satbang_rst:  0.102951E+00
+('cris399_npp', '865')    tlapmean in satbang_rst:  0.105541E+00
+('cris399_npp', '866')    tlapmean in satbang_rst:  0.989504E-01
+('cris399_npp', '867')    tlapmean in satbang_rst:  0.821198E-01
+('cris399_npp', '869')    tlapmean in satbang_rst:  0.898323E-01
+('cris399_npp', '871')    tlapmean in satbang_rst:  0.858372E-01
+('cris399_npp', '872')    tlapmean in satbang_rst:  0.703513E-01
+('cris399_npp', '874')    tlapmean in satbang_rst:  0.785417E-01
+('cris399_npp', '876')    tlapmean in satbang_rst:  0.826216E-01
+('cris399_npp', '878')    tlapmean in satbang_rst:  0.857912E-01
+('cris399_npp', '879')    tlapmean in satbang_rst:  0.984362E-01
+('cris399_npp', '880')    tlapmean in satbang_rst:  0.106831E+00
+('cris399_npp', '884')    tlapmean in satbang_rst:  0.978162E-01
+('cris399_npp', '886')    tlapmean in satbang_rst:  0.936537E-01
+('cris399_npp', '887')    tlapmean in satbang_rst:  0.817622E-01
+('cris399_npp', '888')    tlapmean in satbang_rst:  0.856889E-01
+('cris399_npp', '889')    tlapmean in satbang_rst:  0.985348E-01
+('cris399_npp', '890')    tlapmean in satbang_rst:  0.103426E+00
+('cris399_npp', '900')    tlapmean in satbang_rst:  0.772969E-01
+('cris399_npp', '921')    tlapmean in satbang_rst:  0.996754E-01
+('cris399_npp', '924')    tlapmean in satbang_rst:  0.953453E-01
+('cris399_npp', '927')    tlapmean in satbang_rst:  0.105149E+00
+('cris399_npp', '945')    tlapmean in satbang_rst:  0.104181E+00
+('cris399_npp', '991')    tlapmean in satbang_rst:  0.105368E+00
+('cris399_npp', '994')    tlapmean in satbang_rst:  0.661942E-01
+('cris399_npp', '1007')   tlapmean in satbang_rst:  0.812537E-01
+('cris399_npp', '1015')   tlapmean in satbang_rst:  0.866738E-01
+('cris399_npp', '1030')   tlapmean in satbang_rst:  0.909185E-01
+('cris399_npp', '1094')   tlapmean in satbang_rst:  0.763920E-01
+('cris399_npp', '1106')   tlapmean in satbang_rst:  0.612829E-01
+('cris399_npp', '1130')   tlapmean in satbang_rst:  0.103514E+00
+('cris399_npp', '1132')   tlapmean in satbang_rst:  0.106443E+00
+('cris399_npp', '1133')   tlapmean in satbang_rst:  0.856800E-01
+('cris399_npp', '1135')   tlapmean in satbang_rst:  0.108585E+00
+('cris399_npp', '1142')   tlapmean in satbang_rst:  0.108653E+00
+('cris399_npp', '1147')   tlapmean in satbang_rst:  0.179438E-01
+('cris399_npp', '1148')   tlapmean in satbang_rst:  0.172054E-01
+('cris399_npp', '1149')   tlapmean in satbang_rst:  0.203330E-01
+('cris399_npp', '1150')   tlapmean in satbang_rst:  0.242256E-01
+('cris399_npp', '1151')   tlapmean in satbang_rst:  0.209430E-01
+('cris399_npp', '1152')   tlapmean in satbang_rst:  0.195253E-01
+('cris399_npp', '1153')   tlapmean in satbang_rst:  0.228194E-01
+('cris399_npp', '1154')   tlapmean in satbang_rst:  0.254232E-01
+('cris399_npp', '1155')   tlapmean in satbang_rst:  0.257292E-01
+('cris399_npp', '1156')   tlapmean in satbang_rst:  0.282563E-01
+('cris399_npp', '1157')   tlapmean in satbang_rst:  0.332369E-01
+('cris399_npp', '1158')   tlapmean in satbang_rst:  0.390479E-01
+('cris399_npp', '1159')   tlapmean in satbang_rst:  0.441316E-01
+('cris399_npp', '1160')   tlapmean in satbang_rst:  0.475798E-01
+('cris399_npp', '1161')   tlapmean in satbang_rst:  0.466303E-01
+('cris399_npp', '1162')   tlapmean in satbang_rst:  0.474112E-01
+('cris399_npp', '1163')   tlapmean in satbang_rst:  0.522926E-01
+('cris399_npp', '1164')   tlapmean in satbang_rst:  0.557344E-01
+('cris399_npp', '1165')   tlapmean in satbang_rst:  0.558307E-01
+('cris399_npp', '1166')   tlapmean in satbang_rst:  0.574807E-01
+('cris399_npp', '1167')   tlapmean in satbang_rst:  0.608378E-01
+('cris399_npp', '1168')   tlapmean in satbang_rst:  0.610802E-01
+('cris399_npp', '1169')   tlapmean in satbang_rst:  0.605513E-01
+('cris399_npp', '1170')   tlapmean in satbang_rst:  0.615042E-01
+('cris399_npp', '1171')   tlapmean in satbang_rst:  0.605184E-01
+('cris399_npp', '1172')   tlapmean in satbang_rst:  0.602967E-01
+('cris399_npp', '1173')   tlapmean in satbang_rst:  0.586316E-01
+('cris399_npp', '1174')   tlapmean in satbang_rst:  0.551897E-01
+('cris399_npp', '1175')   tlapmean in satbang_rst:  0.566254E-01
+('cris399_npp', '1177')   tlapmean in satbang_rst:  0.621038E-01
+('cris399_npp', '1178')   tlapmean in satbang_rst:  0.599876E-01
+('cris399_npp', '1179')   tlapmean in satbang_rst:  0.583636E-01
+('cris399_npp', '1180')   tlapmean in satbang_rst:  0.581986E-01
+('cris399_npp', '1181')   tlapmean in satbang_rst:  0.574937E-01
+('cris399_npp', '1187')   tlapmean in satbang_rst:  0.456316E-01
+('cris399_npp', '1189')   tlapmean in satbang_rst:  0.356326E-01
+('cris399_npp', '1190')   tlapmean in satbang_rst:  0.285693E-01
+('cris399_npp', '1192')   tlapmean in satbang_rst:  0.180368E-01
+('cris399_npp', '1193')   tlapmean in satbang_rst:  0.138420E-01
+('cris399_npp', '1194')   tlapmean in satbang_rst:  0.107330E-01
+('cris399_npp', '1196')   tlapmean in satbang_rst:  0.989603E-02
+('cris399_npp', '1197')   tlapmean in satbang_rst:  0.156264E-01
+('cris399_npp', '1198')   tlapmean in satbang_rst:  0.267867E-01
+('cris399_npp', '1199')   tlapmean in satbang_rst:  0.211832E-01
+('cris399_npp', '1200')   tlapmean in satbang_rst:  0.579688E-02
+('cris399_npp', '1202')   tlapmean in satbang_rst: -0.780506E-02
+('cris399_npp', '1203')   tlapmean in satbang_rst: -0.108995E-01
+('cris399_npp', '1204')   tlapmean in satbang_rst: -0.117738E-01
+('cris399_npp', '1206')   tlapmean in satbang_rst: -0.158804E-01
+('cris399_npp', '1207')   tlapmean in satbang_rst: -0.167244E-01
+('cris399_npp', '1208')   tlapmean in satbang_rst: -0.221501E-01
+('cris399_npp', '1210')   tlapmean in satbang_rst: -0.297708E-01
+('cris399_npp', '1212')   tlapmean in satbang_rst: -0.344865E-01
+('cris399_npp', '1214')   tlapmean in satbang_rst: -0.391248E-01
+('cris399_npp', '1215')   tlapmean in satbang_rst: -0.402925E-01
+('cris399_npp', '1217')   tlapmean in satbang_rst: -0.419749E-01
+('cris399_npp', '1218')   tlapmean in satbang_rst: -0.419598E-01
+('cris399_npp', '1220')   tlapmean in satbang_rst: -0.411159E-01
+('cris399_npp', '1222')   tlapmean in satbang_rst: -0.432735E-01
+('cris399_npp', '1224')   tlapmean in satbang_rst: -0.399479E-01
+('cris399_npp', '1226')   tlapmean in satbang_rst: -0.426854E-01
+('cris399_npp', '1228')   tlapmean in satbang_rst: -0.460626E-01
+('cris399_npp', '1229')   tlapmean in satbang_rst: -0.466989E-01
+('cris399_npp', '1231')   tlapmean in satbang_rst: -0.454064E-01
+('cris399_npp', '1232')   tlapmean in satbang_rst: -0.440271E-01
+('cris399_npp', '1234')   tlapmean in satbang_rst: -0.395080E-01
+('cris399_npp', '1235')   tlapmean in satbang_rst: -0.352291E-01
+('cris399_npp', '1236')   tlapmean in satbang_rst: -0.264455E-01
+('cris399_npp', '1237')   tlapmean in satbang_rst: -0.771994E-02
+('cris399_npp', '1238')   tlapmean in satbang_rst:  0.231038E-01
+('cris399_npp', '1239')   tlapmean in satbang_rst:  0.576212E-01
+('cris399_npp', '1241')   tlapmean in satbang_rst:  0.743505E-01
+('cris399_npp', '1242')   tlapmean in satbang_rst:  0.608004E-01
+('cris399_npp', '1243')   tlapmean in satbang_rst:  0.509160E-01
+('cris399_npp', '1244')   tlapmean in satbang_rst:  0.450856E-01
+('cris399_npp', '1245')   tlapmean in satbang_rst:  0.408650E-01
+('cris399_npp', '1247')   tlapmean in satbang_rst:  0.342420E-01
+('cris399_npp', '1250')   tlapmean in satbang_rst:  0.294502E-01
+('cris399_npp', '1270')   tlapmean in satbang_rst:  0.145149E-01
+('cris399_npp', '1271')   tlapmean in satbang_rst:  0.144633E-01
+('cris399_npp', '1282')   tlapmean in satbang_rst:  0.853215E-02
+('cris399_npp', '1285')   tlapmean in satbang_rst:  0.647963E-02
+('cris399_npp', '1288')   tlapmean in satbang_rst:  0.556405E-02
+('cris399_npp', '1290')   tlapmean in satbang_rst:  0.584211E-02
+('cris399_npp', '1293')   tlapmean in satbang_rst:  0.483891E-02
+('cris399_npp', '1298')   tlapmean in satbang_rst:  0.656702E-02
+('cris399_npp', '1301')   tlapmean in satbang_rst:  0.864018E-02
+('iasi616_metop-b', '16') tlapmean in satbang_rst: -0.500422E-01
+('iasi616_metop-b', '29') tlapmean in satbang_rst: -0.438003E-01
+('iasi616_metop-b', '32') tlapmean in satbang_rst: -0.173864E-01
+('iasi616_metop-b', '35') tlapmean in satbang_rst: -0.446177E-01
+('iasi616_metop-b', '38') tlapmean in satbang_rst: -0.214636E-01
+('iasi616_metop-b', '41') tlapmean in satbang_rst: -0.450784E-01
+('iasi616_metop-b', '44') tlapmean in satbang_rst: -0.246964E-01
+('iasi616_metop-b', '47') tlapmean in satbang_rst: -0.450973E-01
+('iasi616_metop-b', '49') tlapmean in satbang_rst: -0.347309E-01
+('iasi616_metop-b', '50') tlapmean in satbang_rst: -0.261093E-01
+('iasi616_metop-b', '51') tlapmean in satbang_rst: -0.236601E-01
+('iasi616_metop-b', '53') tlapmean in satbang_rst: -0.449411E-01
+('iasi616_metop-b', '55') tlapmean in satbang_rst: -0.340967E-01
+('iasi616_metop-b', '56') tlapmean in satbang_rst: -0.251305E-01
+('iasi616_metop-b', '57') tlapmean in satbang_rst: -0.219615E-01
+('iasi616_metop-b', '59') tlapmean in satbang_rst: -0.438890E-01
+('iasi616_metop-b', '61') tlapmean in satbang_rst: -0.357213E-01
+('iasi616_metop-b', '62') tlapmean in satbang_rst: -0.274660E-01
+('iasi616_metop-b', '63') tlapmean in satbang_rst: -0.218157E-01
+('iasi616_metop-b', '66') tlapmean in satbang_rst: -0.428886E-01
+('iasi616_metop-b', '68') tlapmean in satbang_rst: -0.268126E-01
+('iasi616_metop-b', '70') tlapmean in satbang_rst: -0.318266E-01
+('iasi616_metop-b', '72') tlapmean in satbang_rst: -0.501544E-01
+('iasi616_metop-b', '74') tlapmean in satbang_rst: -0.389759E-01
+('iasi616_metop-b', '76') tlapmean in satbang_rst: -0.301293E-01
+('iasi616_metop-b', '78') tlapmean in satbang_rst: -0.417207E-01
+('iasi616_metop-b', '79') tlapmean in satbang_rst: -0.393528E-01
+('iasi616_metop-b', '81') tlapmean in satbang_rst: -0.386647E-01
+('iasi616_metop-b', '82') tlapmean in satbang_rst: -0.351006E-01
+('iasi616_metop-b', '83') tlapmean in satbang_rst: -0.345812E-01
+('iasi616_metop-b', '84') tlapmean in satbang_rst: -0.381289E-01
+('iasi616_metop-b', '85') tlapmean in satbang_rst: -0.361150E-01
+('iasi616_metop-b', '86') tlapmean in satbang_rst: -0.308101E-01
+('iasi616_metop-b', '87') tlapmean in satbang_rst: -0.339761E-01
+('iasi616_metop-b', '89') tlapmean in satbang_rst: -0.430311E-01
+('iasi616_metop-b', '92') tlapmean in satbang_rst: -0.274664E-01
+('iasi616_metop-b', '93') tlapmean in satbang_rst: -0.177891E-01
+('iasi616_metop-b', '95') tlapmean in satbang_rst: -0.428300E-01
+('iasi616_metop-b', '97') tlapmean in satbang_rst: -0.452885E-01
+('iasi616_metop-b', '99') tlapmean in satbang_rst: -0.471207E-01
+('iasi616_metop-b', '101') tlapmean in satbang_rst: -0.391089E-01
+('iasi616_metop-b', '103') tlapmean in satbang_rst: -0.304740E-01
+('iasi616_metop-b', '104') tlapmean in satbang_rst: -0.321863E-01
+('iasi616_metop-b', '106') tlapmean in satbang_rst: -0.450571E-01
+('iasi616_metop-b', '109') tlapmean in satbang_rst: -0.239495E-01
+('iasi616_metop-b', '110') tlapmean in satbang_rst: -0.255374E-01
+('iasi616_metop-b', '111') tlapmean in satbang_rst: -0.361293E-01
+('iasi616_metop-b', '113') tlapmean in satbang_rst: -0.463149E-01
+('iasi616_metop-b', '116') tlapmean in satbang_rst: -0.249179E-01
+('iasi616_metop-b', '119') tlapmean in satbang_rst: -0.472538E-01
+('iasi616_metop-b', '122') tlapmean in satbang_rst: -0.240515E-01
+('iasi616_metop-b', '125') tlapmean in satbang_rst: -0.482278E-01
+('iasi616_metop-b', '128') tlapmean in satbang_rst: -0.239463E-01
+('iasi616_metop-b', '131') tlapmean in satbang_rst: -0.454633E-01
+('iasi616_metop-b', '133') tlapmean in satbang_rst: -0.353043E-01
+('iasi616_metop-b', '135') tlapmean in satbang_rst: -0.239054E-01
+('iasi616_metop-b', '138') tlapmean in satbang_rst: -0.482012E-01
+('iasi616_metop-b', '141') tlapmean in satbang_rst: -0.214037E-01
+('iasi616_metop-b', '144') tlapmean in satbang_rst: -0.469818E-01
+('iasi616_metop-b', '146') tlapmean in satbang_rst: -0.301926E-01
+('iasi616_metop-b', '148') tlapmean in satbang_rst: -0.229549E-01
+('iasi616_metop-b', '150') tlapmean in satbang_rst: -0.452760E-01
+('iasi616_metop-b', '151') tlapmean in satbang_rst: -0.430965E-01
+('iasi616_metop-b', '154') tlapmean in satbang_rst: -0.181852E-01
+('iasi616_metop-b', '157') tlapmean in satbang_rst: -0.454299E-01
+('iasi616_metop-b', '159') tlapmean in satbang_rst: -0.228027E-01
+('iasi616_metop-b', '160') tlapmean in satbang_rst: -0.143869E-01
+('iasi616_metop-b', '161') tlapmean in satbang_rst: -0.177818E-01
+('iasi616_metop-b', '163') tlapmean in satbang_rst: -0.431011E-01
+('iasi616_metop-b', '167') tlapmean in satbang_rst: -0.959041E-02
+('iasi616_metop-b', '170') tlapmean in satbang_rst: -0.413451E-01
+('iasi616_metop-b', '173') tlapmean in satbang_rst: -0.239383E-02
+('iasi616_metop-b', '176') tlapmean in satbang_rst: -0.387710E-01
+('iasi616_metop-b', '179') tlapmean in satbang_rst: -0.147205E-02
+('iasi616_metop-b', '180') tlapmean in satbang_rst:  0.461873E-03
+('iasi616_metop-b', '185') tlapmean in satbang_rst:  0.305124E-02
+('iasi616_metop-b', '187') tlapmean in satbang_rst:  0.183190E-02
+('iasi616_metop-b', '191') tlapmean in satbang_rst: -0.293176E-02
+('iasi616_metop-b', '193') tlapmean in satbang_rst:  0.150670E-01
+('iasi616_metop-b', '197') tlapmean in satbang_rst: -0.774721E-02
+('iasi616_metop-b', '199') tlapmean in satbang_rst:  0.268837E-01
+('iasi616_metop-b', '200') tlapmean in satbang_rst:  0.123615E-01
+('iasi616_metop-b', '202') tlapmean in satbang_rst: -0.274044E-01
+('iasi616_metop-b', '203') tlapmean in satbang_rst: -0.124087E-01
+('iasi616_metop-b', '205') tlapmean in satbang_rst:  0.321786E-01
+('iasi616_metop-b', '207') tlapmean in satbang_rst:  0.736247E-02
+('iasi616_metop-b', '210') tlapmean in satbang_rst:  0.113903E-01
+('iasi616_metop-b', '212') tlapmean in satbang_rst:  0.355816E-01
+('iasi616_metop-b', '213') tlapmean in satbang_rst:  0.263304E-01
+('iasi616_metop-b', '214') tlapmean in satbang_rst:  0.191176E-02
+('iasi616_metop-b', '217') tlapmean in satbang_rst:  0.295816E-01
+('iasi616_metop-b', '218') tlapmean in satbang_rst:  0.403675E-01
+('iasi616_metop-b', '219') tlapmean in satbang_rst:  0.362445E-01
+('iasi616_metop-b', '222') tlapmean in satbang_rst:  0.664652E-02
+('iasi616_metop-b', '224') tlapmean in satbang_rst:  0.385012E-01
+('iasi616_metop-b', '225') tlapmean in satbang_rst:  0.399539E-01
+('iasi616_metop-b', '226') tlapmean in satbang_rst:  0.382477E-01
+('iasi616_metop-b', '228') tlapmean in satbang_rst:  0.668715E-02
+('iasi616_metop-b', '230') tlapmean in satbang_rst:  0.409139E-01
+('iasi616_metop-b', '231') tlapmean in satbang_rst:  0.384095E-01
+('iasi616_metop-b', '232') tlapmean in satbang_rst:  0.402011E-01
+('iasi616_metop-b', '236') tlapmean in satbang_rst:  0.451038E-01
+('iasi616_metop-b', '237') tlapmean in satbang_rst:  0.444542E-01
+('iasi616_metop-b', '239') tlapmean in satbang_rst:  0.467431E-01
+('iasi616_metop-b', '243') tlapmean in satbang_rst:  0.505578E-01
+('iasi616_metop-b', '246') tlapmean in satbang_rst:  0.483696E-01
+('iasi616_metop-b', '249') tlapmean in satbang_rst:  0.515906E-01
+('iasi616_metop-b', '252') tlapmean in satbang_rst:  0.527887E-01
+('iasi616_metop-b', '254') tlapmean in satbang_rst:  0.346316E-01
+('iasi616_metop-b', '259') tlapmean in satbang_rst:  0.518161E-01
+('iasi616_metop-b', '260') tlapmean in satbang_rst:  0.412344E-01
+('iasi616_metop-b', '262') tlapmean in satbang_rst:  0.508054E-01
+('iasi616_metop-b', '265') tlapmean in satbang_rst:  0.540686E-01
+('iasi616_metop-b', '267') tlapmean in satbang_rst:  0.426202E-01
+('iasi616_metop-b', '269') tlapmean in satbang_rst:  0.422237E-01
+('iasi616_metop-b', '275') tlapmean in satbang_rst:  0.507622E-01
+('iasi616_metop-b', '279') tlapmean in satbang_rst:  0.506066E-01
+('iasi616_metop-b', '282') tlapmean in satbang_rst:  0.408809E-01
+('iasi616_metop-b', '285') tlapmean in satbang_rst:  0.474150E-01
+('iasi616_metop-b', '294') tlapmean in satbang_rst:  0.456847E-01
+('iasi616_metop-b', '296') tlapmean in satbang_rst:  0.412916E-01
+('iasi616_metop-b', '299') tlapmean in satbang_rst:  0.156678E-01
+('iasi616_metop-b', '300') tlapmean in satbang_rst: -0.283684E-02
+('iasi616_metop-b', '303') tlapmean in satbang_rst: -0.300546E-01
+('iasi616_metop-b', '306') tlapmean in satbang_rst:  0.420299E-01
+('iasi616_metop-b', '309') tlapmean in satbang_rst:  0.497881E-01
+('iasi616_metop-b', '313') tlapmean in satbang_rst:  0.381142E-01
+('iasi616_metop-b', '320') tlapmean in satbang_rst:  0.444936E-01
+('iasi616_metop-b', '323') tlapmean in satbang_rst:  0.407200E-01
+('iasi616_metop-b', '326') tlapmean in satbang_rst:  0.439901E-01
+('iasi616_metop-b', '327') tlapmean in satbang_rst:  0.478401E-01
+('iasi616_metop-b', '329') tlapmean in satbang_rst:  0.415971E-01
+('iasi616_metop-b', '332') tlapmean in satbang_rst:  0.438610E-01
+('iasi616_metop-b', '335') tlapmean in satbang_rst:  0.394554E-01
+('iasi616_metop-b', '345') tlapmean in satbang_rst:  0.572378E-01
+('iasi616_metop-b', '347') tlapmean in satbang_rst:  0.432020E-01
+('iasi616_metop-b', '350') tlapmean in satbang_rst:  0.486376E-01
+('iasi616_metop-b', '354') tlapmean in satbang_rst:  0.416615E-01
+('iasi616_metop-b', '356') tlapmean in satbang_rst:  0.487958E-01
+('iasi616_metop-b', '360') tlapmean in satbang_rst:  0.397856E-01
+('iasi616_metop-b', '363') tlapmean in satbang_rst:  0.444858E-01
+('iasi616_metop-b', '366') tlapmean in satbang_rst:  0.401563E-01
+('iasi616_metop-b', '371') tlapmean in satbang_rst:  0.479039E-01
+('iasi616_metop-b', '372') tlapmean in satbang_rst:  0.441083E-01
+('iasi616_metop-b', '373') tlapmean in satbang_rst:  0.479355E-01
+('iasi616_metop-b', '375') tlapmean in satbang_rst:  0.458885E-01
+('iasi616_metop-b', '377') tlapmean in satbang_rst:  0.482571E-01
+('iasi616_metop-b', '379') tlapmean in satbang_rst:  0.474095E-01
+('iasi616_metop-b', '381') tlapmean in satbang_rst:  0.482962E-01
+('iasi616_metop-b', '383') tlapmean in satbang_rst:  0.555051E-01
+('iasi616_metop-b', '386') tlapmean in satbang_rst:  0.512085E-01
+('iasi616_metop-b', '389') tlapmean in satbang_rst:  0.476467E-01
+('iasi616_metop-b', '398') tlapmean in satbang_rst:  0.479549E-01
+('iasi616_metop-b', '401') tlapmean in satbang_rst:  0.513780E-01
+('iasi616_metop-b', '404') tlapmean in satbang_rst:  0.383820E-01
+('iasi616_metop-b', '405') tlapmean in satbang_rst:  0.310566E-01
+('iasi616_metop-b', '407') tlapmean in satbang_rst:  0.406181E-01
+('iasi616_metop-b', '408') tlapmean in satbang_rst:  0.478074E-01
+('iasi616_metop-b', '410') tlapmean in satbang_rst:  0.374649E-01
+('iasi616_metop-b', '411') tlapmean in satbang_rst:  0.304372E-01
+('iasi616_metop-b', '414') tlapmean in satbang_rst:  0.482796E-01
+('iasi616_metop-b', '416') tlapmean in satbang_rst:  0.379829E-01
+('iasi616_metop-b', '418') tlapmean in satbang_rst:  0.291381E-01
+('iasi616_metop-b', '423') tlapmean in satbang_rst:  0.238561E-01
+('iasi616_metop-b', '426') tlapmean in satbang_rst:  0.460034E-01
+('iasi616_metop-b', '428') tlapmean in satbang_rst:  0.342538E-01
+('iasi616_metop-b', '432') tlapmean in satbang_rst:  0.459939E-01
+('iasi616_metop-b', '433') tlapmean in satbang_rst:  0.428413E-01
+('iasi616_metop-b', '434') tlapmean in satbang_rst:  0.327610E-01
+('iasi616_metop-b', '439') tlapmean in satbang_rst:  0.523289E-01
+('iasi616_metop-b', '442') tlapmean in satbang_rst:  0.256481E-01
+('iasi616_metop-b', '445') tlapmean in satbang_rst:  0.422207E-01
+('iasi616_metop-b', '450') tlapmean in satbang_rst:  0.389366E-01
+('iasi616_metop-b', '457') tlapmean in satbang_rst:  0.335613E-01
+('iasi616_metop-b', '459') tlapmean in satbang_rst:  0.182361E-01
+('iasi616_metop-b', '472') tlapmean in satbang_rst:  0.166513E-01
+('iasi616_metop-b', '477') tlapmean in satbang_rst:  0.150156E-01
+('iasi616_metop-b', '483') tlapmean in satbang_rst:  0.149422E-01
+('iasi616_metop-b', '509') tlapmean in satbang_rst:  0.154469E-01
+('iasi616_metop-b', '515') tlapmean in satbang_rst:  0.145469E-01
+('iasi616_metop-b', '546') tlapmean in satbang_rst:  0.136795E-01
+('iasi616_metop-b', '552') tlapmean in satbang_rst:  0.143507E-01
+('iasi616_metop-b', '559') tlapmean in satbang_rst:  0.450440E-01
+('iasi616_metop-b', '566') tlapmean in satbang_rst:  0.140571E-01
+('iasi616_metop-b', '571') tlapmean in satbang_rst:  0.137027E-01
+('iasi616_metop-b', '573') tlapmean in satbang_rst:  0.136856E-01
+('iasi616_metop-b', '578') tlapmean in satbang_rst:  0.130083E-01
+('iasi616_metop-b', '584') tlapmean in satbang_rst:  0.135320E-01
+('iasi616_metop-b', '594') tlapmean in satbang_rst:  0.177861E-01
+('iasi616_metop-b', '625') tlapmean in satbang_rst:  0.135497E-01
+('iasi616_metop-b', '646') tlapmean in satbang_rst:  0.176597E-01
+('iasi616_metop-b', '662') tlapmean in satbang_rst:  0.122472E-01
+('iasi616_metop-b', '668') tlapmean in satbang_rst:  0.121089E-01
+('iasi616_metop-b', '705') tlapmean in satbang_rst:  0.115466E-01
+('iasi616_metop-b', '739') tlapmean in satbang_rst:  0.115071E-01
+('iasi616_metop-b', '756') tlapmean in satbang_rst:  0.109067E-01
+('iasi616_metop-b', '797') tlapmean in satbang_rst:  0.105617E-01
+('iasi616_metop-b', '867') tlapmean in satbang_rst:  0.996116E-02
+('iasi616_metop-b', '906') tlapmean in satbang_rst:  0.256123E-01
+('iasi616_metop-b', '921') tlapmean in satbang_rst:  0.949357E-02
+('iasi616_metop-b', '1027') tlapmean in satbang_rst:  0.869385E-02
+('iasi616_metop-b', '1046') tlapmean in satbang_rst:  0.145171E-01
+('iasi616_metop-b', '1090') tlapmean in satbang_rst:  0.848727E-02
+('iasi616_metop-b', '1098') tlapmean in satbang_rst:  0.843565E-02
+('iasi616_metop-b', '1121') tlapmean in satbang_rst:  0.201468E-01
+('iasi616_metop-b', '1133') tlapmean in satbang_rst:  0.799353E-02
+('iasi616_metop-b', '1173') tlapmean in satbang_rst:  0.805372E-02
+('iasi616_metop-b', '1191') tlapmean in satbang_rst:  0.110981E-01
+('iasi616_metop-b', '1194') tlapmean in satbang_rst:  0.767616E-02
+('iasi616_metop-b', '1222') tlapmean in satbang_rst:  0.761188E-02
+('iasi616_metop-b', '1271') tlapmean in satbang_rst:  0.696758E-02
+('iasi616_metop-b', '1283') tlapmean in satbang_rst:  0.757786E-02
+('iasi616_metop-b', '1338') tlapmean in satbang_rst:  0.684066E-02
+('iasi616_metop-b', '1409') tlapmean in satbang_rst:  0.108199E-02
+('iasi616_metop-b', '1414') tlapmean in satbang_rst:  0.836158E-03
+('iasi616_metop-b', '1420') tlapmean in satbang_rst:  0.338631E-03
+('iasi616_metop-b', '1424') tlapmean in satbang_rst:  0.656464E-03
+('iasi616_metop-b', '1427') tlapmean in satbang_rst:  0.229579E-02
+('iasi616_metop-b', '1430') tlapmean in satbang_rst: -0.121224E-02
+('iasi616_metop-b', '1434') tlapmean in satbang_rst: -0.512069E-04
+('iasi616_metop-b', '1440') tlapmean in satbang_rst: -0.146047E-02
+('iasi616_metop-b', '1442') tlapmean in satbang_rst: -0.507529E-03
+('iasi616_metop-b', '1445') tlapmean in satbang_rst: -0.207183E-02
+('iasi616_metop-b', '1450') tlapmean in satbang_rst: -0.373454E-02
+('iasi616_metop-b', '1454') tlapmean in satbang_rst: -0.222086E-02
+('iasi616_metop-b', '1460') tlapmean in satbang_rst: -0.523334E-03
+('iasi616_metop-b', '1463') tlapmean in satbang_rst:  0.314314E-03
+('iasi616_metop-b', '1469') tlapmean in satbang_rst: -0.639141E-02
+('iasi616_metop-b', '1474') tlapmean in satbang_rst: -0.500187E-02
+('iasi616_metop-b', '1479') tlapmean in satbang_rst:  0.880154E-03
+('iasi616_metop-b', '1483') tlapmean in satbang_rst: -0.604441E-02
+('iasi616_metop-b', '1487') tlapmean in satbang_rst: -0.716932E-02
+('iasi616_metop-b', '1494') tlapmean in satbang_rst: -0.568385E-02
+('iasi616_metop-b', '1496') tlapmean in satbang_rst: -0.878889E-02
+('iasi616_metop-b', '1502') tlapmean in satbang_rst: -0.867696E-02
+('iasi616_metop-b', '1505') tlapmean in satbang_rst: -0.865249E-02
+('iasi616_metop-b', '1509') tlapmean in satbang_rst: -0.677437E-02
+('iasi616_metop-b', '1510') tlapmean in satbang_rst: -0.825845E-02
+('iasi616_metop-b', '1513') tlapmean in satbang_rst: -0.914590E-02
+('iasi616_metop-b', '1518') tlapmean in satbang_rst: -0.988658E-02
+('iasi616_metop-b', '1521') tlapmean in satbang_rst: -0.900807E-02
+('iasi616_metop-b', '1526') tlapmean in satbang_rst: -0.877715E-02
+('iasi616_metop-b', '1529') tlapmean in satbang_rst: -0.104733E-01
+('iasi616_metop-b', '1532') tlapmean in satbang_rst: -0.682354E-02
+('iasi616_metop-b', '1536') tlapmean in satbang_rst: -0.547469E-02
+('iasi616_metop-b', '1537') tlapmean in satbang_rst: -0.970302E-02
+('iasi616_metop-b', '1541') tlapmean in satbang_rst: -0.665930E-02
+('iasi616_metop-b', '1545') tlapmean in satbang_rst: -0.124925E-01
+('iasi616_metop-b', '1548') tlapmean in satbang_rst: -0.826041E-02
+('iasi616_metop-b', '1553') tlapmean in satbang_rst: -0.145030E-01
+('iasi616_metop-b', '1560') tlapmean in satbang_rst: -0.203026E-01
+('iasi616_metop-b', '1568') tlapmean in satbang_rst: -0.181053E-01
+('iasi616_metop-b', '1574') tlapmean in satbang_rst: -0.178269E-01
+('iasi616_metop-b', '1579') tlapmean in satbang_rst: -0.198293E-01
+('iasi616_metop-b', '1583') tlapmean in satbang_rst: -0.208950E-01
+('iasi616_metop-b', '1585') tlapmean in satbang_rst: -0.189388E-01
+('iasi616_metop-b', '1587') tlapmean in satbang_rst: -0.187366E-01
+('iasi616_metop-b', '1606') tlapmean in satbang_rst: -0.918278E-02
+('iasi616_metop-b', '1626') tlapmean in satbang_rst: -0.830492E-02
+('iasi616_metop-b', '1639') tlapmean in satbang_rst: -0.116922E-01
+('iasi616_metop-b', '1643') tlapmean in satbang_rst: -0.222870E-02
+('iasi616_metop-b', '1652') tlapmean in satbang_rst: -0.109452E-01
+('iasi616_metop-b', '1658') tlapmean in satbang_rst: -0.105231E-01
+('iasi616_metop-b', '1659') tlapmean in satbang_rst: -0.114092E-01
+('iasi616_metop-b', '1666') tlapmean in satbang_rst: -0.110218E-01
+('iasi616_metop-b', '1671') tlapmean in satbang_rst: -0.101943E-01
+('iasi616_metop-b', '1675') tlapmean in satbang_rst: -0.997051E-02
+('iasi616_metop-b', '1681') tlapmean in satbang_rst: -0.240717E-02
+('iasi616_metop-b', '1694') tlapmean in satbang_rst:  0.142039E-02
+('iasi616_metop-b', '1697') tlapmean in satbang_rst:  0.587481E-02
+('iasi616_metop-b', '1710') tlapmean in satbang_rst:  0.862749E-02
+('iasi616_metop-b', '1786') tlapmean in satbang_rst:  0.234283E-01
+('iasi616_metop-b', '1791') tlapmean in satbang_rst:  0.441391E-02
+('iasi616_metop-b', '1805') tlapmean in satbang_rst:  0.405059E-02
+('iasi616_metop-b', '1839') tlapmean in satbang_rst:  0.456111E-02
+('iasi616_metop-b', '1884') tlapmean in satbang_rst:  0.417144E-02
+('iasi616_metop-b', '1913') tlapmean in satbang_rst:  0.480885E-02
+('iasi616_metop-b', '1946') tlapmean in satbang_rst:  0.325327E-02
+('iasi616_metop-b', '1947') tlapmean in satbang_rst:  0.387825E-02
+('iasi616_metop-b', '1991') tlapmean in satbang_rst:  0.515769E-02
+('iasi616_metop-b', '2019') tlapmean in satbang_rst:  0.331678E-01
+('iasi616_metop-b', '2094') tlapmean in satbang_rst:  0.544714E-02
+('iasi616_metop-b', '2119') tlapmean in satbang_rst:  0.593213E-01
+('iasi616_metop-b', '2213') tlapmean in satbang_rst:  0.453396E-01
+('iasi616_metop-b', '2239') tlapmean in satbang_rst:  0.639359E-02
+('iasi616_metop-b', '2271') tlapmean in satbang_rst:  0.472725E-01
+('iasi616_metop-b', '2289') tlapmean in satbang_rst:  0.109796E-01
+('iasi616_metop-b', '2321') tlapmean in satbang_rst:  0.611212E-01
+('iasi616_metop-b', '2333') tlapmean in satbang_rst:  0.964199E-02
+('iasi616_metop-b', '2346') tlapmean in satbang_rst:  0.752175E-02
+('iasi616_metop-b', '2349') tlapmean in satbang_rst:  0.782928E-02
+('iasi616_metop-b', '2352') tlapmean in satbang_rst:  0.116554E-01
+('iasi616_metop-b', '2359') tlapmean in satbang_rst:  0.791292E-02
+('iasi616_metop-b', '2367') tlapmean in satbang_rst:  0.265917E-01
+('iasi616_metop-b', '2374') tlapmean in satbang_rst:  0.169603E-01
+('iasi616_metop-b', '2398') tlapmean in satbang_rst:  0.629070E-01
+('iasi616_metop-b', '2426') tlapmean in satbang_rst:  0.309060E-01
+('iasi616_metop-b', '2562') tlapmean in satbang_rst:  0.292565E-01
+('iasi616_metop-b', '2701') tlapmean in satbang_rst:  0.780528E-01
+('iasi616_metop-b', '2741') tlapmean in satbang_rst:  0.600865E-01
+('iasi616_metop-b', '2745') tlapmean in satbang_rst:  0.308374E-01
+('iasi616_metop-b', '2760') tlapmean in satbang_rst:  0.391759E-01
+('iasi616_metop-b', '2819') tlapmean in satbang_rst:  0.771717E-01
+('iasi616_metop-b', '2889') tlapmean in satbang_rst:  0.484829E-01
+('iasi616_metop-b', '2907') tlapmean in satbang_rst:  0.573535E-01
+('iasi616_metop-b', '2910') tlapmean in satbang_rst:  0.737591E-01
+('iasi616_metop-b', '2919') tlapmean in satbang_rst:  0.846188E-01
+('iasi616_metop-b', '2921') tlapmean in satbang_rst:  0.757047E-01
+('iasi616_metop-b', '2939') tlapmean in satbang_rst:  0.744701E-01
+('iasi616_metop-b', '2944') tlapmean in satbang_rst:  0.500208E-01
+('iasi616_metop-b', '2945') tlapmean in satbang_rst:  0.472831E-01
+('iasi616_metop-b', '2948') tlapmean in satbang_rst:  0.534081E-01
+('iasi616_metop-b', '2951') tlapmean in satbang_rst:  0.504148E-01
+('iasi616_metop-b', '2958') tlapmean in satbang_rst:  0.521610E-01
+('iasi616_metop-b', '2971') tlapmean in satbang_rst:  0.711372E-01
+('iasi616_metop-b', '2977') tlapmean in satbang_rst:  0.674506E-01
+('iasi616_metop-b', '2985') tlapmean in satbang_rst:  0.724570E-01
+('iasi616_metop-b', '2988') tlapmean in satbang_rst:  0.613574E-01
+('iasi616_metop-b', '2990') tlapmean in satbang_rst:  0.653438E-01
+('iasi616_metop-b', '2991') tlapmean in satbang_rst:  0.652197E-01
+('iasi616_metop-b', '2993') tlapmean in satbang_rst:  0.703736E-01
+('iasi616_metop-b', '3002') tlapmean in satbang_rst:  0.872164E-01
+('iasi616_metop-b', '3008') tlapmean in satbang_rst:  0.754289E-01
+('iasi616_metop-b', '3014') tlapmean in satbang_rst:  0.829232E-01
+('iasi616_metop-b', '3027') tlapmean in satbang_rst:  0.634589E-01
+('iasi616_metop-b', '3029') tlapmean in satbang_rst:  0.618587E-01
+('iasi616_metop-b', '3030') tlapmean in satbang_rst:  0.615127E-01
+('iasi616_metop-b', '3036') tlapmean in satbang_rst:  0.714546E-01
+('iasi616_metop-b', '3047') tlapmean in satbang_rst:  0.644450E-01
+('iasi616_metop-b', '3049') tlapmean in satbang_rst:  0.607202E-01
+('iasi616_metop-b', '3052') tlapmean in satbang_rst:  0.561319E-01
+('iasi616_metop-b', '3053') tlapmean in satbang_rst:  0.559337E-01
+('iasi616_metop-b', '3055') tlapmean in satbang_rst:  0.614778E-01
+('iasi616_metop-b', '3058') tlapmean in satbang_rst:  0.563483E-01
+('iasi616_metop-b', '3064') tlapmean in satbang_rst:  0.581453E-01
+('iasi616_metop-b', '3069') tlapmean in satbang_rst:  0.812206E-01
+('iasi616_metop-b', '3087') tlapmean in satbang_rst:  0.776672E-01
+('iasi616_metop-b', '3093') tlapmean in satbang_rst:  0.859092E-01
+('iasi616_metop-b', '3098') tlapmean in satbang_rst:  0.514216E-01
+('iasi616_metop-b', '3105') tlapmean in satbang_rst:  0.807295E-01
+('iasi616_metop-b', '3107') tlapmean in satbang_rst:  0.774014E-01
+('iasi616_metop-b', '3110') tlapmean in satbang_rst:  0.735950E-01
+('iasi616_metop-b', '3116') tlapmean in satbang_rst:  0.724897E-01
+('iasi616_metop-b', '3127') tlapmean in satbang_rst:  0.664331E-01
+('iasi616_metop-b', '3129') tlapmean in satbang_rst:  0.652617E-01
+('iasi616_metop-b', '3136') tlapmean in satbang_rst:  0.770817E-01
+('iasi616_metop-b', '3146') tlapmean in satbang_rst:  0.760875E-01
+('iasi616_metop-b', '3151') tlapmean in satbang_rst:  0.728215E-01
+('iasi616_metop-b', '3160') tlapmean in satbang_rst:  0.788929E-01
+('iasi616_metop-b', '3165') tlapmean in satbang_rst:  0.872948E-01
+('iasi616_metop-b', '3168') tlapmean in satbang_rst:  0.436325E-01
+('iasi616_metop-b', '3175') tlapmean in satbang_rst:  0.797544E-01
+('iasi616_metop-b', '3178') tlapmean in satbang_rst:  0.729991E-01
+('iasi616_metop-b', '3189') tlapmean in satbang_rst:  0.636523E-01
+('iasi616_metop-b', '3207') tlapmean in satbang_rst:  0.823163E-01
+('iasi616_metop-b', '3228') tlapmean in satbang_rst:  0.811756E-01
+('iasi616_metop-b', '3244') tlapmean in satbang_rst:  0.876684E-01
+('iasi616_metop-b', '3248') tlapmean in satbang_rst:  0.375270E-01
+('iasi616_metop-b', '3252') tlapmean in satbang_rst:  0.828490E-01
+('iasi616_metop-b', '3256') tlapmean in satbang_rst:  0.828094E-01
+('iasi616_metop-b', '3263') tlapmean in satbang_rst:  0.821165E-01
+('iasi616_metop-b', '3281') tlapmean in satbang_rst:  0.514680E-01
+('iasi616_metop-b', '3295') tlapmean in satbang_rst:  0.763512E-01
+('iasi616_metop-b', '3303') tlapmean in satbang_rst:  0.849461E-01
+('iasi616_metop-b', '3309') tlapmean in satbang_rst:  0.494575E-01
+('iasi616_metop-b', '3312') tlapmean in satbang_rst:  0.860717E-01
+('iasi616_metop-b', '3322') tlapmean in satbang_rst:  0.856864E-01
+('iasi616_metop-b', '3326') tlapmean in satbang_rst:  0.625169E-01
+('iasi616_metop-b', '3354') tlapmean in satbang_rst:  0.727995E-01
+('iasi616_metop-b', '3366') tlapmean in satbang_rst:  0.858415E-01
+('iasi616_metop-b', '3375') tlapmean in satbang_rst:  0.866072E-01
+('iasi616_metop-b', '3378') tlapmean in satbang_rst:  0.799758E-01
+('iasi616_metop-b', '3411') tlapmean in satbang_rst:  0.881173E-01
+('iasi616_metop-b', '3416') tlapmean in satbang_rst:  0.496090E-01
+('iasi616_metop-b', '3432') tlapmean in satbang_rst:  0.845914E-01
+('iasi616_metop-b', '3438') tlapmean in satbang_rst:  0.879895E-01
+('iasi616_metop-b', '3440') tlapmean in satbang_rst:  0.853094E-01
+('iasi616_metop-b', '3442') tlapmean in satbang_rst:  0.607985E-01
+('iasi616_metop-b', '3444') tlapmean in satbang_rst:  0.404594E-01
+('iasi616_metop-b', '3446') tlapmean in satbang_rst:  0.699535E-01
+('iasi616_metop-b', '3448') tlapmean in satbang_rst:  0.458504E-01
+('iasi616_metop-b', '3450') tlapmean in satbang_rst:  0.440524E-01
+('iasi616_metop-b', '3452') tlapmean in satbang_rst:  0.754620E-01
+('iasi616_metop-b', '3454') tlapmean in satbang_rst:  0.745838E-01
+('iasi616_metop-b', '3458') tlapmean in satbang_rst:  0.861750E-01
+('iasi616_metop-b', '3467') tlapmean in satbang_rst:  0.868097E-01
+('iasi616_metop-b', '3476') tlapmean in satbang_rst:  0.835050E-01
+('iasi616_metop-b', '3484') tlapmean in satbang_rst:  0.879258E-01
+('iasi616_metop-b', '3491') tlapmean in satbang_rst:  0.509475E-01
+('iasi616_metop-b', '3497') tlapmean in satbang_rst:  0.874877E-01
+('iasi616_metop-b', '3499') tlapmean in satbang_rst:  0.876727E-01
+('iasi616_metop-b', '3504') tlapmean in satbang_rst:  0.754001E-01
+('iasi616_metop-b', '3506') tlapmean in satbang_rst:  0.352257E-01
+('iasi616_metop-b', '3509') tlapmean in satbang_rst:  0.810249E-01
+('iasi616_metop-b', '3518') tlapmean in satbang_rst:  0.877304E-01
+('iasi616_metop-b', '3527') tlapmean in satbang_rst:  0.879069E-01
+('iasi616_metop-b', '3555') tlapmean in satbang_rst:  0.631283E-01
+('iasi616_metop-b', '3575') tlapmean in satbang_rst:  0.602241E-01
+('iasi616_metop-b', '3577') tlapmean in satbang_rst:  0.297331E-01
+('iasi616_metop-b', '3580') tlapmean in satbang_rst:  0.648937E-01
+('iasi616_metop-b', '3582') tlapmean in satbang_rst:  0.361048E-01
+('iasi616_metop-b', '3586') tlapmean in satbang_rst:  0.800735E-01
+('iasi616_metop-b', '3589') tlapmean in satbang_rst:  0.330484E-01
+('iasi616_metop-b', '3599') tlapmean in satbang_rst:  0.856406E-01
+('iasi616_metop-b', '3610') tlapmean in satbang_rst:  0.826368E-01
+('iasi616_metop-b', '3626') tlapmean in satbang_rst:  0.831259E-01
+('iasi616_metop-b', '3638') tlapmean in satbang_rst:  0.515220E-01
+('iasi616_metop-b', '3646') tlapmean in satbang_rst:  0.862686E-01
+('iasi616_metop-b', '3653') tlapmean in satbang_rst:  0.545434E-01
+('iasi616_metop-b', '3658') tlapmean in satbang_rst:  0.676193E-01
+('iasi616_metop-b', '3661') tlapmean in satbang_rst:  0.401305E-01
+('iasi616_metop-b', '3673') tlapmean in satbang_rst:  0.852208E-01
+('iasi616_metop-b', '3689') tlapmean in satbang_rst:  0.830817E-01
+('iasi616_metop-b', '3700') tlapmean in satbang_rst:  0.413478E-01
+('iasi616_metop-b', '3710') tlapmean in satbang_rst:  0.833239E-01
+('iasi616_metop-b', '3726') tlapmean in satbang_rst:  0.275591E-01
+('iasi616_metop-b', '3763') tlapmean in satbang_rst:  0.714381E-01
+('iasi616_metop-b', '3814') tlapmean in satbang_rst:  0.696745E-01
+('iasi616_metop-b', '3841') tlapmean in satbang_rst:  0.717986E-01
+('iasi616_metop-b', '3888') tlapmean in satbang_rst:  0.275743E-01
+('iasi616_metop-b', '4032') tlapmean in satbang_rst:  0.436058E-01
+('iasi616_metop-b', '4059') tlapmean in satbang_rst:  0.817468E-01
+('iasi616_metop-b', '4068') tlapmean in satbang_rst:  0.874274E-01
+('iasi616_metop-b', '4082') tlapmean in satbang_rst:  0.827512E-01
+('iasi616_metop-b', '4095') tlapmean in satbang_rst:  0.778418E-01
+('iasi616_metop-b', '4160') tlapmean in satbang_rst:  0.308375E-01
+('iasi616_metop-b', '4234') tlapmean in satbang_rst:  0.876278E-01
+('iasi616_metop-b', '4257') tlapmean in satbang_rst:  0.797908E-01
+('iasi616_metop-b', '4411') tlapmean in satbang_rst:  0.828539E-01
+('iasi616_metop-b', '4498') tlapmean in satbang_rst:  0.811952E-01
+('iasi616_metop-b', '4520') tlapmean in satbang_rst:  0.834270E-01
+('iasi616_metop-b', '4552') tlapmean in satbang_rst:  0.675163E-01
+('iasi616_metop-b', '4567') tlapmean in satbang_rst:  0.634219E-01
+('iasi616_metop-b', '4608') tlapmean in satbang_rst:  0.809005E-01
+('iasi616_metop-b', '4646') tlapmean in satbang_rst:  0.579637E-01
+('iasi616_metop-b', '4698') tlapmean in satbang_rst:  0.496370E-01
+('iasi616_metop-b', '4808') tlapmean in satbang_rst:  0.715780E-01
+('iasi616_metop-b', '4849') tlapmean in satbang_rst:  0.439350E-01
+('iasi616_metop-b', '4920') tlapmean in satbang_rst:  0.422142E-01
+('iasi616_metop-b', '4939') tlapmean in satbang_rst:  0.563268E-01
+('iasi616_metop-b', '4947') tlapmean in satbang_rst:  0.363287E-01
+('iasi616_metop-b', '4967') tlapmean in satbang_rst:  0.457573E-01
+('iasi616_metop-b', '4991') tlapmean in satbang_rst:  0.522252E-01
+('iasi616_metop-b', '4996') tlapmean in satbang_rst:  0.590510E-01
+('iasi616_metop-b', '5015') tlapmean in satbang_rst:  0.363610E-01
+('iasi616_metop-b', '5028') tlapmean in satbang_rst:  0.519153E-01
+('iasi616_metop-b', '5056') tlapmean in satbang_rst:  0.605237E-01
+('iasi616_metop-b', '5128') tlapmean in satbang_rst:  0.390388E-01
+('iasi616_metop-b', '5130') tlapmean in satbang_rst:  0.335938E-01
+('iasi616_metop-b', '5144') tlapmean in satbang_rst:  0.287907E-01
+('iasi616_metop-b', '5170') tlapmean in satbang_rst:  0.389313E-01
+('iasi616_metop-b', '5178') tlapmean in satbang_rst:  0.403247E-01
+('iasi616_metop-b', '5183') tlapmean in satbang_rst:  0.465767E-01
+('iasi616_metop-b', '5188') tlapmean in satbang_rst:  0.786786E-01
+('iasi616_metop-b', '5191') tlapmean in satbang_rst:  0.762122E-01
+('iasi616_metop-b', '5368') tlapmean in satbang_rst:  0.319473E-01
+('iasi616_metop-b', '5371') tlapmean in satbang_rst:  0.467274E-01
+('iasi616_metop-b', '5379') tlapmean in satbang_rst:  0.406215E-01
+('iasi616_metop-b', '5381') tlapmean in satbang_rst:  0.391411E-01
+('iasi616_metop-b', '5383') tlapmean in satbang_rst:  0.422489E-01
+('iasi616_metop-b', '5397') tlapmean in satbang_rst:  0.391735E-01
+('iasi616_metop-b', '5399') tlapmean in satbang_rst:  0.325766E-01
+('iasi616_metop-b', '5401') tlapmean in satbang_rst:  0.289852E-01
+('iasi616_metop-b', '5403') tlapmean in satbang_rst:  0.268471E-01
+('iasi616_metop-b', '5405') tlapmean in satbang_rst:  0.248361E-01
+('iasi616_metop-b', '5446') tlapmean in satbang_rst:  0.177847E-01
+('iasi616_metop-b', '5455') tlapmean in satbang_rst:  0.285903E-01
+('iasi616_metop-b', '5472') tlapmean in satbang_rst:  0.189143E-01
+('iasi616_metop-b', '5480') tlapmean in satbang_rst:  0.271027E-01
+('iasi616_metop-b', '5483') tlapmean in satbang_rst:  0.335868E-01
+('iasi616_metop-b', '5485') tlapmean in satbang_rst:  0.435753E-01
+('iasi616_metop-b', '5492') tlapmean in satbang_rst:  0.485741E-01
+('iasi616_metop-b', '5497') tlapmean in satbang_rst:  0.667647E-01
+('iasi616_metop-b', '5502') tlapmean in satbang_rst:  0.283819E-01
+('iasi616_metop-b', '5507') tlapmean in satbang_rst:  0.214790E-01
+('iasi616_metop-b', '5509') tlapmean in satbang_rst:  0.227272E-01
+('iasi616_metop-b', '5517') tlapmean in satbang_rst:  0.210425E-01
+('iasi616_metop-b', '5528') tlapmean in satbang_rst:  0.612159E-01
+('iasi616_metop-b', '5558') tlapmean in satbang_rst:  0.285866E-01
+('iasi616_metop-b', '5697') tlapmean in satbang_rst:  0.295753E-01
+('iasi616_metop-b', '5714') tlapmean in satbang_rst:  0.257280E-01
+('iasi616_metop-b', '5749') tlapmean in satbang_rst:  0.372414E-01
+('iasi616_metop-b', '5766') tlapmean in satbang_rst:  0.202937E-01
+('iasi616_metop-b', '5785') tlapmean in satbang_rst:  0.172615E-01
+('iasi616_metop-b', '5798') tlapmean in satbang_rst:  0.111934E-01
+('iasi616_metop-b', '5799') tlapmean in satbang_rst:  0.122288E-01
+('iasi616_metop-b', '5801') tlapmean in satbang_rst:  0.177328E-01
+('iasi616_metop-b', '5817') tlapmean in satbang_rst:  0.179646E-01
+('iasi616_metop-b', '5833') tlapmean in satbang_rst:  0.139295E-01
+('iasi616_metop-b', '5834') tlapmean in satbang_rst:  0.208548E-01
+('iasi616_metop-b', '5836') tlapmean in satbang_rst:  0.535455E-02
+('iasi616_metop-b', '5849') tlapmean in satbang_rst:  0.930111E-02
+('iasi616_metop-b', '5851') tlapmean in satbang_rst:  0.249482E-01
+('iasi616_metop-b', '5852') tlapmean in satbang_rst:  0.156692E-01
+('iasi616_metop-b', '5865') tlapmean in satbang_rst:  0.821531E-02
+('iasi616_metop-b', '5869') tlapmean in satbang_rst:  0.135554E-01
+('iasi616_metop-b', '5881') tlapmean in satbang_rst:  0.410608E-01
+('iasi616_metop-b', '5884') tlapmean in satbang_rst:  0.283811E-01
+('iasi616_metop-b', '5897') tlapmean in satbang_rst: -0.151514E-02
+('iasi616_metop-b', '5900') tlapmean in satbang_rst:  0.202334E-01
+('iasi616_metop-b', '5916') tlapmean in satbang_rst:  0.188705E-01
+('iasi616_metop-b', '5932') tlapmean in satbang_rst:  0.174117E-01
+('iasi616_metop-b', '5948') tlapmean in satbang_rst:  0.221989E-01
+('iasi616_metop-b', '5963') tlapmean in satbang_rst:  0.318969E-01
+('iasi616_metop-b', '5968') tlapmean in satbang_rst:  0.304098E-01
+('iasi616_metop-b', '5978') tlapmean in satbang_rst:  0.412518E-01
+('iasi616_metop-b', '5988') tlapmean in satbang_rst:  0.716402E-02
+('iasi616_metop-b', '5992') tlapmean in satbang_rst:  0.556673E-02
+('iasi616_metop-b', '5994') tlapmean in satbang_rst:  0.511296E-02
+('iasi616_metop-b', '5997') tlapmean in satbang_rst:  0.674590E-02
+('iasi616_metop-b', '6003') tlapmean in satbang_rst:  0.381495E-01
+('iasi616_metop-b', '6008') tlapmean in satbang_rst:  0.144547E-01
+('iasi616_metop-b', '6023') tlapmean in satbang_rst:  0.137339E-01
+('iasi616_metop-b', '6026') tlapmean in satbang_rst:  0.202818E-01
+('iasi616_metop-b', '6039') tlapmean in satbang_rst:  0.301681E-01
+('iasi616_metop-b', '6053') tlapmean in satbang_rst:  0.214462E-01
+('iasi616_metop-b', '6056') tlapmean in satbang_rst:  0.134102E-01
+('iasi616_metop-b', '6067') tlapmean in satbang_rst:  0.327920E-01
+('iasi616_metop-b', '6071') tlapmean in satbang_rst:  0.193375E-01
+('iasi616_metop-b', '6082') tlapmean in satbang_rst:  0.233192E-01
+('iasi616_metop-b', '6085') tlapmean in satbang_rst:  0.189021E-01
+('iasi616_metop-b', '6098') tlapmean in satbang_rst:  0.348406E-01
+('iasi616_metop-b', '6112') tlapmean in satbang_rst:  0.376839E-01
+('iasi616_metop-b', '6126') tlapmean in satbang_rst:  0.381395E-01
+('iasi616_metop-b', '6135') tlapmean in satbang_rst:  0.187174E-01
+('iasi616_metop-b', '6140') tlapmean in satbang_rst:  0.364279E-01
+('iasi616_metop-b', '6149') tlapmean in satbang_rst:  0.196068E-01
+('iasi616_metop-b', '6154') tlapmean in satbang_rst:  0.416811E-01
+('iasi616_metop-b', '6158') tlapmean in satbang_rst:  0.258476E-01
+('iasi616_metop-b', '6161') tlapmean in satbang_rst:  0.382306E-01
+('iasi616_metop-b', '6168') tlapmean in satbang_rst:  0.495337E-01
+('iasi616_metop-b', '6174') tlapmean in satbang_rst:  0.409856E-01
+('iasi616_metop-b', '6182') tlapmean in satbang_rst:  0.464724E-01
+('iasi616_metop-b', '6187') tlapmean in satbang_rst:  0.378328E-01
+('iasi616_metop-b', '6205') tlapmean in satbang_rst:  0.400374E-01
+('iasi616_metop-b', '6209') tlapmean in satbang_rst:  0.435209E-01
+('iasi616_metop-b', '6213') tlapmean in satbang_rst:  0.446772E-01
+('iasi616_metop-b', '6317') tlapmean in satbang_rst:  0.429681E-01
+('iasi616_metop-b', '6339') tlapmean in satbang_rst:  0.298090E-01
+('iasi616_metop-b', '6342') tlapmean in satbang_rst:  0.401257E-01
+('iasi616_metop-b', '6366') tlapmean in satbang_rst:  0.399481E-01
+('iasi616_metop-b', '6381') tlapmean in satbang_rst:  0.463070E-01
+('iasi616_metop-b', '6391') tlapmean in satbang_rst:  0.441504E-01
+('iasi616_metop-b', '6489') tlapmean in satbang_rst: -0.623367E-02
+('iasi616_metop-b', '6962') tlapmean in satbang_rst:  0.549298E-01
+('iasi616_metop-b', '6966') tlapmean in satbang_rst:  0.640574E-01
+('iasi616_metop-b', '6970') tlapmean in satbang_rst:  0.617973E-01
+('iasi616_metop-b', '6975') tlapmean in satbang_rst:  0.637017E-01
+('iasi616_metop-b', '6977') tlapmean in satbang_rst:  0.620085E-01
+('iasi616_metop-b', '6982') tlapmean in satbang_rst:  0.560190E-01
+('iasi616_metop-b', '6985') tlapmean in satbang_rst:  0.526403E-01
+('iasi616_metop-b', '6987') tlapmean in satbang_rst:  0.475681E-01
+('iasi616_metop-b', '6989') tlapmean in satbang_rst:  0.470413E-01
+('iasi616_metop-b', '6991') tlapmean in satbang_rst:  0.448785E-01
+('iasi616_metop-b', '6993') tlapmean in satbang_rst:  0.430273E-01
+('iasi616_metop-b', '6995') tlapmean in satbang_rst:  0.417493E-01
+('iasi616_metop-b', '6997') tlapmean in satbang_rst:  0.404873E-01
+('iasi616_metop-b', '6999') tlapmean in satbang_rst:  0.395346E-01
+('iasi616_metop-b', '7000') tlapmean in satbang_rst:  0.391713E-01
+('iasi616_metop-b', '7004') tlapmean in satbang_rst:  0.377988E-01
+('iasi616_metop-b', '7008') tlapmean in satbang_rst:  0.367076E-01
+('iasi616_metop-b', '7013') tlapmean in satbang_rst:  0.353690E-01
+('iasi616_metop-b', '7016') tlapmean in satbang_rst:  0.346872E-01
+('iasi616_metop-b', '7021') tlapmean in satbang_rst:  0.336316E-01
+('iasi616_metop-b', '7024') tlapmean in satbang_rst:  0.314462E-01
+('iasi616_metop-b', '7027') tlapmean in satbang_rst:  0.308104E-01
+('iasi616_metop-b', '7029') tlapmean in satbang_rst:  0.304485E-01
+('iasi616_metop-b', '7032') tlapmean in satbang_rst:  0.300015E-01
+('iasi616_metop-b', '7038') tlapmean in satbang_rst:  0.290997E-01
+('iasi616_metop-b', '7043') tlapmean in satbang_rst:  0.284355E-01
+('iasi616_metop-b', '7046') tlapmean in satbang_rst:  0.279119E-01
+('iasi616_metop-b', '7049') tlapmean in satbang_rst:  0.280469E-01
+('iasi616_metop-b', '7069') tlapmean in satbang_rst:  0.252105E-01
+('iasi616_metop-b', '7072') tlapmean in satbang_rst:  0.249985E-01
+('iasi616_metop-b', '7076') tlapmean in satbang_rst:  0.245904E-01
+('iasi616_metop-b', '7081') tlapmean in satbang_rst:  0.241004E-01
+('iasi616_metop-b', '7084') tlapmean in satbang_rst:  0.240424E-01
+('iasi616_metop-b', '7089') tlapmean in satbang_rst:  0.234759E-01
+('iasi616_metop-b', '7099') tlapmean in satbang_rst:  0.229875E-01
+('iasi616_metop-b', '7209') tlapmean in satbang_rst:  0.168566E-01
+('iasi616_metop-b', '7222') tlapmean in satbang_rst:  0.171999E-01
+('iasi616_metop-b', '7231') tlapmean in satbang_rst:  0.166362E-01
+('iasi616_metop-b', '7235') tlapmean in satbang_rst:  0.163347E-01
+('iasi616_metop-b', '7247') tlapmean in satbang_rst:  0.140515E-01
+('iasi616_metop-b', '7267') tlapmean in satbang_rst:  0.124176E-01
+('iasi616_metop-b', '7269') tlapmean in satbang_rst:  0.121109E-01
+('iasi616_metop-b', '7284') tlapmean in satbang_rst:  0.122974E-01
+('iasi616_metop-b', '7389') tlapmean in satbang_rst:  0.707486E-02
+('iasi616_metop-b', '7419') tlapmean in satbang_rst:  0.583199E-02
+('iasi616_metop-b', '7423') tlapmean in satbang_rst:  0.550343E-02
+('iasi616_metop-b', '7424') tlapmean in satbang_rst:  0.549047E-02
+('iasi616_metop-b', '7426') tlapmean in satbang_rst:  0.550021E-02
+('iasi616_metop-b', '7428') tlapmean in satbang_rst:  0.540712E-02
+('iasi616_metop-b', '7431') tlapmean in satbang_rst:  0.578428E-02
+('iasi616_metop-b', '7436') tlapmean in satbang_rst:  0.537525E-02
+('iasi616_metop-b', '7444') tlapmean in satbang_rst:  0.516553E-02
+('iasi616_metop-b', '7475') tlapmean in satbang_rst:  0.452095E-02
+('iasi616_metop-b', '7549') tlapmean in satbang_rst:  0.603000E-02
+('iasi616_metop-b', '7584') tlapmean in satbang_rst:  0.495582E-02
+('iasi616_metop-b', '7665') tlapmean in satbang_rst:  0.645853E-02
+('iasi616_metop-b', '7666') tlapmean in satbang_rst:  0.460107E-02
+('iasi616_metop-b', '7831') tlapmean in satbang_rst:  0.212738E-02
+('iasi616_metop-b', '7836') tlapmean in satbang_rst:  0.274123E-02
+('iasi616_metop-b', '7853') tlapmean in satbang_rst:  0.149710E-01
+('iasi616_metop-b', '7865') tlapmean in satbang_rst:  0.124033E-02
+('iasi616_metop-b', '7885') tlapmean in satbang_rst:  0.684250E-03
+('iasi616_metop-b', '7888') tlapmean in satbang_rst:  0.692730E-03
+('iasi616_metop-b', '7912') tlapmean in satbang_rst:  0.170644E-01
+('iasi616_metop-b', '7950') tlapmean in satbang_rst:  0.120902E-02
+('iasi616_metop-b', '7972') tlapmean in satbang_rst:  0.985582E-02
+('iasi616_metop-b', '7980') tlapmean in satbang_rst:  0.296438E-02
+('iasi616_metop-b', '7995') tlapmean in satbang_rst:  0.246685E-02
+('iasi616_metop-b', '8007') tlapmean in satbang_rst:  0.122138E-02
+('iasi616_metop-b', '8015') tlapmean in satbang_rst:  0.252782E-02
+('iasi616_metop-b', '8055') tlapmean in satbang_rst:  0.211941E-02
+('iasi616_metop-b', '8078') tlapmean in satbang_rst:  0.255765E-02

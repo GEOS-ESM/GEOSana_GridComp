@@ -25,6 +25,8 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
 !   2010-03-24  derber - generalize so that can be used for any lat,lon,nsig and any tsen and prsl (for hybrid)
 !   2010-12-17  pagowski - add cmaq
 !   2011-08-15  gu/todling - add pseudo-q2 options
+!   2014-12-03  derber - add additional threading
+!   2018-02-15  wu - add code for fv3_regional option
 !
 !   input argument list:
 !     tsen      - input sensibile temperature field (lat2,lon2,nsig)
@@ -55,21 +57,22 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
   use derivsmod, only:  qgues,dqdt,dqdrh,dqdp
   use jfunc, only:  pseudo_q2
   use gridmod, only:  wrf_nmm_regional,wrf_mass_regional,nems_nmmb_regional,aeta2_ll,regional,cmaq_regional
+  use gridmod, only:  fv3_regional
   use guess_grids, only: tropprs,ges_prslavg,ges_psfcavg
   implicit none
 
   logical                               ,intent(in   ) :: ice
+  integer(i_kind)                       ,intent(in   ) :: lat2,lon2,nsig,iderivative
   real(r_kind),dimension(lat2,lon2,nsig),intent(  out) :: qsat
   real(r_kind),dimension(lat2,lon2,nsig),intent(in   ) :: tsen,prsl
-  integer(i_kind)                       ,intent(in   ) :: lat2,lon2,nsig,iderivative
 
 
   integer(i_kind) k,j,i,kpres,k150
   real(r_kind) pw,tdry,tr,es,es2
   real(r_kind) w,onep3,esmax
   real(r_kind) desidt,deswdt,dwdt,desdt,esi,esw
-  real(r_kind),dimension(lat2,lon2):: mint,estmax
-  integer(i_kind),dimension(lat2,lon2):: lmint
+  real(r_kind),dimension(lat2):: mint,estmax
+  integer(i_kind),dimension(lat2):: lmint
   logical:: idtupdate,idpupdate
 
 ! Declare local parameters
@@ -77,39 +80,6 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
 
   onep3 = 1.e3_r_kind
 
-  do j=1,lon2
-     do i=1,lat2
-        mint(i,j)=340._r_kind
-        lmint(i,j)=1
-     end do
-  end do
-  do k=1,nsig
-     do j=1,lon2
-        do i=1,lat2
-           if((prsl(i,j,k) < 30._r_kind .and.  &
-               prsl(i,j,k) > 2._r_kind) .and.  &
-               tsen(i,j,k) < mint(i,j))then
-              lmint(i,j)=k
-              mint(i,j)=tsen(i,j,k)
-           end if
-        end do
-     end do
-  end do
-  do j=1,lon2
-     do i=1,lat2
-        tdry = mint(i,j)
-        tr = ttp/tdry
-        if (tdry >= ttp .or. .not. ice) then
-           estmax(i,j) = psat * (tr**xa) * exp(xb*(one-tr))
-        elseif (tdry < tmix) then
-           estmax(i,j) = psat * (tr**xai) * exp(xbi*(one-tr))
-        else
-           w  = (tdry - tmix) / (ttp - tmix)
-           estmax(i,j) =  w * psat * (tr**xa) * exp(xb*(one-tr)) &
-                   + (one-w) * psat * (tr**xai) * exp(xbi*(one-tr))
-        endif
-     end do
-  end do
   if(iderivative > 0)then
     if (regional) then
         k150 = nsig
@@ -120,7 +90,8 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
            endif
         end do
     end if
-    if (wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional) then
+    if (wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional .or. &
+             fv3_regional) then
         kpres = nsig
         do k=1,nsig
            if (aeta2_ll(k)==zero) then
@@ -130,14 +101,43 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
         end do
     end if
   end if
-
 !$omp parallel do  schedule(dynamic,1) private(k,j,i,tdry,tr,es,esw,esi,w) &
-!$omp private(pw,esmax,es2,idpupdate,idtupdate,desdt,dwdt,deswdt,desidt)
-  do k = 1,nsig
-     do j = 1,lon2
-        do i = 1,lat2
+!$omp private(pw,esmax,es2,idpupdate,idtupdate,desdt,dwdt,deswdt,desidt) &
+!$omp private(mint,lmint,estmax)
+  do j=1,lon2
+     do i=1,lat2
+        mint(i)=340._r_kind
+        lmint(i)=1
+     end do
+     do k=1,nsig
+        do i=1,lat2
+           if((prsl(i,j,k) < 30._r_kind .and.  &
+               prsl(i,j,k) > 2._r_kind) .and.  &
+               tsen(i,j,k) < mint(i))then
+              lmint(i)=k
+              mint(i)=tsen(i,j,k)
+           end if
+        end do
+     end do
+     do i=1,lat2
+        tdry = mint(i)
+        if( abs(tdry) < 1.0e-8_r_kind ) tdry = 1.0e-8_r_kind
+        tr = ttp/tdry
+        if (tdry >= ttp .or. .not. ice) then
+           estmax(i) = psat * (tr**xa) * exp(xb*(one-tr))
+        elseif (tdry < tmix) then
+           estmax(i) = psat * (tr**xai) * exp(xbi*(one-tr))
+        else
+           w  = (tdry - tmix) / (ttp - tmix)
+           estmax(i) =  w * psat * (tr**xa) * exp(xb*(one-tr)) &
+                   + (one-w) * psat * (tr**xai) * exp(xbi*(one-tr))
+        endif
+     end do
 
+     do k = 1,nsig
+        do i = 1,lat2
            tdry = tsen(i,j,k)
+           if( abs(tdry) < 1.0e-8_r_kind ) tdry = 1.0e-8_r_kind
            tr = ttp/tdry
            if (tdry >= ttp .or. .not. ice) then
               es = psat * (tr**xa) * exp(xb*(one-tr))
@@ -155,9 +155,9 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
 
            pw = onep3*prsl(i,j,k)
            esmax = es
-           if(lmint(i,j) < k)then
+           if(lmint(i) < k)then
               esmax=0.1_r_kind*pw
-              esmax=min(esmax,estmax(i,j))
+              esmax=min(esmax,estmax(i))
            end if
            es2=min(es,esmax)
            qsat(i,j,k) = eps * es2 / (pw - omeps * es2)
@@ -180,7 +180,7 @@ subroutine genqsat(qsat,tsen,prsl,lat2,lon2,nsig,ice,iderivative)
                   idtupdate=.false.
                 end if
                 if(wrf_nmm_regional .or. nems_nmmb_regional.or.&
-                     cmaq_regional) then
+                     cmaq_regional .or. fv3_regional) then
 !       Decouple T and p at different levels for nmm core
                   if(k >= kpres)idpupdate = .false.
                   if(k >= k150 )idtupdate = .false.

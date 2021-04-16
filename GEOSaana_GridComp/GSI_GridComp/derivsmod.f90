@@ -8,6 +8,12 @@ module derivsmod
 !
 ! program history log:
 !   2013-10-19 Todling - Initial code.
+!   2014-06-18 Carley - add lgues and dlcbasdlog
+!   2015-07-10 Pondeca - add cldchgues and dcldchdlog
+!   2016-05-10 Thomas - remove references to cwgues0
+!   2019-05-08 mtong - replace set_ with init_anadv 
+!   2019-05-08 eliu - recover logic (drv_set_) to indicate the derivative
+!                     vars are allocated and defined
 !
 ! public subroutines:
 !  drv_initialized         - initialize name of fields to calc derivs for
@@ -20,6 +26,7 @@ module derivsmod
 !  dvars2d, dvars3d        - names of 2d/3d derivatives
 !  dsrcs2d, dsrcs3d        - names of where original fields reside
 !  drv_initialized         - flag indicating initialization status
+!  drv_set_                - flag indicating the variables are allocated and defined 
 !
 ! attributes:
 !   language: f90
@@ -30,7 +37,7 @@ module derivsmod
 use kinds, only: i_kind, r_kind
 use mpimod, only: mype
 use gridmod, only: lat2,lon2,nsig
-use constants, only: zero
+use constants, only: zero,max_varname_length
 use state_vectors, only: svars2d,svars3d
 use GSI_BundleMod, only : GSI_BundleCreate
 use GSI_BundleMod, only : GSI_Bundle
@@ -50,6 +57,7 @@ save
 private
 
 public :: drv_initialized
+public :: drv_set_         
 public :: create_ges_derivatives
 public :: destroy_ges_derivatives
 
@@ -57,29 +65,32 @@ public :: gsi_xderivative_bundle
 public :: gsi_yderivative_bundle
 public :: dvars2d, dvars3d
 public :: dsrcs2d, dsrcs3d
-public :: cwgues
-public :: ggues,vgues,pgues,dvisdlog
+public :: cwgues,cfgues 
+public :: ggues,vgues,pgues,lgues,dvisdlog,dlcbasdlog
+public :: w10mgues,howvgues,cldchgues,dcldchdlog
 public :: qsatg,qgues,dqdt,dqdrh,dqdp
+public :: init_anadv
 
 logical :: drv_initialized = .false.
 
 type(gsi_bundle),pointer :: gsi_xderivative_bundle(:)
 type(gsi_bundle),pointer :: gsi_yderivative_bundle(:)
-character(len=32),allocatable,dimension(:):: dvars2d, dvars3d
-character(len=32),allocatable,dimension(:):: dsrcs2d, dsrcs3d
+character(len=max_varname_length),allocatable,dimension(:):: dvars2d, dvars3d
+character(len=max_varname_length),allocatable,dimension(:):: dsrcs2d, dsrcs3d
 
 real(r_kind),allocatable,dimension(:,:,:):: qsatg,qgues,dqdt,dqdrh,dqdp
-real(r_kind),allocatable,dimension(:,:):: ggues,vgues,pgues,dvisdlog
-real(r_kind),target,allocatable,dimension(:,:,:):: cwgues
+real(r_kind),allocatable,dimension(:,:):: ggues,vgues,pgues,lgues,dvisdlog,dlcbasdlog
+real(r_kind),allocatable,dimension(:,:):: w10mgues,howvgues,cldchgues,dcldchdlog
+real(r_kind),target,allocatable,dimension(:,:,:):: cwgues,cfgues 
 
 ! below this point: declare vars not to be made public
 
 character(len=*),parameter:: myname='derivsmod'
-logical,save :: drv_set_=.false.
+logical,save :: drv_set_=.false.  
 integer(i_kind),allocatable,dimension(:):: levels
 contains
 
-subroutine set_ (iamroot,rcname)
+subroutine init_anadv
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:	 define derivatives
@@ -92,6 +103,9 @@ subroutine set_ (iamroot,rcname)
 ! program history log:
 !   2013-09-27  todling  - initial code
 !   2014-02-03  todling  - negative levels mean rank-3 array
+!   2019-05-08  mtong    - replace set_ with init_anadv 
+!   2019-05-08  eliu     - recover logic (drv_set_) to indicate the derivative
+!                          vars are allocated and defined
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -102,14 +116,12 @@ subroutine set_ (iamroot,rcname)
 !   machine:
 !
 !$$$  end subprogram documentation block
-use file_utility, only : get_lun
 use mpeu_util, only: gettablesize
 use mpeu_util, only: gettable
 use mpeu_util, only: getindex
 implicit none
 
-logical,optional,intent(in) :: iamroot         ! optional root processor id
-character(len=*),optional,intent(in) :: rcname ! optional input filename
+character(len=*),parameter:: rcname='anavinfo'
 
 character(len=*),parameter::myname_=myname//'*set_'
 character(len=*),parameter:: tbname='state_derivatives::'
@@ -117,22 +129,13 @@ integer(i_kind) luin,ii,nrows,ntot,ipnt,istatus
 integer(i_kind) i2d,i3d,n2d,n3d,irank
 integer(i_kind),allocatable,dimension(:)::nlevs
 character(len=256),allocatable,dimension(:):: utable
-character(len=32),allocatable,dimension(:):: vars
-character(len=32),allocatable,dimension(:):: sources
-logical iamroot_,matched
+character(len=max_varname_length),allocatable,dimension(:):: vars
+character(len=max_varname_length),allocatable,dimension(:):: sources
+logical matched
 
-if(drv_set_) return
+if(drv_set_) return 
 
-iamroot_=mype==0
-if(present(iamroot)) iamroot_=iamroot 
-
-! load file
-if (present(rcname)) then
-   luin=get_lun()
-   open(luin,file=trim(rcname),form='formatted')
-else
-   luin=5
-endif
+open(newunit=luin,file=trim(rcname),form='formatted')
 
 ! Scan file for desired table first
 ! and get size of table
@@ -230,7 +233,7 @@ do ii=1,nrows
    endif
 enddo
 
-if (iamroot_) then
+if (mype == 0) then
     write(6,*) myname_,':  DERIVATIVE VARIABLES: '
     write(6,*) myname_,':  2D-DERV STATE VARIABLES: '
     do ii=1,n2d
@@ -243,9 +246,9 @@ if (iamroot_) then
 end if
 
 deallocate(vars,nlevs,sources)
-drv_set_=.true.
+drv_set_=.true.  
 
- end subroutine set_
+ end subroutine init_anadv
 
  subroutine create_ges_derivatives(switch_on_derivatives,nfldsig)
 !$$$  subprogram documentation block
@@ -283,9 +286,6 @@ drv_set_=.true.
 
   if (.not.switch_on_derivatives) return
   if (drv_initialized) return 
-
-! initialize table with fields
-  call set_(rcname='anavinfo')
 
 ! create derivative grid
   call GSI_GridCreate(grid,lat2,lon2,nsig)
@@ -397,6 +397,10 @@ drv_set_=.true.
 !   2013-10-25  todling - revisit variable initialization
 !   2013-11-12  lueken - revisit logic around cwgues
 !   2014-02-03  todling - CV length and B-dims here (no longer in observer)
+!   2014-03-19  pondeca - add w10mgues
+!   2014-05-07  pondeca - add howvgues
+!   2014-06-18  carley - add lgues and dlcbasdlog
+!   2015-07-10  pondeca- add cldchgues and dcldchdlog
 !
 !   input argument list:
 !    mlat
@@ -442,6 +446,15 @@ drv_set_=.true.
         end do
     end do
 
+    allocate(cfgues(lat2,lon2,nsig))
+    do k=1,nsig
+       do j=1,lon2
+          do i=1,lat2
+             cfgues(i,j,k)=zero
+          end do
+        end do
+    end do
+
     if (getindex(svars2d,'gust')>0) then
        allocate(ggues(lat2,lon2))
        do j=1,lon2
@@ -467,6 +480,41 @@ drv_set_=.true.
           end do
        end do
     end if
+    if (getindex(svars2d,'lcbas')>0) then
+       allocate(lgues(lat2,lon2),dlcbasdlog(lat2,lon2))
+       do j=1,lon2
+          do i=1,lat2
+             lgues(i,j)=zero
+             dlcbasdlog(i,j)=zero
+          end do
+       end do
+    end if
+    if (getindex(svars2d,'wspd10m')>0) then
+       allocate(w10mgues(lat2,lon2))
+       do j=1,lon2
+          do i=1,lat2
+             w10mgues(i,j)=zero
+          end do
+       end do
+    end if
+    if (getindex(svars2d,'howv')>0) then
+       allocate(howvgues(lat2,lon2))
+       do j=1,lon2
+          do i=1,lat2
+             howvgues(i,j)=zero
+          end do
+       end do
+    end if
+    if (getindex(svars2d,'cldch')>0) then
+       allocate(cldchgues(lat2,lon2),dcldchdlog(lat2,lon2))
+       do j=1,lon2
+          do i=1,lat2
+             cldchgues(i,j)=zero
+             dcldchdlog(i,j)=zero
+          end do
+       end do
+    end if
+
 
     return
   end subroutine create_auxiliar_
@@ -485,6 +533,10 @@ drv_set_=.true.
 !   2011-02-16  zhu     - add ggues,vgues,pgues
 !   2011-07-15  zhu     - add cwgues
 !   2013-10-25  todling, revisit deallocs
+!   2014-03-19  pondeca - add w10mgues
+!   2014-05-07  pondeca - add howvgues
+!   2014-06-18  carley - add lgues and dlcbasdlog 
+!   2015-07-10  pondeca- add cldchgues and dcldchdlog
 !
 !   input argument list:
 !
@@ -503,10 +555,17 @@ drv_set_=.true.
     if(allocated(qsatg)) deallocate(qsatg)
     if(allocated(qgues)) deallocate(qgues)
     if(allocated(cwgues)) deallocate(cwgues)
+    if(allocated(cfgues)) deallocate(cfgues) 
     if(allocated(ggues)) deallocate(ggues)
     if(allocated(vgues)) deallocate(vgues)
     if(allocated(dvisdlog)) deallocate(dvisdlog)
     if(allocated(pgues)) deallocate(pgues)
+    if(allocated(lgues)) deallocate(lgues)
+    if(allocated(dlcbasdlog)) deallocate(dlcbasdlog)
+    if(allocated(w10mgues)) deallocate(w10mgues)
+    if(allocated(howvgues)) deallocate(howvgues)
+    if(allocated(cldchgues)) deallocate(cldchgues)
+    if(allocated(dcldchdlog)) deallocate(dcldchdlog)
 
     return
   end subroutine destroy_auxiliar_

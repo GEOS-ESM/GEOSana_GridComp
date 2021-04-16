@@ -26,6 +26,8 @@
 !	10Jul12 - Jing Guo <jguo@nasa.gov>
 !               . fixed incorrect name conversion to n05 (NOAA-5) back
 !                 to tirosn (TIROS-N).
+!       22Sep16 - Jing Guo <jing.guo@nasa.gov>
+!               . Used token_shift() to keep unknown tails in entries.
 !EOP ___________________________________________________________________
 
   character(len=*),parameter :: myname='m_sitmpl'
@@ -36,6 +38,7 @@ subroutine get_(fname,jpch,nusis,nusat,nuchan,iuse_rad,rest,vern,append)
   use satinfo_util,only : alloc,realloc
   use satinfo_util,only : luavail,stdout
   use satinfo_util,only : die,perr,tell
+  use satinfo_util,only : token_shift
   implicit none
   character(len=*),intent(in) :: fname	! input satinfo.rc.tmpl
 	! satinfo table
@@ -112,7 +115,7 @@ subroutine get_(fname,jpch,nusis,nusat,nuchan,iuse_rad,rest,vern,append)
 		! end the read loop.
 	    if( ios/=0 .or. nusis(j)=='sensor'.or.nusis(j)=='sat' ) exit
 	    nusat(j)=-1
-	    rest(j)=line
+	    rest(j)=token_shift(line,3) ! 3 tokens, for nusis, nuchan, and iuse_rad
 	  end select
 
 	  	! If the input line contains unexpected values,
@@ -201,7 +204,7 @@ end subroutine get_
 
 	  case(2:)
 	    l=max(18,len_trim(nusisj))
-            write(lu,110,iostat=ios) nusisj(1:l),nuchan(j),iuse_rad(j),trim(rest(j)(30:))
+            write(lu,110,iostat=ios) nusisj(1:l),nuchan(j),iuse_rad(j),trim(rest(j))
 	    if(ios/=0) call die(myname_, &
 	        'write-110("'//trim(fname)//'") for output, iostat =',ios)
 	  endselect

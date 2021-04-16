@@ -37,13 +37,13 @@ use kinds, only: r_kind,i_kind
 use constants, only: zero,max_varname_length
 use control_vectors, only: control_vector
 use control_vectors, only: cvars3d,cvars2d,cvarsmd
-use control_vectors, only: nc2d,nc3d,mvars
+use control_vectors, only: nc2d,mvars
 use bias_predictors, only: predictors
 use gsi_4dvar, only: nsubwin, lsqrtb
 use gridmod, only: lat2,lon2,nsig
 use berror, only: varprd,fpsproj,fut2ps
 use balmod, only: tbalance
-use jfunc, only: nsclen,npclen,ntclen,nrclen,nval_lenz
+use jfunc, only: nsclen,npclen,ntclen,nval_lenz
 use cwhydromod, only: cw2hydro_ad
 use gsi_bundlemod, only: gsi_bundlecreate
 use gsi_bundlemod, only: gsi_gridcreate
@@ -208,12 +208,7 @@ do jj=1,nsubwin
    if (nclouds>0) then
       if (cw_to_hydro_ad) then
 !        Case when cw is generated from hydrometeors
-         if(.not. do_tv_to_tsen_ad) allocate(rv_tsen(lat2,lon2,nsig))
-         call cw2hydro_ad(rval(jj),wbundle,rv_tsen,clouds,nclouds)
-         if(.not. do_tv_to_tsen_ad) then 
-            call tv_to_tsen_ad(rv_tv,rv_q,rv_tsen)
-            deallocate(rv_tsen)
-         end if
+         call cw2hydro_ad(rval(jj),wbundle,clouds,nclouds)
       else
 !        Case when cloud-vars map one-to-one, take care of them together
          do ic=1,nclouds

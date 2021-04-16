@@ -166,7 +166,7 @@ subroutine cloud_calc(p0d,q1d,t1d,clwmr,fice,frain,frimef,&
 ! program history log:
 !   2011-06-18 Yanqiu Zhu
 
-  use gridmod, only: lat2,lon2,nsig,wrf_mass_regional
+  use gridmod, only: lat2,lon2,wrf_mass_regional
   implicit none
 
   integer(i_kind) i,j
@@ -258,7 +258,7 @@ subroutine cloud_calc(p0d,q1d,t1d,clwmr,fice,frain,frimef,&
   return
 end subroutine cloud_calc
 
-subroutine cloud_calc_gfs(g_ql,g_qi,g_cwmr,g_q,g_tv) 
+subroutine cloud_calc_gfs(g_ql,g_qi,g_cwmr,g_q,g_tv,lower_bound,g_cf)  
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    cloud_calc_gfs     calculate cloud mixing ratio
@@ -269,21 +269,39 @@ subroutine cloud_calc_gfs(g_ql,g_qi,g_cwmr,g_q,g_tv)
 ! program history log:
 !   2011-11-01 eliu   move the calculation of hydrometeors from ncepgfs_io to cloud_efr module 
 !                     (rearranged from Min-Jeong's code)  
+!   2014-11-28 zhu  - assign cwgues0 in this subroutine;
+!                   - set lower bound to cloud after assigning cwgues0,change atrribute of g_cwmr
+!   2016-04-28 eliu - remove cwgues0 to read_gfs subroutine in ncegfs_io.f90
+!   2019-06-06 eliu - add handling for cloud fraction 
 
 
   use gridmod, only: lat2,lon2,nsig
+  use constants, only: qcmin
   implicit none
 
 ! Declare passed variables
   real(r_kind),dimension(lat2,lon2,nsig),intent(inout):: g_ql   ! mixing ratio of cloud liquid water [Kg/Kg]
   real(r_kind),dimension(lat2,lon2,nsig),intent(inout):: g_qi   ! mixing ratio of cloud ice [Kg/Kg]
-  real(r_kind),dimension(lat2,lon2,nsig),intent(in   ):: g_cwmr ! mixing ratio of total condensates [Kg/Kg]
+  real(r_kind),dimension(lat2,lon2,nsig),intent(inout):: g_cwmr ! mixing ratio of total condensates [Kg/Kg]
   real(r_kind),dimension(lat2,lon2,nsig),intent(in   ):: g_q    ! specific humidity [Kg/Kg]
   real(r_kind),dimension(lat2,lon2,nsig),intent(in   ):: g_tv   ! virtual temperature [K]
+  real(r_kind),dimension(lat2,lon2,nsig),intent(inout), optional:: g_cf   ! cloud fractio   
+  logical,intent(in):: lower_bound                                ! If .true., set lower bound to cloud
 
 ! Declare local variables
   integer(i_kind):: i,j,k
   real(r_kind)   :: work
+
+! Set lower bound to cloud
+  if (lower_bound) then
+     do k=1,nsig
+        do j=1,lon2
+           do i=1,lat2
+              g_cwmr(i,j,k) =max(qcmin,g_cwmr(i,j,k))
+           end do
+        end do
+     end do
+  endif
 
 ! Initialize
   g_ql(:,:,:) = zero 
@@ -293,7 +311,7 @@ subroutine cloud_calc_gfs(g_ql,g_qi,g_cwmr,g_q,g_tv)
   do k = 1, nsig
      do j = 1, lon2
         do i = 1, lat2
-           work        = -r0_05*(g_tv(i,j,k)/(one+fv*g_q(j,i,k))-t0c)
+           work        = -r0_05*(g_tv(i,j,k)/(one+fv*g_q(i,j,k))-t0c)
            work        = max(zero,work)
            work        = min(one,work)    ! 0<=work<=1 
            g_ql(i,j,k) = g_cwmr(i,j,k)*(one-work)
@@ -301,6 +319,17 @@ subroutine cloud_calc_gfs(g_ql,g_qi,g_cwmr,g_q,g_tv)
         enddo
      enddo
   enddo
+
+  if (present(g_cf)) then
+      do k=1, nsig
+         do j=1, lon2
+            do i=1, lat2
+               ! set lower bound to hydrometeors 
+               g_cf(i,j,k) = min(max(zero,g_cf(i,j,k)),one)
+            enddo
+         enddo
+      enddo
+  endif
   return
 end subroutine cloud_calc_gfs
 
@@ -566,13 +595,11 @@ end subroutine set_cloud_lower_bound
 
 
       real(r_kind) function fpvsx(t)
-      use constants, only: tmix, xai, xbi, xa, xb, ttp, psatk, init_constants
+      use constants, only: tmix, xai, xbi, xa, xb, ttp, psatk
       implicit none
 
       real(r_kind) :: t
       real(r_kind) :: tr
-
-      call init_constants(.true.)
 
       tr=ttp/t
  

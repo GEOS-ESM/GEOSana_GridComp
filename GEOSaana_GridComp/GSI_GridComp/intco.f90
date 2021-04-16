@@ -14,6 +14,7 @@ module intcomod
 !   2009-08-13  lueken - update documentation
 !   2010-06-02  tangborn - converted intoz into intco 
 !   2012-09-14  Syed RH Rizvi, NCAR/NESL/MMM/DAS  - implemented obs adjoint test  
+!   2016-05-18  guo     - replaced ob_type with polymorphic obsNode through type casting
 !
 ! subroutines included:
 !   sub intco_
@@ -27,6 +28,11 @@ module intcomod
 !
 !$$$ end documentation block
 
+use m_obsNode, only: obsNode
+use m_colvkNode , only: colvkNode
+use m_colvkNode , only: colvkNode_typecast
+use m_colvkNode , only: colvkNode_nextcast
+use m_obsdiagNode, only: obsdiagNode_set
 implicit none
 
 PRIVATE
@@ -67,12 +73,11 @@ subroutine intco_(colvkhead,rval,sval)
 !
 !$$$
 !--------
-  use obsmod, only: colvk_ob_type
   use gsi_bundlemod, only: gsi_bundle
   implicit none
 
 ! Declare passed variables
-  type(colvk_ob_type),pointer,intent(in   ) :: colvkhead
+  class(obsNode),pointer,intent(in   ) :: colvkhead
   type(gsi_bundle),intent(in   ) :: sval
   type(gsi_bundle),intent(inout) :: rval
 
@@ -94,6 +99,7 @@ subroutine intcolev_(colvkhead,rval,sval)
 !   1995-07-11  derber
 !   2010-06-07  tangborn - carbon monoxide based on ozone code
 !   2012-09-14  Syed RH Rizvi, NCAR/NESL/MMM/DAS  - introduced ladtest_obs         
+!   2014-12-03  derber  - modify so that use of obsdiags can be turned off
 !
 !   input argument list:
 !     colvkhead  - level carbon monoxide obs type pointer to obs structure
@@ -109,9 +115,9 @@ subroutine intcolev_(colvkhead,rval,sval)
 !$$$
 !--------
   use kinds, only: r_kind,i_kind,r_quad
-  use obsmod, only: colvk_ob_type,lsaveobsens,l_do_adjoint
+  use obsmod, only: lsaveobsens,l_do_adjoint,luse_obsdiag
   use gridmod, only: lat2,lon2,nsig
-  use jfunc, only: jiter,xhat_dt,dhat_dt
+  use jfunc, only: jiter
   use constants, only: one,zero,r3600,zero_quad
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -119,7 +125,7 @@ subroutine intcolev_(colvkhead,rval,sval)
   implicit none
 
 ! Declare passed variables
-  type(colvk_ob_type),pointer,intent(in   ) :: colvkhead
+  class(obsNode),pointer,intent(in   ) :: colvkhead
   type(gsi_bundle)          ,intent(in   ) :: sval
   type(gsi_bundle)          ,intent(inout) :: rval
 
@@ -136,7 +142,7 @@ subroutine intcolev_(colvkhead,rval,sval)
   real(r_kind),allocatable,dimension(:)   :: coak
   real(r_kind),allocatable,dimension(:)   :: vali
   real(r_kind),allocatable,dimension(:)   :: val_ret
-  type(colvk_ob_type), pointer :: colvkptr
+  type(colvkNode), pointer :: colvkptr
 
 !  If no co observations return
   if(.not. associated(colvkhead))return
@@ -163,7 +169,8 @@ subroutine intcolev_(colvkhead,rval,sval)
 ! MOPITT CARBON MONOXIDE: LAYER CO 
 !
 ! Loop over carbon monoxide observations.
-  colvkptr => colvkhead
+  !colvkptr => colvkhead
+  colvkptr => colvkNode_typecast(colvkhead)
   do while (associated(colvkptr))
 
 !    Set location
@@ -213,17 +220,19 @@ subroutine intcolev_(colvkhead,rval,sval)
               val1=val1+colvkptr%ak(k,j)*vali(j)
            enddo 
 
-           if (lsaveobsens) then
-              colvkptr%diags(k)%ptr%obssen(jiter)=val1*colvkptr%err2(k)*colvkptr%raterr2(k)
-           else
-              if (colvkptr%luse) colvkptr%diags(k)%ptr%tldepart(jiter)=val1
+           if(luse_obsdiag)then
+              if (lsaveobsens) then
+                 valx=val1*colvkptr%err2(k)*colvkptr%raterr2(k)
+                 !-- colvkptr%diags(k)%ptr%obssen(jiter)=valx
+                 call obsdiagNode_set(colvkptr%diags(k)%ptr,jiter=jiter,obssen=real(valx,r_kind))
+              else
+                 !-- if (colvkptr%luse) colvkptr%diags(k)%ptr%tldepart(jiter)=val1
+                 if (colvkptr%luse) call obsdiagNode_set(colvkptr%diags(k)%ptr,tldepart=real(val1,r_kind))
+              endif
            endif
 
            if (l_do_adjoint) then
-              if (lsaveobsens) then
-                 valx = colvkptr%diags(k)%ptr%obssen(jiter)
-
-              else
+              if (.not. lsaveobsens) then
                  if( ladtest_obs ) then
                     valx = val1
                  else
@@ -275,7 +284,8 @@ subroutine intcolev_(colvkhead,rval,sval)
         deallocate(coak,vali,val_ret)
 
         endif ! l_do_adjoint
-        colvkptr => colvkptr%llpoint
+        !colvkptr => colvkptr%llpoint
+        colvkptr => colvkNode_nextcast(colvkptr)
 
 ! End loop over observations
   enddo

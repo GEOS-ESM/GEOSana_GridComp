@@ -4,6 +4,11 @@
 ! !MODULE:  GSI_BundleMod --- GSI Bundle
 !
 ! !INTERFACE:
+!
+! program change log:
+! 2018-01-18 G. Ge: change pointer,intent(out) to pointer,intent(inout)
+!                   to solve the GSI crash under INTEL v18+
+!
 
 module GSI_BundleMod
    
@@ -279,6 +284,8 @@ module GSI_BundleMod
 !  04Jul2011 Todling - large revision of REAL*4 or REAL*8 implementation
 !  27Jun2012 Parrish - set verbose_ to .false. to turn off diagnostic print in subroutine merge_.
 !  05Oct2014 Todling - add 4d-like interfaces to getvars
+!  26Aug2017   G. Ge - change names(nd) to names(:) to make the passing of assumed size character
+!                      array consistent between nested calls                   
 !
 ! !SEE ALSO:  
 !           gsi_metguess_mod.F90
@@ -357,7 +364,7 @@ CONTAINS
 ! !INPUT PARAMETERS:
 
  integer(i_kind), intent(in):: nd
- character(len=*),intent(in):: names(nd)
+ character(len=*),intent(in):: names(:)
  character(len=*),OPTIONAL,intent(in):: longnames(nd)
  character(len=*),OPTIONAL,intent(in):: units(nd)
  integer(i_kind), OPTIONAL,intent(in):: thisKind
@@ -417,7 +424,7 @@ CONTAINS
  subroutine init2d_(flds,nd,names,istatus,longnames,units,thisKind)
  integer(i_kind), intent(in) :: nd
  type(GSI_2D),    intent(inout):: flds(nd)
- character(len=*),intent(in):: names(nd)
+ character(len=*),intent(in):: names(:)
  integer(i_kind), intent(out):: istatus
  character(len=*),OPTIONAL,intent(in):: longnames(nd)
  character(len=*),OPTIONAL,intent(in):: units(nd)
@@ -459,7 +466,7 @@ CONTAINS
  subroutine init3d_(flds,nd,names,istatus,longnames,units,thisKind)
  integer(i_kind), intent(in) :: nd
  type(GSI_3D),    intent(inout):: flds(nd)
- character(len=*),intent(in):: names(nd)
+ character(len=*),intent(in):: names(:)
  integer(i_kind), intent(out):: istatus
  character(len=*),OPTIONAL,intent(in):: longnames(nd)
  character(len=*),OPTIONAL,intent(in):: units(nd)
@@ -1820,7 +1827,7 @@ CONTAINS
 
 ! !OUTPUT PARAMETERS:
 
-    real(r_double),pointer,intent(out) :: pntr(:)  ! actual pointer to individual field
+    real(r_double),pointer,intent(inout) :: pntr(:)  ! actual pointer to individual field
     integer(i_kind),       intent(out) :: istatus  ! status error code
 
 ! !DESCRIPTION: Retrieve pointer to specific rank-1 field.
@@ -1876,7 +1883,7 @@ CONTAINS
 
 ! !OUTPUT PARAMETERS:
 
-    real(r_single),pointer,intent(out) :: pntr(:)  ! actual pointer to individual field
+    real(r_single),pointer,intent(inout) :: pntr(:)  ! actual pointer to individual field
     integer(i_kind),       intent(out) :: istatus  ! status error code
 
 ! !DESCRIPTION: Retrieve pointer to specific rank-1 field.
@@ -1930,7 +1937,7 @@ CONTAINS
 
 ! !OUTPUT PARAMETERS:
 
-    real(r_double),pointer,intent(out) :: pntr(:,:)  ! actual pointer to individual field
+    real(r_double),pointer,intent(inout) :: pntr(:,:)  ! actual pointer to individual field
     integer(i_kind),       intent(out) :: istatus  ! status error code
 
 ! !DESCRIPTION: Retrieve pointer to specific rank-2 field.
@@ -1971,7 +1978,7 @@ CONTAINS
 
 ! !OUTPUT PARAMETERS:
 
-    real(r_single),pointer,intent(out) :: pntr(:,:)  ! actual pointer to individual field
+    real(r_single),pointer,intent(inout) :: pntr(:,:)  ! actual pointer to individual field
     integer(i_kind),intent(out) :: istatus  ! status error code
 
 ! !DESCRIPTION: Retrieve pointer to specific rank-2 field.
@@ -2011,7 +2018,7 @@ CONTAINS
 
 ! !OUTPUT PARAMETERS:
 
-    real(r_double),pointer,intent(out) :: pntr(:,:,:)  ! actual pointer to individual field
+    real(r_double),pointer,intent(inout) :: pntr(:,:,:)  ! actual pointer to individual field
     integer(i_kind),intent(out) :: istatus  ! status error code
 
 ! !DESCRIPTION: Retrieve pointer to specific rank-3 field.
@@ -2051,7 +2058,7 @@ CONTAINS
 
 ! !OUTPUT PARAMETERS:
 
-    real(r_single),pointer,intent(out) :: pntr(:,:,:)  ! actual pointer to individual field
+    real(r_single),pointer,intent(inout) :: pntr(:,:,:)  ! actual pointer to individual field
     integer(i_kind),intent(out) :: istatus  ! status error code
 
 ! !DESCRIPTION: Retrieve pointer to specific rank-3 field.
@@ -2121,11 +2128,9 @@ CONTAINS
 !   retrieve variable
     if( irank==1 ) then
         Bundle%r1(ipnt)%qr8 = cnst
-    endif
-    if( irank==2 ) then
+    else if( irank==2 ) then
         Bundle%r2(ipnt)%qr8 = cnst
-    endif
-    if( irank==3 ) then
+    else if( irank==3 ) then
         Bundle%r3(ipnt)%qr8 = cnst
     endif
 
@@ -2175,11 +2180,9 @@ CONTAINS
 !   retrieve variable
     if( irank==1 ) then
         Bundle%r1(ipnt)%qr4 = cnst
-    endif
-    if( irank==2 ) then
+    else if( irank==2 ) then
         Bundle%r2(ipnt)%qr4 = cnst
-    endif
-    if( irank==3 ) then
+    else if( irank==3 ) then
         Bundle%r3(ipnt)%qr4 = cnst
     endif
 
@@ -2238,11 +2241,9 @@ CONTAINS
 !   retrieve variable
     if( irank==1 ) then
         Bundle%r1(ipnt)%qr8 = fld
-    endif
-    if( irank==2 ) then
+    else if( irank==2 ) then
         Bundle%r2(ipnt)%qr8 = reshape(fld,(/im,jm/))
-    endif
-    if( irank==3 ) then
+    else if( irank==3 ) then
         Bundle%r3(ipnt)%qr8 = reshape(fld,(/im,jm,km/))
     endif
 
@@ -3186,23 +3187,29 @@ CONTAINS
   endif
 
   if(bundi%n1d>0) then
-     bundo%r1(1:bundo%n1d)%shortname=bundi%r1%shortname
-     bundo%r1(1:bundo%n1d)%longname =bundi%r1%longname
-     bundo%r1(1:bundo%n1d)%units    =bundi%r1%units
-     bundo%r1(1:bundo%n1d)%mykind   =bundi%r1%mykind
+     do ii=1,bundi%n1d
+        bundo%r1(ii)%shortname=bundi%r1(ii)%shortname
+        bundo%r1(ii)%longname =bundi%r1(ii)%longname
+        bundo%r1(ii)%units    =bundi%r1(ii)%units
+        bundo%r1(ii)%mykind   =bundi%r1(ii)%mykind
+     enddo
   endif
   if(bundi%n2d>0) then
-     bundo%r2(1:bundo%n2d)%shortname=bundi%r2%shortname
-     bundo%r2(1:bundo%n2d)%longname =bundi%r2%longname
-     bundo%r2(1:bundo%n2d)%units    =bundi%r2%units
-     bundo%r2(1:bundo%n2d)%mykind   =bundi%r2%mykind
+     do ii=1,bundi%n2d
+        bundo%r2(ii)%shortname=bundi%r2(ii)%shortname
+        bundo%r2(ii)%longname =bundi%r2(ii)%longname
+        bundo%r2(ii)%units    =bundi%r2(ii)%units
+        bundo%r2(ii)%mykind   =bundi%r2(ii)%mykind
+     enddo
   endif
   if(bundi%n3d>0) then
-     bundo%r3(1:bundo%n3d)%shortname=bundi%r3%shortname
-     bundo%r3(1:bundo%n3d)%longname =bundi%r3%longname
-     bundo%r3(1:bundo%n3d)%units    =bundi%r3%units
-     bundo%r3(1:bundo%n3d)%level    =bundi%r3%level
-     bundo%r3(1:bundo%n3d)%mykind   =bundi%r3%mykind
+     do ii=1,bundi%n3d
+        bundo%r3(ii)%shortname=bundi%r3(ii)%shortname
+        bundo%r3(ii)%longname =bundi%r3(ii)%longname
+        bundo%r3(ii)%units    =bundi%r3(ii)%units
+        bundo%r3(ii)%level    =bundi%r3(ii)%level
+        bundo%r3(ii)%mykind   =bundi%r3(ii)%mykind
+     enddo
   endif
 
   if (bundo%AllKinds==r_single) then
@@ -3474,30 +3481,27 @@ subroutine self_add_st(yst,xst)
      call stop2(999)
   endif
 
-  if(yst%AllKinds==r_single .and. &
-     xst%AllKinds==r_single ) then
-     DO ii=1,yst%ndim
-        yst%valuesR4(ii)=yst%valuesR4(ii)+xst%valuesR4(ii)
-     ENDDO
-  endif
-  if(yst%AllKinds==r_double .and. &
-     xst%AllKinds==r_double ) then
-     DO ii=1,yst%ndim
-        yst%valuesR8(ii)=yst%valuesR8(ii)+xst%valuesR8(ii)
-     ENDDO
-  endif
-  if(yst%AllKinds==r_single .and. &
-     xst%AllKinds==r_double ) then
-     DO ii=1,yst%ndim
-        yst%valuesR4(ii)=yst%valuesR4(ii)+xst%valuesR8(ii)
-     ENDDO
-  endif
-  if(yst%AllKinds==r_double .and. &
-     xst%AllKinds==r_single ) then
-     DO ii=1,yst%ndim
-        yst%valuesR8(ii)=yst%valuesR8(ii)+xst%valuesR4(ii)
-     ENDDO
-  endif
+  if(xst%AllKinds==r_double)then
+     if(yst%AllKinds==r_double)then
+        DO ii=1,yst%ndim
+           yst%valuesR8(ii)=yst%valuesR8(ii)+xst%valuesR8(ii)
+        ENDDO
+     else if(yst%AllKinds==r_single)then
+        DO ii=1,yst%ndim
+           yst%valuesR4(ii)=yst%valuesR4(ii)+xst%valuesR8(ii)
+        ENDDO
+     endif
+  else if(xst%AllKinds==r_single)then
+     if(yst%AllKinds==r_double )then
+        DO ii=1,yst%ndim
+           yst%valuesR8(ii)=yst%valuesR8(ii)+xst%valuesR4(ii)
+        ENDDO
+     else if(yst%AllKinds==r_single)then
+        DO ii=1,yst%ndim
+           yst%valuesR4(ii)=yst%valuesR4(ii)+xst%valuesR4(ii)
+        ENDDO
+     endif
+  end if
 
   return
 end subroutine self_add_st
@@ -3543,29 +3547,26 @@ subroutine self_add_R8scal(yst,pa,xst)
      call stop2(999)
   endif
 
-  if(yst%AllKinds==r_single .and. &
-     xst%AllKinds==r_single ) then
-     DO ii=1,yst%ndim
-        yst%valuesR4(ii)=yst%valuesR4(ii)+pa*xst%valuesR4(ii)
-     ENDDO
-  endif
-  if(yst%AllKinds==r_double   .and. &
-     xst%AllKinds==r_single ) then
-     DO ii=1,yst%ndim
-        yst%valuesR8(ii)=yst%valuesR8(ii)+pa*xst%valuesR4(ii)
-     ENDDO
-  endif
-  if(yst%AllKinds==r_single  .and. &
-     xst%AllKinds==r_double   ) then
-     DO ii=1,yst%ndim
-        yst%valuesR4(ii)=yst%valuesR4(ii)+pa*xst%valuesR8(ii)
-     ENDDO
-  endif
-  if(yst%AllKinds==r_double .and. &
-     xst%AllKinds==r_double ) then
-     DO ii=1,yst%ndim
-        yst%valuesR8(ii)=yst%valuesR8(ii)+pa*xst%valuesR8(ii)
-     ENDDO
+  if(xst%AllKinds==r_double ) then 
+     if(yst%AllKinds==r_double )then 
+        DO ii=1,yst%ndim
+           yst%valuesR8(ii)=yst%valuesR8(ii)+pa*xst%valuesR8(ii)
+        ENDDO
+     else if(yst%AllKinds==r_single) then
+        DO ii=1,yst%ndim
+           yst%valuesR4(ii)=yst%valuesR4(ii)+pa*xst%valuesR8(ii)
+        ENDDO
+     endif
+  else if(xst%AllKinds==r_single ) then
+     if(yst%AllKinds==r_double) then
+        DO ii=1,yst%ndim
+           yst%valuesR8(ii)=yst%valuesR8(ii)+pa*xst%valuesR4(ii)
+        ENDDO
+     else if(yst%AllKinds==r_single)then
+        DO ii=1,yst%ndim
+           yst%valuesR4(ii)=yst%valuesR4(ii)+pa*xst%valuesR4(ii)
+        ENDDO
+     end if
   endif
 
   return
@@ -3612,29 +3613,26 @@ subroutine self_add_R4scal(yst,pa,xst)
      call stop2(999)
   endif
 
-  if(yst%AllKinds==r_single .and. &
-     xst%AllKinds==r_single ) then
-     DO ii=1,yst%ndim
-        yst%valuesR4(ii)=yst%valuesR4(ii)+pa*xst%valuesR4(ii)
-     ENDDO
-  endif
-  if(yst%AllKinds==r_double   .and. &
-     xst%AllKinds==r_single ) then
-     DO ii=1,yst%ndim
-        yst%valuesR8(ii)=yst%valuesR8(ii)+pa*xst%valuesR4(ii)
-     ENDDO
-  endif
-  if(yst%AllKinds==r_single  .and. &
-     xst%AllKinds==r_double   ) then
-     DO ii=1,yst%ndim
-        yst%valuesR4(ii)=yst%valuesR4(ii)+pa*xst%valuesR8(ii)
-     ENDDO
-  endif
-  if(yst%AllKinds==r_double .and. &
-     xst%AllKinds==r_double ) then
-     DO ii=1,yst%ndim
-        yst%valuesR8(ii)=yst%valuesR8(ii)+pa*xst%valuesR8(ii)
-     ENDDO
+  if(xst%AllKinds==r_double ) then 
+     if(yst%AllKinds==r_double )then 
+        DO ii=1,yst%ndim
+           yst%valuesR8(ii)=yst%valuesR8(ii)+pa*xst%valuesR8(ii)
+        ENDDO
+     else if(yst%AllKinds==r_single) then
+        DO ii=1,yst%ndim
+           yst%valuesR4(ii)=yst%valuesR4(ii)+pa*xst%valuesR8(ii)
+        ENDDO
+     endif
+  else if(xst%AllKinds==r_single ) then
+     if(yst%AllKinds==r_double) then
+        DO ii=1,yst%ndim
+           yst%valuesR8(ii)=yst%valuesR8(ii)+pa*xst%valuesR4(ii)
+        ENDDO
+     else if(yst%AllKinds==r_single)then
+        DO ii=1,yst%ndim
+           yst%valuesR4(ii)=yst%valuesR4(ii)+pa*xst%valuesR4(ii)
+        ENDDO
+     end if
   endif
 
   return
@@ -3657,8 +3655,7 @@ subroutine self_mulR8_(yst,pa)
      DO ii=1,yst%ndim
         yst%valuesR8(ii)=pa*yst%valuesR8(ii)
      ENDDO
-  endif
-  if (yst%AllKinds==r_single) then
+  else if (yst%AllKinds==r_single) then
      DO ii=1,yst%ndim
         yst%valuesR4(ii)=pa*yst%valuesR4(ii)
      ENDDO
@@ -3683,8 +3680,7 @@ subroutine self_mulR4_(yst,pa)
      DO ii=1,yst%ndim
         yst%valuesR8(ii)=pa*yst%valuesR8(ii)
      ENDDO
-  endif
-  if (yst%AllKinds==r_single) then
+  else if (yst%AllKinds==r_single) then
      DO ii=1,yst%ndim
         yst%valuesR4(ii)=pa*yst%valuesR4(ii)
      ENDDO

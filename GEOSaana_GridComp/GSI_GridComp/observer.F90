@@ -1,5 +1,4 @@
 module observermod
-!#define VERBOSE
 #include "mytrace.H"
 
 !$$$  subprogram documentation block
@@ -36,7 +35,7 @@ module observermod
 
   use kinds, only: i_kind
   use constants, only: rearth
-  use mpimod, only: mype
+  use mpimod, only: mype,npe
   use jfunc, only: miter,jiter,jiterstart,&
        switch_on_derivatives,tendsflag
   use gridmod, only: nlat,nlon,rlats,regional,twodvar_regional,wgtlats,nsig,&
@@ -44,8 +43,8 @@ module observermod
   use guess_grids, only: create_ges_grids,create_sfc_grids,&
        destroy_ges_grids,destroy_sfc_grids,nfldsig
   use cloud_efr_mod, only: cloud_init,cloud_final
-  use obsmod, only: write_diag,obs_setup,ndat,dirname,lobserver,&
-       lread_obs_skip,nprof_gps,ditype,obs_input_common,iadate
+  use obsmod, only: write_diag,obs_setup,ndat,dirname,lobserver,ndat,nobs_sub
+  use obsmod, only: lread_obs_skip,nprof_gps,ditype,obs_input_common,iadate
   use satthin, only: superp,super_val1,getsfc,destroy_sfc
   use gsi_4dvar, only: l4dvar
   use convinfo, only: convinfo_destroy
@@ -230,8 +229,10 @@ subroutine init_
 !$$$
 
   use mpeu_util,only : tell, die
+  use gsi_io, only : verbose
   implicit none
   character(len=*),parameter:: Iam='observer_init'
+  logical :: print_verbose
 
 ! Declare passed variables
 
@@ -239,42 +240,41 @@ subroutine init_
 _ENTRY_(Iam)
 
 
+  print_verbose=.false.  
+  if(verbose)print_verbose=.true.
   if(ob_initialized_) call die(Iam,'already initialized')
   ob_initialized_=.true.
   iamset_ = .false.
 
-#ifdef VERBOSE
-  call tell('observer.init_','entered')
-#endif
-!*******************************************************************************************
+  if(print_verbose)then
+     call tell('observer.init_','entered')
+  end if
 !
 ! Initialize timer for this procedure
   call timer_ini('observer')
   call timer_ini('observer.init_')
-#ifdef VERBOSE
-  call tell('observer.init_','timer_ini_()')
-#endif
+  if(print_verbose)then
+     call tell('observer.init_','timer_ini_()')
+  end if
 
 ! Initialize guess
   call guess_init_
-#ifdef VERBOSE
-  call tell('observer.init_','guess_init_()')
-#endif
+  if(print_verbose)then
+     call tell('observer.init_','guess_init_()')
+  end if
 
 !     ndata(*,1)- number of prefiles retained for further processing
 !     ndata(*,2)- number of observations read
 !     ndata(*,3)- number of observations keep after read
-#ifdef VERBOSE
-  call tell('observer.init_','ndat =',ndat)
-#endif
+  if(print_verbose)then
+     call tell('observer.init_','ndat =',ndat)
+  end if
   allocate(ndata(ndat,3))
-#ifdef VERBOSE
-  call tell('observer.init_','allocate(ndata)')
-
-
-  call tell('observer.init_','exiting')
-#endif
-  if(mype==0) write(6,*) Iam, ': successfully initialized'
+  if(print_verbose)then
+     call tell('observer.init_','allocate(ndata)')
+     call tell('observer.init_','exiting')
+  end if
+  if(print_verbose .and. mype==0) write(6,*) Iam, ': successfully initialized'
 ! End of routine
   call timer_fnl('observer.init_')
 _EXIT_(Iam)
@@ -293,6 +293,8 @@ subroutine set_
 !   1990-10-06  parrish
 !   2007-10-03  todling - created this file from slipt of glbsoi
 !   2009-01-28  todling - split observer into init/set/run/finalize
+!   2017-08-31  li      - add gsi_nstcoupler_final
+!   2019-07-09  todling - move gsi_nstcoupler_final to destroy_sfc (consistency)
 !
 !   input argument list:
 !     mype - mpi task id
@@ -306,14 +308,15 @@ subroutine set_
 !$$$
 
   use mpeu_util, only: tell,die
+  use gsi_io, only: mype_io
   implicit none
   character(len=*), parameter :: Iam="observer_set"
 
 ! Declare passed variables
 
 ! Declare local variables
-  logical:: lhere,use_sfc
-  integer(i_kind):: lunsave,istat1,istat2
+  logical:: lhere
+  integer(i_kind):: lunsave,istat1,istat2,istat3,ndat_old,npe_old
   
   data lunsave  / 22 /
 _ENTRY_(Iam)
@@ -343,8 +346,9 @@ _ENTRY_(Iam)
         call stop2(329)
      endif
   
+     allocate(nobs_sub(npe,ndat))
      open(lunsave,file=obs_input_common,form='unformatted')
-     read(lunsave,iostat=istat1) ndata,superp,nprof_gps,ditype
+     read(lunsave,iostat=istat1) ndata,ndat_old,npe_old,superp,nprof_gps,ditype
      allocate(super_val1(0:superp))
      read(lunsave,iostat=istat2) super_val1
      if (istat1/=0 .or. istat2/=0) then
@@ -352,6 +356,16 @@ _ENTRY_(Iam)
              trim(obs_input_common),' istat1,istat2=',istat1,istat2,'  Terminate execution'
         call stop2(329) 
      endif
+     if(npe_old /= npe .or. ndat /= ndat_old) then
+        if (mype==0) write(6,*) ' observer_set: inconsistent ndat,npe ',ndat,npe,    &
+               ' /= ',ndat_old,npe_old
+        call stop2(330)
+     end if
+     read(lunsave,iostat=istat3) nobs_sub
+     if(istat3 /= 0) then
+        if(mype == 0) write(6,*) ' observer_set: error reading nobs_sub '
+        call stop2(331)
+     end if
      close(lunsave)
 
      if (mype==0) write(6,*)'OBSERVER_SET:  read collective obs selection info from ',&
@@ -359,8 +373,7 @@ _ENTRY_(Iam)
 
 !    Load isli2 and sno2 arrays using fields from surface guess file.  Arrays
 !    isli2 and sno2 are used in intppx (called from setuprad) and setuppcp.
-     use_sfc=.false.
-     call getsfc(mype,use_sfc)
+     call getsfc(mype,mype_io,.false.,.false.)
      call destroy_sfc
 
   endif
@@ -401,6 +414,8 @@ subroutine run_(init_pass,last_pass)
 !$$$
 
   use mpeu_util, only: tell,die
+  use m_obsdiags, only: obsdiags_write
+  use gsi_io, only: verbose
   implicit none
   logical,optional,intent(in) :: init_pass
   logical,optional,intent(in) :: last_pass
@@ -415,18 +430,21 @@ subroutine run_(init_pass,last_pass)
   character(len=12) :: clfile
   logical :: init_pass_
   logical :: last_pass_
+  logical :: print_verbose
   
 _ENTRY_(Iam)
+  print_verbose=.false.
+  if(verbose)print_verbose=.true.
   call timer_ini('observer.run_')
   init_pass_=.false.
   if(present(init_pass)) init_pass_=init_pass
   last_pass_=.false.
   if(present(last_pass)) last_pass_= last_pass
 
-#ifdef VERBOSE
-  call tell(Iam,'init_pass =',init_pass_)
-  call tell(Iam,'last_pass =',last_pass_)
-#endif
+  if(print_verbose)then
+     call tell(Iam,'init_pass =',init_pass_)
+     call tell(Iam,'last_pass =',last_pass_)
+  end if
 
   if(.not.ob_initialized_) call die(Iam,'not initialized')
 
@@ -442,13 +460,11 @@ _ENTRY_(Iam)
      write(6,*)'observer should only be called in 4dvar'
      call stop2(157)
   endif
-#ifdef VERBOSE
-  if(mype==0) then
+  if(mype==0 .and. print_verbose) then
      call tell(Iam,'miter =',miter)
      call tell(Iam,'jiterstart =',jiterstart)
      call tell(Iam,'jiterlast  =',jiterlast )
   endif
-#endif
   if (mype==0) write(6,*)'OBSERVER: jiterstart,jiterlast=',jiterstart,jiterlast
 
 ! Main outer analysis loop
@@ -462,7 +478,8 @@ _ENTRY_(Iam)
      if (l4dvar.and.(.not.last) .and. last_pass_) then
         clfile='obsdiags.ZZZ'
         write(clfile(10:12),'(I3.3)') jiter
-        call write_obsdiags(clfile)
+        !call write_obsdiags(clfile)
+        call obsdiags_write(clfile)     ! replacing write_obsdiags()
      endif
 
 ! End of outer iteration loop
@@ -506,6 +523,7 @@ subroutine final_
 !$$$
   use compact_diffs,only: destroy_cdiff_coefs
   use mp_compact_diffs_mod1, only: destroy_mp_compact_diffs1
+  use gsi_io, only : verbose
   use mpeu_util, only: tell,die
   implicit none
 
@@ -513,10 +531,13 @@ subroutine final_
 
 ! Declare local variables
   character(len=*),parameter:: Iam="observer_final"
+  logical print_verbose
 
 !*******************************************************************************************
 _ENTRY_(Iam)
   call timer_ini('observer.final_')
+  print_verbose=.false.
+  if(verbose) print_verbose=.true.
 
   if(.not.ob_initialized_) call die(Iam,'not initialized')
   ob_initialized_=.false.
@@ -536,7 +557,7 @@ _ENTRY_(Iam)
   call convinfo_destroy
 
   deallocate(ndata)
-  if(mype==0) write(6,*) Iam, ': successfully finalized'
+  if(mype==0 .and. print_verbose) write(6,*) Iam, ': successfully finalized'
 
 ! Finalize timer for this procedure
   call timer_fnl('observer.final_')

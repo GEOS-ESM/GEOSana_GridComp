@@ -10,6 +10,7 @@
    pseudo_q2=.true.,
    use_prepb_satwnd=>>>USE_PREPB_SATWND<<<,
    iguess=-1,
+   id_drifter=.true.,
    oneobtest=.false.,retrieval=.false.,
    biascor=-0.10,bcoption=0,diurnalbc=1.0,
    crtm_coeffs_path="CRTM_Coeffs/",
@@ -30,7 +31,7 @@
    hswgt=0.45,0.3,0.25,
    bw=0.0,norsp=4,
    bkgv_flowdep=.true.,bkgv_rewgtfct=1.5,
-   fpsproj=.false.,
+   fpsproj=.true.,
    adjustozvar=.true.,
  /
  &ANBKGERR
@@ -83,10 +84,10 @@ OBS_INPUT::
    hirs4bufr   hirs4       n19         hirs4_n19             6.0      1     0        merra2_1bhrs4_bufr
    hirs4bufr   hirs4       metop-a     hirs4_metop-a         6.0      1     0        merra2_1bhrs4_bufr
    hirs4bufr   hirs4       metop-b     hirs4_metop-b         6.0      1     0        merra2_1bhrs4_bufr
-   airsbufr    airs        aqua        airs281_aqua          20.0     1     0        merra2_airs_bufr
-   eosairs     airs        aqua        airs281_aqua          20.0     1     0        merra2_eosairs_bufr
-   iasibufr    iasi        metop-a     iasi616_metop-a       20.0     1     0        merra2_mtiasi_bufr
-   iasibufr    iasi        metop-b     iasi616_metop-b       20.0     1     0        merra2_mtiasi_bufr
+   airsbufr    airs        aqua        airs_aqua             20.0     1     0        merra2_airs_bufr
+   eosairs     airs        aqua        airs_aqua             20.0     1     0        merra2_eosairs_bufr
+   iasibufr    iasi        metop-a     iasi_metop-a          20.0     1     0        merra2_mtiasi_bufr
+   iasibufr    iasi        metop-b     iasi_metop-b          20.0     1     0        merra2_mtiasi_bufr
    crisbufr    cris        npp         cris_npp              20.0     1     0        merra2_cris_bufr
 !IR Geostationary
    gsndrbufr   sndr        g08_prep    sndr_g08              1.0      5     0        merra2_goesnd_prep_bufr
@@ -218,16 +219,6 @@ OBS_INPUT::
 ! lag_vorcore_stderr_b=0,
  /
  &HYBRID_ENSEMBLE
-   l_hyb_ens=.false.,n_ens=32,beta1_inv=0.25,generate_ens=.false.,uv_hyb_ens=.true.,
-   s_ens_h=800.,s_ens_v=-0.5,
-   jcap_ens=254,nlat_ens=361,nlon_ens=576,aniso_a_en=.false.,
-   jcap_ens_test=254,
-   oz_univ_static=.true.,
-!  use_localization_grid=.true.,
-   readin_localization=.true.,
-   readin_beta=.true.,
-   use_gfs_ens=.false.,
-!  eqspace_ensgrid=.true.,
  /
  &RAPIDREFRESH_CLDSURF
 !  dfi_radar_latent_heat_time_period=30.0,
@@ -238,4 +229,6 @@ OBS_INPUT::
 !  obhourset=0.,
  /
  &CHEM
+ /
+ &NST
  /

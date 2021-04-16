@@ -22,14 +22,14 @@ module radinfo
 !   2006-02-03  derber  - modify for new obs control and obs count
 !   2006-04-27  derber  - remove jppf
 !   2008-04-23  safford - add standard documentation block
-!   2010-04-29  zhu     - add analysis varaince info for radiance bias correction coefficients
+!   2010-04-29  zhu     - add analysis variance info for radiance bias correction coefficients
 !   2010-05-06  zhu     - add option adp_anglebc for variational radiance angle bias correction 
 !   2010-05-12  zhu     - add option passive_bc for radiance bias correction for monitored channels
 !   2010-07-12  zhu     - add inew_rad
 !   2010-10-05  treadon - remove npred1 (not used)
 !   2010-10-12  zhu     - combine scaninfo and edgeinfo into one file scaninfo
 !   2011-01-04  zhu     - add tlapmean update for new/existing channels when adp_anglebc is turned on
-!   2011-04-02  li      - add index nst_gsi,nst_tzr,nstinfo,fac_dtl,fac_tsl,tzr_bufrsave for NSST and QC_tzr
+!   2011-04-02  li      - add index tzr_qc,tzr_bufrsave for NSST and QC_tzr
 !   2011-07-14  zhu     - add varch_cld for cloudy radiance
 !   2012-11-02  collard - add icld_det for greater flexibility in QC step and
 !                         add number of scan positions to satang file
@@ -38,7 +38,23 @@ module radinfo
 !   2013-07-10  zhu     - add option upd_pred for radiance bias update indicator
 !   2013-07-19  zhu     - add option emiss_bc for emissivity sensitivity radiance bias predictor
 !   2014-04-06  j.jin   - add tmi_trmm and gmi
-!   2014-04-24  li      - apply abs (absolute) to AA and be for safeguarding
+!   2014-04-23   li     - change scan bias correction mode for avhrr and avhrr_navy
+!   2014-04-24   li     - apply abs (absolute) to AA and be for safeguarding
+!   2015-03-01   li     - add zsea1 & zsea2 to handle the vertical mean temperature based on NSST T-Profile
+!   2015-03-26  m.kim   - add flexibility to bring in new qc using "iextra" in satinfo file
+!   2015-7-10   zhu     - add two additional columns to satinfo file: icloud4crtm & iaerosol4crtm
+!   2015-07-10  zhu     - read in and determine icloud4crtm & iaerosol4crtm for all channels
+!                         for generalized all-sky radiance assimilation, as all-sky
+!                         may be enabled for part of the channels for certain instruments
+!   2016-03-10  ejones  - add control for GMI noise reduction
+!   2016-03-24  ejones  - add control for AMSR2 noise reduction
+!   2016-06-03  Collard - Added changes to allow for historical naming conventions
+!   2016-08-12  mahajan - moved nst related variables from radinfo to gsi_nstcouplermod
+!   2016-09-20  Guo     - added SAVE attributes to module variables *_method, to
+!                         improve standard conformance of the code.
+!   2016-11-29  shlyaeva - make nvarjac public
+!   2018-07-24  W. Gu   - the routines to handle correlated R-covariance moved out
+!   2019-06-19  Hu      - add option reset_bad_radbc for reset radiance bias correction coefficient if it is bad.
 !
 ! subroutines included:
 !   sub init_rad            - set satellite related variables to defaults
@@ -78,25 +94,37 @@ module radinfo
   public :: jpch_rad,npred,b_rad,pg_rad,diag_rad,iuse_rad,nusis,inew_rad
   public :: crtm_coeffs_path,retrieval,predx,ang_rad,newchn,cbias,icld_det
   public :: air_rad,nuchan,numt,varch,varch_cld,fbias,ermax_rad,tlapmean
+  public :: varch_sea,varch_land,varch_ice,varch_snow,varch_mixed
   public :: ifactq,mype_rad
   public :: ostats,rstats,varA
-  public :: adp_anglebc,angord,use_edges, maxscan
+  public :: adp_anglebc,angord,use_edges, maxscan, bias_zero_start
   public :: emiss_bc
   public :: passive_bc
+  public :: reset_bad_radbc
   public :: upd_pred
-  public :: ssmis_method
+  public :: ssmis_method,gmi_method,amsr2_method
   public :: radstart,radstep
   public :: newpc4pred
   public :: biaspredvar
-  public :: radjacnames,radjacindxs,nsigradjac
-  public :: nst_gsi,nst_tzr,nstinfo,fac_dtl,fac_tsl,tzr_bufrsave
+  public :: radjacnames,radjacindxs,nsigradjac,nvarjac
+  public :: tzr_bufrsave,tzr_qc
+  public :: diag_version
+
   public :: radedge1, radedge2
   public :: ssmis_precond
-  public :: radinfo_adjust_jacobian
+  public :: icloud4crtm,iaerosol4crtm
+
+  public :: iland_det, isnow_det, imix_det, iice_det, iwater_det
+  public :: itopo_det, isst_det, iwndspeed_det, iomg_det
+  public :: dec2bin
+  public :: cld_det_dec2bin
+  public :: lupdqc, lqcoef
+  public :: radnstep 
 
   integer(i_kind),parameter:: numt = 33   ! size of AVHRR bias correction file
   integer(i_kind),parameter:: ntlapthresh = 100 ! threshhold value of cycles if tlapmean update is needed
 
+  integer(i_kind) diag_version   ! default verison of diag files
   logical diag_rad    ! logical to turn off or on the diagnostic radiance file (true=on)
   logical retrieval   ! logical to turn off or on the SST retrieval with AVHRR data
   logical tzr_bufrsave! logical to turn off or on the bufr file output for Tz retrieval (true=on)
@@ -104,15 +132,17 @@ module radinfo
   logical adp_anglebc ! logical to turn off or on the variational radiance angle bias correction
   logical emiss_bc    ! logical to turn off or on the emissivity predictor
   logical passive_bc  ! logical to turn off or on radiance bias correction for monitored channels
+  logical reset_bad_radbc ! logical to turn off or on reseting radiance bias correction coefficient when it
+                          ! goes bad. Mainly used for safety check in regional
+                          ! analysis
   logical use_edges   ! logical to use data on scan edges (.true.=to use)
+  logical bias_zero_start ! logical to start bias correction from zero (otherwise mode start)
+  logical cld_det_dec2bin ! re-interprets cld_det as binary entry
 
-  integer(i_kind) nst_gsi   ! indicator of Tr Analysis
-  integer(i_kind) nst_tzr   ! indicator of Tz retrieval QC tzr
-  integer(i_kind) nstinfo   ! number of nst variables
-  integer(i_kind) fac_dtl   ! indicator of DTL
-  integer(i_kind) fac_tsl   ! indicator of TSL
-
+  integer(i_kind) tzr_qc        ! indicator of Tz retrieval QC tzr
   integer(i_kind) ssmis_method  !  noise reduction method for SSMIS
+  integer(i_kind) gmi_method    !  noise reduction method for GMI
+  integer(i_kind) amsr2_method  !  noise reduction method for AMSR2
 
   integer(i_kind) jpch_rad      ! number of channels*sat
   integer(i_kind) npred         ! number of radiance biases predictors
@@ -124,6 +154,11 @@ module radinfo
   real(r_kind) :: ssmis_precond
 
   real(r_kind),allocatable,dimension(:):: varch       ! variance for clear radiance each satellite channel
+  real(r_kind),allocatable,dimension(:):: varch_sea   ! optional variance in case of correlated error over sea
+  real(r_kind),allocatable,dimension(:):: varch_land  ! optional variance in case of correlated error over land
+  real(r_kind),allocatable,dimension(:):: varch_ice   ! optional variance in case of correlated error over ice
+  real(r_kind),allocatable,dimension(:):: varch_snow  ! optional variance in case of correlated error over snow
+  real(r_kind),allocatable,dimension(:):: varch_mixed ! optional variance in case of correlated error over mixed surfaces
   real(r_kind),allocatable,dimension(:):: varch_cld   ! variance for cloudy radiance
   real(r_kind),allocatable,dimension(:):: ermax_rad   ! error maximum (qc)
   real(r_kind),allocatable,dimension(:):: b_rad       ! variational b value
@@ -136,6 +171,20 @@ module radinfo
   real(r_kind),allocatable,dimension(:,:):: cbias     ! angle dependent bias for satellite channels
   real(r_kind),allocatable,dimension(:,:):: predx     ! coefficients for predictor part of bias correction
 
+! radiance bias correction terms are as follows:
+!  pred(1,:)  = global offset
+!  pred(2,:)  = zenith angle predictor, is not used and set to zero now
+!  pred(3,:)  = cloud liquid water predictor for clear-sky microwave radiance assimilation
+!  pred(4,:)  = square of temperature laps rate predictor
+!  pred(5,:)  = temperature laps rate predictor
+!  pred(6,:)  = cosinusoidal predictor for SSMI/S ascending/descending bias
+!  pred(7,:)  = sinusoidal predictor for SSMI/S
+!  pred(8,:)  = emissivity sensitivity predictor for land/sea differences
+!  pred(9,:)  = fourth order polynomial of angle bias correction
+!  pred(10,:) = third order polynomial of angle bias correction
+!  pred(11,:) = second order polynomial of angle bias correction
+!  pred(12,:) = first order polynomial of angle bias correction
+ 
   real(r_kind),allocatable,dimension(:,:):: varA
   real(r_kind),allocatable,dimension(:):: ostats
   real(r_quad),allocatable,dimension(:,:):: rstats
@@ -158,26 +207,37 @@ module radinfo
 !                                                    =  2 use data with no airmass bias correction
 !                                                    =  3 use data with no angle dependent bias correction
 !                                                    =  4 use data with no bias correction
-  integer(i_kind),allocatable,dimension(:):: icld_det  ! Use this channel in cloud detection (only used for
-!                                                        certain instruments. Set to greater than zero to use
-
+  integer(i_kind),allocatable,dimension(:):: icld_det    ! Use this channel in cloud detection (only used for
+!                                                          certain instruments. Set to greater than zero to use  
+  integer(i_kind),allocatable,dimension(:):: iwater_det  ! Use this channel in extra QC depending on sfc type
+  integer(i_kind),allocatable,dimension(:):: iland_det   ! Use this channel in extra QC depending on sfc type
+  integer(i_kind),allocatable,dimension(:):: iice_det    ! Use this channel in extra QC depending on sfc type
+  integer(i_kind),allocatable,dimension(:):: isnow_det   ! Use this channel in extra QC depending on sfc type
+  integer(i_kind),allocatable,dimension(:):: imix_det    ! Use this channel in extra QC depending on sfc type
+  integer(i_kind),allocatable,dimension(:):: itopo_det   ! Use this channel in extra QC depending on sfc type
+  integer(i_kind),allocatable,dimension(:):: iomg_det    ! Use this channel in extra QC depending on sfc type
+  integer(i_kind),allocatable,dimension(:):: isst_det    ! Use this channel in extra QC depending on sfc type
+  integer(i_kind),allocatable,dimension(:):: iwndspeed_det  ! Use this channel in extra QC depending on sfc type
 
   logical,allocatable,dimension(:):: inew_rad  ! indicator if it needs initialized for satellite radiance data
   logical,allocatable,dimension(:):: update_tlapmean ! indicator if tlapmean update is needed
 
+  integer(i_kind),allocatable,dimension(:):: icloud4crtm  ! provide cloud info to crtm if icloud4crtm=0 & 1
+  integer(i_kind),allocatable,dimension(:):: iaerosol4crtm  ! provide aerosol info to crtm if iaerosol4crtm=0 & 1
   integer(i_kind),allocatable,dimension(:):: ifactq    ! scaling parameter for d(Tb)/dq sensitivity
 
   character(len=20),allocatable,dimension(:):: nusis   ! sensor/instrument/satellite indicator
   character(len=256),save:: crtm_coeffs_path = "./" ! path of CRTM_Coeffs files
 
-  integer(i_kind) :: nsigradjac
+  integer(i_kind) :: nsigradjac, nvarjac
   character(len=20),allocatable,dimension(:):: radjacnames
   integer(i_kind),  allocatable,dimension(:):: radjacindxs
 
   real(r_kind) :: biaspredvar
   logical,save :: newpc4pred ! controls preconditioning due to sat-bias correction term 
+  logical,save :: lupdqc, lqcoef
 
-  interface radinfo_adjust_jacobian; module procedure adjust_jac_; end interface
+  integer(i_kind),allocatable, dimension(:):: iextra_det
 
   character(len=*),parameter :: myname='radinfo'
 contains
@@ -186,7 +246,7 @@ contains
   subroutine init_rad
 !$$$  subprogram documentation block
 !                .      .    .
-! subprogram:    int_rad
+! subprogram:    init_rad
 !
 !   prgrmmr:     derber      org: np23                date: 1995-07-06
 !
@@ -204,6 +264,15 @@ contains
 !   2010-04-25  zhu     - add logical newpc4pred (todling move here)
 !   2013-02-13  eliu    - add two additional bias correction predictors for SSMIS 
 !   2013-07-19  zhu     - add emiss_bc for emissivity sensitivity bias predictor
+!   2016-03-10  ejones  - add gmi_method for using ssmis spatial averaging code
+!                         for gmi
+!   2016-03-24  ejones  - add amsr2_method for using ssmis spatial averaging code
+!                         for amsr2
+!   2017-09-14  li      - change default value of tzr_qc = 1
+!   2018-08-25  collard - Add bias_zero_start
+!   2019-06-19  hu      - add reset_bad_radbc
+!   2019-08-14  W. Gu   - add lupdqc to replace the obs errors from satinfo with diag of est(R).
+!   2019-08-14  W. Gu   - add lqcoef to combine the inflation coefficients generated by qc with est(R)
 !
 !   input argument list:
 !
@@ -224,24 +293,27 @@ contains
     diag_rad = .true.       ! .true.=generate radiance diagnostic file
     mype_rad = 0            ! mpi task to collect and print radiance use information on/from
     npred=7                 ! number of bias correction predictors
-    nst_gsi   = 0          ! 0 = no nst info at all in gsi
-                           ! 1 = read nst info but not applied
-                           ! 2 = read nst info, applied to Tb simulation but no Tr analysis
-                           ! 3 = read nst info, applied to Tb simulation and do Tr Analysis
-    nst_tzr   = 0          ! 0 = no Tz ret in gsi; 1 = retrieve and applied to QC
-    nstinfo   = 0          ! number of nst fields used in Tr analysis
-    fac_dtl   = 0          ! indicator to apply DTL model
-    fac_tsl   = 0          ! indicator to apply TSL model
-    tzr_bufrsave = .false. ! .true.=generate bufr file for Tz retrieval
+    tzr_qc = 1              ! 0 = no Tz ret in gsi; 1 = retrieve and applied to QC
+    tzr_bufrsave = .false.  ! .true.=generate bufr file for Tz retrieval
+    diag_version= 40000     ! default version of diag files
 
+    newpc4pred = .false.  ! .true.=turn on new preconditioning for bias coefficients
     passive_bc = .false.  ! .true.=turn on bias correction for monitored channels
+    reset_bad_radbc = .false.  ! .true.=turn on reseting bas radiance bias correction coefficients
     adp_anglebc = .false. ! .true.=turn on angle bias correction
+    bias_zero_start = .true. ! .true.=Zero start; .false.=mode start
     emiss_bc = .false.    ! .true.=turn on emissivity bias correction
     angord = 0            ! order of polynomial for angle bias correction
     use_edges = .true.    ! .true.=to use data on scan edges
     upd_pred = one        ! 1.0=bias correction coefficients evolve
     ssmis_method = 1      ! default ssmis smoothing method
     ssmis_precond = r0_01 ! default preconditioner for ssmis bias terms
+    gmi_method = 0        ! 4= default gmi smoothing method
+    amsr2_method = 0      ! 5= default amsr2 smoothing method
+    lupdqc = .true.       ! .true.= replace the obs errors specified in satinfo with the diags of est(R)      
+    lqcoef = .true.       ! .true.= combine the inflation coefficients generated by QC with est(R)
+
+    cld_det_dec2bin = .false.  ! converts cld_det from decimal to binary
   end subroutine init_rad
 
 
@@ -267,6 +339,7 @@ contains
 !   2013-10-26  todling - revisit given that metguess now holds upper air
 !   2013-11-21  todling - add set_radiag; should be revisited to accommodate all
 !                         versions of diag-file, but perhaps done somewhere else
+!   2016-11-29  shlyaeva - make nvarjac public (for saving linearized H(x) for EnKF)
 !
 !   input argument list:
 !
@@ -282,20 +355,24 @@ contains
     use gsi_metguess_mod, only: gsi_metguess_get
     use gsi_chemguess_mod, only: gsi_chemguess_get
     use gridmod, only: nsig
+    use gsi_io, only: verbose
     implicit none
 
     integer(i_kind) ii,jj,mxlvs,isum,ndim,ib,ie,ier
-    integer(i_kind) nvarjac,n_meteo,n_clouds,n_aeros
+    integer(i_kind) n_meteo,n_clouds_jac,n_aeros_jac
     integer(i_kind),allocatable,dimension(:)::aux,all_levels
     character(len=20),allocatable,dimension(:)::meteo_names
-    character(len=20),allocatable,dimension(:)::clouds_names
-    character(len=20),allocatable,dimension(:)::aeros_names
+    character(len=20),allocatable,dimension(:)::clouds_names_jac
+    character(len=20),allocatable,dimension(:)::aeros_names_jac
 
 !   the following vars are wired-in until MetGuess handles all guess fiedls
 !   character(len=3),parameter :: wirednames(6) = (/ 'tv ','q  ','oz ', 'u  ', 'v  ', 'sst' /)
     character(len=3),parameter :: wirednames(1) = (/ 'sst' /)
     integer(i_kind) ,parameter :: wiredlevs (1) = (/ 1 /)
+    logical print_verbose
 
+    print_verbose = .false. .and. mype == 0
+    if(verbose .and. mype == 0)print_verbose=.true.
 !   safeguard angord value for option adp_anglebc
     if (adp_anglebc) then 
        if (angord==0) then 
@@ -306,11 +383,13 @@ contains
        if (angord/=0) angord=0
     end if
 
-    call set_radiag ('version',30303,ier)
+!    call set_radiag ('version',30303,ier)
+    call set_radiag ('version',40000,ier)
     if (adp_anglebc) npred=npred+angord
     if (emiss_bc) then
         npred=npred+1
-        call set_radiag ('version',30303,ier)
+!        call set_radiag ('version',30303,ier)
+        call set_radiag ('version',40000,ier)
     endif
     
 !   inquire about variables in guess
@@ -338,14 +417,14 @@ contains
     endif
 
 !   inquire number of clouds to participate in CRTM calculations
-    call gsi_metguess_get ( 'clouds_4crtm_jac::3d', n_clouds, ier )
-    n_clouds=max(0,n_clouds)
+    call gsi_metguess_get ( 'clouds_4crtm_jac::3d', n_clouds_jac, ier )
+    n_clouds_jac=max(0,n_clouds_jac)
 
 !   inquire number of aerosols to participate in CRTM calculations
-    call gsi_chemguess_get ( 'aerosols_4crtm_jac::3d', n_aeros, ier )
-    n_aeros=max(0,n_aeros)
+    call gsi_chemguess_get ( 'aerosols_4crtm_jac::3d', n_aeros_jac, ier )
+    n_aeros_jac=max(0,n_aeros_jac)
 
-    nvarjac=size(wirednames)+n_meteo+n_clouds+n_aeros
+    nvarjac=size(wirednames)+n_meteo+n_clouds_jac+n_aeros_jac
     allocate(radjacnames(nvarjac))
     allocate(radjacindxs(nvarjac))
 
@@ -367,31 +446,31 @@ contains
     endif
 !   Fill in clouds next 
     jj=0
-    if (n_clouds>0) then
-       allocate(clouds_names(n_clouds))
-       call gsi_metguess_get ( 'clouds_4crtm_jac::3d', clouds_names, ier )
+    if (n_clouds_jac>0) then
+       allocate(clouds_names_jac(n_clouds_jac))
+       call gsi_metguess_get ( 'clouds_4crtm_jac::3d', clouds_names_jac, ier )
        ib=size(wirednames)+n_meteo+1
-       ie=ib+n_clouds-1
+       ie=ib+n_clouds_jac-1
        do ii=ib,ie
           jj=jj+1
-          radjacnames(ii) = trim(clouds_names(jj))
+          radjacnames(ii) = trim(clouds_names_jac(jj))
           radjacindxs(ii) = mxlvs
        enddo
-       deallocate(clouds_names)
+       deallocate(clouds_names_jac)
     endif
 !   Fill in aerosols next 
     jj=0
-    if (n_aeros>0) then
-        allocate(aeros_names(n_aeros))
-        call gsi_chemguess_get ( 'aerosols_4crtm_jac::3d', aeros_names, ier )
-       ib=size(wirednames)+n_meteo+n_clouds+1
-       ie=ib+n_aeros-1
+    if (n_aeros_jac>0) then
+        allocate(aeros_names_jac(n_aeros_jac))
+        call gsi_chemguess_get ( 'aerosols_4crtm_jac::3d', aeros_names_jac, ier )
+       ib=size(wirednames)+n_meteo+n_clouds_jac+1
+       ie=ib+n_aeros_jac-1
        do ii=ib,ie
           jj=jj+1
-          radjacnames(ii) = trim(aeros_names(jj))
+          radjacnames(ii) = trim(aeros_names_jac(jj))
           radjacindxs(ii) = mxlvs
        enddo
-       deallocate(aeros_names)
+       deallocate(aeros_names_jac)
     endif
 
 !   Overwrite levels for certain fields (this must be revisited)
@@ -416,7 +495,7 @@ contains
     deallocate(aux)
     deallocate(meteo_names)
 
-    if(mype==0) then
+    if(print_verbose) then
       print*, 'Vars in Rad-Jacobian (dims)'
       print*, '--------------------------'
       do ii=1,nvarjac
@@ -450,10 +529,8 @@ contains
 !
 !$$$ end documentation block
 
-    use correlated_obsmod, only: corr_ob_finalize
     implicit none
 
-    call corr_ob_finalize
     if(allocated(radjacindxs)) deallocate(radjacindxs)
     if(allocated(radjacnames)) deallocate(radjacnames)
 
@@ -501,7 +578,7 @@ contains
 !   2007-03-13  derber  - modify to allow input bias correction files of different lengths and orders
 !   2007-06-29  treadon - determine/build n_sensors and sensorlist from satinfo file
 !   2008-04-23  safford - add standard doc block, rm unused vars and uses
-!   2010-04-29  zhu     - add analysis varaince info for radiance bias correction coefficients
+!   2010-04-29  zhu     - add analysis variance info for radiance bias correction coefficients
 !   2010-05-06  zhu     - add option adp_anglebc for variational angle bias correction
 !   2011-01-04  zhu     - add tlapmean update for new channels when adp_anglebc is turned on
 !   2011-04-07  todling - adjust argument list (interface) since newpc4pred is local now
@@ -510,7 +587,13 @@ contains
 !   2013-02-13  eliu    - change write-out format for iout_rad (for two
 !                         additional SSMIS bias correction coefficients)
 !   2013-05-14  guo     - add read error messages to alarm user a format change.
-!   2014-04-13  todling - add initialization of correlated R-covariance
+!   2014-07-28  sienkiewicz - revert to allocate cbias, cbiasx after maxscan 
+!                             reset in non adp_anglebc case
+!   2015-07-10  zhu     - read in and determine icloud4crtm & iaerosol4crtm for all channels
+!                         for generalized all-sky radiance assimilation, as all-sky
+!                         may be enabled for part of the channels for certain instruments
+!   2016-07-14  jung    - mods to make SEVIRI channel numbers consistent with other instruments.
+!   2016-09-08  sienkiewicz - revert again to allocate cbias, cbiasx after maxscan reset in non adp_anglebc case
 !
 !   input argument list:
 !
@@ -524,7 +607,6 @@ contains
 
 ! !USES:
 
-    use correlated_obsmod, only: corr_ob_initialize
     use obsmod, only: iout_rad
     use constants, only: zero,one,zero_quad
     use mpimod, only: mype
@@ -532,10 +614,8 @@ contains
     implicit none
 
 ! !INPUT PARAMETERS:
-
-
-    integer(i_kind) i,j,k,ich,lunin,lunout,nlines
-    integer(i_kind) ip,istat,n,ichan,nstep,edge1,edge2,ntlapupdate
+    integer(i_kind) i,j,k,ich,lunin,nlines
+    integer(i_kind) ip,istat,n,ichan,nstep,edge1,edge2,ntlapupdate,icw,iaeros
     real(r_kind),dimension(npred):: predr
     real(r_kind) tlapm
     real(r_kind) tsum
@@ -548,14 +628,25 @@ contains
     character(len=120) crecord
     character(len=20) :: isis 
     character(len=20) :: satscan_sis
-    character(len=20),allocatable,dimension(:):: satsenlist
     real(r_kind),dimension(numt):: fbiasx     ! contains SST dependent bias  for SST retrieval
+    integer(i_kind) :: nuchan_temp    ! satellite channel
+    character(len=20) :: nusis_temp   ! sensor/instrument/satellite indicator
+    integer(i_kind) :: iuse_rad_temp  ! use to turn off satellite radiance data
+    real(r_kind) :: varch_temp        ! variance for clear radiance each satellite channel
+    real(r_kind) :: varch_cld_temp    ! variance for cloudy radiance
+    real(r_kind) :: ermax_rad_temp    ! error maximum (qc)
+    real(r_kind) :: b_rad_temp        ! variational b value
+    real(r_kind) :: pg_rad_temp       ! variational pg value
+    integer(i_kind) :: icld_det_temp  ! Use this channel in cloud detection (only used for
+!                                                        certain instruments. Set to greater than zero to use
     logical,allocatable,dimension(:):: nfound
     logical cfound
     logical pcexist
+    logical cold_start_seviri         ! flag to fix wrong channel numbers for seviri.  True = fix, false = already correct
+
+    integer(i_kind) binary_iextra_det(10)
 
     data lunin / 49 /
-    data lunout / 51 /
 
 !============================================================================
 
@@ -568,11 +659,24 @@ contains
        if (istat /= 0) exit
        nlines=nlines+1
        if (cflg == '!') cycle
+       read(crecord,*,iostat=istat) nusis_temp,nuchan_temp,iuse_rad_temp,&
+            varch_temp,varch_cld_temp,ermax_rad_temp,b_rad_temp,pg_rad_temp,icld_det_temp  
+       if ( .not. diag_rad .and. iuse_rad_temp < 0 .and. icld_det_temp < 0 .and. &
+          ( nusis_temp(1:4) == 'cris' .or. nusis_temp(1:4) == 'iasi' .or. nusis_temp(1:4) == 'airs')) cycle
+       if ( nusis_temp(1:6) == 'seviri' .and. (nuchan_temp == 1 .or. nuchan_temp == 2 .or. nuchan_temp == 3)) then
+          write(6,*) 'RADINFO_READ:  *** ERROR **** This is an obsolete satinfo file '
+          write(6,*) 'RADINFO_READ:  Use an updated file or change the SEVIRI channels from 1-8 to 4-11'
+          write(6,*) 'RADINFO_READ:  Your bias correction file(s) may also have the wrong channel numbers.'
+          write(6,*) 'RADINFO_READ:  You can either edit them to the correct channel numbers (4-11) '
+          write(6,*) 'RADINFO_READ:  or the GSI will perform a cold start on the seviri entries.' 
+          write(6,*) 'RADINFO_READ:  stop program execution' 
+          call stop2(79)
+       endif
        j=j+1
     end do read1
     if (istat>0) then
        close(lunin)
-       write(6,*)'RADINFO_READ:  ***ERROR*** error reading radinfo, istat=',istat
+       write(6,*)'RADINFO_READ:  ***ERROR*** error reading satinfo, istat=',istat
        write(6,*)'RADINFO_READ:  stop program execution'
        call stop2(79)
     endif
@@ -595,14 +699,34 @@ contains
          ifactq(jpch_rad),varch(jpch_rad),varch_cld(jpch_rad), &
          ermax_rad(jpch_rad),b_rad(jpch_rad),pg_rad(jpch_rad), &
          ang_rad(jpch_rad),air_rad(jpch_rad),inew_rad(jpch_rad),&
-         icld_det(jpch_rad))
-    allocate(satsenlist(jpch_rad),nfound(jpch_rad))
+         icld_det(jpch_rad),icloud4crtm(jpch_rad),iaerosol4crtm(jpch_rad), &
+         iextra_det(jpch_rad), &
+         isnow_det(jpch_rad), &
+         iland_det(jpch_rad),iice_det(jpch_rad), &
+         iwater_det(jpch_rad),imix_det(jpch_rad),&
+         itopo_det(jpch_rad),isst_det(jpch_rad), &
+         iwndspeed_det(jpch_rad),iomg_det(jpch_rad))
+
+    allocate(varch_sea(jpch_rad),varch_land(jpch_rad),varch_ice(jpch_rad), &
+         varch_snow(jpch_rad),varch_mixed(jpch_rad))
+
+!   initialize flags
+    iland_det = 0
+    isnow_det = 0
+    imix_det = 0
+    iice_det = 0
+    iwater_det = 0
+    iomg_det = 0 
+    itopo_det = 0
+    isst_det = 0
+    iwndspeed_det = 0
+
+    allocate(nfound(jpch_rad))
     iuse_rad(0)=-999
     inew_rad=.true.
     ifactq=15
     air_rad=one
     ang_rad=one
-
 
 !   All mpi tasks open and read radiance information file.
 !   Task mype_rad writes information to radiance runtime file
@@ -613,63 +737,133 @@ contains
 120    format('RADINFO_READ:  jpch_rad=',1x,i6)
     endif
     rewind(lunin)
-    j=0
+    j=1
     do k=1,nlines
        read(lunin,100) cflg,crecord
        if (cflg == '!') cycle
-       j=j+1
-       read(crecord,*,iostat=istat) nusis(j),nuchan(j),iuse_rad(j),&
-            varch(j),varch_cld(j),ermax_rad(j),b_rad(j),pg_rad(j),icld_det(j)
+       read(crecord,*,iostat=istat) nusis(j),nuchan(j),iuse_rad(j), varch(j), &
+            varch_cld(j),ermax_rad(j),b_rad(j),pg_rad(j),iextra_det(j),icw,iaeros
+             
        if(istat/=0) then
           call perr('radinfo_read','read(crecord), crecord =',trim(crecord))
           call perr('radinfo_read','                 istat =',istat)
           call  die('radinfo_read')
        endif
-       if(iuse_rad(j) == 4 .or. iuse_rad(j) == 2)air_rad(j)=zero
-       if(iuse_rad(j) == 4 .or. iuse_rad(j) == 3)ang_rad(j)=zero
-       if (mype==mype_rad) write(iout_rad,110) j,nusis(j), &
+
+       ! The following is to sort out some historical naming conventions
+       select case (nusis(j)(1:4))
+         case ('airs')
+            nusis(j)='airs_aqua'
+         case ('iasi')
+            if (index(nusis(j),'metop-a') /= 0) nusis(j)='iasi_metop-a'
+            if (index(nusis(j),'metop-b') /= 0) nusis(j)='iasi_metop-b'
+            if (index(nusis(j),'metop-c') /= 0) nusis(j)='iasi_metop-c'
+       end select 
+
+       if ( .not. diag_rad .and. iuse_rad(j) < 0 .and. iextra_det(j) < 0 .and. &
+          ( nusis(j)(1:4) == 'cris' .or. nusis(j)(1:4) == 'iasi' .or. nusis(j)(1:4) == 'airs')) cycle
+
+       if(iuse_rad(j) == 4 .or. iuse_rad(j) == 2) air_rad(j)=zero
+       if(iuse_rad(j) == 4 .or. iuse_rad(j) == 3) ang_rad(j)=zero
+
+       icloud4crtm(j)=icw
+       iaerosol4crtm(j)=iaeros
+       if ( cld_det_dec2bin ) then
+          if (mype==mype_rad) write(iout_rad,111) j,nusis(j), &
             nuchan(j),varch(j),varch_cld(j),iuse_rad(j),ermax_rad(j), &
-            b_rad(j),pg_rad(j),icld_det(j)
+            b_rad(j),pg_rad(j),iextra_det(j),icloud4crtm(j),iaerosol4crtm(j)  
+
+               call dec2bin(iextra_det(j),binary_iextra_det,10)
+
+               icld_det(j) = binary_iextra_det(1)
+               iland_det(j) = binary_iextra_det(2)
+               isnow_det(j) = binary_iextra_det(3)
+               imix_det(j) = binary_iextra_det(4)
+               iice_det(j) = binary_iextra_det(5)
+               iwater_det(j) = binary_iextra_det(6)
+               iomg_det(j) = binary_iextra_det(7)
+               itopo_det(j) = binary_iextra_det(8)
+               isst_det(j) = binary_iextra_det(9)
+               iwndspeed_det(j) = binary_iextra_det(10)
+       else
+          if (mype==mype_rad) write(iout_rad,110) j,nusis(j), &
+            nuchan(j),varch(j),varch_cld(j),iuse_rad(j),ermax_rad(j), &
+            b_rad(j),pg_rad(j),iextra_det(j),icloud4crtm(j),iaerosol4crtm(j)  
+
+               icld_det(j) = iextra_det(j) ! leave variable as set in info file
+
+       end if
+
+       j=j+1
     end do
     close(lunin)
 100 format(a1,a120)
 110 format(i4,1x,a20,' chan= ',i4,  &
           ' var= ',f7.3,' varch_cld=',f7.3,' use= ',i2,' ermax= ',F7.3, &
-          ' b_rad= ',F7.2,' pg_rad=',F7.2,' icld_det=',I2)
-
+          ' b_rad= ',F7.2,' pg_rad=',F7.2,' icld_det=',I2,' icloud=',I2,' iaeros=',I2)
+111 format(i4,1x,a20,' chan= ',i4,  &
+          ' var= ',f7.3,' varch_cld=',f7.3,' use= ',i2,' ermax= ',F7.3, &
+          ' b_rad= ',F7.2,' pg_rad=',F7.2,' iextra_det=',I2, 'icloud=',I2,'iaeros=', I2)
 
 !   Allocate arrays for additional preconditioning info
 !   Read in information for data number and preconditioning
 
     if (newpc4pred) then
-       allocate(ostats(jpch_rad), rstats(npred,jpch_rad),varA(npred,jpch_rad))
+       allocate(ostats(jpch_rad),rstats(npred,jpch_rad),varA(npred,jpch_rad))
        varA = zero
        ostats = zero
-       rstats = zero_quad
+       rstats = zero_quad 
 
        inquire(file='satbias_pc',exist=pcexist)
        if (pcexist) then
           open(lunin,file='satbias_pc',form='formatted')
           nfound = .false.
+          cold_start_seviri = .false.
           read3: do
              read(lunin,'(I5,1x,A20,1x,I5,e15.7/2(4x,10e15.7/))',iostat=istat) &
                   ich,isis,ichan,ostatsx,(varx(ip),ip=1,npred)
              if (istat/=0) exit
+             ! The following is to sort out some historical naming conventions
+             select case (isis(1:4))
+               case ('airs')
+                  isis='airs_aqua'
+               case ('iasi')
+                  if (index(isis,'metop-a') /= 0) isis='iasi_metop-a'
+                  if (index(isis,'metop-b') /= 0) isis='iasi_metop-b'
+                  if (index(isis,'metop-c') /= 0) isis='iasi_metop-c'
+             end select 
              cfound = .false.
-             do j =1,jpch_rad
-                if(trim(isis) == trim(nusis(j)) .and. ichan == nuchan(j))then
-                   cfound = .true.
-                   nfound(j) = .true.
-                   do i=1,npred
-                      varA(i,j)=varx(i)
-                   end do
-                   ostats(j)=ostatsx
-                   if (any(varx/=zero) .and. iuse_rad(j)>-2) inew_rad(j)=.false.
-                end if
-             end do
-             if(.not. cfound .and. mype == 0) &
-                  write(6,*) '***WARNING instrument/channel ',isis,ichan, &
-                  'found in satbias_pc file but not found in satinfo'
+
+!            Set flag to fix seviri channel mismatch.  Channels should start at 4.  If it is
+!            wrong, set falg to zero out entries.
+             if( isis(1:6) == 'seviri' .and. ichan < 4 ) cold_start_seviri = .true.
+
+!            If not seviri or seviri channels are correct, proceed. 
+             if( .not. cold_start_seviri .or. isis(1:6) /= 'seviri' .or. .not. bias_zero_start) then
+                do j =1,jpch_rad
+                   if(trim(isis) == trim(nusis(j)) .and. ichan == nuchan(j))then
+                      cfound = .true.
+                      nfound(j) = .true.
+                      do i=1,npred
+                         varA(i,j)=varx(i)
+                      end do
+                      ostats(j)=ostatsx
+                      if (any(varx/=zero) .and. iuse_rad(j)>-2) inew_rad(j)=.false.
+                      cycle read3
+                   end if
+                end do
+             endif
+
+!            If an entry exists in the satbias_pc file but not in the satinfo file, print an error message.
+!            When the diag file is not wanted (diag_rad=.false.),the subset feature in the CRTM is used. 
+!            A lot of airs, iasi and/or cris satbias_pc - satinfo entry mismatchs occur which the warning messages are not wanted.
+!            The second part of the if statement keeps from printing them.
+             if ( .not. cfound ) then
+                if ((diag_rad .and. mype ==0) .or. &
+                   (.not. diag_rad .and. isis(1:4)/='airs' .and. isis(1:4) /= 'cris' .and. isis(1:4) /= 'iasi')) &
+                   write(6,*) '***WARNING instrument/channel ',isis,ichan,'found in satbias_pc file but not found in satinfo'
+             endif
+
           end do read3
           close(lunin)
           if (istat>0) then
@@ -694,19 +888,22 @@ contains
 !   Allocate arrays to receive angle dependent bias information.
 !   Open file to bias file (satang=satbias_angle).  Read data.
 
+    maxscan=250
+    if (.not.adp_anglebc) maxscan = 90 ! default value for old files
+
     if (adp_anglebc) then 
+
        allocate(count_tlapmean(jpch_rad),update_tlapmean(jpch_rad),tsum_tlapmean(jpch_rad))
        count_tlapmean=0
        tsum_tlapmean=zero
        update_tlapmean=.true.
-    end if
+       allocate(cbiasx(maxscan))
+       allocate(cbias(maxscan,jpch_rad),tlapmean(jpch_rad))
+       cbias=zero
+       tlapmean=zero
 
-    maxscan=90  ! Default value for old files
-    allocate(cbiasx(maxscan))
-    allocate(cbias(maxscan,jpch_rad),tlapmean(jpch_rad))
-    cbias=zero
-    tlapmean=zero
-    if (.not. adp_anglebc) then
+    else
+
        open(lunin,file='satbias_angle',form='formatted',status='old',iostat=istat)
        if (istat /= 0 ) then
           write(6,*)'RADINFO_READ:  ***ERROR*** file "satbias_angle" does not exist'
@@ -721,12 +918,19 @@ contains
           call stop2(79)
        endif
 
+       ! Read nscan to reset the size of cbias(:) for maxscan/=90 (default)
        rewind(lunin)
        if (word == 'nscan=') read(lunin,'(6x,i8)',iostat=istat) maxscan
        if (istat /= 0 .OR. maxscan <= 0 .OR. maxscan > 1000) then
           write(6,*)'RADINFO_READ:  ***ERROR*** error reading satbias_angle, maxscan out of range: ',maxscan
           call stop2(79)
        endif
+
+       allocate(cbiasx(maxscan))
+       allocate(cbias(maxscan,jpch_rad),tlapmean(jpch_rad))
+       cbias=zero
+       tlapmean=zero
+
        read2: do
           read(lunin,'(I5,1x,A20,2x,I4,e15.6)',iostat=istat,end=1111) &
                ich,isis,ichan,tlapm
@@ -735,6 +939,15 @@ contains
                (cbiasx(ip),ip=1,maxscan)
           if (istat /= 0) exit
           cfound = .false.
+          ! The following is to sort out some historical naming conventions
+          select case (isis(1:4))
+             case ('airs')
+               isis='airs_aqua'
+             case ('iasi')
+               if (index(isis,'metop-a') /= 0) isis='iasi_metop-a'
+               if (index(isis,'metop-b') /= 0) isis='iasi_metop-b'
+               if (index(isis,'metop-c') /= 0) isis='iasi_metop-c'
+          end select 
           do j =1,jpch_rad
              if(trim(isis) == trim(nusis(j)) .and. ichan == nuchan(j))then
                 cfound = .true.
@@ -743,6 +956,7 @@ contains
                    cbias(i,j)=cbiasx(i)
                 end do
                 tlapmean(j)=tlapm
+                cycle read2
              end if
           end do
           if(.not. cfound .and. mype == 0) &
@@ -782,6 +996,16 @@ contains
           read(lunin,1000,IOSTAT=istat,end=1222) cflg,satscan_sis,start,step,nstep,edge1,edge2
           if (istat /= 0) exit
           if (cflg == '!') cycle
+
+          ! The following is to sort out some historical naming conventions
+          select case (satscan_sis(1:4))
+             case ('airs')
+               satscan_sis='airs_aqua'
+             case ('iasi')
+               if (index(satscan_sis,'metop-a') /= 0) satscan_sis='iasi_metop-a'
+               if (index(satscan_sis,'metop-b') /= 0) satscan_sis='iasi_metop-b'
+               if (index(satscan_sis,'metop-c') /= 0) satscan_sis='iasi_metop-c'
+          end select 
 
           do j =1,jpch_rad
              if(trim(satscan_sis) == trim(nusis(j)))then
@@ -823,6 +1047,7 @@ contains
 
        open(lunin,file='satbias_in' ,form='formatted')
        nfound = .false.
+       cold_start_seviri = .false.
        read4: do
           if (.not. adp_anglebc) then
              read(lunin,'(I5,1x,A20,1x,I5,10f12.6)',iostat=istat,end=1333) ich,isis,&
@@ -833,25 +1058,51 @@ contains
           end if
           if (istat /= 0) exit
           cfound = .false.
-          do j =1,jpch_rad
-             if(trim(isis) == trim(nusis(j)) .and. ichan == nuchan(j))then
-                cfound = .true.
-                nfound(j) = .true.
-                do i=1,npred
-                   predx(i,j)=predr(i)
-                end do
-                if (adp_anglebc) then 
-                   tlapmean(j)=tlapm
-                   tsum_tlapmean(j)=tsum
-                   count_tlapmean(j)=ntlapupdate
-                   if (ntlapupdate > ntlapthresh) update_tlapmean(j)=.false.
+          ! The following is to sort out some historical naming conventions
+          select case (isis(1:4))
+             case ('airs')
+               isis='airs_aqua'
+             case ('iasi')
+               if (index(isis,'metop-a') /= 0) isis='iasi_metop-a'
+               if (index(isis,'metop-b') /= 0) isis='iasi_metop-b'
+               if (index(isis,'metop-c') /= 0) isis='iasi_metop-c'
+          end select 
+
+!         Set flag to fix seviri channel mismatch.  Channels should start at 4.  If it is
+!         wrong, set falg to zero out entries.
+          if( isis(1:6) == 'seviri' .and. ichan < 4 ) cold_start_seviri = .true.
+
+!         If not seviri or seviri channels are correct, proceed.
+          if(  .not. cold_start_seviri .or. isis(1:6) /= 'seviri' .or. .not. bias_zero_start ) then
+             do j =1,jpch_rad
+                if(trim(isis) == trim(nusis(j)) .and. ichan == nuchan(j))then
+                   cfound = .true.
+                   nfound(j) = .true.
+                   do i=1,npred
+                      predx(i,j)=predr(i)
+                   end do
+                   if (adp_anglebc) then 
+                      tlapmean(j)=tlapm
+                      tsum_tlapmean(j)=tsum
+                      count_tlapmean(j)=ntlapupdate
+                      if (ntlapupdate > ntlapthresh) update_tlapmean(j)=.false.
+                   end if
+                   if (any(predr/=zero)) inew_rad(j)=.false.
+                   cycle read4
                 end if
-                if (any(predr/=zero)) inew_rad(j)=.false.
-             end if
-          end do
-          if(mype == 0 .and. .not. cfound) &
-             write(6,*) '***WARNING instrument/channel ',isis,ichan, &
-             'found in satbias_in file but not found in satinfo'
+             end do
+          endif
+
+!         If an entry exists in the satbias_in file but not in the satinfo file, print an error message.
+!         When the diag file is not wanted (diag_rad=.false.),the subset feature in the CRTM is used. 
+!         A lot of airs, iasi and/or cris satbias_in - satinfo entry mismatchs occur which the warning messages are not wanted.
+!         The second part of the if statement keeps from printing them.
+          if ( .not. cfound ) then
+             if ((diag_rad .and. mype ==0) .or. &
+                (.not. diag_rad .and. isis(1:4)/='airs' .and. isis(1:4) /= 'cris' .and. isis(1:4) /= 'iasi')) &
+                write(6,*) '***WARNING instrument/channel ',isis,ichan,'found in satbias_in file but not found in satinfo'
+          endif
+
        end do read4
 1333   continue
        close(lunin)
@@ -889,16 +1140,6 @@ contains
                 iuse_rad(j)=-1
              end if
           end do
-
-          if (mype==mype_rad) then
-             open(lunout,file='satbias_ang.out',form='formatted')
-             write(lunout,'(I5)') maxscan
-             do j=1,jpch_rad
-                write(lunout,'(I5,1x,A20,2x,I4,e15.6/100(4x,10f7.3/))') &
-                     j,nusis(j),nuchan(j),tlapmean(j),(cbias(i,j),i=1,maxscan)
-             end do
-             close(lunout)
-          end if
        end if
 
     endif
@@ -922,6 +1163,16 @@ contains
           read(lunin,'(I5,1x,a20,1x,I5/3(4x,11f10.3/) )',iostat=istat,end=1444) ich,isis,ichan,(fbiasx(i),i=1,numt)
           if (istat /= 0) exit
           cfound = .false.
+          ! The following is to sort out some historical naming conventions
+          select case (isis(1:4))
+             case ('airs')
+               isis='airs_aqua'
+             case ('iasi')
+               if (index(isis,'metop-a') /= 0) isis='iasi_metop-a'
+               if (index(isis,'metop-b') /= 0) isis='iasi_metop-b'
+               if (index(isis,'metop-c') /= 0) isis='iasi_metop-c'
+          end select 
+
           do j=1,jpch_rad
              if(trim(isis) == trim(nusis(j)) .and. ichan == nuchan(j))then
                 cfound = .true.
@@ -929,6 +1180,7 @@ contains
                    fbias(i,j)=fbiasx(i)
                 end do
                 tlapmean(j)=tlapm
+                cycle read5
              end if
           end do
           if(.not. cfound)write(6,*) ' WARNING instrument/channel ',isis,ichan, &
@@ -940,8 +1192,11 @@ contains
 
 !   Initialize observation error covariance for 
 !   instruments we account for inter-channel correlations
-    call corr_ob_initialize
-
+    varch_sea=zero
+    varch_land=zero
+    varch_ice=zero
+    varch_snow=zero
+    varch_mixed=zero
 !   Close unit for runtime output.  Return to calling routine
     if(mype==mype_rad)close(iout_rad)
     return
@@ -949,7 +1204,7 @@ contains
   end subroutine radinfo_read
 
 
-  subroutine radinfo_write
+  subroutine radinfo_write(pe_out)
 !$$$  subprogram documentation block
 !                .      .    .
 ! subprogram:    radinfo_write
@@ -965,9 +1220,10 @@ contains
 !   2004-06-22  treadon - update documentation
 !   2004-07-15  todling - protex-compliant prologue
 !   2008-04-23  safford - add standard subprogram doc block
-!   2010-04-29  zhu     - add analysis varaince info for radiance bias correction coefficients
+!   2010-04-29  zhu     - add analysis variance info for radiance bias correction coefficients
 !   2010-05-06  zhu     - add option adp_anglebc
 !   2011-04-07  todling - adjust argument list (interface) since newpc4pred is local now
+!   2019-07-19  guo     - change pe_out to optional, for backward compatible
 !
 !   input argument list:
 !
@@ -981,46 +1237,69 @@ contains
 
 ! !USES:
 
+    use mpimod, only: mype
     implicit none
+
+    integer(i_kind),optional, intent(in) :: pe_out
 
     integer(i_kind) lunout,jch,ip,i
     real(r_kind),dimension(npred):: varx
     data lunout / 51 /
+    integer(kind(pe_out)):: pe_out_
+    pe_out_=0
+    if(present(pe_out)) pe_out_=pe_out
 
-!   Open unit to output file.  Write analysis varaince info.  Close unit.
-    if (newpc4pred) then
-       open(lunout,file='satbias_pc.out',form='formatted')
-       rewind lunout
-       do jch=1,jpch_rad
-          do i=1,npred
-             varx(i)=varA(i,jch)
+!   Write output only on pe_out_
+    if ( mype==pe_out_ ) then
+
+!      Open unit to output file.  Write analysis variance info.  Close unit.
+       if (newpc4pred) then
+          open(lunout,file='satbias_pc.out',form='formatted')
+          rewind lunout
+          do jch=1,jpch_rad
+             do i=1,npred
+                varx(i)=varA(i,jch)
+             end do
+             write(lunout,'(I5,1x,A20,1x,I5,e15.7/2(4x,10e15.7/))') jch,nusis(jch),&
+                  nuchan(jch),ostats(jch),(varx(ip),ip=1,npred)
           end do
-          write(lunout,'(I5,1x,A20,1x,I5,e15.7/2(4x,10e15.7/))') jch,nusis(jch),&
-               nuchan(jch),ostats(jch),(varx(ip),ip=1,npred)
-       end do
-       close(lunout)
-    end if
+          close(lunout)
+       end if
 
-!   Open unit to output file.  Write updated coefficients.  Close unit.
-    open(lunout,file='satbias_out',form='formatted')
-    rewind lunout
-    if (.not. adp_anglebc) then
-       do jch=1,jpch_rad
-          write(lunout,'(I5,1x,a20,1x,i5,10f12.6)') jch,nusis(jch),nuchan(jch),&
-               (predx(ip,jch),ip=1,npred)
-       end do
-    else
-       do jch=1,jpch_rad
-          write(lunout,'(I5,1x,a20,1x,i5,2e15.6,1x,I5/2(4x,10f12.6/))') jch,nusis(jch),nuchan(jch),&
-               tlapmean(jch),tsum_tlapmean(jch),count_tlapmean(jch),(predx(ip,jch),ip=1,npred)
-       end do
+!      Open unit to output file.  Write updated coefficients.  Close unit.
+       open(lunout,file='satbias_out',form='formatted')
+       rewind lunout
+       if (.not. adp_anglebc) then
+          do jch=1,jpch_rad
+             write(lunout,'(I5,1x,a20,1x,i5,10f12.6)') jch,nusis(jch),nuchan(jch),&
+                  (predx(ip,jch),ip=1,npred)
+          end do
+       else
+          do jch=1,jpch_rad
+             if(reset_bad_radbc) then
+                do ip=1,npred
+                   if(abs(predx(ip,jch)) > 9999.0_r_kind) then
+                      write(6,*) 'Bad coefficient:', jch,nusis(jch),nuchan(jch), &
+                             predx(ip,jch),' reset to 0.0'
+                      predx(ip,jch)=0.0_r_kind
+                   endif
+                enddo
+             endif
+             write(lunout,'(I5,1x,a20,1x,i5,2e15.6,1x,I5/2(4x,10f12.6/))') jch,nusis(jch),nuchan(jch),&
+                  tlapmean(jch),tsum_tlapmean(jch),count_tlapmean(jch),(predx(ip,jch),ip=1,npred)
+          end do
+       end if
+       close(lunout)
+
     end if
-    close(lunout)
 
 !   Deallocate data arrays for bias correction and those which hold
 !   information from satinfo file.
-    deallocate (predx,cbias,tlapmean,nuchan,nusis,iuse_rad,air_rad,ang_rad, &
-         ifactq,varch,varch_cld,inew_rad,icld_det)
+
+    deallocate (predx,cbias,tlapmean,nuchan,nusis,iuse_rad,air_rad,ang_rad,ifactq,inew_rad)
+    deallocate (iextra_det,icld_det,icloud4crtm,iaerosol4crtm, iland_det,isnow_det,&
+                iice_det,iwater_det,imix_det,itopo_det,isst_det,iwndspeed_det,iomg_det)
+    deallocate (varch,varch_cld,varch_sea,varch_land,varch_ice,varch_snow,varch_mixed)
     if (adp_anglebc) deallocate(count_tlapmean,update_tlapmean,tsum_tlapmean)
     if (newpc4pred) deallocate(ostats,rstats,varA)
     deallocate (radstart,radstep,radnstep,radedge1,radedge2)
@@ -1198,6 +1477,9 @@ contains
 !
 !   output argument list:
 !
+! program history log:
+!   2015-09-04  J.Jung  - Added mods for CrIS full spectral resolution (FSR)
+
 ! attributes:
 !   language: f90
 !   machine:  ibm rs/6000 sp; SGI Origin 2000; Compaq/HP
@@ -1285,11 +1567,17 @@ contains
       edge1 = 5
       edge2 = 56
    else if (index(isis,'cris')/=0) then
-      step  = 3.322_r_kind
-      start = -51.675_r_kind
+      step  = 3.3331_r_kind
+      start = -48.330_r_kind
       nstep = 30
       edge1 = 1
       edge2 = 30
+   else if (index(isis,'saphir')/=0) then
+      step  = 0.666_r_kind
+      start = -42.960_r_kind
+      nstep = 130
+      edge1 = 1
+      edge2 = 130
    end if
 
    return
@@ -1310,6 +1598,15 @@ contains
 !   2011-04-07  todling - adjust argument list (interface) since newpc4pred is local now
 !   2013-01-03  j.jin   - adding logical tmi for mean_only.
 !   2013-07-19  zhu  - unify the weight assignments for both active and passive channels
+!   2014-10-01  ejones  - add gmi and amsr2 logical
+!   2015-01-16  ejones  - add saphir logical
+!   2015-03-23  zaizhong ma - added the Himawari-8 ahi
+!   2015-05-28  sienkiewicz - check if satinfo relative index from diag
+!                              is correct (i.e. instrument and channel match);
+!                              if not use newchn to get correct relative index
+!   2015-10-22  jung    - changed from using satinfo information in the radstat file to
+!                         using information from the satinfo file.
+!   2016-07-14  jung    - mods to make SEVIRI channel numbers consistent with other instruments.
 !
 ! attributes:
 !   language: f90
@@ -1323,45 +1620,45 @@ contains
    use mpimod, only:  npe,mype,mpi_comm_world,ierror
    use read_diag, only: read_radiag_header,read_radiag_data,diag_header_fix_list,&
         diag_header_chan_list,diag_data_fix_list,diag_data_chan_list,&
-        diag_data_extra_list,diag_data_name_list
+        diag_data_extra_list,diag_data_name_list,open_radiag,close_radiag,set_netcdf_read
    use constants, only: zero,one,deg2rad
+   use obsmod, only:  netcdf_diag
    implicit none
 
 !  Declare local parameters
-   integer(i_kind),parameter:: lndiag = 21
    integer(i_kind),parameter:: lntemp = 51
 
    integer(i_kind),parameter:: nthreshold = 100
    integer(i_kind),parameter:: maxchn = 3000
    integer(i_kind),parameter:: maxdat = 100
+   real(r_kind),   parameter:: atiny  = 1.0e-10_r_kind
 
 !  Declare local variables
    logical lexist
    logical lverbose 
    logical update
    logical mean_only
-   logical ssmi,ssmis,amsre,amsre_low,amsre_mid,amsre_hig,tmi,gmi_gpm
+   logical ssmi,ssmis,amsre,amsre_low,amsre_mid,amsre_hig,tmi,gmi,amsr2,saphir
    logical ssmis_las,ssmis_uas,ssmis_env,ssmis_img
-   logical avhrr,avhrr_navy,goessndr,goes_img,seviri
+   logical avhrr,avhrr_navy,goessndr,goes_img,ahi,seviri,abi
 
-   character(10):: obstype,platid
-   character(20):: satsens,satsens_id
-   character(50):: fdiag_rad,dname,fname
+   character(len=20):: obstype,platid
+   character(len=20):: satsens,satsens_id
+   character(len=50):: dname,fname
+   character(len=500):: fdiag_rad
 
+   integer(i_kind):: lndiag
    integer(i_kind):: ix,ii,iii,iich,ndatppe
-   integer(i_kind):: i,j,jj,n_chan,k,lunout
-   integer(i_kind):: ierror_code
+   integer(i_kind):: i,j,jj,jjj,n_chan,k,lunout
    integer(i_kind):: istatus,ispot
    integer(i_kind):: np,new_chan,nc
-   integer(i_kind):: counttmp
+   integer(i_kind):: counttmp, jjstart, sensor_start, sensor_end
    integer(i_kind):: radedge_min, radedge_max
    integer(i_kind),dimension(maxchn):: ich
-   integer(i_kind),dimension(maxchn):: io_chan
    integer(i_kind),dimension(maxdat):: ipoint
  
-   real(r_kind):: bias,scan,errinv,rnad,atiny
+   real(r_kind):: bias,scan,errinv,rnad
    real(r_kind):: tlaptmp,tsumtmp,ratio
-!  real(r_kind):: wgtlap
    real(r_kind),allocatable,dimension(:):: tsum0,tsum,tlap0,tlap1,tlap2,tcnt
    real(r_kind),allocatable,dimension(:,:):: AA
    real(r_kind),allocatable,dimension(:):: be
@@ -1384,6 +1681,8 @@ contains
 !************************************************************************
 !  Return if no new channels AND update_tlapmean=.false.
    if (.not. (any(inew_rad) .or. any(update_tlapmean))) return
+   if (ndat==0) return
+
    if (mype==0) write(6,*) 'INIT_PREDX:  enter routine'
 
 !  Allocate and initialize data arrays
@@ -1421,56 +1720,98 @@ contains
       platid=dplat(iii)
       satsens_id=dsis(iii)
 
+      if (dplat(iii) == '') cycle loopf
+
 !     Create diagnostic filename
       fdiag_rad = 'diag_' // trim(dtype(iii)) // '_' // trim(dplat(iii))
+
+!     Set diagnostic file type
+      call set_netcdf_read(netcdf_diag)
 
 !     See if diagnostic file exists
       inquire(file=fdiag_rad,exist=lexist)
       if (.not.lexist) cycle loopf
 
 !     Open file and read header
-      open(lndiag,file=fdiag_rad,form='unformatted',status='old',iostat=istatus)
+      lndiag = 21
+      call open_radiag(fdiag_rad,lndiag,istatus)
       if (istatus/=0) then
-         write(6,*)'INIT_PREDX:  Task ',mype,' problem opening file ',trim(fdiag_rad),' iostat=',istatus
-         close(lndiag)
+         write(6,'(''INIT_PREDX:  Task '',i5,'' problem opening file '',a,'' iostat='',i4)') &
+             mype,trim(fdiag_rad),istatus
+         call close_radiag(fdiag_rad,lndiag)
          cycle loopf
       endif
 
       lverbose=.false. 
       call read_radiag_header(lndiag,npred,retrieval,header_fix,header_chan,data_name,istatus,lverbose) 
       if (istatus/=0) then
-         write(6,*)'INIT_PREDX:  Task ',mype,' problem reading file ',trim(fdiag_rad),' header, iostat=',istatus
-         close(lndiag)
+         write(6,'(''INIT_PREDX:  Task '',i5,'' problem reading file '',a,'' header, iostat='',i4)') &
+              mype,trim(fdiag_rad),istatus
+         call close_radiag(fdiag_rad,lndiag)
          cycle loopf
       endif
 
 !     Process file
-      write(6,*)'INIT_PREDX:  Task ',mype,' processing ',trim(fdiag_rad)
+      write(6,'(''INIT_PREDX:  Task '',i5,'' processing '',a,'' data date= '',i10)') &
+           mype, trim(fdiag_rad), header_fix%idate
       satsens = header_fix%isis
       n_chan = header_fix%nchan
 
 !     Check for consistency between specified and retrieved satellite id
+!     after first sorting out some historical naming conventions
+      select case (satsens(1:4))
+         case ('airs')
+           satsens='airs_aqua'
+         case ('iasi')
+           if (index(satsens,'metop-a') /= 0) satsens='iasi_metop-a'
+           if (index(satsens,'metop-b') /= 0) satsens='iasi_metop-b'
+           if (index(satsens,'metop-c') /= 0) satsens='iasi_metop-c'
+      end select 
       if (satsens /= satsens_id) then
-         write(6,*)'INIT_PREDX:  ***ERROR*** inconsistent satellite ids ',&
-              ' fdiag_rad= ',trim(fdiag_rad),' satsens,satsens_id=',satsens,satsens_id
-         ierror_code=99
-         call mpi_abort(mpi_comm_world,ierror_code,ierror)
-         stop 98
+         write(6,'(''INIT_PREDX:  ***ERROR*** inconsistent satellite ids '',&
+              '' fdiag_rad= '',a,'' satsens,satsens_id='')')trim(fdiag_rad),satsens,satsens_id
+         cycle loopf
       endif
+
+!     Define sensor_satellite channel range from satinfo file
+      sensor_start = 0
+      sensor_end = 0
+      do j = 1, jpch_rad
+         if ( trim(nusis(j)) == trim(satsens_id)) then
+            if ( sensor_start == 0 ) sensor_start = j
+            sensor_end = j
+         endif
+      end do
+      if ( sensor_start == 0 ) cycle loopf
 
 !     Extract satinfo relative index and get new_chan
       new_chan=0
       update=.false.
-      do j=1,n_chan
-         io_chan(j) = real( header_chan(j)%iochan, 4 )
-         if (inew_rad(io_chan(j))) then
-            new_chan=new_chan+1
-            ich(new_chan) = io_chan(j)
-         end if
-         if (update_tlapmean(io_chan(j))) update=.true.
-      end do
+
+!     Seviri channels should start at 4.  If the first seviri channel is less than 4
+!     do not use this diag* file
+      if ( satsens(1:6) == 'seviri' .and. header_chan(1)%nuchan < 4) then
+        call close_radiag(fdiag_rad,lndiag)
+        cycle loopf
+      endif
+
+      jjstart = sensor_start
+      loop_a: do j=1,n_chan
+         do jj=jjstart, sensor_end
+            if ( nuchan(jj) == header_chan(j)%nuchan ) then
+               jjstart = jj + 1
+               if (inew_rad(jj)) then
+                  new_chan=new_chan+1
+                  ich(new_chan) = jj
+               end if
+               if (update_tlapmean(jj)) update=.true.
+               cycle loop_a
+            endif
+         end do 
+      end do loop_a
+
       if (.not. update .and. new_chan==0) then 
-         close(lndiag)
+         call close_radiag(fdiag_rad,lndiag)
          cycle loopf
       end if
 
@@ -1478,6 +1819,8 @@ contains
                    obstype == 'sndrd2'.or. obstype == 'sndrd3' .or.  &
                    obstype == 'sndrd4'
       goes_img   = obstype == 'goes_img'
+      ahi        = obstype == 'ahi'
+      abi        = obstype == 'abi'
       avhrr      = obstype == 'avhrr'
       avhrr_navy = obstype == 'avhrr_navy'
       ssmi       = obstype == 'ssmi'
@@ -1493,11 +1836,11 @@ contains
       ssmis=ssmis_las.or.ssmis_uas.or.ssmis_img.or.ssmis_env.or.ssmis
       seviri     = obstype == 'seviri'
       tmi        = obstype == 'tmi'
-      gmi_gpm    = obstype == 'gmi'
+      gmi        = obstype == 'gmi'
+      saphir     = obstype == 'saphir'
+      amsr2      = obstype == 'amsr2'
       mean_only=ssmi .or. ssmis .or. amsre .or. goessndr .or. goes_img & 
-                .or. avhrr .or. avhrr_navy .or. seviri   .or. tmi      &
-                .or. gmi_gpm
-
+                .or. ahi .or. seviri .or. tmi .or. abi
 !     Allocate arrays and initialize
       if (mean_only) then 
          np=1
@@ -1520,16 +1863,13 @@ contains
 
       radedge_min = 0
       radedge_max = 1000
-      do i=1,jpch_rad
-         if (trim(nusis(i))==trim(satsens_id)) then
-            if (radedge1(i)/=-1 .and. radedge2(i)/=-1) then
-               radedge_min=radedge1(i)
-               radedge_max=radedge2(i)
-            end if
-            exit 
-         endif
+      do i=sensor_start, sensor_end
+         if (radedge1(i)/=-1 .and. radedge2(i)/=-1) then
+            radedge_min=radedge1(i)
+            radedge_max=radedge2(i)
+         end if
+         exit 
       end do
-
 
 !     Loop to read diagnostic file
       istatus = 0
@@ -1549,24 +1889,24 @@ contains
 
 !        Channel loop
          nc=0
+         jjstart = sensor_start
          loopc:  do j = 1, n_chan
-            jj=io_chan(j)
-            if (inew_rad(jj)) nc = nc+1
-            
+            do jj=jjstart, sensor_end
+               if ( nuchan(jj) == header_chan(j)%nuchan ) then
+                  jjstart = jj + 1
+                  if (inew_rad(jj)) nc = nc+1
 
-            if ((.not. inew_rad(jj)) .and.  &
-                (.not. update_tlapmean(jj))) cycle loopc
+                  if ((.not. inew_rad(jj)) .and.  &
+                     (.not. update_tlapmean(jj))) cycle loopc
 
 !           Check for reasonable obs-ges and observed Tb.
 !           If the o-g difference is too large (> 200 K, very genereous!)
 !           of the observation is too cold (<50 K) or too warm (>500 K),
 !           do not use this observation in computing the update to the
 !           angle dependent bias.
-            if( ( abs(data_chan(j)%omgnbc) > 200. .or. &
-                 data_chan(j)%tbobs < 50. .or. &
-                 data_chan(j)%tbobs > 500. ) ) then
-               cycle loopc
-            end if
+                  if( ( abs(data_chan(j)%omgnbc) > 200. .or. &
+                       data_chan(j)%tbobs < 50. .or. &
+                       data_chan(j)%tbobs > 500. ) ) cycle loopc
  
 !           if errinv= (1 /(obs error)) is small (small = less than 1.e-6)
 !           the observation did not pass quality control.  In this
@@ -1576,87 +1916,100 @@ contains
 
 !           errinv=data_chan(j)%errinv
 !           if (iuse_rad(jj)<=0) errinv=exp(-(data_chan(j)%omgnbc/3.0_r_kind)**2)
-            errinv=exp(-(data_chan(j)%omgnbc/3.0_r_kind)**2)
+                  errinv=exp(-(data_chan(j)%omgnbc/3.0_r_kind)**2)
+                  if (errinv<atiny) cycle loopc
 
-            if (update_tlapmean(jj)) then
-               tlaptmp=data_chan(j)%tlap
-               if (header_fix%inewpc==0) tlaptmp=100.0_r_kind*tlaptmp
-               tlap1(jj)=tlap1(jj)+(tlaptmp-tlap0(jj))*errinv
-               tsum(jj) =tsum(jj)+errinv
-               tcnt(jj) =tcnt(jj)+one
-            end if
+                  if (update_tlapmean(jj)) then
+                     tlaptmp=data_chan(j)%tlap
+                     if (header_fix%inewpc==0) tlaptmp=100.0_r_kind*tlaptmp
+                     tlap1(jj)=tlap1(jj)+(tlaptmp-tlap0(jj))*errinv
+                     tsum(jj) =tsum(jj)+errinv
+                     tcnt(jj) =tcnt(jj)+one
+                  end if
 
-            if (inew_rad(jj)) then
+                  if (inew_rad(jj)) then
+!                    Define predictor
+                     pred=zero
+                     pred(1) = one
+                     if (.not. mean_only) then
+                        rnad = rnad_pos(satsens,ispot,jj)*deg2rad
+                        do i=1,angord
+                           pred(i+1) = rnad**i
+                        end do
+                     end if
 
-!              Define predictor
-               pred=zero
-               pred(1) = one
-               if (.not. mean_only) then
-                  rnad = rnad_pos(satsens,ispot,io_chan(j))*deg2rad
-                  do i=1,angord
-                     pred(i+1) = rnad**i
-                  end do
+!                    Add values to running sums.
+                     iobs(nc) = iobs(nc)+one
+                     bias = data_chan(j)%omgnbc
+                     do i=1,np
+                        b(i,nc) = b(i,nc)+bias*pred(i)*errinv**2
+                     end do
+                     do k=1,np
+                        do i=1,np
+                           A(i,k,nc) = A(i,k,nc)+pred(i)*pred(k)*errinv**2
+                        end do
+                     end do
+                  end if
+                  cycle loopc
                end if
-
-!              Add values to running sums.
-               iobs(nc) = iobs(nc)+one
-               bias = data_chan(j)%omgnbc
-               do i=1,np
-                  b(i,nc) = b(i,nc)+bias*pred(i)*errinv**2
-               end do
-               do k=1,np
-                  do i=1,np
-                     A(i,k,nc) = A(i,k,nc)+pred(i)*pred(k)*errinv**2
-                  end do
-               end do
-            end if
-        
+            end do   
          enddo loopc ! channel loop
 
 !     End of loop over diagnostic file
       enddo loopd
 
-      close(lndiag)
+      call close_radiag(fdiag_rad,lndiag)
 
 !     Compute tlapmean
       if (update) then
-         do j = 1,n_chan
-            jj=io_chan(j)
-!           wgtlap=one
-            if (update_tlapmean(jj)) then
-               if(tcnt(jj) >= nthreshold)  then
-                  tsum(jj)=tsum(jj)+tsum0(jj)
-!                 tlap2(jj) = tlap0(jj) + wgtlap*tlap1(jj)/tsum(jj)
-                  tlap2(jj) = tlap0(jj) + tlap1(jj)/tsum(jj)
-                  count_tlapmean(jj)=count_tlapmean(jj)+one
-               elseif (tcnt(jj)>0) then
-                  ratio = max(zero,min(tcnt(jj)/float(nthreshold),one))
-                  tsum(jj)=ratio*tsum(jj)+tsum0(jj)
-!                 tlap2(jj) = tlap0(jj) + ratio*wgtlap*tlap1(jj)/tsum(jj)
-                  tlap2(jj) = tlap0(jj) + ratio*tlap1(jj)/tsum(jj)
-                  count_tlapmean(jj)=count_tlapmean(jj)+one
-               else
-                  tsum(jj)=tsum0(jj)
-                  tlap2(jj) = tlap0(jj)
-                  count_tlapmean(jj)=count_tlapmean(jj)
-               endif
-               tsum_tlapmean(jj)=tsum(jj)
-               tlapmean(jj)=tlap2(jj)
-               if (.not. newpc4pred) tlapmean(jj)=0.01_r_kind*tlapmean(jj)
-            end if
-         end do
+         jjstart = sensor_start
+         loop_b: do j = 1,n_chan
+            do jj=jjstart, sensor_end
+               if ( nuchan(jj) == header_chan(j)%nuchan ) then
+                  jjstart = jj + 1
+                  if (update_tlapmean(jj)) then
+                     if(tcnt(jj) >= nthreshold)  then
+                        tsum(jj)=tsum(jj)+tsum0(jj)
+!                       tlap2(jj) = tlap0(jj) + wgtlap*tlap1(jj)/tsum(jj)
+                        tlap2(jj) = tlap0(jj) + tlap1(jj)/tsum(jj)
+                        count_tlapmean(jj)=count_tlapmean(jj)+one
+                     elseif (tcnt(jj)>0) then
+                        ratio = max(zero,min(tcnt(jj)/float(nthreshold),one))
+                        tsum(jj)=ratio*tsum(jj)+tsum0(jj)
+!                       tlap2(jj) = tlap0(jj) + ratio*wgtlap*tlap1(jj)/tsum(jj)
+                        tlap2(jj) = tlap0(jj) + ratio*tlap1(jj)/tsum(jj)
+                        count_tlapmean(jj)=count_tlapmean(jj)+one
+                     else
+                        tsum(jj)=tsum0(jj)
+                        tlap2(jj) = tlap0(jj)
+                        count_tlapmean(jj)=count_tlapmean(jj)
+                     endif
+                     tsum_tlapmean(jj)=tsum(jj)
+                     tlapmean(jj)=tlap2(jj)
+                     if (.not. newpc4pred) tlapmean(jj)=0.01_r_kind*tlapmean(jj)
+                  endif
+                  cycle loop_b
+               endif 
+            end do
+         end do loop_b
 
 !        Write updated tlapmean and sample size to scratch files
          dname = 'update_' // trim(obstype) // '_' // trim(platid)
          open(lntemp,file=dname,form='formatted')
-         do j=1,n_chan
-            jj=io_chan(j)
-            write(lntemp,220) jj,tlapmean(jj),tsum_tlapmean(jj),count_tlapmean(jj)
-220         format(I5,1x,2e15.6,1x,I5)
-         end do
+
+         jjstart = sensor_start
+         loop_c: do j=1,n_chan
+            do jj=jjstart, sensor_end
+               if ( nuchan(jj) == header_chan(j)%nuchan ) then
+                  jjstart = jj + 1
+                  write(lntemp,220) jj,tlapmean(jj),tsum_tlapmean(jj),count_tlapmean(jj)
+220               format(I5,1x,2e15.6,1x,I5)
+                  cycle loop_c
+               endif
+            end do
+         end do loop_c
          close(lntemp)
       end if
-
 
       if (new_chan/=0) then
          if (all(iobs<nthreshold)) then
@@ -1665,7 +2018,6 @@ contains
          endif
 
 !        Solve linear system
-         atiny=1.0e-10_r_kind
          allocate(AA(np,np),be(np))
          do i=1,new_chan
             if (iobs(i)<nthreshold) cycle
@@ -1674,6 +2026,17 @@ contains
             if (all(abs(AA)<atiny)) cycle
             if (all(abs(be)<atiny)) cycle
             call linmm(AA,be,np,1,np,np)
+!
+! quality control to bias coefficients,
+! some bad coefficients could happen in regional case
+!
+            if(reset_bad_radbc) then
+               jjj=0
+               do j=1,np
+                  if(abs(be(j)) > 200.0_r_kind) jjj=jjj+1
+               enddo
+               if(jjj>0) cycle
+            endif
 
             predx(1,ich(i))=be(1)
             if (.not. mean_only) then
@@ -1701,7 +2064,6 @@ contains
 !  End of loop over satellite/sensor types
    end do loopf
 
-
 !  Wait for all mpi tasks to finish processing the
 !  satellite/sensors assigned to them.
 !  write(6,*)'INIT_PREDX:  Wait after satellite/sensor loop'
@@ -1718,7 +2080,8 @@ contains
 !        Process the scratch file
          if (lexist) then
 !           Read data from scratch file
-            write(6,*) 'INIT_PREDX:  processing update file i=',i,' with fname=',trim(fname)
+            if(mype == 0)&
+               write(6,'(''INIT_PREDX:  processing update file i='',i6,'' with fname='',a)') i, trim(fname)
             open(lntemp,file=fname,form='formatted')
             do
                read(lntemp,210,end=160) iich,(predr(k),k=1,angord+1)
@@ -1742,7 +2105,8 @@ contains
 !        Process the scratch file
          if (lexist) then
 !           Read data from scratch file
-            write(6,*) 'INIT_PREDX:  processing update file i=',i,' with fname=',trim(fname)
+            if(mype == 0) &
+              write(6,'(''INIT_PREDX:  processing update file i='',i5,'' with fname='',a)')i,trim(fname)
             open(lntemp,file=fname,form='formatted')
             do 
                read(lntemp,220,end=260) jj,tlaptmp,tsumtmp,counttmp
@@ -1773,97 +2137,65 @@ contains
    return
    end subroutine init_predx
 
-   logical function adjust_jac_ (isis,sea,land,ice,snow,mixed,nchanl,nsigradjac,ich,varinv,&
-                                 depart,obvarinv,adaptinf,wgtjo,jacobian,pred)
+
+subroutine dec2bin(dec,bin,ndim)
+
 !$$$  subprogram documentation block
-!                .      .    .
-! subprogram:    adjust_jac_
+!                .      .    .                                       .
+! subprogram:    dec2bin                  convert decimal number to binary
+!   prgmmr: unknown             org: np23                date: 2010-04-06
 !
-!   prgrmmr:     todling  org: gmao                date: 2014-04-15
-!
-! abstract:  provide hook to module handling inter-channel ob correlated errors
+! abstract:  This routine convert a decimal number to binary
 !
 ! program history log:
-!   2014-04-15  todling - initial code
-!   2014-08-06  todling - change obtype to isis for more flexibity
-!   2014-10-01  todling - add wgtjo to arg list
-!   2014-11-19  todling - predictors also need scaling
+!   2010-04-06  hliu
+!   2013-02-05  guo  - STOP in dec2bin() was replaced with die() to signal an _abort_.
+!
+!   input argument list:
+!     dec  - observation type to process
+!
+!   output argument list:
+!     bin    - number of sbuv/omi ozone observations read
+!
+! remarks:
 !
 ! attributes:
 !   language: f90
-!   machine:  ibm rs/6000 sp; SGI Origin 2000; Compaq/HP
+!   machine:  ibm RS/6000 SP
 !
-!$$$ end documentation block
-   use constants, only: tiny_r_kind,zero,one
-   use correlated_obsmod, only: idnames
-   use correlated_obsmod, only: corr_ob_amiset
-   use correlated_obsmod, only: corr_ob_scale_jac
-   use correlated_obsmod, only: GSI_BundleErrorCov 
-   use mpeu_util, only: getindex
-   use mpeu_util, only: die
-   use mpimod, only: mype
-   implicit none
-   character(len=*),intent(in) :: isis
-   logical,         intent(in) :: sea
-   logical,         intent(in) :: land
-   logical,         intent(in) :: ice
-   logical,         intent(in) :: snow
-   logical,         intent(in) :: mixed
-   integer(i_kind), intent(in) :: nchanl
-   integer(i_kind), intent(in) :: nsigradjac
-   integer(i_kind), intent(in) :: ich(nchanl)
-   real(r_kind), intent(inout) :: varinv(nchanl)
-   real(r_kind), intent(inout) :: depart(nchanl)
-   real(r_kind), intent(inout) :: obvarinv(nchanl)
-   real(r_kind), intent(inout) :: adaptinf(nchanl)
-   real(r_kind), intent(inout) :: wgtjo(nchanl)
-   real(r_kind), intent(inout) :: jacobian(nsigradjac,nchanl)
-   real(r_kind), intent(inout) :: pred(npred,nchanl)
 
-   character(len=*),parameter::myname_ = myname//'*adjust_jac_'
-   character(len=80) covtype
-   integer(i_kind) iinstr
+    use kinds, only: i_kind
+    use mpeu_util, only: die, perr
 
-   adjust_jac_=.false.
+    implicit none
 
-   if(.not.allocated(idnames)) then
-     return
-   endif
+! Declare passed variables
+    integer(i_kind) ,intent(inout) :: dec
+    integer(i_kind) ,intent(in)    :: ndim
+    integer(i_kind) ,intent(out)   :: bin(ndim)
 
-   iinstr=-1
-   if (sea) then
-       covtype = trim(isis)//':sea'
-       iinstr=getindex(idnames,trim(covtype))
-   endif
-   if (iinstr<0.and.land) then
-       covtype = trim(isis)//':land'
-       iinstr=getindex(idnames,trim(covtype))
-   endif
-   if (iinstr<0.and.ice) then
-       covtype = trim(isis)//':ice'
-       iinstr=getindex(idnames,trim(covtype))
-   endif
-   if (iinstr<0.and.snow) then
-       covtype = trim(isis)//':snow'
-       iinstr=getindex(idnames,trim(covtype))
-   endif
-   if (iinstr<0.and.mixed) then
-       covtype = trim(isis)//':mixed'
-       iinstr=getindex(idnames,trim(covtype))
-   endif
-   if (iinstr<0) then
-       covtype = trim(isis)//':global'
-       iinstr=getindex(idnames,trim(covtype))
-       if(iinstr<0) return ! if here and still not found, nothing to do
-   endif
+! Declare local variables
+    integer(i_kind):: bindec, i
 
-   if(.not.corr_ob_amiset(GSI_BundleErrorCov(iinstr))) then
-      call die(myname_,' improperly set GSI_BundleErrorCov')
-   endif
+!   Check to determine decimal # is within bounds
+    i = ndim
+    IF ((dec - 2**i) >= 0) THEN
+       write(6,*) 'Decimal Number too Large. Must be < 2^(',ndim-1,')'
+       call die('dec2bin')
+    END IF
 
-   adjust_jac_ = corr_ob_scale_jac (depart,obvarinv,adaptinf,jacobian,pred,nchanl,jpch_rad,varinv,wgtjo, &
-                                    iuse_rad,ich,GSI_BundleErrorCov(iinstr))
+!   Determine the scalar for each of the decimal positions
+    DO WHILE (i >= 1)
+       bindec = 2**(i-1)
+       IF ((dec - bindec) >= 0) THEN
+          bin(i) = 1
+          dec = dec - bindec
+       ELSE
+          bin(i) = 0
+       END IF
+       i = i - 1
+    END DO
+    RETURN
+END subroutine dec2bin
 
-end function adjust_jac_
- 
 end module radinfo

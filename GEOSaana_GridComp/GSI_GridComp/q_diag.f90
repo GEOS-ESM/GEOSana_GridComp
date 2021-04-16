@@ -33,7 +33,7 @@ subroutine q_diag(it,mype)
 !
 !$$$
   use kinds, only: r_kind,i_kind
-  use guess_grids, only: ntguessig,ges_qsat,ges_prsi
+  use guess_grids, only: ges_qsat,ges_prsi
   use jfunc, only: iout_iter
   use mpimod, only: mpi_rtype,mpi_comm_world,mpi_sum,ierror
   use constants,only: zero,two,one,half
@@ -85,7 +85,8 @@ subroutine q_diag(it,mype)
         if (regional) then 
            ges_cwmr_it => cwgues        ! temporarily
         else
-           call die('q_diag','cannot get pointer to cwmr, istatus =',istatus)
+        !  call die('q_diag','cannot get pointer to cwmr, istatus =',istatus) 
+           ges_cwmr_it => cwgues ! do not die
         end if
      end if
   else

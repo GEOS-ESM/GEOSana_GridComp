@@ -1,4 +1,11 @@
-subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
+module spd_setup
+  implicit none
+  private
+  public:: setup
+        interface setup; module procedure setupspd; end interface
+
+contains
+subroutine setupspd(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    setupspd    compute rhs of oi for wind speed obs
@@ -58,6 +65,16 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 !                                    tintrp3 to tintrp31 (so debug compile works on WCOSS)
 !   2013-10-19  todling - metguess now holds background
 !   2014-01-28  todling - write sensitivity slot indicator (ioff) to header of diagfile
+!   2014-12-30  derber - Modify for possibility of not using obsdiag
+!   2015-10-01  guo   - full res obvsr: index to allow redistribution of obsdiags
+!   2016-05-18  guo     - replaced ob_type with polymorphic obsNode through type casting
+!   2016-06-24  guo     - fixed the default value of obsdiags(:,:)%tail%luse to luse(i)
+!                       . removed (%dlat,%dlon) debris.
+!   2016-11-29  shlyaeva - save linearized H(x) for EnKF
+!   2017-02-06  todling - add netcdf_diag capability; hidden as contained code
+!   2017-02-09  guo     - Remove m_alloc, n_alloc.
+!                       . Remove my_node with corrected typecast().
+!   2020-02-26  todling - reset obsbin from hr to min
 !
 !   input argument list:
 !     lunin    - unit from which to read observations
@@ -74,13 +91,28 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-  use mpeu_util, only: die,perr
+  use mpeu_util, only: die,perr,getindex
   use kinds, only: r_kind,r_single,r_double,i_kind
-  use obsmod, only: spdhead,spdtail,rmiss_single,i_spd_ob_type,obsdiags,&
-                    lobsdiagsave,nobskeep,lobsdiag_allocated,time_offset
-  use obsmod, only: spd_ob_type
-  use obsmod, only: obs_diag
-  use gsi_4dvar, only: nobs_bins,hr_obsbin
+  use m_obsdiagNode, only: obs_diag
+  use m_obsdiagNode, only: obs_diags
+  use m_obsdiagNode, only: obsdiagLList_nextNode
+  use m_obsdiagNode, only: obsdiagNode_set
+  use m_obsdiagNode, only: obsdiagNode_get
+  use m_obsdiagNode, only: obsdiagNode_assert
+
+  use obsmod, only: rmiss_single,&
+                    lobsdiagsave,nobskeep,lobsdiag_allocated,time_offset,&
+                    lobsdiag_forenkf
+  use obsmod, only: netcdf_diag, binary_diag, dirname, ianldate
+  use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
+       nc_diag_write, nc_diag_data2d
+  use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
+  use m_obsNode, only: obsNode
+  use m_spdNode, only: spdNode
+  use m_spdNode, only: spdNode_appendto
+  use m_obsLList, only: obsLList
+  use obsmod, only: luse_obsdiag
+  use gsi_4dvar, only: nobs_bins,mn_obsbin
   use guess_grids, only: nfldsig,hrdifsig,ges_lnprsl, &
            comp_fact10,sfcmod_gfs,sfcmod_mm5
   use guess_grids, only: geop_hgtl
@@ -88,21 +120,26 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   use qcmod, only: npres_print,ptop,pbot
   use constants, only: one,grav,rd,zero,four,tiny_r_kind, &
        half,two,cg_term,huge_single,r1000,wgtlim
-  use jfunc, only: jiter,last,miter
+  use jfunc, only: jiter,last,miter,jiterstart
+  use state_vectors, only: svars3d, levels, nsdim
   use qcmod, only: dfact,dfact1
   use convinfo, only: nconvtype,cermin,cermax,cgross,cvar_b,cvar_pg,ictype
   use convinfo, only: icsubtype
   use gsi_bundlemod, only : gsi_bundlegetpointer
   use gsi_metguess_mod, only : gsi_metguess_get,gsi_metguess_bundle
-  use m_dtime, only: dtime_setup, dtime_check, dtime_show
+  use m_dtime, only: dtime_setup, dtime_check
+  use sparsearr, only: sparr2, new, size, writearray, fullarray
   implicit none
 
 ! Declare passed variables
+  type(obsLList ),target,dimension(:),intent(in):: obsLL
+  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+
   logical                                          ,intent(in   ) :: conv_diagsave
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
   real(r_kind),dimension(100+7*nsig)               ,intent(inout) :: awork
   real(r_kind),dimension(npres_print,nconvtype,5,3),intent(inout) :: bwork
-  integer(i_kind)                                  ,intent(in   ) :: is	! ndat index
+  integer(i_kind)                                  ,intent(in   ) :: is ! ndat index
 
 ! Declare local variables
   real(r_kind),parameter:: ten=10.0_r_kind
@@ -136,11 +173,16 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   integer(i_kind) mm1,ibin,ioff,ioff0
   integer(i_kind) ii,jj,i,nchar,nreal,k,j,l,nty,nn,ikxx
   integer(i_kind) ier,ilon,ilat,ipres,iuob,ivob,id,itime,ikx
-  integer(i_kind) ihgt,iqc,ier2,iuse,ilate,ilone,istnelv,istat,izz,iprvd,isprvd
+  integer(i_kind) ihgt,iqc,ier2,iuse,ilate,ilone,istnelv,izz,iprvd,isprvd
   integer(i_kind) idomsfc,iskint,iff10,isfcr,isli
 
+  type(sparr2) :: dhx_dx
+  real(r_single), dimension(nsdim) :: dhx_dx_array
+  integer(i_kind) :: iz, u_ind, v_ind, nnz, nind
+  real(r_kind) :: delz
   
   logical,dimension(nobs):: luse,muse
+  integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical proceed
 
   character(8) station_id
@@ -149,11 +191,10 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   character(8) c_prvstg,c_sprvstg
   real(r_double) r_prvstg,r_sprvstg
 
-  logical:: in_curbin, in_anybin
-  integer(i_kind),dimension(nobs_bins) :: n_alloc
-  integer(i_kind),dimension(nobs_bins) :: m_alloc
-  type(spd_ob_type),pointer:: my_head
+  logical:: in_curbin, in_anybin, save_jacobian
+  type(spdNode),pointer:: my_head
   type(obs_diag),pointer:: my_diag
+  type(obs_diags),pointer:: my_diagLL
 
   logical z_height
   real(r_kind) zsges,dstn
@@ -171,11 +212,12 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   real(r_kind),allocatable,dimension(:,:,:,:) :: ges_v
   real(r_kind),allocatable,dimension(:,:,:,:) :: ges_tv
 
-  n_alloc(:)=0
-  m_alloc(:)=0
+  type(obsLList),pointer,dimension(:):: spdhead
+  spdhead => obsLL(:)
+
 !******************************************************************************
 ! Read and reformat observations in work arrays.
-  read(lunin)data,luse
+  read(lunin)data,luse,ioid
 
 !        index information for data array (see reading routine)
   ier=1       ! index of obs error
@@ -209,6 +251,8 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   r0_001=0.001_r_kind
   goverrd=grav/rd
   
+  save_jacobian = conv_diagsave .and. jiter==jiterstart .and. lobsdiag_forenkf
+
 ! Check to see if required guess fields are available
   call check_vars_(proceed)
   if(.not.proceed) return  ! not all vars available, simply return
@@ -220,11 +264,18 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   if(conv_diagsave)then
      ii=0
      nchar=1
-     ioff0=20
+     ioff0=21
      nreal=ioff0
      if (lobsdiagsave) nreal=nreal+4*miter+1
      if (twodvar_regional) then; nreal=nreal+2; allocate(cprvstg(nobs),csprvstg(nobs)); endif
+     if (save_jacobian) then
+       nnz    = 4                   ! number of non-zero elements in dH(x)/dx profile
+       nind   = 2
+       call new(dhx_dx, nnz, nind)
+       nreal = nreal + size(dhx_dx)
+     endif
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
+     if(netcdf_diag) call init_netcdf_diag_
   end if
 
 
@@ -265,58 +316,28 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 
 !    Link observation to appropriate observation bin
      if (nobs_bins>1) then
-        ibin = NINT( dtime/hr_obsbin ) + 1
+        ibin = NINT( dtime*60/mn_obsbin ) + 1
      else
         ibin = 1
      endif
      IF (ibin<1.OR.ibin>nobs_bins) write(6,*)mype,'Error nobs_bins,ibin= ',nobs_bins,ibin
 
+     if (luse_obsdiag) my_diagLL => odiagLL(ibin)
+
 !    Link obs to diagnostics structure
-     if (.not.lobsdiag_allocated) then
-        if (.not.associated(obsdiags(i_spd_ob_type,ibin)%head)) then
-           allocate(obsdiags(i_spd_ob_type,ibin)%head,stat=istat)
-           if (istat/=0) then
-              write(6,*)'setupspd: failure to allocate obsdiags',istat
-              call stop2(289)
-           end if
-           obsdiags(i_spd_ob_type,ibin)%tail => obsdiags(i_spd_ob_type,ibin)%head
-        else
-           allocate(obsdiags(i_spd_ob_type,ibin)%tail%next,stat=istat)
-           if (istat/=0) then
-              write(6,*)'setupspd: failure to allocate obsdiags',istat
-              call stop2(290)
-           end if
-           obsdiags(i_spd_ob_type,ibin)%tail => obsdiags(i_spd_ob_type,ibin)%tail%next
-        end if
-        allocate(obsdiags(i_spd_ob_type,ibin)%tail%muse(miter+1))
-        allocate(obsdiags(i_spd_ob_type,ibin)%tail%nldepart(miter+1))
-        allocate(obsdiags(i_spd_ob_type,ibin)%tail%tldepart(miter))
-        allocate(obsdiags(i_spd_ob_type,ibin)%tail%obssen(miter))
-        obsdiags(i_spd_ob_type,ibin)%tail%indxglb=i
-        obsdiags(i_spd_ob_type,ibin)%tail%nchnperobs=-99999
-        obsdiags(i_spd_ob_type,ibin)%tail%luse=.false.
-        obsdiags(i_spd_ob_type,ibin)%tail%muse(:)=.false.
-        obsdiags(i_spd_ob_type,ibin)%tail%nldepart(:)=-huge(zero)
-        obsdiags(i_spd_ob_type,ibin)%tail%tldepart(:)=zero
-        obsdiags(i_spd_ob_type,ibin)%tail%wgtjo=-huge(zero)
-        obsdiags(i_spd_ob_type,ibin)%tail%obssen(:)=zero
+     if (luse_obsdiag) then
+        my_diag => obsdiagLList_nextNode(my_diagLL      ,&
+                create = .not.lobsdiag_allocated        ,&
+                   idv = is             ,&
+                   iob = ioid(i)        ,&
+                   ich = 1              ,&
+                  elat = data(ilate,i)  ,&
+                  elon = data(ilone,i)  ,&
+                  luse = luse(i)        ,&
+                 miter = miter          )
 
-        n_alloc(ibin) = n_alloc(ibin) +1
-        my_diag => obsdiags(i_spd_ob_type,ibin)%tail
-        my_diag%idv = is
-        my_diag%iob = i
-        my_diag%ich = 1
-
-     else
-        if (.not.associated(obsdiags(i_spd_ob_type,ibin)%tail)) then
-           obsdiags(i_spd_ob_type,ibin)%tail => obsdiags(i_spd_ob_type,ibin)%head
-        else
-           obsdiags(i_spd_ob_type,ibin)%tail => obsdiags(i_spd_ob_type,ibin)%tail%next
-        end if
-        if (obsdiags(i_spd_ob_type,ibin)%tail%indxglb/=i) then
-           write(6,*)'setupspd: index error'
-           call stop2(291)
-        end if
+        if(.not.associated(my_diag)) call die(myname, &
+                'obsdiagLList_nextNode(), create =', .not.lobsdiag_allocated)
      endif
 
      if(.not.in_curbin) cycle
@@ -465,6 +486,37 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
      ugesin=factw*ugesin
      vgesin=factw*vgesin
      spdges=sqrt(ugesin*ugesin+vgesin*vgesin)
+
+     iz = max(1, min( int(dpres), nsig))
+     delz = max(zero, min(dpres - float(iz), one))
+
+     if (save_jacobian) then
+
+        u_ind = getindex(svars3d, 'u')
+        if (u_ind < 0) then
+           print *, 'Error: no variable u in state vector. Exiting.'
+           call stop2(1300)
+        endif
+        v_ind = getindex(svars3d, 'v')
+        if (v_ind < 0) then
+           print *, 'Error: no variable v in state vector. Exiting.'
+           call stop2(1300)
+        endif
+
+        dhx_dx%st_ind(1)  = iz               + sum(levels(1:u_ind-1))
+        dhx_dx%end_ind(1) = min(iz + 1,nsig) + sum(levels(1:u_ind-1))
+
+        dhx_dx%val(1) = (one - delz) * two * ugesin
+        dhx_dx%val(2) = delz * two * ugesin
+
+        dhx_dx%st_ind(2)  = iz               + sum(levels(1:v_ind-1))
+        dhx_dx%end_ind(2) = min(iz + 1,nsig) + sum(levels(1:v_ind-1))
+
+        dhx_dx%val(3) = (one - delz) * two * vgesin
+        dhx_dx%val(4) = delz * two * ugesin
+     endif
+
+
      ddiff = spdob-spdges
 
 !    Gross error checks
@@ -482,7 +534,7 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
      end if
 
      if (ratio_errors*error <=tiny_r_kind) muse(i)=.false.
-     if (nobskeep>0) muse(i)=obsdiags(i_spd_ob_type,ibin)%tail%muse(nobskeep)
+     if (nobskeep>0.and.luse_obsdiag) call obsdiagNode_get(my_diag, jiter=nobskeep, muse=muse(i))
 
 !    Compute penalty terms (linear & nonlinear qc).
      val      = error*ddiff
@@ -533,87 +585,54 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
         end if
      end do
 
-     obsdiags(i_spd_ob_type,ibin)%tail%luse=luse(i)
-     obsdiags(i_spd_ob_type,ibin)%tail%muse(jiter)=muse(i)
-     obsdiags(i_spd_ob_type,ibin)%tail%nldepart(jiter)=spdob-sqrt(ugesin*ugesin+vgesin*vgesin)
-     obsdiags(i_spd_ob_type,ibin)%tail%wgtjo= (error*ratio_errors)**2
+     if (luse_obsdiag) then
+        call obsdiagNode_set(my_diag, wgtjo=(error*ratio_errors)**2, &
+           jiter=jiter, muse=muse(i), nldepart=spdob-sqrt(ugesin*ugesin+vgesin*vgesin))
+     endif
 
 !    If obs is "acceptable", load array with obs info for use
 !    in inner loop minimization (int* and stp* routines)
      if (.not. last .and. muse(i)) then
 
-        if(.not. associated(spdhead(ibin)%head))then
-           allocate(spdhead(ibin)%head,stat=istat)
-           if(istat /= 0)write(6,*)' failure to write spdhead '
-           spdtail(ibin)%head => spdhead(ibin)%head
-        else
-           allocate(spdtail(ibin)%head%llpoint,stat=istat)
-           if(istat /= 0)write(6,*)' failure to write spdtail%llpoint '
-           spdtail(ibin)%head => spdtail(ibin)%head%llpoint
-        end if
+        allocate(my_head)
+        call spdNode_appendto(my_head,spdhead(ibin))
 
-        m_alloc(ibin) = m_alloc(ibin) +1
-        my_head => spdtail(ibin)%head
         my_head%idv = is
-        my_head%iob = i
+        my_head%iob = ioid(i)
+        my_head%elat= data(ilate,i)
+        my_head%elon= data(ilone,i)
 
 !       Set (i,j) indices of guess gridpoint that bound obs location
-        call get_ij(mm1,dlat,dlon,spdtail(ibin)%head%ij(1),spdtail(ibin)%head%wij(1))
+        call get_ij(mm1,dlat,dlon,my_head%ij,my_head%wij)
 
+        my_head%factw=factw
         do j=1,4
-           spdtail(ibin)%head%wij(j)=factw*spdtail(ibin)%head%wij(j)
+           my_head%wij(j)=factw*my_head%wij(j)
         end do
-        spdtail(ibin)%head%raterr2= ratio_errors**2     
-        spdtail(ibin)%head%res    = spdob
-        spdtail(ibin)%head%uges   = ugesin
-        spdtail(ibin)%head%vges   = vgesin
-        spdtail(ibin)%head%err2   = error**2
-        spdtail(ibin)%head%time   = dtime
-        spdtail(ibin)%head%luse   = luse(i)
-        spdtail(ibin)%head%b      = cvar_b(ikx)
-        spdtail(ibin)%head%pg     = cvar_pg(ikx)
+        my_head%raterr2= ratio_errors**2     
+        my_head%res    = spdob
+        my_head%uges   = ugesin
+        my_head%vges   = vgesin
+        my_head%err2   = error**2
+        my_head%time   = dtime
+        my_head%luse   = luse(i)
+        my_head%b      = cvar_b(ikx)
+        my_head%pg     = cvar_pg(ikx)
 
-        spdtail(ibin)%head%diags => obsdiags(i_spd_ob_type,ibin)%tail
-
-        my_head => spdtail(ibin)%head
-        my_diag => spdtail(ibin)%head%diags
-        if(my_head%idv /= my_diag%idv .or. &
-           my_head%iob /= my_diag%iob ) then
-           call perr(myname,'mismatching %[head,diags]%(idv,iob,ibin) =', &
-                 (/is,i,ibin/))
-           call perr(myname,'my_head%(idv,iob) =',(/my_head%idv,my_head%iob/))
-           call perr(myname,'my_diag%(idv,iob) =',(/my_diag%idv,my_diag%iob/))
-           call die(myname)
+        if (luse_obsdiag) then
+           call obsdiagNode_assert(my_diag, my_head%idv,my_head%iob,1,myname,'my_diag:my_head')
+           my_head%diags => my_diag
         endif
+
+        my_head => null()
      end if
 ! Save select output for diagnostic file
      if(conv_diagsave .and. luse(i))then
         ii=ii+1
-        rstation_id     = data(id,i)
-        cdiagbuf(ii)    = station_id         ! station id
-
-        rdiagbuf(1,ii)  = ictype(ikx)        ! observation type
-        rdiagbuf(2,ii)  = icsubtype(ikx)     ! observation subtype
-    
-        rdiagbuf(3,ii)  = data(ilate,i)      ! observation latitude (degrees)
-        rdiagbuf(4,ii)  = data(ilone,i)      ! observation longitude (degrees)
-        rdiagbuf(5,ii)  = data(istnelv,i)    ! station elevation (meters)
-        rdiagbuf(6,ii)  = presw              ! observation pressure (hPa)
-        rdiagbuf(7,ii)  = data(ihgt,i)       ! observation height (meters)
-        rdiagbuf(8,ii)  = dtime-time_offset  ! obs time (hours relative to analysis time)
-
-        rdiagbuf(9,ii)  = data(iqc,i)        ! input prepbufr qc or event mark
-        rdiagbuf(10,ii) = rmiss_single       ! setup qc or event mark
-        rdiagbuf(11,ii) = data(iuse,i)       ! read_prepbufr data usage flag
-        if(muse(i)) then
-           rdiagbuf(12,ii) = one             ! analysis usage flag (1=use, -1=not used)
-        else
-           rdiagbuf(12,ii) = -one
-        endif
-
-        spdob0    = sqrt(data(iuob,i)*data(iuob,i)+data(ivob,i)*data(ivob,i))
-        err_input = data(ier2,i)
-        err_adjst = data(ier,i)
+        spdob0      = sqrt(data(iuob,i)*data(iuob,i)+data(ivob,i)*data(ivob,i))
+        rstation_id = data(id,i)
+        err_input   = data(ier2,i)
+        err_adjst   = data(ier,i)
         if (ratio_errors*error>tiny_r_kind) then
            err_final = one/(ratio_errors*error)
         else
@@ -627,49 +646,8 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
         if (err_adjst>tiny_r_kind) errinv_adjst = one/err_adjst
         if (err_final>tiny_r_kind) errinv_final = one/err_final
 
-        rdiagbuf(13,ii) = rwgt               ! nonlinear qc relative weight
-        rdiagbuf(14,ii) = errinv_input       ! prepbufr inverse obs error (m/s)**-1
-        rdiagbuf(15,ii) = errinv_adjst       ! read_prepbufr inverse obs error (m/s)**-1
-        rdiagbuf(16,ii) = errinv_final       ! final inverse observation error (m/s)**-1
-
-        rdiagbuf(17,ii) = spdob              ! wind speed observation (m/s)
-        rdiagbuf(18,ii) = ddiff              ! obs-ges used in analysis (m/s)
-        rdiagbuf(19,ii) = spdob0-spdges      ! obs-ges w/o bias correction (m/s) (future slot)
-
-        rdiagbuf(20,ii) = factw              ! 10m wind reduction factor
-
-        ioff=ioff0
-        if (lobsdiagsave) then
-           do jj=1,miter 
-              ioff=ioff+1 
-              if (obsdiags(i_spd_ob_type,ibin)%tail%muse(jj)) then
-                 rdiagbuf(ioff,ii) = one
-              else
-                 rdiagbuf(ioff,ii) = -one
-              endif
-           enddo
-           do jj=1,miter+1
-              ioff=ioff+1
-              rdiagbuf(ioff,ii) = obsdiags(i_spd_ob_type,ibin)%tail%nldepart(jj)
-           enddo
-           do jj=1,miter
-              ioff=ioff+1
-              rdiagbuf(ioff,ii) = obsdiags(i_spd_ob_type,ibin)%tail%tldepart(jj)
-           enddo
-           do jj=1,miter
-              ioff=ioff+1
-              rdiagbuf(ioff,ii) = obsdiags(i_spd_ob_type,ibin)%tail%obssen(jj)
-           enddo
-        endif
-
-        if (twodvar_regional) then
-           rdiagbuf(ioff+1,ii) = data(idomsfc,i) ! dominate surface type
-           rdiagbuf(ioff+2,ii) = data(izz,i)     ! model terrain at ob location
-           r_prvstg            = data(iprvd,i)
-           cprvstg(ii)         = c_prvstg        ! provider name
-           r_sprvstg           = data(isprvd,i)
-           csprvstg(ii)        = c_sprvstg       ! subprovider name
-        endif
+        if(binary_diag) call contents_binary_diag_(my_diag)
+        if(netcdf_diag) call contents_netcdf_diag_(my_diag)
 
      end if
 
@@ -680,16 +658,18 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   call final_vars_
 
 ! Write information to diagnostic file
-  if(conv_diagsave .and. ii>0)then
-     call dtime_show(myname,'diagsave:spd',i_spd_ob_type)
-     write(7)'spd',nchar,nreal,ii,mype,ioff0
-     write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
-     deallocate(cdiagbuf,rdiagbuf)
+  if(conv_diagsave) then
+     if(netcdf_diag) call nc_diag_write
+     if(binary_diag .and. ii>0)then
+        write(7)'spd',nchar,nreal,ii,mype,ioff0
+        write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
+        deallocate(cdiagbuf,rdiagbuf)
 
-     if (twodvar_regional) then
-        write(7)cprvstg(1:ii),csprvstg(1:ii)
-        deallocate(cprvstg,csprvstg)
-     endif
+        if (twodvar_regional) then
+           write(7)cprvstg(1:ii),csprvstg(1:ii)
+           deallocate(cprvstg,csprvstg)
+        endif
+     end if
   end if
 
 ! End of routine
@@ -762,7 +742,7 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
      varname='u'
      call gsi_bundlegetpointer(gsi_metguess_bundle(1),trim(varname),rank3,istatus)
      if (istatus==0) then
-         if(allocated(ges_v))then
+         if(allocated(ges_u))then
             write(6,*) trim(myname), ': ', trim(varname), ' already incorrectly alloc '
             call stop2(999)
          endif
@@ -819,6 +799,179 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   endif
   end subroutine init_vars_
 
+  subroutine init_netcdf_diag_
+  character(len=80) string
+  character(len=128) diag_conv_file
+  integer(i_kind) ncd_fileid,ncd_nobs
+  logical append_diag
+  logical,parameter::verbose=.false. 
+     write(string,900) jiter
+900  format('conv_spd_',i2.2,'.nc4')
+     diag_conv_file=trim(dirname) // trim(string)
+
+     inquire(file=diag_conv_file, exist=append_diag)
+
+     if (append_diag) then
+        call nc_diag_read_init(diag_conv_file,ncd_fileid)
+        ncd_nobs = nc_diag_read_get_dim(ncd_fileid,'nobs')
+        call nc_diag_read_close(diag_conv_file)
+
+        if (ncd_nobs > 0) then
+           if(verbose) print *,'file ' // trim(diag_conv_file) // ' exists.  Appending.  nobs,mype=',ncd_nobs,mype
+        else
+           if(verbose) print *,'file ' // trim(diag_conv_file) // ' exists but contains no obs.  Not appending. nobs,mype=',ncd_nobs,mype
+           append_diag = .false. ! if there are no obs in existing file, then do not try to append
+        endif
+     end if
+
+     call nc_diag_init(diag_conv_file, append=append_diag)
+
+     if (.not. append_diag) then ! don't write headers on append - the module will break?
+        call nc_diag_header("date_time",ianldate )
+        call nc_diag_header("Number_of_state_vars", nsdim          )
+     endif
+  end subroutine init_netcdf_diag_
+  subroutine contents_binary_diag_(odiag)
+  type(obs_diag),pointer,intent(in):: odiag
+        cdiagbuf(ii)    = station_id         ! station id
+
+        rdiagbuf(1,ii)  = ictype(ikx)        ! observation type
+        rdiagbuf(2,ii)  = icsubtype(ikx)     ! observation subtype
+    
+        rdiagbuf(3,ii)  = data(ilate,i)      ! observation latitude (degrees)
+        rdiagbuf(4,ii)  = data(ilone,i)      ! observation longitude (degrees)
+        rdiagbuf(5,ii)  = data(istnelv,i)    ! station elevation (meters)
+        rdiagbuf(6,ii)  = presw              ! observation pressure (hPa)
+        rdiagbuf(7,ii)  = data(ihgt,i)       ! observation height (meters)
+        rdiagbuf(8,ii)  = dtime-time_offset  ! obs time (hours relative to analysis time)
+
+        rdiagbuf(9,ii)  = data(iqc,i)        ! input prepbufr qc or event mark
+        rdiagbuf(10,ii) = rmiss_single       ! setup qc or event mark
+        rdiagbuf(11,ii) = data(iuse,i)       ! read_prepbufr data usage flag
+        if(muse(i)) then
+           rdiagbuf(12,ii) = one             ! analysis usage flag (1=use, -1=not used)
+        else
+           rdiagbuf(12,ii) = -one
+        endif
+
+        rdiagbuf(13,ii) = rwgt               ! nonlinear qc relative weight
+        rdiagbuf(14,ii) = errinv_input       ! prepbufr inverse obs error (m/s)**-1
+        rdiagbuf(15,ii) = errinv_adjst       ! read_prepbufr inverse obs error (m/s)**-1
+        rdiagbuf(16,ii) = errinv_final       ! final inverse observation error (m/s)**-1
+
+        rdiagbuf(17,ii) = spdob              ! wind speed observation (m/s)
+        rdiagbuf(18,ii) = ddiff              ! obs-ges used in analysis (m/s)
+        rdiagbuf(19,ii) = spdob0-spdges      ! obs-ges w/o bias correction (m/s) (future slot)
+
+        rdiagbuf(20,ii) = factw              ! 10m wind reduction factor
+
+        rdiagbuf(21,ii) = 1.e+10_r_single    ! ges ensemble spread (filled in by EnKF)
+
+        ioff=ioff0
+        if (lobsdiagsave) then
+           do jj=1,miter 
+              ioff=ioff+1 
+              if (odiag%muse(jj)) then
+                 rdiagbuf(ioff,ii) = one
+              else
+                 rdiagbuf(ioff,ii) = -one
+              endif
+           enddo
+           do jj=1,miter+1
+              ioff=ioff+1
+              rdiagbuf(ioff,ii) = odiag%nldepart(jj)
+           enddo
+           do jj=1,miter
+              ioff=ioff+1
+              rdiagbuf(ioff,ii) = odiag%tldepart(jj)
+           enddo
+           do jj=1,miter
+              ioff=ioff+1
+              rdiagbuf(ioff,ii) = odiag%obssen(jj)
+           enddo
+        endif
+
+        if (twodvar_regional) then
+           ioff = ioff + 1
+           rdiagbuf(ioff,ii) = data(idomsfc,i) ! dominate surface type
+           ioff = ioff + 1
+           rdiagbuf(ioff,ii) = data(izz,i)     ! model terrain at ob location
+           r_prvstg          = data(iprvd,i)
+           cprvstg(ii)       = c_prvstg        ! provider name
+           r_sprvstg         = data(isprvd,i)
+           csprvstg(ii)      = c_sprvstg       ! subprovider name
+        endif
+
+        if (save_jacobian) then
+           call writearray(dhx_dx, rdiagbuf(ioff+1:nreal,ii))
+           ioff = ioff + size(dhx_dx)
+        endif
+
+  end subroutine contents_binary_diag_
+  subroutine contents_netcdf_diag_(odiag)
+  type(obs_diag),pointer,intent(in):: odiag
+! Observation class
+  character(7),parameter     :: obsclass = '    spd'
+  real(r_kind),dimension(miter) :: obsdiag_iuse
+           call nc_diag_metadata("Station_ID",              station_id             )
+           call nc_diag_metadata("Observation_Class",       obsclass               )
+           call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
+           call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
+           call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
+           call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
+           call nc_diag_metadata("Station_Elevation",       sngl(data(istnelv,i))  )
+           call nc_diag_metadata("Pressure",                sngl(presw)            )
+           call nc_diag_metadata("Height",                  sngl(data(ihgt,i))     )
+           call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
+           call nc_diag_metadata("Prep_QC_Mark",            sngl(data(iqc,i))      )
+           call nc_diag_metadata("Prep_Use_Flag",           sngl(data(iuse,i))     )
+!          call nc_diag_metadata("Nonlinear_QC_Var_Jb",     var_jb                 )
+           call nc_diag_metadata("Nonlinear_QC_Rel_Wgt",    sngl(rwgt)             )                 
+           if(muse(i)) then
+              call nc_diag_metadata("Analysis_Use_Flag",    sngl(one)              )
+           else
+              call nc_diag_metadata("Analysis_Use_Flag",    sngl(-one)             )              
+           endif
+
+           call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)     )
+           call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
+           call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
+
+           call nc_diag_metadata("Observation",                   sngl(spdob)      )
+           call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(ddiff)      )
+           call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(spdob0-spdges) )
+ 
+           if (lobsdiagsave) then
+              do jj=1,miter
+                 if (odiag%muse(jj)) then
+                       obsdiag_iuse(jj) =  one
+                 else
+                       obsdiag_iuse(jj) = -one
+                 endif
+              enddo
+   
+              call nc_diag_data2d("ObsDiagSave_iuse",     obsdiag_iuse                             )
+              call nc_diag_data2d("ObsDiagSave_nldepart", odiag%nldepart )
+              call nc_diag_data2d("ObsDiagSave_tldepart", odiag%tldepart )
+              call nc_diag_data2d("ObsDiagSave_obssen",   odiag%obssen   )             
+           endif
+   
+           if (twodvar_regional) then
+              call nc_diag_metadata("Dominant_Sfc_Type", data(idomsfc,i)              )
+              call nc_diag_metadata("Model_Terrain",     data(izz,i)                  )
+              r_prvstg            = data(iprvd,i)
+              call nc_diag_metadata("Provider_Name",     c_prvstg                     )    
+              r_sprvstg           = data(isprvd,i)
+              call nc_diag_metadata("Subprovider_Name",  c_sprvstg                    )
+           endif
+           if (save_jacobian) then
+              call fullarray(dhx_dx, dhx_dx_array)
+              call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
+           endif
+
+
+  end subroutine contents_netcdf_diag_
+
   subroutine final_vars_
     if(allocated(ges_tv)) deallocate(ges_tv)
     if(allocated(ges_v )) deallocate(ges_v )
@@ -828,3 +981,4 @@ subroutine setupspd(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   end subroutine final_vars_
 
 end subroutine setupspd
+end module spd_setup

@@ -38,6 +38,7 @@ module mod_vtrans
 !                           eigenvalues need be computed.  The complete computation if the eigenvectors
 !                           and eigenvalues without using dgeev uses less than 2 seconds for 8
 !                           eigenvalue/vectors and all related computations.
+!   2018-02-15  wu       - add code for fv3_regional option
 !
 ! subroutines included:
 !   sub init_vtrans              - initialize vertical mode related variables
@@ -212,6 +213,7 @@ contains
     use gsi_metguess_mod, only: gsi_metguess_bundle
     use gsi_bundlemod, only: gsi_bundlegetpointer
     use mpeu_util, only: die
+    use gsi_io, only: verbose
     implicit none
 
 !   Declare passed variables
@@ -237,9 +239,11 @@ contains
     integer(i_kind) workpe,ier,istatus
     integer(i_kind) lpivot(nsig),mpivot(nsig)
     real(r_quad) qmatinv_quad(nsig,nsig),detqmat_quad
+    logical print_verbose
 
 !   get work pe:
 
+    print_verbose=.false.
     allocate(numlevs(0:g1%npe-1))
     numlevs(0:g1%npe-1)=g1%kend(0:g1%npe-1)-g1%kbegin(0:g1%npe-1)+1
     if(g1%mype==0) then
@@ -252,9 +256,10 @@ contains
     end if
     call mpi_bcast(workpe,1,mpi_integer,0,mpi_comm_world,ierror)
    !write(6,*)' mype,workpe=',mype,workpe
+    if(verbose .and. g1%mype==workpe) print_verbose=.true.
 
 !    obtain vertical coordinate constants ahat,bhat,chat
-    if(mype==workpe) call getabc(ahat,bhat,chat)
+    if(g1%mype==workpe) call getabc(ahat,bhat,chat)
 
 !   get global mean T and ps
 
@@ -312,7 +317,7 @@ contains
        end if
     end do
   
-    if(g1%mype==workpe) then
+    if(print_verbose) then
        do k=1,nsig
           write(6,'(" k,pbar,tbar = ",i5,2f18.9)')k,pbar(k),tbar(k)
        end do
@@ -497,7 +502,7 @@ end if  ! END MYPE=workpe SECTION !!!!!!!!!!!!!
 !
 !$$$ end documentation block
     use constants,only: zero,ten
-    use gridmod,only: nsig,ak5,bk5,ck5
+    use gridmod,only: nsig,ak5,bk5,ck5,fv3_regional
     use gridmod,only: wrf_nmm_regional,nems_nmmb_regional,eta1_ll,eta2_ll,pdtop_ll,pt_ll,cmaq_regional
     implicit none
 
@@ -510,6 +515,12 @@ end if  ! END MYPE=workpe SECTION !!!!!!!!!!!!!
     if(wrf_nmm_regional.or.nems_nmmb_regional.or.cmaq_regional) then
        do k=1,nsig+1
           ahat(k)=eta1_ll(k)*pdtop_ll-eta2_ll(k)*(pdtop_ll+pt_ll)+pt_ll
+          bhat(k)=eta2_ll(k)
+          chat(k)=zero
+       end do
+    elseif(fv3_regional) then
+       do k=1,nsig+1
+          ahat(k)=eta1_ll(k)*0.01_r_kind
           bhat(k)=eta2_ll(k)
           chat(k)=zero
        end do
@@ -796,6 +807,7 @@ subroutine special_eigvv(qmat0,hmat0,smat0,nmat,swww0,szzz0,swwwd0,szzzd0,nvmode
 !$$$ end documentation block
 
   use kinds, only: r_kind,i_kind,r_quad
+  use gsi_io, only: verbose
 
   implicit none
 
@@ -819,8 +831,10 @@ subroutine special_eigvv(qmat0,hmat0,smat0,nmat,swww0,szzz0,swwwd0,szzzd0,nvmode
   real(r_quad) dist_to_closest_eigval,perturb_eigval
   real(r_quad) err_aminv
   real(r_kind) atemp8(nmat*nmat),btemp8(nmat,nmat)
-  logical noskip
+  logical noskip,print_verbose
 
+  print_verbose = .false.
+  if(verbose) print_verbose=.true.
   zero_quad=0.0_r_quad
   half_quad=0.5_r_quad
   one_quad =1.0_r_quad
@@ -838,7 +852,7 @@ subroutine special_eigvv(qmat0,hmat0,smat0,nmat,swww0,szzz0,swwwd0,szzzd0,nvmode
 
 !  get eigenvalues, eigenvectors of symmetrized version 
 !    of qtildemat (gives most accurate eigenvalue estimates):
-
+  atemp=0.0_r_quad
   do i=1,nmat
      do j=i,nmat
         ia=i+(j*j-j)/2
@@ -909,17 +923,17 @@ subroutine special_eigvv(qmat0,hmat0,smat0,nmat,swww0,szzz0,swwwd0,szzzd0,nvmode
         if(noskip)  call iterative_improvement0(qtildemat,eigval_this,aminv,aminvt,nmat,iret,err_aminv)
         noskip=.true.
         if(iret==1) then
-           write(6,*)' det=0 in iterative_improvement0, eigenvalue converged'
+           if(print_verbose)write(6,*)' det=0 in iterative_improvement0, eigenvalue converged, it = ',j
            exit
         end if
         call iterative_improvement(eigval_this,eigval_next,aminv,aminvt,szzz(:,i),szzzd(:,i),nmat,istop)
         if(eigval_this==eigval_next) then
-           write(6,*)' no change in eigenvalue, convergence to machine precision achieved'
+           if(print_verbose)write(6,*)' no change in eigenvalue, convergence to machine precision achieved, it = ',j
            exit
         end if
         eigval_this=eigval_next
         if(istop==1) then
-           write(6,*)' eigval relative change less than 10**(-24), no further iteration necessary'
+           if(print_verbose)write(6,*)' eigval relative change less than 10**(-24), no further iteration necessary, it = ',j
            exit
         end if
      end do
@@ -1053,6 +1067,7 @@ subroutine iterative_improvement0(a,mu,aminv,aminvt,na,iret,errormax)
 !$$$ end documentation block
 
   use kinds, only: r_quad,i_kind
+  use gsi_io, only: verbose
   implicit none
 
   integer(i_kind),intent(in)::na
@@ -1066,7 +1081,10 @@ subroutine iterative_improvement0(a,mu,aminv,aminvt,na,iret,errormax)
   real(r_quad) sum,detam,errlimit
   integer(i_kind) i,j,k,lpivot(na),mpivot(na)
   real(r_quad) zero_quad,one_quad
+  logical print_verbose
 
+  print_verbose=.false.
+  if(verbose)print_verbose=.true.
   errlimit=1000._r_quad
   zero_quad=0._r_quad
   one_quad=1._r_quad
@@ -1109,7 +1127,7 @@ subroutine iterative_improvement0(a,mu,aminv,aminvt,na,iret,errormax)
         errormax=max(abs(sum),errormax)
      end do
   end do
-  write(6,*)' error in aminv =',errormax
+  if(print_verbose)write(6,*)' delta in aminv =',errormax
   if(errormax>errlimit) iret=-1
 
 end subroutine iterative_improvement0
@@ -1365,18 +1383,20 @@ end subroutine iterative_improvement
 !        final row and column interchange
 !
          k=n
-  100    k=(k-1)
-         if(k) 150,150,105
-  105    i=l(k)
-         if(i-k) 120,120,108
-  108    jq=n*(k-1)
-         jr=n*(i-1)
-         do 110 j=1,n
-            jk=jq+j
-            hold=a(jk)
-            ji=jr+j
-            a(jk)=-a(ji)
-  110       a(ji) =hold
+         do 
+  100       k=(k-1)
+            if(k) 150,150,105
+  105       i=l(k)
+            if(i-k) 120,120,108
+  108       jq=n*(k-1)
+            jr=n*(i-1)
+            do 110 j=1,n
+               jk=jq+j
+               hold=a(jk)
+               ji=jr+j
+               a(jk)=-a(ji)
+               a(ji) =hold
+  110       continue
   120       j=m(k)
             if(j-k) 100,100,125
   125       ki=k-n
@@ -1385,7 +1405,8 @@ end subroutine iterative_improvement
                hold=a(ki)
                ji=ki-k+j
                a(ki)=-a(ji)
-  130          a(ji) =hold
-               go to 100
-  150          return
+               a(ji) =hold
+  130       continue
+         end do
+  150    return
       end subroutine iminv_quad

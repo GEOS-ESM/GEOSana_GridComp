@@ -35,6 +35,15 @@ subroutine control2state(xhat,sval,bval)
 !   2013-10-28  todling  - rename p3d to prse
 !   2013-05-23   zhu     - add ntclen and predt for aircraft temperature bias correction
 !   2014-01-31  mkim     - add support for when ql and qi are CVs for all-sky mw radiance DA
+!   2014-03-19  pondeca  - add wspd10m
+!   2014-04-10  pondeca  - add td2m,mxtm,mitm,pmsl
+!   2014-05-07  pondeca - add howv
+!   2014-06-16  carley/zhu - add tcamt and lcbas
+!   2014-12-03  derber   - introduce parallel regions for optimization
+!   2015-07-10  pondeca  - add cldch
+!   2016-05-03  pondeca  - add uwnd10m and vwnd10m
+!   2017-05-12  Y. Wang and X. Wang - add w as state variable for rw DA, POC: xuguang.wang@ou.edu
+!   2016-08-12  lippi    - add vertical velocity (w) to mycvars and mysvars.
 !
 !   input argument list:
 !     xhat - Control variable
@@ -50,10 +59,11 @@ use kinds, only: r_kind,i_kind
 use control_vectors, only: control_vector
 use control_vectors, only: cvars3d,cvars2d
 use bias_predictors, only: predictors
-use gsi_4dvar, only: nsubwin, nobs_bins, l4dvar, lsqrtb, ladtest_obs
-use gridmod, only: latlon1n,latlon11,regional,lat2,lon2,nsig, nlat, nlon
-use jfunc, only: nsclen,npclen,ntclen,nrclen
+use gsi_4dvar, only: nsubwin, l4dvar, lsqrtb, ladtest_obs
+use gridmod, only: regional,lat2,lon2,nsig, nlat, nlon, twodvar_regional            
+use jfunc, only: nsclen,npclen,ntclen
 use cwhydromod, only: cw2hydro_tl
+use cwhydromod, only: cw2hydro_tl_hwrf
 use gsi_bundlemod, only: gsi_bundlecreate
 use gsi_bundlemod, only: gsi_bundle
 use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -67,6 +77,7 @@ use mpeu_util, only: getindex
 use constants, only : max_varname_length, zero
 use general_sub2grid_mod, only: general_sub2grid,general_grid2sub
 use general_commvars_mod, only: s2g_cv
+use gridmod, only: nems_nmmb_regional
 implicit none
   
 ! Declare passed variables  
@@ -86,33 +97,50 @@ type(gsi_bundle):: wbundle ! work bundle
 !       the state and control vectors, but rather the ones
 !       this routines knows how to handle.
 ! Declare required local control variables
-integer(i_kind), parameter :: ncvars = 8
+integer(i_kind), parameter :: ncvars = 9
 integer(i_kind) :: icps(ncvars)
-integer(i_kind) :: icpblh,icgust,icvis,icoz
+integer(i_kind) :: icpblh,icgust,icvis,icoz,icwspd10m,icw
+integer(i_kind) :: ictd2m,icmxtm,icmitm,icpmsl,ichowv
+integer(i_kind) :: icsfwter,icvpwter,ictcamt,iclcbas
+integer(i_kind) :: iccldch,icuwnd10m,icvwnd10m
 character(len=3), parameter :: mycvars(ncvars) = (/  &  ! vars from CV needed here
-                               'sf ', 'vp ', 'ps ', 't  ',    &
-                               'q  ', 'cw ', 'ql ', 'qi ' /)
-logical :: lc_sf,lc_vp,lc_ps,lc_t,lc_rh,lc_cw,lc_ql,lc_qi
+                'sf ', 'vp ', 'ps ', 't  ', 'q  ', 'cw ', 'ql ', 'qi ', 'w  ' /)
+logical :: lc_sf,lc_vp,lc_w,lc_ps,lc_t,lc_rh,lc_cw,lc_ql,lc_qi
 real(r_kind),pointer,dimension(:,:)   :: cv_ps=>NULL()
-real(r_kind),pointer,dimension(:,:)   :: cv_vis=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: cv_lcbas=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: cv_sf=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: cv_vp=>NULL()
+!real(r_kind),pointer,dimension(:,:,:) :: cv_w=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: cv_t=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: cv_rh=>NULL()
+real(r_kind),pointer,dimension(:,:,:) :: cv_sfwter=>NULL()
+real(r_kind),pointer,dimension(:,:,:) :: cv_vpwter=>NULL()
 
 ! Declare required local state variables
-integer(i_kind), parameter :: nsvars = 7
+integer(i_kind), parameter :: nsvars = 12
 integer(i_kind) :: isps(nsvars)
 character(len=4), parameter :: mysvars(nsvars) = (/  &  ! vars from ST needed here
-                               'u   ', 'v   ', 'prse', 'q   ', 'tsen', 'ql  ','qi  ' /)
-logical :: ls_u,ls_v,ls_prse,ls_q,ls_tsen,ls_ql,ls_qi
-real(r_kind),pointer,dimension(:,:)   :: sv_ps,sv_sst
-real(r_kind),pointer,dimension(:,:)   :: sv_gust,sv_vis,sv_pblh
-real(r_kind),pointer,dimension(:,:,:) :: sv_u,sv_v,sv_prse,sv_q,sv_tsen,sv_tv,sv_oz
-real(r_kind),pointer,dimension(:,:,:) :: sv_rank3
-real(r_kind),pointer,dimension(:,:)   :: sv_rank2
+                'u   ', 'v   ', 'prse', 'q   ', 'tsen', 'ql  ', 'qi  ', 'w   ', &
+                'qr  ', 'qs  ', 'qg  ', 'qh  ' /)
+logical :: ls_u,ls_v,ls_w,ls_prse,ls_q,ls_tsen,ls_ql,ls_qi
+logical :: ls_qr,ls_qs,ls_qg,ls_qh
+real(r_kind),pointer,dimension(:,:)   :: sv_ps=>NULL(),sv_sst=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_gust=>NULL(),sv_vis=>NULL(),sv_pblh=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_wspd10m=>NULL(),sv_tcamt=>NULL(),sv_lcbas=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_td2m=>NULL(),sv_mxtm=>NULL(),sv_mitm=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_pmsl=>NULL(),sv_howv=>NULL(),sv_cldch=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_uwnd10m=>NULL(),sv_vwnd10m=>NULL()
+real(r_kind),pointer,dimension(:,:,:) :: sv_u=>NULL(),sv_v=>NULL()
+real(r_kind),pointer,dimension(:,:,:) :: sv_w=>NULL(),sv_dw=>NULL(),sv_prse=>NULL()
+real(r_kind),pointer,dimension(:,:,:) :: sv_q=>NULL(),sv_tsen=>NULL()
+real(r_kind),pointer,dimension(:,:,:) :: sv_tv=>NULL(),sv_oz=>NULL()
+real(r_kind),pointer,dimension(:,:,:) :: sv_rank3=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_rank2=>NULL()
+
+real(r_kind),allocatable,dimension(:,:,:):: uland,vland,uwter,vwter
 
 logical :: do_getprs_tl,do_normal_rh_to_q,do_tv_to_tsen,do_getuv,do_cw_to_hydro
+logical :: do_cw_to_hydro_hwrf
 
 !******************************************************************************
 
@@ -144,13 +172,16 @@ endif
 call gsi_bundlegetpointer (xhat%step(1),mycvars,icps,istatus)
 lc_sf =icps(1)>0; lc_vp =icps(2)>0; lc_ps =icps(3)>0
 lc_t  =icps(4)>0; lc_rh =icps(5)>0; lc_cw =icps(6)>0
-lc_ql =icps(7)>0; lc_qi =icps(8)>0
+lc_ql =icps(7)>0; lc_qi =icps(8)>0; lc_w  =icps(9)>0
 
 ! Since each internal vector of xhat has the same structure, pointers are
 ! the same independent of the subwindow jj
 call gsi_bundlegetpointer (sval(1),mysvars,isps,istatus)
 ls_u  =isps(1)>0; ls_v   =isps(2)>0; ls_prse=isps(3)>0
-ls_q  =isps(4)>0; ls_tsen=isps(5)>0; ls_ql =isps(6)>0; ls_qi =isps(7)>0
+ls_q  =isps(4)>0; ls_tsen=isps(5)>0; ls_ql =isps(6)>0
+ls_qi =isps(7)>0; ls_w   =isps(8)>0
+ls_qr  =isps(9)>0; ls_qs =isps(10)>0
+ls_qg =isps(11)>0; ls_qh =isps(12)>0 
 
 ! Define what to do depending on what's in CV and SV
 do_getprs_tl     =lc_ps.and.lc_t .and.ls_prse
@@ -159,8 +190,10 @@ do_tv_to_tsen    =lc_t .and.ls_q .and.ls_tsen
 do_getuv         =lc_sf.and.lc_vp.and.ls_u.and.ls_v
 
 do_cw_to_hydro=.false.
+do_cw_to_hydro_hwrf=.false.
 if (regional) then
    do_cw_to_hydro=lc_cw.and.ls_ql.and.ls_qi
+   do_cw_to_hydro_hwrf=lc_cw.and.ls_ql.and.ls_qi.and.ls_qr.and.ls_qs.and.ls_qg.and.ls_qh
 else
    do_cw_to_hydro=lc_cw.and.ls_tsen.and.ls_ql.and.ls_qi.and.(.not.lc_ql) !ncep global 
 endif
@@ -169,6 +202,20 @@ call gsi_bundlegetpointer (xhat%step(1),'oz',icoz,istatus)
 call gsi_bundlegetpointer (xhat%step(1),'gust',icgust,istatus)
 call gsi_bundlegetpointer (xhat%step(1),'vis',icvis,istatus)
 call gsi_bundlegetpointer (xhat%step(1),'pblh',icpblh,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'wspd10m',icwspd10m,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'td2m',ictd2m,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'mxtm',icmxtm,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'mitm',icmitm,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'pmsl',icpmsl,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'howv',ichowv,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'sfwter',icsfwter,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'vpwter',icvpwter,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'w',icw,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'tcamt',ictcamt,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'lcbas',iclcbas,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'cldch',iccldch,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'uwnd10m',icuwnd10m,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'vwnd10m',icvwnd10m,istatus)
 
 ! Loop over control steps
 do jj=1,nsubwin
@@ -182,34 +229,66 @@ do jj=1,nsubwin
    wbundle=xhat%step(jj)
 
 !  Get pointers to required control variables
-   call gsi_bundlegetpointer (wbundle,'sf' ,cv_sf ,istatus)
-   call gsi_bundlegetpointer (wbundle,'vp' ,cv_vp ,istatus)
-   call gsi_bundlegetpointer (wbundle,'ps' ,cv_ps ,istatus)
-   call gsi_bundlegetpointer (wbundle,'t'  ,cv_t,  istatus)
-   call gsi_bundlegetpointer (wbundle,'q'  ,cv_rh ,istatus)
-   if (icvis >0) call gsi_bundlegetpointer (wbundle,'vis',cv_vis,istatus)
+
    if(ladtest_obs) then
 ! Convert from subdomain to full horizontal field distributed among processors
       call general_sub2grid(s2g_cv,wbundle%values,hwork)
 ! Put back onto subdomains
       call general_grid2sub(s2g_cv,hwork,wbundle%values)
    end if
+
+!$omp parallel sections private(istatus,ii,ic,id,sv_u,sv_v,sv_prse,sv_q,sv_tsen,uland,vland,uwter,vwter) 
+
+!$omp section
+
+   call gsi_bundlegetpointer (wbundle,'sf' ,cv_sf ,istatus)
+   call gsi_bundlegetpointer (wbundle,'vp' ,cv_vp ,istatus)
+   call gsi_bundlegetpointer (sval(jj),'u'   ,sv_u,   istatus)
+   call gsi_bundlegetpointer (sval(jj),'v'   ,sv_v,   istatus)
+!  Convert streamfunction and velocity potential to u,v
+   if(do_getuv) then
+      if (twodvar_regional .and. icsfwter>0 .and. icvpwter>0) then
+         call gsi_bundlegetpointer (wbundle,'sfwter',cv_sfwter,istatus)
+         call gsi_bundlegetpointer (wbundle,'vpwter',cv_vpwter,istatus)
+         allocate(uland(lat2,lon2,nsig),vland(lat2,lon2,nsig), &
+                  uwter(lat2,lon2,nsig),vwter(lat2,lon2,nsig))
+         call getuv(uland,vland,cv_sf,cv_vp,0)
+         call getuv(uwter,vwter,cv_sfwter,cv_vpwter,0)
+
+         call landlake_uvmerge(sv_u,sv_v,uland,vland,uwter,vwter,1)
+         deallocate(uland,vland,uwter,vwter)
+      else
+         call getuv(sv_u,sv_v,cv_sf,cv_vp,0)
+      end if
+   end if
+
+   if(jj == 1)then
+!    Biases
+      do ii=1,nsclen
+         bval%predr(ii)=xhat%predr(ii)
+      enddo
+
+      do ii=1,npclen
+         bval%predp(ii)=xhat%predp(ii)
+      enddo
+
+      if (ntclen>0) then
+         do ii=1,ntclen
+            bval%predt(ii)=xhat%predt(ii)
+         enddo
+      end if
+   end if
+
+!$omp section
 !  Get pointers to required state variables
    call gsi_bundlegetpointer (sval(jj),'prse',sv_prse,istatus)
    call gsi_bundlegetpointer (sval(jj),'tv'  ,sv_tv,  istatus)
    call gsi_bundlegetpointer (sval(jj),'tsen',sv_tsen,istatus)
    call gsi_bundlegetpointer (sval(jj),'q'   ,sv_q ,  istatus)
+   call gsi_bundlegetpointer (wbundle,'ps' ,cv_ps ,istatus)
+   call gsi_bundlegetpointer (wbundle,'t'  ,cv_t,  istatus)
+   call gsi_bundlegetpointer (wbundle,'q'  ,cv_rh ,istatus)
 
-!$omp parallel sections
-
-!$omp section
-
-   call gsi_bundlegetpointer (sval(jj),'u'   ,sv_u,   istatus)
-   call gsi_bundlegetpointer (sval(jj),'v'   ,sv_v,   istatus)
-!  Convert streamfunction and velocity potential to u,v
-   if(do_getuv) call getuv(sv_u,sv_v,cv_sf,cv_vp,0)
-
-!$omp section
 !  Get 3d pressure
    if(do_getprs_tl) call getprs_tl(cv_ps,cv_t,sv_prse)
 
@@ -217,10 +296,34 @@ do jj=1,nsubwin
    if(do_normal_rh_to_q) call normal_rh_to_q(cv_rh,cv_t,sv_prse,sv_q)
 
 !  Calculate sensible temperature
-   if(do_tv_to_tsen) call tv_to_tsen(cv_t,sv_q,sv_tsen)
+   if(do_tv_to_tsen) call tv_to_tsen(cv_t,sv_q,sv_tsen) 
 
 !  Copy other variables
-   call gsi_bundlegetvar ( wbundle, 't'  , sv_tv,  istatus )
+   call gsi_bundlegetvar ( wbundle, 't'  , sv_tv,  istatus )  
+
+   if (do_cw_to_hydro .and. .not.do_cw_to_hydro_hwrf) then
+!     Case when cloud-vars do not map one-to-one (cv-to-sv)
+!     e.g. cw-to-ql&qi
+      call cw2hydro_tl(sval(jj),wbundle,clouds,nclouds)
+   elseif (do_cw_to_hydro_hwrf) then
+!     Case when cloud-vars do not map one-to-one (cv-to-sv)
+!     e.g. cw-to-ql&qi&qr&qs&qg&qh
+      if (.not.do_tv_to_tsen) then
+        call tv_to_tsen(cv_t,sv_q,sv_tsen)
+      endif
+      call cw2hydro_tl_hwrf(sval(jj),wbundle,sv_tsen)
+   else
+!     Case when cloud-vars map one-to-one (cv-to-sv), take care of them together
+!     e.g. cw-to-cw
+      do ic=1,nclouds
+         id=getindex(cvars3d,clouds(ic))
+         if (id>0) then
+             call gsi_bundlegetpointer (sval(jj),clouds(ic),sv_rank3,istatus)
+             call gsi_bundlegetvar     (wbundle, clouds(ic),sv_rank3,istatus)
+         endif
+      enddo
+   end if
+
 !$omp section
    call gsi_bundlegetpointer (sval(jj),'ps'  ,sv_ps,  istatus)
    call gsi_bundlegetvar ( wbundle, 'ps' , sv_ps,  istatus )
@@ -242,33 +345,61 @@ do jj=1,nsubwin
    end if
    if (icvis >0) then
       call gsi_bundlegetpointer (sval(jj),'vis'  ,sv_vis , istatus)
-
-!  Convert log(vis) to vis
-      call logvis_to_vis(cv_vis,sv_vis)
+      call gsi_bundlegetvar  (wbundle,'vis',sv_vis,istatus)
    end if
-
-
-!$omp end parallel sections
-
-   if (do_cw_to_hydro) then
-!     Case when cloud-vars do not map one-to-one (cv-to-sv)
-!     e.g. cw-to-ql&qi
-      if (.not. do_tv_to_tsen) then
-         allocate(sv_tsen(lat2,lon2,nsig))
-         call tv_to_tsen(cv_t,sv_q,sv_tsen)
+   if (icwspd10m>0) then
+      call gsi_bundlegetpointer (sval(jj),'wspd10m' ,sv_wspd10m, istatus)
+      call gsi_bundlegetvar ( wbundle, 'wspd10m', sv_wspd10m, istatus )      
+   end if
+   if (ictd2m>0) then
+      call gsi_bundlegetpointer (sval(jj),'td2m' ,sv_td2m, istatus)
+      call gsi_bundlegetvar ( wbundle, 'td2m', sv_td2m, istatus )
+   end if
+   if (icmxtm>0) then
+      call gsi_bundlegetpointer (sval(jj),'mxtm' ,sv_mxtm, istatus)
+      call gsi_bundlegetvar ( wbundle, 'mxtm', sv_mxtm, istatus )
+   end if
+   if (icmitm>0) then 
+      call gsi_bundlegetpointer (sval(jj),'mitm' ,sv_mitm, istatus)
+      call gsi_bundlegetvar ( wbundle, 'mitm', sv_mitm, istatus )
+   end if
+   if (icpmsl>0) then 
+      call gsi_bundlegetpointer (sval(jj),'pmsl' ,sv_pmsl, istatus)
+      call gsi_bundlegetvar ( wbundle, 'pmsl', sv_pmsl, istatus )
+   end if
+   if (ichowv>0) then
+      call gsi_bundlegetpointer (sval(jj),'howv' ,sv_howv, istatus)
+      call gsi_bundlegetvar ( wbundle, 'howv', sv_howv, istatus )
+   end if
+   if (icw>0) then 
+      call gsi_bundlegetpointer (sval(jj),'w' ,sv_w, istatus)
+      call gsi_bundlegetvar ( wbundle, 'w', sv_w, istatus )
+      if(nems_nmmb_regional)then
+         call gsi_bundlegetpointer (sval(jj),'dw'  ,sv_dw,  istatus)
+         call gsi_bundlegetvar ( wbundle, 'dw' , sv_dw,  istatus )
       end if
-      call cw2hydro_tl(sval(jj),wbundle,sv_tsen,clouds,nclouds)
-      if (.not. do_tv_to_tsen) deallocate(sv_tsen)
-   else
-!     Case when cloud-vars map one-to-one (cv-to-sv), take care of them together
-!     e.g. cw-to-cw
-      do ic=1,nclouds
-         id=getindex(cvars3d,clouds(ic))
-         if (id>0) then
-             call gsi_bundlegetpointer (sval(jj),clouds(ic),sv_rank3,istatus)
-             call gsi_bundlegetvar     (wbundle, clouds(ic),sv_rank3,istatus)
-         endif
-      enddo
+   end if
+   if (ictcamt>0) then 
+      call gsi_bundlegetpointer (sval(jj),'tcamt' ,sv_tcamt, istatus)
+      call gsi_bundlegetvar ( wbundle, 'tcamt', sv_tcamt, istatus )
+   end if
+   if (iclcbas >0) then 
+      call gsi_bundlegetpointer (wbundle,'lcbas',cv_lcbas,istatus)
+      call gsi_bundlegetpointer (sval(jj),'lcbas' ,sv_lcbas, istatus)
+      ! Convert log(lcbas) to lcbas
+      call loglcbas_to_lcbas(cv_lcbas,sv_lcbas)
+   end if
+   if (iccldch >0) then
+      call gsi_bundlegetpointer (sval(jj),'cldch'  ,sv_cldch , istatus)
+      call gsi_bundlegetvar (wbundle,'cldch',sv_cldch,istatus)
+   end if
+   if (icuwnd10m>0) then
+      call gsi_bundlegetpointer (sval(jj),'uwnd10m' ,sv_uwnd10m, istatus)
+      call gsi_bundlegetvar ( wbundle, 'uwnd10m', sv_uwnd10m, istatus )
+   end if
+   if (icvwnd10m>0) then
+      call gsi_bundlegetpointer (sval(jj),'vwnd10m' ,sv_vwnd10m, istatus)
+      call gsi_bundlegetvar ( wbundle, 'vwnd10m', sv_vwnd10m, istatus )
    end if
 
 !  Same one-to-one map for chemistry-vars; take care of them together 
@@ -285,6 +416,9 @@ do jj=1,nsubwin
       endif
    enddo
 
+!$omp end parallel sections
+
+! Clean up
    call gsi_bundledestroy(wbundle,istatus)
    if(istatus/=0) then
       write(6,*) trim(myname), ': trouble destroying work bundle'
@@ -293,25 +427,7 @@ do jj=1,nsubwin
 
 end do
 
-! Biases
-do ii=1,nsclen
-   bval%predr(ii)=xhat%predr(ii)
-enddo
-
-do ii=1,npclen
-   bval%predp(ii)=xhat%predp(ii)
-enddo
-
-if (ntclen>0) then
-   do ii=1,ntclen
-      bval%predt(ii)=xhat%predt(ii)
-   enddo
-end if
-
-! Clean up
-if (ngases>0) then
-    deallocate(gases)
-endif
+if (ngases>0)  deallocate(gases)
 
 if (nclouds>0) deallocate(clouds)
 

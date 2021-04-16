@@ -83,7 +83,13 @@ module gridmod
 !                        when running with use_gfs_ozone = .true. or use_gfs_stratosphere = .true.,
 !                        to allow spectral to grid transformation to a lower resolution grid
 !   2015-02-03 todling - update max nlayers to 200
-!                      
+!   2016-03-02  s.liu/carley - remove use_reflectivity and use i_gsdcldanal_type
+!   2017-03-23  Hu      - add code to get eta2_ll and aeta2_ll ready for hybrid vertical coodinate in WRF MASS CORE
+!   2017-08-31  Li      - add sfcnst_comb to handle surface and nsst combined file
+!   2018-02-15  wu      - add fv3_regional & grid_ratio_fv3_regional
+!   2019-03-05  martin  - add wgtfactlats for factqmin/factqmax scaling
+!   2019-04-19  martin  - add use_fv3_aero option to distingiush between NGAC and FV3-Chem
+!
 !                        
 !
 !
@@ -132,19 +138,24 @@ module gridmod
   public :: rlon_min_dd,coslon,sinlon,rlons,ird_s,irc_s,periodic,idthrm5
   public :: cp5,idvm5,ncepgfs_head,idpsfc5,nlon_sfc,nlat_sfc
   public :: rlons_sfc,rlats_sfc,jlon1,ilat1,periodic_s,latlon1n1
-  public :: nsig2,wgtlats,corlats,rbs2,ncepgfs_headv,regional_time
-  public :: regional_fhr,region_dyi,coeffx,region_dxi,coeffy,nsig_hlf
+  public :: regional_fhr,region_dyi,coeffx,region_dxi,coeffy,nsig_hlf,regional_fmin
+  public :: nsig2,wgtlats,corlats,rbs2,ncepgfs_headv,regional_time,wgtfactlats
   public :: nlat_regional,nlon_regional,update_regsfc,half_grid,gencode
   public :: diagnostic_reg,nmmb_reference_grid,filled_grid
   public :: grid_ratio_nmmb,isd_g,isc_g,dx_gfs,lpl_gfs,nsig5,nmmb_verttype
+  public :: grid_ratio_fv3_regional,fv3_regional
   public :: nsig3,nsig4,grid_ratio_wrfmass
   public :: use_gfs_ozone,check_gfs_ozone_date,regional_ozone,nvege_type
   public :: jcap,jcap_b,hires_b,sp_a,grd_a
   public :: jtstart,jtstop,nthreads
   public :: use_gfs_nemsio
-  public :: use_reflectivity
+  public :: fv3_full_hydro  
+  public :: use_fv3_aero
+  public :: sfcnst_comb
+  public :: use_readin_anl_sfcmask
   public :: jcap_gfs,nlat_gfs,nlon_gfs
   public :: use_sp_eqspace,jcap_cut
+  public :: wrf_mass_hybridcord
 
   interface strip
      module procedure strip_single_rank33_
@@ -160,8 +171,10 @@ module gridmod
   logical diagnostic_reg    ! .t. to activate regional analysis diagnostics
 
   logical wrf_nmm_regional  !
+  logical fv3_regional      ! .t. to run with fv3 regional model
   logical nems_nmmb_regional! .t. to run with NEMS NMMB model
   logical wrf_mass_regional !
+  logical wrf_mass_hybridcord
   logical cmaq_regional     ! .t. to run with cmaq
   logical twodvar_regional  ! .t. to run code in regional 2D-var mode
   logical use_gfs_ozone     ! .t. to use gfs ozone in regional analysis
@@ -174,11 +187,15 @@ module gridmod
   logical update_regsfc     !
   logical hires_b           ! .t. when jcap_b requires double FFT
   logical use_gfs_nemsio    ! .t. for using NEMSIO to real global first guess
-  logical use_reflectivity  ! .t. for using reflectivity for NMMB
+  logical fv3_full_hydro    ! .t. for using NEMSIO to real global first guess
+  logical use_fv3_aero      ! .t. for using FV3 Aerosols, .f. for NGAC
+  logical sfcnst_comb       ! .t. for using combined sfc & nst file
   logical use_sp_eqspace    ! .t. use equally-space grid in spectral transforms
 
+  logical use_readin_anl_sfcmask        ! .t. for using readin surface mask
   character(1) nmmb_reference_grid      ! ='H': use nmmb H grid as reference for analysis grid
                                         ! ='V': use nmmb V grid as reference for analysis grid
+  real(r_kind) grid_ratio_fv3_regional  ! ratio of analysis grid to fv3 model grid in fv3 grid units.
   real(r_kind) grid_ratio_nmmb ! ratio of analysis grid to nmmb model grid in nmmb model grid units.
   real(r_kind) grid_ratio_wrfmass ! ratio of analysis grid to wrf model grid in wrf mass grid units.
   character(3) nmmb_verttype   !   'OLD' for old vertical coordinate definition
@@ -275,6 +292,7 @@ module gridmod
   real(r_kind),allocatable,dimension(:):: coslon  ! cos(grid longitudes (radians))
   real(r_kind),allocatable,dimension(:):: sinlon  ! sin(grid longitudes (radians))
   real(r_kind),allocatable,dimension(:):: wgtlats !  gaussian integration weights
+  real(r_kind),allocatable,dimension(:):: wgtfactlats !  gaussian integration weights if global, 1 if regional
   real(r_kind),allocatable,dimension(:):: corlats ! coriolis parameter by latitude
   real(r_kind),allocatable,dimension(:):: rbs2    ! 1./sin(grid latitudes))**2
 
@@ -297,7 +315,7 @@ module gridmod
   real(r_kind) dt_ll,pdtop_ll,pt_ll
 
   integer(i_kind) nlon_regional,nlat_regional
-  real(r_kind) regional_fhr
+  real(r_kind) regional_fhr,regional_fmin
   integer(i_kind) regional_time(6)
   integer(i_kind) jcap_gfs,nlat_gfs,nlon_gfs
 
@@ -384,6 +402,9 @@ contains
 !   2010-10-14  pagowski- add CMAQ
 !   2010-10-18  hcHuang - add flag use_gfs_nemsio to determine whether to use NEMSIO to read global first guess field
 !   2011-09-14  todling - add use_sp_eqspace to better control lat/lon grid case
+!   2016-08-28       li - tic591: add use_readin_anl_sfcmask for consistent sfcmask
+!                         between analysis grids and others
+!   2019-04-19  martin  - add use_fv3_aero option for NGAC vs FV3-Chem
 !
 ! !REMARKS:
 !   language: f90
@@ -394,7 +415,8 @@ contains
 !
 !EOP
 !-------------------------------------------------------------------------
-    use constants, only: two
+    use constants, only: one,two
+    use gsi_io, only: verbose
     implicit none
 
     integer(i_kind) k
@@ -416,7 +438,9 @@ contains
     periodic = .false.
     wrf_nmm_regional = .false.
     wrf_mass_regional = .false.
+    wrf_mass_hybridcord = .false.
     cmaq_regional=.false.
+    fv3_regional=.false.
     nems_nmmb_regional = .false.
     twodvar_regional = .false. 
     use_gfs_ozone = .false.
@@ -425,8 +449,9 @@ contains
     netcdf = .false.
     filled_grid = .false.
     half_grid = .false.
+    grid_ratio_fv3_regional = one
     grid_ratio_nmmb = sqrt(two)
-    grid_ratio_wrfmass = 1.0_r_kind
+    grid_ratio_wrfmass = one
     nmmb_reference_grid = 'H'
     nmmb_verttype = 'OLD'
     lat1 = nlat
@@ -435,6 +460,7 @@ contains
     lon2 = lon1+2
 
     diagnostic_reg = .false.
+    if(verbose)diagnostic_reg = .true.
     update_regsfc = .false.
     nlon_regional = 0
     nlat_regional = 0
@@ -448,10 +474,18 @@ contains
     jcap=62
     jcap_b=62
     hires_b=.false.
-    nvege_type=24
+    ! -------------------------------------------------------!
+    ! nvege_type set to 20 (i.e. default vege type is IGBP)  !
+    ! Updated in EXP-crtm_sfc_intrface branch: June 16, 2016 !
+    ! -------------------------------------------------------!
+    nvege_type = 20
     nthreads = 1  ! initialize the number of threads
 
-    use_gfs_nemsio = .false.
+    use_gfs_nemsio  = .false.
+    fv3_full_hydro  = .false. 
+    use_fv3_aero  = .false.
+    sfcnst_comb = .false.
+    use_readin_anl_sfcmask = .false.
 
     use_sp_eqspace = .false.
 
@@ -477,6 +511,8 @@ contains
 
     use mpeu_util, only: getindex
     use general_specmod, only: spec_cut
+    use gsi_io, only: verbose
+    use gsi_metguess_mod, only: gsi_metguess_get
     implicit none
 
 ! !INPUT PARAMETERS:
@@ -517,8 +553,13 @@ contains
     integer(i_kind) i,k,inner_vars,num_fields
     integer(i_kind) n3d,n2d,nvars,tid,nth
     integer(i_kind) ipsf,ipvp,jpsf,jpvp,isfb,isfe,ivpb,ivpe
+    integer(i_kind) istatus,icw,iql,iqi
+    integer(i_kind) icw_cv,iql_cv,iqi_cv
     logical,allocatable,dimension(:):: vector
+    logical print_verbose
 
+    print_verbose=.false. .and. mype == 0
+    if(verbose .and. mype == 0)print_verbose=.true.
     spec_cut=jcap_cut
     if(jcap==62) gencode=80.0_r_kind
     ns1=2*nsig+1
@@ -533,6 +574,17 @@ contains
     n3d  =size(cvars3d)
     n2d  =size(cvars2d)
     nvars=size(cvars)
+
+    icw_cv = getindex(cvars3d(1:n3d),'cw')
+    iql_cv = getindex(cvars3d(1:n3d),'ql')
+    iqi_cv = getindex(cvars3d(1:n3d),'qi')
+    call gsi_metguess_get('var::cw', icw, istatus)
+    call gsi_metguess_get('var::ql', iql, istatus)
+    call gsi_metguess_get('var::qi', iqi, istatus)
+    fv3_full_hydro = ( iql>0    .and. iqi>0    .and. (.not. icw>0)   ) .and. &
+                     ( iql_cv>0 .and. iqi_cv>0 .and. (.not. icw_cv>0))
+
+    if (mype==0) write(6,*) myname, ' fv3_full_hydro ', fv3_full_hydro
 
 ! Allocate and initialize variables for mapping between global
 ! domain and subdomains
@@ -633,11 +685,11 @@ contains
     nth = omp_get_max_threads()
 !#omp end parallel
     nthreads=nth
-    if(mype == 0)write(6,*) 'INIT_GRID_VARS:  number of threads ',nthreads
+    if(print_verbose)write(6,*) 'INIT_GRID_VARS:  number of threads ',nthreads
     allocate(jtstart(nthreads),jtstop(nthreads))
     do tid=1,nthreads
        call looplimits(tid-1, nthreads, 1, lon2, jtstart(tid), jtstop(tid))
-       if(mype == 0)write(6,*)'INIT_GRID_VARS:  for thread ',tid,  &
+       if(print_verbose)write(6,*)'INIT_GRID_VARS:  for thread ',tid,  &
             ' jtstart,jtstop = ',jtstart(tid),jtstop(tid)
     end do
 
@@ -760,7 +812,7 @@ contains
     implicit none
 
     allocate(rlats(nlat),rlons(nlon),coslon(nlon),sinlon(nlon),&
-             wgtlats(nlat),rbs2(nlat),corlats(nlat))
+             wgtlats(nlat),rbs2(nlat),corlats(nlat),wgtfactlats(nlat))
     allocate(ak5(nsig+1),bk5(nsig+1),ck5(nsig+1),tref5(nsig))
     return
   end subroutine create_grid_vars
@@ -798,7 +850,7 @@ contains
 !-------------------------------------------------------------------------
     implicit none
 
-    deallocate(rlats,rlons,corlats,coslon,sinlon,wgtlats,rbs2)
+    deallocate(rlats,rlons,corlats,coslon,sinlon,wgtlats,wgtfactlats,rbs2)
     deallocate(ak5,bk5,ck5,tref5)
     if (allocated(cp5)) deallocate(cp5)
     if (allocated(dx_gfs)) deallocate(dx_gfs)
@@ -932,10 +984,10 @@ contains
 
 ! !USES:
 
-    use constants, only: zero, one, three, deg2rad,pi,half, two,r0_01
+    use constants, only: zero, one, three, deg2rad,half, two,r0_01
     use mod_nmmb_to_a, only: init_nmmb_to_a,nxa,nya,nmmb_h_to_a8,ratio_x,ratio_y
     use mod_wrfmass_to_a, only: init_wrfmass_to_a,nxa_wrfmass,nya_wrfmass
-    use mod_wrfmass_to_a, only: wrfmass_h_to_a,ratio_x_wrfmass,ratio_y_wrfmass
+    use mod_wrfmass_to_a, only: wrfmass_h_to_a
     implicit none
 
 ! !INPUT PARAMETERS:
@@ -980,6 +1032,7 @@ contains
 !   2009-01-02  todling - remove unused vars
 !   2012-01-24  parrish  - correct bug in definition of region_dx, region_dy.
 !   2014-03-12  Hu     - Code for GSI analysis on Mass grid larger than background mass grid   
+!   2017-10-10  Wu,W   - setup FV3
 !
 ! !REMARKS:
 !   language: f90
@@ -1028,6 +1081,19 @@ contains
        dt_ll=zero
     end if
 
+
+    if(fv3_regional) then     ! begin fv3 regional section
+       if(diagnostic_reg.and.mype==0) write(6,*)' in init_reg_glob_ll for FV3 '
+       rlon_min_ll=one
+       rlat_min_ll=one
+       rlon_max_ll=nlon
+       rlat_max_ll=nlat
+       rlat_min_dd=rlat_min_ll+r1_5/grid_ratio_fv3_regional
+       rlat_max_dd=rlat_max_ll-r1_5/grid_ratio_fv3_regional
+       rlon_min_dd=rlon_min_ll+r1_5/grid_ratio_fv3_regional
+       rlon_max_dd=rlon_max_ll-r1_5/grid_ratio_fv3_regional
+    endif    !  fv3_regional
+
     if(wrf_nmm_regional) then     ! begin wrf_nmm section
 ! This is a wrf_nmm regional run.
        if(diagnostic_reg.and.mype==0)  &
@@ -1057,15 +1123,20 @@ contains
        rewind lendian_in
        read(lendian_in) regional_time,nlon_regional,nlat_regional,nsig, &
                    dlmd,dphd,pt,pdtop
+       if(mype==0) write(6,*)'GRIDMOD: inunit: FLNAME: regional_time',lendian_in,filename,  &
+              (regional_time (i),i=1,6)       
+       
        regional_fhr=zero  !  with wrf nmm fcst hr is not currently available.
 
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, yr,mn,dy,h,m,s=",6i6)') &
+       if(diagnostic_reg.and.mype==0) then
+           write(6,'(" in init_reg_glob_ll, yr,mn,dy,h,m,s=",6i6)') &
                 regional_time
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nlon_regional=",i6)') &
+           write(6,'(" in init_reg_glob_ll, nlon_regional=",i6)') &
                 nlon_regional
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nlat_regional=",i6)') &
+           write(6,'(" in init_reg_glob_ll, nlat_regional=",i6)') &
                 nlat_regional
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nsig=",i6)') nsig 
+           write(6,'(" in init_reg_glob_ll, nsig=",i6)') nsig 
+       end if
  
 ! Get vertical info for hybrid coordinate and sigma coordinate we will interpolate to
        allocate(aeta1_ll(nsig),eta1_ll(nsig+1),aeta2_ll(nsig),eta2_ll(nsig+1))
@@ -1079,8 +1150,8 @@ contains
        read(lendian_in) aeta2
        read(lendian_in) eta2
 
-       if(diagnostic_reg.and.mype==0) write(6,*)' in init_reg_glob_ll, pdtop,pt=',pdtop,pt
        if(diagnostic_reg.and.mype==0) then
+          write(6,*)' in init_reg_glob_ll, pdtop,pt=',pdtop,pt
           write(6,*)' in init_reg_glob_ll, aeta1 aeta2 follow:'
           do k=1,nsig
              write(6,'(" k,aeta1,aeta2=",i3,2f10.4)') k,aeta1(k),aeta2(k)
@@ -1096,14 +1167,14 @@ contains
           end do
        end if
 
-       pdtop_ll=r0_01*pdtop                    !  check units--this converts to mb
-       pt_ll=r0_01*pt                          !  same here
+       pdtop_ll=r0_01*real(pdtop,r_kind)            !  check units--this converts to mb
+       pt_ll=r0_01*real(pt,r_kind)                  !  same here
  
        if(diagnostic_reg.and.mype==0) write(6,*)' in init_reg_glob_ll, pdtop_ll,pt_ll=',pdtop_ll,pt_ll
-       eta1_ll=eta1
-       aeta1_ll=aeta1
-       eta2_ll=eta2
-       aeta2_ll=aeta2
+       eta1_ll=real(eta1,r_kind)
+       aeta1_ll=real(aeta1,r_kind)
+       eta2_ll=real(eta2,r_kind)
+       aeta2_ll=real(aeta2,r_kind)
        read(lendian_in) glat,dx_nmm
        read(lendian_in) glon,dy_nmm
        close(lendian_in)
@@ -1168,8 +1239,8 @@ contains
           allocate(gytemp(nlon_regional,nlat_regional))
           allocate(glon8(nlon_regional,nlat_regional))
           allocate(glat8(nlon_regional,nlat_regional))
-          glon8=glon
-          glat8=glat
+          glon8=real(glon,r_kind)
+          glat8=real(glat,r_kind)
           i0=nlon_regional/2
           j0=nlat_regional/2
           call ll2rpolar(glat8,glon8,nlon_regional*nlat_regional, &
@@ -1180,8 +1251,8 @@ contains
           call fill_nmm_grid2a3(gytemp,nlon_regional,nlat_regional,gytemp_an)
           call rpolar2ll(gxtemp_an,gytemp_an,nlon*nlat, &
                          glat_an,glon_an,glat8(i0,j0),glon8(i0,j0),zero)
-          gxtemp=dx_nmm
-          gytemp=dy_nmm
+          gxtemp=real(dx_nmm,r_kind)
+          gytemp=real(dy_nmm,r_kind)
           call fill_nmm_grid2a3(gxtemp,nlon_regional,nlat_regional,dx_an)
           call fill_nmm_grid2a3(gytemp,nlon_regional,nlat_regional,dy_an)
           deallocate(gxtemp,gytemp,gxtemp_an,gytemp_an,glon8,glat8)
@@ -1236,14 +1307,13 @@ contains
        read(lendian_in) regional_time,nlon_regional,nlat_regional,nsig,pt,nsig_soil 
        regional_fhr=zero  !  with wrf mass core fcst hr is not currently available.
 
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, yr,mn,dy,h,m,s=",6i6)') &
-                regional_time
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nlon_regional=",i6)') &
-                nlon_regional
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nlat_regional=",i6)') &
-                nlat_regional
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nsig=",i6)') nsig 
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nsig_soil=",i6)') nsig_soil 
+       if(diagnostic_reg.and.mype==0) then
+          write(6,'(" in init_reg_glob_ll, yr,mn,dy,h,m,s=",6i6)') regional_time
+          write(6,'(" in init_reg_glob_ll, nlon_regional=",i6)') nlon_regional
+          write(6,'(" in init_reg_glob_ll, nlat_regional=",i6)') nlat_regional
+          write(6,'(" in init_reg_glob_ll, nsig=",i6)') nsig 
+          write(6,'(" in init_reg_glob_ll, nsig_soil=",i6)') nsig_soil 
+       end if
  
        call init_wrfmass_to_a(grid_ratio_wrfmass,nlon_regional,nlat_regional)
        nlon=nxa_wrfmass ; nlat=nya_wrfmass
@@ -1251,28 +1321,33 @@ contains
 ! Get vertical info for wrf mass core
        allocate(aeta1_ll(nsig),eta1_ll(nsig+1))
        allocate(aeta1(nsig),eta1(nsig+1))
+       allocate(aeta2_ll(nsig),eta2_ll(nsig+1))
+       allocate(aeta2(nsig),eta2(nsig+1))
        allocate(glat(nlon_regional,nlat_regional),glon(nlon_regional,nlat_regional))
        allocate(dx_mc(nlon_regional,nlat_regional),dy_mc(nlon_regional,nlat_regional))
-       read(lendian_in) aeta1
-       read(lendian_in) eta1
+       read(lendian_in) aeta1,aeta2
+       read(lendian_in) eta1,eta2
  
-       if(diagnostic_reg.and.mype==0) write(6,*)' in init_reg_glob_ll, pt=',pt
+       pt_ll=r0_01*pt                    !  check units--this converts to mb
        if(diagnostic_reg.and.mype==0) then
-          write(6,*)' in init_reg_glob_ll, aeta1 follows:'
+          write(6,*)' in init_reg_glob_ll, pt=',pt
+          write(6,*)' in init_reg_glob_ll, aeta1,aeta2 follows:'
           do k=1,nsig
-             write(6,'(" k,aeta1=",i3,f10.4)') k,aeta1(k)
+             write(6,'(" k,aeta1=",i3,2f10.4)') k,aeta1(k),aeta2(k)
           end do
-          write(6,*)' in init_reg_glob_ll, eta1 follows:'
+          write(6,*)' in init_reg_glob_ll, eta1,eta2 follows:'
           do k=1,nsig+1
-             write(6,'(" k,eta1=",i3,f10.4)') k,eta1(k)
+             write(6,'(" k,eta1=",i3,2f10.4)') k,eta1(k),eta2(k)
           end do
+          write(6,*)' in init_reg_glob_ll, pt_ll=',pt_ll
        end if
 
-       pt_ll=r0_01*pt                    !  check units--this converts to mb
 
-       if(diagnostic_reg.and.mype==0) write(6,*)' in init_reg_glob_ll, pt_ll=',pt_ll
        eta1_ll=eta1
        aeta1_ll=aeta1
+       eta2_ll=eta2*r0_01
+       aeta2_ll=aeta2*r0_01
+
        read(lendian_in) glat,dx_mc
        read(lendian_in) glon,dy_mc
        close(lendian_in)
@@ -1315,7 +1390,8 @@ contains
        allocate(region_dyi(nlat,nlon),region_dxi(nlat,nlon))
        allocate(coeffy(nlat,nlon),coeffx(nlat,nlon))
 
-!   trasfer earth lats and lons to arrays region_lat, region_lon
+!  trasfer earth lats and lons to arrays region_lat, region_lon
+!  NOTE: The glat_an and glon_an are the latlon values for ensemble perturbation grid
 
        allocate(glat_an(nlon,nlat),glon_an(nlon,nlat))
        do k=1,nlon
@@ -1368,16 +1444,15 @@ contains
        write(filename,'("sigf",i2.2)') ihrmid
        open(lendian_in,file=filename,form='unformatted')
        rewind lendian_in
-       read(lendian_in) regional_time,regional_fhr,nlon_regional,nlat_regional,nsig, &
+       read(lendian_in) regional_time,regional_fhr,regional_fmin,nlon_regional,nlat_regional,nsig, &
                    dlmd,dphd,pt,pdtop,nmmb_verttype
  
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, yr,mn,dy,h,m,s=",6i6)') &
-                regional_time
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nlon_regional=",i6)') &
-                nlon_regional
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nlat_regional=",i6)') &
-                nlat_regional
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nsig=",i6)') nsig
+       if(diagnostic_reg.and.mype==0) then
+          write(6,'(" in init_reg_glob_ll, yr,mn,dy,h,m,s=",6i6)') regional_time
+          write(6,'(" in init_reg_glob_ll, nlon_regional=",i6)') nlon_regional
+          write(6,'(" in init_reg_glob_ll, nlat_regional=",i6)') nlat_regional
+          write(6,'(" in init_reg_glob_ll, nsig=",i6)') nsig
+       end if
  
        call init_nmmb_to_a(nmmb_reference_grid,grid_ratio_nmmb,nlon_regional,nlat_regional)
        nlon=nxa ; nlat=nya
@@ -1421,8 +1496,8 @@ contains
        read(lendian_in) aeta2
        read(lendian_in) eta2
 
-       if(diagnostic_reg.and.mype==0) write(6,*)' in init_reg_glob_ll, pdtop,pt=',pdtop,pt
        if(diagnostic_reg.and.mype==0) then
+          write(6,*)' in init_reg_glob_ll, pdtop,pt=',pdtop,pt
           write(6,*)' in init_reg_glob_ll, aeta1 aeta2 follow:'
           do k=1,nsig
              write(6,'(" k,aeta1,aeta2=",i3,2f10.4)') k,aeta1(k),aeta2(k)
@@ -1672,13 +1747,12 @@ contains
        read(lendian_in) regional_time,nlon_regional,nlat_regional,nsig
        regional_fhr=zero  !  with twodvar analysis fcst hr is not currently available.
  
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, yr,mn,dy,h,m,s=",6i6)') &
-                regional_time
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nlon_regional=",i6)') &
-                nlon_regional
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nlat_regional=",i6)') &
-                nlat_regional
-       if(diagnostic_reg.and.mype==0) write(6,'(" in init_reg_glob_ll, nsig=",i6)') nsig 
+       if(diagnostic_reg.and.mype==0) then
+           write(6,'(" in init_reg_glob_ll, yr,mn,dy,h,m,s=",6i6)')regional_time
+           write(6,'(" in init_reg_glob_ll, nlon_regional=",i6)') nlon_regional
+           write(6,'(" in init_reg_glob_ll, nlat_regional=",i6)') nlat_regional
+           write(6,'(" in init_reg_glob_ll, nsig=",i6)') nsig 
+       end if
  
 ! Get vertical info 
        allocate(aeta1_ll(nsig),eta1_ll(nsig+1))
@@ -2490,7 +2564,7 @@ end subroutine init_general_transform
      do j=1,ny,2
         jj=jj+1
         do i=1,nx
-           gout(i,jj)=gin(i,j)
+           gout(i,jj)=real(gin(i,j),r_kind)
         end do
      end do
   else
@@ -2502,7 +2576,7 @@ end subroutine init_general_transform
         do i=1,nx
            im=i-1 ; if(im<1) im=i
            i0=i      ; if(i==nx)   i0=im
-           gout(i,jj)=quarter*(gin(im,j)+gin(i0,j)+gin(i,jp)+gin(i,jm))
+           gout(i,jj)=quarter*(real(gin(im,j)+gin(i0,j)+gin(i,jp)+gin(i,jm),r_kind))
         end do
      end do
   end if
@@ -2658,7 +2732,7 @@ end subroutine init_general_transform
 
 ! !USES:
 
-    use constants, only: one,two,pi,rad2deg,one_tenth
+    use constants, only: one,two,one_tenth
     implicit none
 
 ! !INPUT PARAMETERS:

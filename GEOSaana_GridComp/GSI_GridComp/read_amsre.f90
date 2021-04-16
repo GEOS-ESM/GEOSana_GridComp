@@ -1,6 +1,6 @@
-subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
+subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,jsatid,gstime,&
      infile,lunout,obstype,nread,ndata,nodata,twind,sis,&
-     mype_root,mype_sub,npe_sub,mpi_comm_sub)
+     mype_root,mype_sub,npe_sub,mpi_comm_sub,nobs,nrec_start,dval_use)
 
 ! subprogram:    read_amsre                  read bufr format amsre data
 ! prgmmr :   okamoto         org: np20                date: 2004-10-12
@@ -61,6 +61,9 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
 !   2013-01-26  parrish - change from grdcrd to grdcrd1 (to allow successful debug compile on WCOSS)
 !   2013-02-13  eliu    - bug fix for solar zenith calculation 
 !   2012-03-05  akella  - nst now controlled via coupler
+!   2015-02-23  Rancic/Thomas - add thin4d to time window logical
+!   2015-10-01  guo     - consolidate use of ob location (in deg)
+!   2018-05-21  j.jin    - added time-thinning. Moved the checking of thin4d into satthin.F90.
 !
 ! input argument list:
 !     mype     - mpi task id
@@ -80,11 +83,13 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
 !     mype_sub - mpi task id within sub-communicator
 !     npe_sub  - number of data read tasks
 !     mpi_comm_sub - sub-communicator for data read
+!     nrec_start - first subset with useful information
 !
 ! output argument list:
 !     nread    - number of BUFR AQUA observations read
 !     ndata    - number of BUFR AQUA profiles retained for further processing
 !     nodata   - number of BUFR AQUA observations retained for further processing
+!     nobs     - array of observations on each subdomain for each processor
 !
 ! attributes:
 !     language: f90
@@ -94,21 +99,26 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
   use kinds, only: r_kind,r_double,i_kind
   use satthin, only: super_val,itxmax,makegrids,map2tgrid,destroygrids, &
       checkob,finalcheck,score_crit
-  use radinfo, only: iuse_rad,nusis,jpch_rad,nst_gsi,nstinfo
+  use satthin, only: radthin_time_info,tdiff2crit
+  use obsmod,  only: time_window_max
+  use radinfo, only: iuse_rad,nusis,jpch_rad
   use gridmod, only: diagnostic_reg,regional,nlat,nlon,rlats,rlons,&
       tll2xy
-  use constants, only: deg2rad,rad2deg,zero,one,three,r60inv
-  use gsi_4dvar, only: l4dvar, iwinbgn, winlen
+  use constants, only: deg2rad,zero,one,three,r60inv
+  use gsi_4dvar, only: l4dvar,l4densvar,iwinbgn,winlen
   use calc_fov_conical, only: instrument_init
   use deter_sfc_mod, only: deter_sfc_fov,deter_sfc,deter_sfc_amsre_low
+  use gsi_nstcouplermod, only: nst_gsi,nstinfo
   use gsi_nstcouplermod, only: gsi_nstcoupler_skindepth, gsi_nstcoupler_deter
+  use mpimod, only: npe
+! use radiance_mod, only: rad_obs_type
 
   implicit none
 
 ! Input variables
   character(len=*) ,intent(in   ) :: infile
-  character(len=*) ,intent(in   ) :: obstype
-  integer(i_kind)  ,intent(in   ) :: mype
+  character(len=*) ,intent(in   ) :: obstype,jsatid
+  integer(i_kind)  ,intent(in   ) :: mype,nrec_start
   integer(i_kind)  ,intent(inout) :: isfcalc
   integer(i_kind)  ,intent(in   ) :: ithin
   integer(i_kind)  ,intent(in   ) :: lunout
@@ -120,9 +130,11 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
   integer(i_kind)  ,intent(in   ) :: mype_sub
   integer(i_kind)  ,intent(in   ) :: npe_sub
   integer(i_kind)  ,intent(in   ) :: mpi_comm_sub
+  logical          ,intent(in   ) :: dval_use
 
 ! Output variables
   integer(i_kind)  ,intent(inout) :: nread
+  integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
   integer(i_kind)  ,intent(inout) :: ndata,nodata
 
 ! Number of channels for sensors in BUFR
@@ -130,7 +142,6 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
 ! integer(i_kind),parameter :: N_MAXCH   =  20
   integer(i_kind) :: said, AQUA_SAID  = 784  !WMO satellite identifier 
   integer(i_kind) :: siid, AMSRE_SIID = 345  !WMO instrument identifier 
-  integer(i_kind),parameter :: maxinfo    =  33
 
 ! BUFR file sequencial number
   character(len=8)  :: subset
@@ -155,7 +166,7 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
   real(r_kind)     :: sfcr
   real(r_kind)     :: dlon, dlat
   real(r_kind)     :: dlon_earth,dlat_earth
-  real(r_kind)     :: timedif, pred, crit1, dist1
+  real(r_kind)     :: pred, crit1, dist1
   real(r_kind),allocatable,dimension(:,:):: data_all
   integer(i_kind),allocatable,dimension(:)::nrec
   integer(i_kind):: irec,next
@@ -180,7 +191,7 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
   logical       :: amsre_low
   logical       :: amsre_mid
   logical       :: amsre_hig
-  integer(i_kind) ntest
+  integer(i_kind) ntest,maxinfo
   integer(i_kind) :: nscan,iskip,kskip,kch,kchanl
 ! real(r_kind),parameter :: TEN      =  10._r_kind
 ! real(r_kind),parameter :: R45      =  45._r_kind
@@ -221,9 +232,12 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
 ! logical :: remove_ovlporbit = .true. !looks like AMSRE overlap problem is not as bad as SSM/I 10/14/04  kozo
   integer(i_kind) :: orbit, old_orbit, iorbit, ireadsb, ireadmg
   real(r_kind) :: saz
+  real(r_kind)    :: ptime,timeinflat,crit0
+  integer(i_kind) :: ithin_time,n_tbin,it_mesh
 
 ! data selection
 
+  maxinfo    =  31
 ! Initialize variables
   ilon = 3
   ilat = 4
@@ -239,6 +253,7 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
   end do 
   disterrmax=zero
   ntest = 0
+  if(dval_use) maxinfo = maxinfo + 2
   nreal = maxinfo+nstinfo
   ndata = 0
   nodata = 0
@@ -317,8 +332,14 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
     endif
   endif
 
+  call radthin_time_info(obstype, jsatid, sis, ptime, ithin_time)
+  if( ptime > 0.0_r_kind) then
+     n_tbin=nint(2*time_window_max/ptime)
+  else
+     n_tbin=1
+  endif
 ! Make thinning grids
-  call makegrids(rmesh,ithin)
+  call makegrids(rmesh,ithin,n_tbin=n_tbin)
 
 
 ! Open BUFR file
@@ -334,8 +355,9 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
   next=0
   nrec=999999
   irec=0
-  do while(ireadmg(lnbufr,subset,idate)>=0)
+  read_msg: do while(ireadmg(lnbufr,subset,idate)>=0)
      irec=irec+1
+     if(irec < nrec_start) cycle read_msg
      next=next+1
      if(next == npe_sub)next=0
      if(next /= mype_sub)cycle
@@ -371,17 +393,12 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
         endif
         call w3fs21(idate5,nmind)
         t4dv = (real((nmind-iwinbgn),r_kind) + amsrspot_d(7)*r60inv)*r60inv ! add in seconds
-        if (l4dvar) then
+        sstime = real(nmind,r_kind) + amsrspot_d(7)*r60inv ! add in seconds
+        tdiff  = (sstime - gstime)*r60inv
+        if (l4dvar.or.l4densvar) then
            if (t4dv<zero .OR. t4dv>winlen) cycle read_loop
         else
-           sstime = real(nmind,r_kind) + amsrspot_d(7)*r60inv ! add in seconds
-           tdiff  = (sstime - gstime)*r60inv
            if (abs(tdiff)>twind) cycle read_loop
-        endif
-        if (l4dvar) then
-           timedif = zero
-        else
-           timedif = 6.0_r_kind*abs(tdiff) ! range:  0 to 18
         endif
 
 !     --- Check observing position -----
@@ -440,8 +457,10 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
 !    some observations that may be rejected later due to bad BTs.
         nread=nread+kchanl
     
-        crit1 = 0.01_r_kind+timedif 
-        call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis)
+        crit0 = 0.01_r_kind
+        timeinflat=6.0_r_kind
+        call tdiff2crit(tdiff,ptime,ithin_time,timeinflat,crit0,crit1,it_mesh)
+        call map2tgrid(dlat_earth,dlon_earth,dist1,crit1,itx,ithin,itt,iuse,sis,it_mesh=it_mesh)
         if (.not.iuse) cycle read_loop
 
 !    QC:  "Score" observation.  We use this information to identify "best" obs
@@ -602,11 +621,13 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
         data_all(27,itx)= idomsfc(1) + 0.001_r_kind  ! dominate surface type
         data_all(28,itx)= sfcr                       ! surface roughness
         data_all(29,itx)= ff10                       ! ten meter wind factor
-        data_all(30,itx)= dlon_earth*rad2deg         ! earth relative longitude (degrees)
-        data_all(31,itx)= dlat_earth*rad2deg         ! earth relative latitude (degrees)
+        data_all(30,itx)= dlon_earth_deg             ! earth relative longitude (degrees)
+        data_all(31,itx)= dlat_earth_deg             ! earth relative latitude (degrees)
 
-        data_all(32,itx)= val_amsre
-        data_all(33,itx)= itt
+        if(dval_use)then
+           data_all(32,itx)= val_amsre
+           data_all(33,itx)= itt
+        end if
 
         if ( nst_gsi > 0 ) then
            data_all(maxinfo+1,itx) = tref                ! foundation temperature
@@ -622,7 +643,7 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
 
 
      enddo read_loop
-  enddo
+  enddo read_msg
   call closbf(lnbufr)
 
 ! If multiple tasks read input bufr file, allow each tasks to write out
@@ -644,12 +665,17 @@ subroutine read_amsre(mype,val_amsre,ithin,isfcalc,rmesh,gstime,&
            if(data_all(i+nreal,n) > tbmin .and. &
               data_all(i+nreal,n) < tbmax)nodata=nodata+1
         end do
-        itt=nint(data_all(maxinfo,n))
-        super_val(itt)=super_val(itt)+val_amsre
-
      end do
+     if(dval_use .and. assim)then
+        do n=1,ndata
+           itt=nint(data_all(33,n))
+           super_val(itt)=super_val(itt)+val_amsre
+
+        end do
+     end if
 
 !    Write final set of "best" observations to output file
+     call count_obs(ndata,nele,ilat,ilon,data_all,nobs)
      write(lunout) obstype,sis,nreal,nchanl,ilat,ilon
      write(lunout) ((data_all(k,n),k=1,nele),n=1,ndata)
   
@@ -755,7 +781,7 @@ subroutine zensun(day,time,lat,lon,sun_zenith,sun_azimuth)
   integer(i_kind)   di
   real(r_kind)      ut,noon
   real(r_kind)      y(5),y2(5),x(2,5),Tx(5,2),xTx(2,2),aTx(5,2),det
-  real(r_kind)      tt,eqtime,decang,latsun,lonsun,frac
+  real(r_kind)      tt,eqtime,decang,latsun,lonsun
   real(r_kind)      nday(74),eqt(74),dec(74)
   real(r_kind)      beta(2), beta2(2), a(2,2)
   real(r_kind)      t0,t1,p0,p1,zz,xx,yy
@@ -816,15 +842,97 @@ subroutine zensun(day,time,lat,lon,sun_zenith,sun_azimuth)
   tt= mod(real((int(day)+time/24._r_kind-one)),365.25_r_single) + one  ! fractional day number
                                                                        ! with 12am 1jan = 1.
   do di = 1, 73
-     if ((tt >= nday(di)) .and. (tt < nday(di+1))) exit
+     if ((tt >= nday(di)) .and. (tt <= nday(di+1))) exit
   end do
 
+!============== Perform a least squares regression on doy**3 ==============
 
-! using simple linear interpolation
-  frac = (tt-nday(di))/(nday(di+1)-nday(di))
-  eqtime = ((one-frac)*eqt(di)+frac*eqt(di+1))*r60inv
-  decang = (one-frac)*dec(di) + frac*dec(di+1)
+  x(1,:) = one
 
+  if ((di >= 3) .and. (di <= 72)) then
+     y(:) = eqt(di-2:di+2)
+     y2(:) = dec(di-2:di+2)
+
+     x(2,:) = nday(di-2:di+2)**3
+  end if
+  if (di == 2) then
+     y(1) = eqt(73)
+     y(2:5) = eqt(di-1:di+2)
+     y2(1) = dec(73)
+     y2(2:5) = dec(di-1:di+2)
+
+     x(2,1) = nday(73)**3
+     x(2,2:5) = (365._r_kind+nday(di-1:di+2))**3
+  end if
+  if (di == 1) then
+     y(1:2) = eqt(72:73)
+     y(3:5) = eqt(di:di+2)
+     y2(1:2) = dec(72:73)
+     y2(3:5) = dec(di:di+2)
+
+     x(2,1:2) = nday(72:73)**3
+     x(2,3:5) = (365._r_kind+nday(di:di+2))**3
+  end if
+  if (di == 73) then
+     y(1:4) = eqt(di-2:di+1)
+     y(5) = eqt(2)
+     y2(1:4) = dec(di-2:di+1)
+     y2(5) = dec(2)
+
+     x(2,1:4) = nday(di-2:di+1)**3
+     x(2,5) = (365._r_kind+nday(2))**3
+  end if
+  if (di == 74) then
+     y(1:3) = eqt(di-2:di)
+     y(4:5) = eqt(2:3)
+     y2(1:3) = dec(di-2:di)
+     y2(4:5) = dec(2:3)
+
+     x(2,1:3) = nday(di-2:di)**3
+     x(2,4:5) = (365._r_kind+nday(2:3))**3
+  end if
+
+!  Tx = transpose(x)
+  Tx(1:5,1)=x(1,1:5)
+  Tx(1:5,2)=x(2,1:5)
+!  xTx = MATMUL(x,Tx)
+  xTx(1,1)=x(1,1)*Tx(1,1)+x(1,2)*Tx(2,1)+x(1,3)*Tx(3,1)+x(1,4)*Tx(4,1)+x(1,5)*Tx(5,1)
+  xTx(1,2)=x(1,1)*Tx(1,2)+x(1,2)*Tx(2,2)+x(1,3)*Tx(3,2)+x(1,4)*Tx(4,2)+x(1,5)*Tx(5,2)
+  xTx(2,1)=x(2,1)*Tx(1,1)+x(2,2)*Tx(2,1)+x(2,3)*Tx(3,1)+x(2,4)*Tx(4,1)+x(2,5)*Tx(5,1)
+  xTx(2,2)=x(2,1)*Tx(1,2)+x(2,2)*Tx(2,2)+x(2,3)*Tx(3,2)+x(2,4)*Tx(4,2)+x(2,5)*Tx(5,2)
+
+  det = xTx(1,1)*xTx(2,2) - xTx(1,2)*xTx(2,1)
+  a(1,1) = xTx(2,2)/det
+  a(1,2) = -xTx(1,2)/det
+  a(2,1) = -xTx(2,1)/det
+  a(2,2) = xTx(1,1)/det
+
+!  aTx = MATMUL(Tx,a)
+  aTx(1,1)=Tx(1,1)*a(1,1)+Tx(1,2)*a(2,1) 
+  aTx(2,1)=Tx(2,1)*a(1,1)+Tx(2,2)*a(2,1) 
+  aTx(3,1)=Tx(3,1)*a(1,1)+Tx(3,2)*a(2,1) 
+  aTx(4,1)=Tx(4,1)*a(1,1)+Tx(4,2)*a(2,1) 
+  aTx(5,1)=Tx(5,1)*a(1,1)+Tx(5,2)*a(2,1) 
+  aTx(1,2)=Tx(1,1)*a(1,2)+Tx(1,2)*a(2,2) 
+  aTx(2,2)=Tx(2,1)*a(1,2)+Tx(2,2)*a(2,2) 
+  aTx(3,2)=Tx(3,1)*a(1,2)+Tx(3,2)*a(2,2) 
+  aTx(4,2)=Tx(4,1)*a(1,2)+Tx(4,2)*a(2,2) 
+  aTx(5,2)=Tx(5,1)*a(1,2)+Tx(5,2)*a(2,2) 
+
+!  beta = MATMUL(y,aTx)
+  beta(1) = y(1)*aTx(1,1)+y(2)*aTx(2,1)+y(3)*aTx(3,1)+y(4)*aTx(4,1)+y(5)*aTx(5,1)
+  beta(2) = y(1)*aTx(1,2)+y(2)*aTx(2,2)+y(3)*aTx(3,2)+y(4)*aTx(4,2)+y(5)*aTx(5,2)
+
+!  beta2 = MATMUL(y2,aTx)
+  beta2(1) = y2(1)*aTx(1,1)+y2(2)*aTx(2,1)+y2(3)*aTx(3,1)+y2(4)*aTx(4,1)+y2(5)*aTx(5,1)
+  beta2(2) = y2(1)*aTx(1,2)+y2(2)*aTx(2,2)+y2(3)*aTx(3,2)+y2(4)*aTx(4,2)+y2(5)*aTx(5,2)
+
+!============== finished least squares regression on doy**3 ==============
+
+! if ((di < 3) .or. (di > 72)) tt = tt + 365._r_kind
+
+  eqtime=(beta(1) + beta(2)*tt**3)*r60inv
+  decang=beta2(1) + beta2(2)*tt**3
   latsun=decang
 
   ut=time

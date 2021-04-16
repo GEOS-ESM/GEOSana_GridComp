@@ -25,6 +25,8 @@ module balmod
 !                          and strong_bk_ad.  add new parameter tlnmc_option.
 !   2012-02-08  parrish - replace nn_i_kind with nn, for nn any integer.
 !   2012-10-09  Gu - add fut2ps to project unbalanced temp to surface pressure in static B modeling
+!   2016-08-24  lippi - Add namelist variable lnobalance to run univariate 
+!                       analysis and init_balmod to initialize the variable. 
 !
 ! subroutines included:
 !   sub create_balance_vars      - create arrays for balance vars
@@ -64,6 +66,7 @@ module balmod
 ! set default to private
   private
 ! set subroutines to public
+  public :: init_balmod
   public :: create_balance_vars
   public :: destroy_balance_vars
   public :: create_balance_vars_reg
@@ -78,6 +81,7 @@ module balmod
 ! set passed variables to public
   public :: fstat,llmax,llmin,rllat,rllat1,ke_vp,f1,bvz,agvz,wgvz,bvk,agvk,wgvk,agvk_lm
   public :: pput
+  public :: lnobalance
 
   real(r_kind),allocatable,dimension(:,:,:):: agvz
   real(r_kind),allocatable,dimension(:,:):: wgvz
@@ -91,9 +95,16 @@ module balmod
 
   integer(i_kind) ke_vp
   integer(i_kind) llmin,llmax
-  logical fstat
+  logical fstat,lnobalance
 
 contains
+
+  subroutine init_balmod
+  implicit none
+  lnobalance=.false.
+  end subroutine init_balmod
+
+
   subroutine create_balance_vars
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -319,8 +330,8 @@ contains
 
     return
   end subroutine prebal
-  
-  subroutine prebal_reg
+
+  subroutine prebal_reg(cwcoveqqcov)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    prebal_reg  setup balance vars
@@ -344,6 +355,7 @@ contains
 !   2008-11-13  zhu - add changes for generalized control variables
 !                   - change the structure of covariance error file
 !                   - move horizontal interpolation into this subroutine
+!   2014-10-08  zhu - add cwcoveqqco in the interface 
 !
 !   input argument list:
 !
@@ -360,11 +372,12 @@ contains
     use gridmod, only: lat2,lon2,nsig,twodvar_regional
     use guess_grids, only: ges_prslavg,ges_psfcavg
     use mpimod, only: mype
-    use m_berror_stats_reg, only: berror_get_dims_reg,berror_read_bal_reg
+    use m_berror_stats_reg, only: berror_set_reg,berror_get_dims_reg,berror_read_bal_reg
     use constants, only: zero,half,one
     implicit none
 
 !   Declare passed variables
+    logical,intent(in   ) :: cwcoveqqcov
 
 !   Declare local parameters
     real(r_kind),parameter:: r08 = 0.8_r_kind
@@ -380,6 +393,8 @@ contains
     real(r_kind),allocatable,dimension(:,:):: wgvi ,bvi
     real(r_kind),allocatable,dimension(:,:,:):: agvi
 
+!   Set internal parameters to m_berror_stats
+    call berror_set_reg('cwcoveqqcov',cwcoveqqcov)
 
 !   Read dimension of stats file
     inerr=22
@@ -460,10 +475,12 @@ contains
 
 !   Alternatively, zero out all balance correlation matrices
 !   for univariate surface analysis
-    if (twodvar_regional) then
+    if (twodvar_regional .or. lnobalance) then
+       if(mype==0) write(6,*)"***WARNING*** running univariate analysis." 
        bvk(:,:,:)=zero
        agvk(:,:,:,:)=zero
        wgvk(:,:,:)=zero
+       if(lnobalance) agvk_lm(:,:)=zero
     endif
     
     deallocate (agvi,bvi,wgvi)
@@ -531,7 +548,7 @@ contains
 !$$$
     use constants, only: one,half
     use gsi_4dvar, only: lsqrtb
-    use gridmod, only: regional,lat2,nsig,iglobal,itotsub,lon2
+    use gridmod, only: regional,lat2,nsig,lon2
     use mod_strong, only: tlnmc_option
     implicit none
     
@@ -724,7 +741,7 @@ contains
 !$$$
     use constants,   only: one,half
     use gsi_4dvar,   only: lsqrtb
-    use gridmod,     only: itotsub,regional,iglobal,lon2,lat2,nsig
+    use gridmod,     only: regional,lon2,lat2,nsig
     use mod_strong,  only: tlnmc_option
     implicit none
 
@@ -743,9 +760,9 @@ contains
 !  pass uvflag=.false.
     if(lsqrtb) then
        call strong_bk_ad(st,vp,p,t,.false.)
-     else
+    else
        if(tlnmc_option==1 .or. tlnmc_option==4) call strong_bk_ad(st,vp,p,t,.false.)
-     endif
+    endif
 
 !   REGIONAL BRANCH
     if (regional) then
@@ -941,10 +958,9 @@ contains
                    rllat(i,j)=float(m)
                    llmax=max0(m,llmax)
                    llmin=min0(m,llmin)
-                   go to 1234
+                   exit
                 end if
              end do
-1234         continue
              rllat(i,j)=rllat(i,j)+(region_lat(i,j)-clat_avn(m))/(clat_avn(m1)-clat_avn(m))
           endif
        end do

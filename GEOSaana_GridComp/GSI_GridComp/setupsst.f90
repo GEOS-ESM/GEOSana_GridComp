@@ -1,4 +1,11 @@
-subroutine setupsst(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
+module sst_setup
+  implicit none
+  private
+  public:: setup
+        interface setup; module procedure setupsst; end interface
+
+contains
+subroutine setupsst(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    setupsst    compute rhs for conventional surface sst
@@ -42,7 +49,18 @@ subroutine setupsst(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 !   2011-04-02  li      - set up Tr analysis and modify to save nst analysis related diagnostic variables
 !   2012-04-10  akella  - sstges calculated for nst analysis using NST fields
 !   2013-01-26  parrish - change intrp2a to intrp2a11 (so debug compile works on WCOSS)
+!   2014-01-28  li      - add ntguessfc to use guess_grids to apply intrp2a11 correctly
 !   2014-01-28  todling - write sensitivity slot indicator (ioff) to header of diagfile
+!   2014-12-30  derber - Modify for possibility of not using obsdiag
+!   2015-05-30  li     - Modify to make it work when nst_gsi = 0 and nsstbufr data file exists
+!   2015-10-01  guo   - full res obvsr: index to allow redistribution of obsdiags
+!   2016-05-18  guo     - replaced ob_type with polymorphic obsNode through type casting
+!   2016-06-24  guo     - fixed the default value of obsdiags(:,:)%tail%luse to luse(i)
+!                       . removed (%dlat,%dlon) debris.
+!   2017-02-06  todling - add netcdf_diag capability; hidden as contained code
+!   2017-02-09  guo     - Remove m_alloc, n_alloc.
+!                       . Remove my_node with corrected typecast().
+!   2020-02-26  todling - reset obsbin from hr to min
 !
 !   input argument list:
 !     lunin    - unit from which to read observations
@@ -62,31 +80,49 @@ subroutine setupsst(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   use mpeu_util, only: die,perr
   use kinds, only: r_kind,r_single,r_double,i_kind
 
-  use guess_grids, only: dsfct
-  use obsmod, only: ssthead,ssttail,rmiss_single,i_sst_ob_type,obsdiags,&
+  use guess_grids, only: dsfct,ntguessfc
+  use m_obsdiagNode, only: obs_diag
+  use m_obsdiagNode, only: obs_diags
+  use m_obsdiagNode, only: obsdiagLList_nextNode
+  use m_obsdiagNode, only: obsdiagNode_set
+  use m_obsdiagNode, only: obsdiagNode_get
+  use m_obsdiagNode, only: obsdiagNode_assert
+
+  use obsmod, only: rmiss_single,&
                     lobsdiagsave,nobskeep,lobsdiag_allocated,time_offset
-  use obsmod, only: sst_ob_type
-  use obsmod, only: obs_diag
-  use gsi_4dvar, only: nobs_bins,hr_obsbin
+  use m_obsNode, only: obsNode
+  use m_sstNode, only: sstNode
+  use m_sstNode, only: sstNode_appendto
+  use m_obsLList, only: obsLList
+  use obsmod, only: luse_obsdiag
+  use obsmod, only: netcdf_diag, binary_diag, dirname,ianldate
+  use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
+       nc_diag_write, nc_diag_data2d
+  use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
+  use gsi_4dvar, only: nobs_bins,mn_obsbin
   use oneobmod, only: magoberr,maginnov,oneobtest
-  use gridmod, only: nlat,nlon,istart,jstart,lon1,nsig
+  use gridmod, only: nsig
   use gridmod, only: get_ij
-  use constants, only: zero,tiny_r_kind,one,half,wgtlim, &
-            two,cg_term,pi,huge_single,r1000
+  use constants, only: zero,tiny_r_kind,one,quarter,half,wgtlim, &
+            two,cg_term,pi,huge_single,r1000,tfrozen,r_missing
   use jfunc, only: jiter,last,miter
   use qcmod, only: dfact,dfact1,npres_print
   use convinfo, only: nconvtype,cermin,cermax,cgross,cvar_b,cvar_pg,ictype
   use convinfo, only: icsubtype
-  use radinfo, only: nst_gsi,nstinfo
-  use m_dtime, only: dtime_setup, dtime_check, dtime_show
+  use gsi_nstcouplermod, only: nst_gsi,nstinfo
+  use m_dtime, only: dtime_setup, dtime_check
   implicit none
 
+  integer(i_kind),parameter:: istyp=0,nprep=1
 ! Declare passed variables
+  type(obsLList ),target,dimension(:),intent(in):: obsLL
+  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+
   logical                                          ,intent(in   ) :: conv_diagsave
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
   real(r_kind),dimension(100+7*nsig)               ,intent(inout) :: awork
   real(r_kind),dimension(npres_print,nconvtype,5,3),intent(inout) :: bwork
-  integer(i_kind)                                  ,intent(in   ) :: is	! ndat index
+  integer(i_kind)                                  ,intent(in   ) :: is ! ndat index
 
 ! Declare external calls for code analysis
   external:: intrp2a11
@@ -96,7 +132,7 @@ subroutine setupsst(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   
   real(r_double) rstation_id
 
-  real(r_kind) sstges,dlat,dlon,ddiff,dtime,error,dsfct_obx
+  real(r_kind) sstges,dlat,dlon,ddiff,dtime,error,dsfct_obx,owpct
   real(r_kind) scale,val2,ratio,ressw2,ress,residual
   real(r_kind) obserrlm,obserror,val,valqc
   real(r_kind) term,halfpi,rwgt
@@ -110,36 +146,38 @@ subroutine setupsst(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
 
   real(r_kind) :: tz_tr,zob,tref,dtw,dtc
 
-  integer(i_kind) ier,ilon,ilat,isst,id,itime,ikx,imaxerr,iqc
+  integer(i_kind) ier,ilon,ilat,isst,id,itime,ikx,itemp,ipct
   integer(i_kind) ier2,iuse,izob,itref,idtw,idtc,itz_tr,iotype,ilate,ilone,istnelv
   integer(i_kind) i,nchar,nreal,k,ii,ikxx,nn,isli,ibin,ioff,ioff0,jj
-  integer(i_kind) l,ix,iy,ix1,iy1,ixp,iyp,mm1
-  integer(i_kind) istat,id_qc
+  integer(i_kind) l,mm1
+  integer(i_kind) id_qc
   integer(i_kind) idomsfc,itz
-  integer(i_kind) idatamax
+  integer(i_kind) idatamax,nwsum,nfinal,nobs_qc
   
   logical,dimension(nobs):: luse,muse
+  integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
 
   character(8) station_id
   character(8),allocatable,dimension(:):: cdiagbuf
 
   logical:: in_curbin, in_anybin
-  integer(i_kind),dimension(nobs_bins) :: n_alloc
-  integer(i_kind),dimension(nobs_bins) :: m_alloc
-  type(sst_ob_type),pointer:: my_head
+  type(sstNode),pointer:: my_head
   type(obs_diag),pointer:: my_diag
+  type(obs_diags),pointer:: my_diagLL
+
   integer, parameter:: maxinfo = 20
   character(len=*),parameter:: myname='setupsst'
 
 
   equivalence(rstation_id,station_id)
   
+  type(obsLList),pointer,dimension(:):: ssthead
+  ssthead => obsLL(:)
 
-  n_alloc(:)=0
-  m_alloc(:)=0
 !*********************************************************************************
 ! Read and reformat observations in work arrays.
-  read(lunin)data,luse
+  read(lunin)data,luse,ioid
+
 !  index information for data array (see reading routine)
   ier=1       ! index of obs error
   ilon=2      ! index of grid relative obs location (x)
@@ -148,11 +186,11 @@ subroutine setupsst(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   id=5        ! index of station id
   itime=6     ! index of observation time in data array
   ikxx=7      ! index of ob type
-  imaxerr=8   ! index of sst max error
+  itemp=8     ! index of open water temperature (background)
   izob=9      ! index of flag indicating depth of observation
   iotype=10   ! index of measurement type
-  iqc=11      ! index of qulaity mark
-  ier2=12     ! index of original-original obs error ratio
+  ipct=11     ! index of open water percentage
+  ier2=12     ! index of original obs error
   iuse=13     ! index of use parameter
   idomsfc=14  ! index of dominant surface type
   itz=15      ! index of temperature at depth z (Tz)
@@ -175,6 +213,10 @@ subroutine setupsst(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
   do i=1,nobs
      muse(i)=nint(data(iuse,i)) <= jiter
   end do
+
+  nobs_qc=0
+  nwsum=0
+  nfinal=0
 
   dup=one
   do k=1,nobs
@@ -201,6 +243,7 @@ subroutine setupsst(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
      nreal=ioff0
      if (lobsdiagsave) nreal=nreal+4*miter+1
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
+     if(netcdf_diag) call init_netcdf_diag_
   end if
 
   halfpi = half*pi
@@ -220,104 +263,70 @@ subroutine setupsst(lunin,mype,bwork,awork,nele,nobs,is,conv_diagsave)
       dtw   = data(idtw,i)
       dtc   = data(idtc,i)
       tz_tr = data(itz_tr,i)
+    else
+      tref  = data(itz,i)
+      dtw   = zero
+      dtc   = zero
+      tz_tr = r_missing
     end if
 
-if(in_curbin) then
-     dlat=data(ilat,i)
-     dlon=data(ilon,i)
+    if (in_curbin) then
+       dlat=data(ilat,i)
+       dlon=data(ilon,i)
 
-     ikx  = nint(data(ikxx,i))
-     error=data(ier2,i)
-     isli=data(idomsfc,i)
-endif
+       ikx  = nint(data(ikxx,i))
+       error=data(ier2,i)
+       isli=data(idomsfc,i)
+       owpct=data(ipct,i)
+    endif
 
 !    Link observation to appropriate observation bin
      if (nobs_bins>1) then
-        ibin = NINT( dtime/hr_obsbin ) + 1
+        ibin = NINT( dtime*60/mn_obsbin ) + 1
      else
         ibin = 1
      endif
      IF (ibin<1.OR.ibin>nobs_bins) write(6,*)mype,'Error nobs_bins,ibin= ',nobs_bins,ibin
 
-!    Link obs to diagnostics structure
-     if (.not.lobsdiag_allocated) then
-        if (.not.associated(obsdiags(i_sst_ob_type,ibin)%head)) then
-           allocate(obsdiags(i_sst_ob_type,ibin)%head,stat=istat)
-           if (istat/=0) then
-              write(6,*)'setupsst: failure to allocate obsdiags',istat
-              call stop2(295)
-           end if
-           obsdiags(i_sst_ob_type,ibin)%tail => obsdiags(i_sst_ob_type,ibin)%head
-        else
-           allocate(obsdiags(i_sst_ob_type,ibin)%tail%next,stat=istat)
-           if (istat/=0) then
-              write(6,*)'setupsst: failure to allocate obsdiags',istat
-              call stop2(295)
-           end if
-           obsdiags(i_sst_ob_type,ibin)%tail => obsdiags(i_sst_ob_type,ibin)%tail%next
-        end if
-        allocate(obsdiags(i_sst_ob_type,ibin)%tail%muse(miter+1))
-        allocate(obsdiags(i_sst_ob_type,ibin)%tail%nldepart(miter+1))
-        allocate(obsdiags(i_sst_ob_type,ibin)%tail%tldepart(miter))
-        allocate(obsdiags(i_sst_ob_type,ibin)%tail%obssen(miter))
-        obsdiags(i_sst_ob_type,ibin)%tail%indxglb=i
-        obsdiags(i_sst_ob_type,ibin)%tail%nchnperobs=-99999
-        obsdiags(i_sst_ob_type,ibin)%tail%luse=.false.
-        obsdiags(i_sst_ob_type,ibin)%tail%muse(:)=.false.
-        obsdiags(i_sst_ob_type,ibin)%tail%nldepart(:)=-huge(zero)
-        obsdiags(i_sst_ob_type,ibin)%tail%tldepart(:)=zero
-        obsdiags(i_sst_ob_type,ibin)%tail%wgtjo=-huge(zero)
-        obsdiags(i_sst_ob_type,ibin)%tail%obssen(:)=zero
+     if (luse_obsdiag) my_diagLL => odiagLL(ibin)
 
-        n_alloc(ibin) = n_alloc(ibin) +1
-        my_diag => obsdiags(i_sst_ob_type,ibin)%tail
-        my_diag%idv = is
-        my_diag%iob = i
-        my_diag%ich = 1
-     else
-        if (.not.associated(obsdiags(i_sst_ob_type,ibin)%tail)) then
-           obsdiags(i_sst_ob_type,ibin)%tail => obsdiags(i_sst_ob_type,ibin)%head
-        else
-           obsdiags(i_sst_ob_type,ibin)%tail => obsdiags(i_sst_ob_type,ibin)%tail%next
-        end if
-        if (obsdiags(i_sst_ob_type,ibin)%tail%indxglb/=i) then
-           write(6,*)'setupsst: index error'
-           call stop2(297)
-        end if
+!    Link obs to diagnostics structure
+     if (luse_obsdiag) then
+        my_diag => obsdiagLList_nextNode(my_diagLL      ,&
+                create = .not.lobsdiag_allocated        ,&
+                   idv = is             ,&
+                   iob = ioid(i)        ,&
+                   ich = 1              ,&
+                  elat = data(ilate,i)  ,&
+                  elon = data(ilone,i)  ,&
+                  luse = luse(i)        ,&
+                 miter = miter          )
+
+        if(.not.associated(my_diag)) call die(myname, &
+                'obsdiagLList_nextNode(), create =', .not.lobsdiag_allocated)
      endif
 
-if(.not.in_curbin) cycle
+     if(.not.in_curbin) cycle
 
 ! Interpolate to get sst at obs location/time
-     call intrp2a11(dsfct,dsfct_obx,dlat,dlon,mype)
-     if(nst_gsi > 1) then
-       sstges = max(tref+dtw-dtc+dsfct_obx, 271.0_r_kind)
+     if ( isli == 0 ) then
+       nobs_qc = nobs_qc + 1
+       call intrp2a11(dsfct(1,1,ntguessfc),dsfct_obx,dlat,dlon,mype)
      else
-       sstges = max(data(itz,i)+dsfct_obx, 271.0_r_kind)
+       dsfct_obx = zero
+     endif
+
+     if(nst_gsi > 1) then
+       sstges = max(tref+dtw-dtc+dsfct_obx, tfrozen)
+     else
+       sstges = max(data(itz,i)+dsfct_obx, tfrozen)
      end if
+
 ! Adjust observation error
      ratio_errors=error/data(ier,i)
      error=one/error
 
-!    Check to ensure point surrounded by water
-     ix1=dlat; iy1=dlon
-     ix1=max(1,min(ix1,nlat))
-     ix=ix1-istart(mm1)+2; iy=iy1-jstart(mm1)+2
-     if(iy<1) then
-        iy1=iy1+nlon
-        iy=iy1-jstart(mm1)+2
-     end if
-     if(iy>lon1+1) then
-        iy1=iy1-nlon
-        iy=iy1-jstart(mm1)+2
-     end if
-     ixp=ix+1; iyp=iy+1
-     if(ix1==nlat) then
-        ixp=ix
-     end if
- 
-     if(isli > 0 ) error = zero
-
+     if(owpct == 0 ) error = zero
 
      ddiff=data(isst,i)-sstges
 
@@ -343,7 +352,7 @@ if(.not.in_curbin) cycle
      end if
 
      if (ratio_errors*error <=tiny_r_kind) muse(i)=.false.
-     if (nobskeep>0) muse(i)=obsdiags(i_sst_ob_type,ibin)%tail%muse(nobskeep)
+     if (nobskeep>0.and.luse_obsdiag) call obsdiagNode_get(my_diag, jiter=nobskeep, muse=muse(i))
 
 !    Compute penalty terms (linear & nonlinear qc).
      val      = error*ddiff
@@ -390,56 +399,42 @@ if(.not.in_curbin) cycle
 
      endif
 
-     obsdiags(i_sst_ob_type,ibin)%tail%luse=luse(i)
-     obsdiags(i_sst_ob_type,ibin)%tail%muse(jiter)=muse(i)
-     obsdiags(i_sst_ob_type,ibin)%tail%nldepart(jiter)=ddiff
-     obsdiags(i_sst_ob_type,ibin)%tail%wgtjo= (error*ratio_errors)**2
+     if(luse_obsdiag)then
+        call obsdiagNode_set(my_diag, wgtjo=(error*ratio_errors)**2, &
+           jiter=jiter, muse=muse(i), nldepart=ddiff)
+     end if
 
 !    If obs is "acceptable", load array with obs info for use
 !    in inner loop minimization (int* and stp* routines)
      if (.not. last .and. muse(i)) then
 
-        if(.not. associated(ssthead(ibin)%head))then
-           allocate(ssthead(ibin)%head,stat=istat)
-           if(istat /= 0)write(6,*)' failure to write ssthead '
-           ssttail(ibin)%head => ssthead(ibin)%head
-        else
-           allocate(ssttail(ibin)%head%llpoint,stat=istat)
-           if(istat /= 0)write(6,*)' failure to write ssttail%llpoint '
-           ssttail(ibin)%head => ssttail(ibin)%head%llpoint
-        end if
+        allocate(my_head)
+        call sstNode_appendto(my_head,ssthead(ibin))
 
-        m_alloc(ibin) = m_alloc(ibin) + 1
-        my_head => ssttail(ibin)%head
         my_head%idv = is
-        my_head%iob = i
+        my_head%iob = ioid(i)
+        my_head%elat= data(ilate,i)
+        my_head%elon= data(ilone,i)
 
 !       Set (i,j) indices of guess gridpoint that bound obs location
-        call get_ij(mm1,dlat,dlon,ssttail(ibin)%head%ij(1),ssttail(ibin)%head%wij(1))
+        call get_ij(mm1,dlat,dlon,my_head%ij,my_head%wij)
 
-        ssttail(ibin)%head%res     = ddiff
-        ssttail(ibin)%head%err2    = error**2
-        ssttail(ibin)%head%raterr2 = ratio_errors**2    
-        ssttail(ibin)%head%time    = dtime
-        ssttail(ibin)%head%zob     = zob
-        if (nst_gsi > 0 ) then
-           ssttail(ibin)%head%tz_tr   = tz_tr
-        end if
-        ssttail(ibin)%head%b       = cvar_b(ikx)
-        ssttail(ibin)%head%pg      = cvar_pg(ikx)
-        ssttail(ibin)%head%luse    = luse(i)
-        ssttail(ibin)%head%diags => obsdiags(i_sst_ob_type,ibin)%tail
- 
-        my_head => ssttail(ibin)%head
-        my_diag => ssttail(ibin)%head%diags
-        if(my_head%idv /= my_diag%idv .or. &
-           my_head%iob /= my_diag%iob ) then
-           call perr(myname,'mismatching %[head,diags]%(idv,iob,ibin) =', &
-                 (/is,i,ibin/))
-           call perr(myname,'my_head%(idv,iob) =',(/my_head%idv,my_head%iob/))
-           call perr(myname,'my_diag%(idv,iob) =',(/my_diag%idv,my_diag%iob/))
-           call die(myname)
+        my_head%res     = ddiff
+        my_head%err2    = error**2
+        my_head%raterr2 = ratio_errors**2    
+        my_head%time    = dtime
+        my_head%zob     = zob
+        my_head%tz_tr   = tz_tr
+        my_head%b       = cvar_b(ikx)
+        my_head%pg      = cvar_pg(ikx)
+        my_head%luse    = luse(i)
+
+        if (luse_obsdiag) then
+           call obsdiagNode_assert(my_diag, my_head%idv,my_head%iob,1, myname,'my_diag:my_head')
+           my_head%diags => my_diag
         endif
+
+        my_head => null()
      endif
 
 
@@ -447,27 +442,6 @@ if(.not.in_curbin) cycle
      if(conv_diagsave .and. luse(i))then
         ii=ii+1
         rstation_id     = data(id,i)
-        cdiagbuf(ii)    = station_id         ! station id
- 
-        rdiagbuf(1,ii)  = ictype(ikx)        ! observation type
-        rdiagbuf(2,ii)  = icsubtype(ikx)     ! observation subtype
- 
-        rdiagbuf(3,ii)  = data(ilate,i)      ! observation latitude (degrees)
-        rdiagbuf(4,ii)  = data(ilone,i)      ! observation longitude (degrees)
-        rdiagbuf(5,ii)  = data(istnelv,i)    ! station elevation (meters)
-        rdiagbuf(6,ii)  = rmiss_single       ! observation pressure (hPa)
-        rdiagbuf(7,ii)  = data(izob,i)       ! observation depth (meters)
-        rdiagbuf(8,ii)  = dtime-time_offset  ! obs time (hours relative to analysis time)
-
-        rdiagbuf(9,ii)  = data(iqc,i)        ! input prepbufr qc or event mark
-        rdiagbuf(10,ii) = id_qc              ! setup qc or event mark
-        rdiagbuf(11,ii) = data(iuse,i)       ! read_prepbufr data usage flag
-        if(muse(i)) then
-           rdiagbuf(12,ii) = one             ! analysis usage flag (1=use, -1=not used)
-        else
-           rdiagbuf(12,ii) = -one
-        endif
-
         err_input = data(ier2,i)
         err_adjst = data(ier,i)
         if (ratio_errors*error>tiny_r_kind) then
@@ -482,6 +456,80 @@ if(.not.in_curbin) cycle
         if (err_input>tiny_r_kind) errinv_input = one/err_input
         if (err_adjst>tiny_r_kind) errinv_adjst = one/err_adjst
         if (err_final>tiny_r_kind) errinv_final = one/err_final
+ 
+        if (binary_diag) call contents_binary_diag_(my_diag)
+        if (netcdf_diag) call contents_netcdf_diag_(my_diag)
+     end if
+
+  end do                    ! do i=1,nobs
+
+! Write information to diagnostic file
+  if(conv_diagsave)then
+     if(netcdf_diag) call nc_diag_write
+     if(binary_diag .and. ii>0)then
+        write(7)'sst',nchar,nreal,ii,mype,ioff0
+        write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
+        deallocate(cdiagbuf,rdiagbuf)
+     end if
+  end if
+
+! End of routine
+
+contains
+  subroutine init_netcdf_diag_
+  character(len=80) string
+  character(len=128) diag_conv_file
+  integer(i_kind) ncd_fileid,ncd_nobs
+  logical append_diag
+  logical,parameter::verbose=.false. 
+     write(string,900) jiter
+900  format('conv_sst_',i2.2,'.nc4')
+     diag_conv_file=trim(dirname) // trim(string)
+
+     inquire(file=diag_conv_file, exist=append_diag)
+
+     if (append_diag) then
+        call nc_diag_read_init(diag_conv_file,ncd_fileid)
+        ncd_nobs = nc_diag_read_get_dim(ncd_fileid,'nobs')
+        call nc_diag_read_close(diag_conv_file)
+
+        if (ncd_nobs > 0) then
+           if(verbose) print *,'file ' // trim(diag_conv_file) // ' exists.  Appending.  nobs,mype=',ncd_nobs,mype
+        else
+           if(verbose) print *,'file ' // trim(diag_conv_file) // ' exists but contains no obs.  Not appending. nobs,mype=',ncd_nobs,mype
+           append_diag = .false. ! if there are no obs in existing file, then do not try to append
+        endif
+     end if
+
+     call nc_diag_init(diag_conv_file, append=append_diag)
+
+     if (.not. append_diag) then ! don't write headers on append - the module will break?
+        call nc_diag_header("date_time",ianldate )
+     endif
+  end subroutine init_netcdf_diag_
+  subroutine contents_binary_diag_(odiag)
+  type(obs_diag),pointer,intent(in):: odiag
+        cdiagbuf(ii)    = station_id         ! station id
+ 
+        rdiagbuf(1,ii)  = ictype(ikx)        ! observation type
+        rdiagbuf(2,ii)  = icsubtype(ikx)     ! observation subtype
+ 
+        rdiagbuf(3,ii)  = data(ilate,i)      ! observation latitude (degrees)
+        rdiagbuf(4,ii)  = data(ilone,i)      ! observation longitude (degrees)
+        rdiagbuf(5,ii)  = data(istnelv,i)    ! station elevation (meters)
+        rdiagbuf(6,ii)  = data(itemp,i)      ! background open water temperature (K)
+        rdiagbuf(7,ii)  = data(izob,i)       ! observation depth (meters)
+        rdiagbuf(8,ii)  = dtime-time_offset  ! obs time (hours relative to analysis time)
+
+        rdiagbuf(9,ii)  = data(ipct,i)       ! open water percentage (0 to 1)
+        rdiagbuf(10,ii) = id_qc              ! setup qc or event mark
+        rdiagbuf(11,ii) = data(iuse,i)       ! read_prepbufr data usage flag
+        if(muse(i)) then
+           rdiagbuf(12,ii) = one             ! analysis usage flag (1=use, -1=not used)
+        else
+           rdiagbuf(12,ii) = -one
+        endif
+
 
         rdiagbuf(13,ii) = rwgt               ! nonlinear qc relative weight
         rdiagbuf(14,ii) = errinv_input       ! prepbufr inverse obs error (K**-1)
@@ -494,18 +542,18 @@ if(.not.in_curbin) cycle
  
         rdiagbuf(20,ii) = data(iotype,i)     ! type of measurement
 
-        if ( nst_gsi > 0 ) then
-          rdiagbuf(21,ii) = data(itref,i)    ! Tr
-          rdiagbuf(22,ii) = data(idtw,i)     ! dt_warm at zob
-          rdiagbuf(23,ii) = data(idtc,i)     ! dt_cool at zob
-          rdiagbuf(24,ii) = data(itz_tr,i)   ! d(tz)/d(Tr) at zob
+        if (nst_gsi>0) then
+          rdiagbuf(maxinfo+1,ii) = data(itref,i)    ! Tr
+          rdiagbuf(maxinfo+2,ii) = data(idtw,i)     ! dt_warm at zob
+          rdiagbuf(maxinfo+3,ii) = data(idtc,i)     ! dt_cool at zob
+          rdiagbuf(maxinfo+4,ii) = data(itz_tr,i)   ! d(tz)/d(Tr) at zob
         endif
 
         ioff=ioff0
         if (lobsdiagsave) then
            do jj=1,miter 
               ioff=ioff+1 
-              if (obsdiags(i_sst_ob_type,ibin)%tail%muse(jj)) then
+              if (odiag%muse(jj)) then
                  rdiagbuf(ioff,ii) = one
               else
                  rdiagbuf(ioff,ii) = -one
@@ -513,32 +561,67 @@ if(.not.in_curbin) cycle
            enddo
            do jj=1,miter+1
               ioff=ioff+1
-              rdiagbuf(ioff,ii) = obsdiags(i_sst_ob_type,ibin)%tail%nldepart(jj)
+              rdiagbuf(ioff,ii) = odiag%nldepart(jj)
            enddo
            do jj=1,miter
               ioff=ioff+1
-              rdiagbuf(ioff,ii) = obsdiags(i_sst_ob_type,ibin)%tail%tldepart(jj)
+              rdiagbuf(ioff,ii) = odiag%tldepart(jj)
            enddo
            do jj=1,miter
               ioff=ioff+1
-              rdiagbuf(ioff,ii) = obsdiags(i_sst_ob_type,ibin)%tail%obssen(jj)
+              rdiagbuf(ioff,ii) = odiag%obssen(jj)
            enddo
         endif
+  end subroutine contents_binary_diag_
+  subroutine contents_netcdf_diag_(odiag)
+  type(obs_diag),pointer,intent(in):: odiag
+! Observation class
+  character(7),parameter     :: obsclass = '    sst'
+  real(r_single),parameter::     missing = -9.99e9_r_single
+  real(r_kind),dimension(miter) :: obsdiag_iuse
+           call nc_diag_metadata("Station_ID",              station_id             )
+           call nc_diag_metadata("Observation_Class",       obsclass               )
+           call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
+           call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
+           call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
+           call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
+           call nc_diag_metadata("Station_Elevation",       sngl(data(istnelv,i))  )
+           call nc_diag_metadata("Pressure",                missing                )
+           call nc_diag_metadata("Height",                  sngl(data(izob,i))     )
+           call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
+           call nc_diag_metadata("Prep_QC_Mark",            sngl(data(ipct,i))     )
+           call nc_diag_metadata("Prep_Use_Flag",           sngl(data(iuse,i))     )
+!          call nc_diag_metadata("Nonlinear_QC_Var_Jb",     var_jb                 )
+           call nc_diag_metadata("Nonlinear_QC_Rel_Wgt",    sngl(rwgt)             )                 
+           if(muse(i)) then
+              call nc_diag_metadata("Analysis_Use_Flag",    sngl(one)              )
+           else
+              call nc_diag_metadata("Analysis_Use_Flag",    sngl(-one)             )              
+           endif
+
+           call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)     )
+           call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
+           call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
+
+           call nc_diag_metadata("Observation",                   sngl(data(isst,i)) )
+           call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(ddiff)      )
+           call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(data(isst,i)-sstges) )
  
-     end if
-
-
-  end do
-
-
-! Write information to diagnostic file
-  if(conv_diagsave .and. ii>0)then
-     call dtime_show(myname,'diagsave:sst',i_sst_ob_type)
-     write(7)'sst',nchar,nreal,ii,mype,ioff0
-     write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
-     deallocate(cdiagbuf,rdiagbuf)
-  end if
-
-! End of routine
+           if (lobsdiagsave) then
+              do jj=1,miter
+                 if (odiag%muse(jj)) then
+                       obsdiag_iuse(jj) =  one
+                 else
+                       obsdiag_iuse(jj) = -one
+                 endif
+              enddo
+   
+              call nc_diag_data2d("ObsDiagSave_iuse",     obsdiag_iuse                             )
+              call nc_diag_data2d("ObsDiagSave_nldepart", odiag%nldepart )
+              call nc_diag_data2d("ObsDiagSave_tldepart", odiag%tldepart )
+              call nc_diag_data2d("ObsDiagSave_obssen",   odiag%obssen   )             
+           endif
+   
+  end subroutine contents_netcdf_diag_
 end subroutine setupsst
-
+end module sst_setup

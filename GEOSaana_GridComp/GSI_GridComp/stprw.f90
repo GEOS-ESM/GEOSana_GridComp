@@ -13,6 +13,7 @@ module stprwmod
 !   2008-12-02  Todling - remove stprw_tl
 !   2009-08-12  lueken - update documentation
 !   2010-05-13  todling - uniform interface across stp routines
+!   2016-05-18  guo     - replaced ob_type with polymorphic obsNode through type casting
 !
 ! subroutines included:
 !   sub stprw
@@ -56,13 +57,20 @@ subroutine stprw(rwhead,rval,sval,out,sges,nstep)
 !   2008-12-03  todling - changed handling of ptr%time
 !   2010-01-04  zhang,b - bug fix: accumulate penalty for multiple obs bins
 !   2010-05-13  todling - update to use gsi_bundle
+!   2017-05-12  Y. Wang and X. Wang - include w into adjoint of rw operator,
+!                                     POC: xuguang.wang@ou.edu
+!   2016-06-23  lippi   - add terms for vertical velocity, uses include_w, and
+!                         now multiplying by costilt here instead of being
+!                         factored into the wij term.
 !
 !   input argument list:
 !     rwhead
 !     ru       - search direction for u
 !     rv       - search direction for v
+!     rw       - search direction for w
 !     su       - analysis increment for u
 !     sv       - analysis increment for v
+!     sw       - analysis increment for w
 !     sges     - step size estimates (nstep)
 !     nstep    - number of step sizes (== 0 means use outer iteration value)
 !
@@ -75,34 +83,35 @@ subroutine stprw(rwhead,rval,sval,out,sges,nstep)
 !
 !$$$
   use kinds, only: r_kind,i_kind,r_quad
-  use obsmod, only: rw_ob_type
   use qcmod, only: nlnqc_iter,varqc_iter
   use constants, only: half,one,two,tiny_r_kind,cg_term,zero_quad,r3600
-  use gridmod, only: latlon1n
-  use jfunc, only: l_foto,xhat_dt,dhat_dt
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
+  use m_obsNode, only: obsNode
+  use m_rwNode , only: rwNode
+  use m_rwNode , only: rwNode_typecast
+  use m_rwNode , only: rwNode_nextcast
+
   implicit none
 
 ! Declare passed variables
-  type(rw_ob_type),pointer            ,intent(in   ) :: rwhead
+  class(obsNode), pointer             ,intent(in   ) :: rwhead
   integer(i_kind)                     ,intent(in   ) :: nstep
   real(r_quad),dimension(max(1,nstep)),intent(inout) :: out
   type(gsi_bundle)                    ,intent(in   ) :: rval,sval
   real(r_kind),dimension(max(1,nstep)),intent(in   ) :: sges
 
 ! Declare local variables
+  logical include_w
   integer(i_kind) ier,istatus
   integer(i_kind) j1,j2,j3,j4,j5,j6,j7,j8,kk
-  real(r_kind) valrw,facrw,w1,w2,w3,w4,w5,w6,w7,w8,time_rw
-  real(r_kind) cg_rw,rw,wgross,wnotgross
+  real(r_kind) valrw,facrw,w1,w2,w3,w4,w5,w6,w7,w8
+  real(r_kind) cg_rw,r,wgross,wnotgross
   real(r_kind),dimension(max(1,nstep))::pen
   real(r_kind) pg_rw
-  real(r_kind),pointer,dimension(:) :: xhat_dt_u,xhat_dt_v
-  real(r_kind),pointer,dimension(:) :: dhat_dt_u,dhat_dt_v
-  real(r_kind),pointer,dimension(:) :: su,sv
-  real(r_kind),pointer,dimension(:) :: ru,rv
-  type(rw_ob_type), pointer :: rwptr
+  real(r_kind),pointer,dimension(:) :: su,sv,sw
+  real(r_kind),pointer,dimension(:) :: ru,rv,rw
+  type(rwNode), pointer :: rwptr
 
   out=zero_quad
 
@@ -114,17 +123,24 @@ subroutine stprw(rwhead,rval,sval,out,sges,nstep)
   ier=0
   call gsi_bundlegetpointer(sval,'u',su,istatus);ier=istatus+ier
   call gsi_bundlegetpointer(sval,'v',sv,istatus);ier=istatus+ier
+  call gsi_bundlegetpointer(sval,'w',sw,istatus)
+  if (istatus==0) then
+     include_w=.true.
+  else
+     include_w=.false.
+  end if
   call gsi_bundlegetpointer(rval,'u',ru,istatus);ier=istatus+ier
   call gsi_bundlegetpointer(rval,'v',rv,istatus);ier=istatus+ier
-  if(l_foto) then
-     call gsi_bundlegetpointer(xhat_dt,'u',xhat_dt_u,istatus);ier=istatus+ier
-     call gsi_bundlegetpointer(xhat_dt,'v',xhat_dt_v,istatus);ier=istatus+ier
-     call gsi_bundlegetpointer(dhat_dt,'u',dhat_dt_u,istatus);ier=istatus+ier
-     call gsi_bundlegetpointer(dhat_dt,'v',dhat_dt_v,istatus);ier=istatus+ier
-  endif
+  call gsi_bundlegetpointer(rval,'w',rw,istatus)
+  if (istatus==0) then
+     include_w=.true.
+  else
+     include_w=.false.
+  end if
+
   if(ier/=0)return
 
-  rwptr => rwhead
+  rwptr => rwNode_typecast(rwhead)
   do while (associated(rwptr))
      if(rwptr%luse)then
         if(nstep > 0)then
@@ -144,37 +160,34 @@ subroutine stprw(rwhead,rval,sval,out,sges,nstep)
            w6=rwptr%wij(6)
            w7=rwptr%wij(7)
            w8=rwptr%wij(8)
-           valrw=(w1* ru(j1)+w2* ru(j2)+w3* ru(j3)+w4* ru(j4)+              &
-                  w5* ru(j5)+w6* ru(j6)+w7* ru(j7)+w8* ru(j8))*rwptr%cosazm+&
-                 (w1* rv(j1)+w2* rv(j2)+w3* rv(j3)+w4* rv(j4)+              &
-                  w5* rv(j5)+w6* rv(j6)+w7* rv(j7)+w8* rv(j8))*rwptr%sinazm
-           facrw=(w1* su(j1)+w2* su(j2)+w3* su(j3)+w4* su(j4)+              &
-                  w5* su(j5)+w6* su(j6)+w7* su(j7)+w8* su(j8))*rwptr%cosazm+&
-                 (w1* sv(j1)+w2* sv(j2)+w3* sv(j3)+w4* sv(j4)+              &
-                  w5* sv(j5)+w6* sv(j6)+w7* sv(j7)+w8* sv(j8))*rwptr%sinazm-&
-                  rwptr%res
-           if(l_foto) then
-              time_rw=rwptr%time*r3600
-              valrw=valrw+((w1*dhat_dt_u(j1)+w2*dhat_dt_u(j2)+ &
-                            w3*dhat_dt_u(j3)+w4*dhat_dt_u(j4)+              &
-                            w5*dhat_dt_u(j5)+w6*dhat_dt_u(j6)+ &
-                            w7*dhat_dt_u(j7)+w8*dhat_dt_u(j8))*rwptr%cosazm+&
-                           (w1*dhat_dt_v(j1)+w2*dhat_dt_v(j2)+ &
-                            w3*dhat_dt_v(j3)+w4*dhat_dt_v(j4)+              &
-                            w5*dhat_dt_v(j5)+w6*dhat_dt_v(j6)+ &
-                            w7*dhat_dt_v(j7)+w8*dhat_dt_v(j8))*rwptr%sinazm)*time_rw
-              facrw=facrw+((w1*xhat_dt_u(j1)+w2*xhat_dt_u(j2)+ &
-                            w3*xhat_dt_u(j3)+w4*xhat_dt_u(j4)+              &
-                            w5*xhat_dt_u(j5)+w6*xhat_dt_u(j6)+ &
-                            w7*xhat_dt_u(j7)+w8*xhat_dt_u(j8))*rwptr%cosazm+&
-                           (w1*xhat_dt_v(j1)+w2*xhat_dt_v(j2)+ &
-                            w3*xhat_dt_v(j3)+w4*xhat_dt_v(j4)+              &
-                            w5*xhat_dt_v(j5)+w6*xhat_dt_v(j6)+ &
-                            w7*xhat_dt_v(j7)+w8*xhat_dt_v(j8))*rwptr%sinazm)*time_rw  
+
+!          Gradient
+           valrw=(w1*ru(j1)+ w2*ru(j2)+ w3*ru(j3)+ &
+                  w4*ru(j4)+ w5*ru(j5)+ w6*ru(j6)+ &
+                  w7*ru(j7)+ w8*ru(j8))*rwptr%cosazm_costilt+ &
+                 (w1*rv(j1)+ w2*rv(j2)+ w3*rv(j3)+ &
+                  w4*rv(j4)+ w5*rv(j5)+ w6*rv(j6)+ &
+                  w7*rv(j7)+ w8*rv(j8))*rwptr%sinazm_costilt
+           if(include_w) then
+              valrw=valrw+(w1*rw(j1)+ w2*rw(j2)+ w3*rw(j3)+ &
+                           w4*rw(j4)+ w5*rw(j5)+ w6*rw(j6)+ &
+                           w7*rw(j7)+w8*rw(j8))*rwptr%sintilt
            end if
+
+!          Gradient - residual
+            facrw=(w1* su(j1)+w2* su(j2)+w3* su(j3)+w4* su(j4)+w5* su(j5)+  &
+                   w6* su(j6)+w7* su(j7)+w8* su(j8))*rwptr%cosazm_costilt+  &
+                  (w1* sv(j1)+w2* sv(j2)+w3* sv(j3)+w4* sv(j4)+w5* sv(j5)+  &
+                   w6* sv(j6)+w7* sv(j7)+w8* sv(j8))*rwptr%sinazm_costilt
+           if(include_w) then
+              facrw=facrw+(w1*sw(j1)+ w2*sw(j2)+ w3*sw(j3)+ w4*sw(j4)+w5*sw(j5)+&
+                           w6*sw(j6)+ w7*sw(j7)+ w8*sw(j8))*rwptr%sintilt
+           end if
+           facrw=facrw-rwptr%res
+
            do kk=1,nstep
-              rw=facrw+sges(kk)*valrw
-              pen(kk)=rw*rw*rwptr%err2
+              r=facrw+sges(kk)*valrw
+              pen(kk)=r*r*rwptr%err2
            end do
         else
            pen(1)=rwptr%res*rwptr%res*rwptr%err2
@@ -198,7 +211,7 @@ subroutine stprw(rwhead,rval,sval,out,sges,nstep)
         end do
      end if
 
-     rwptr => rwptr%llpoint
+     rwptr => rwNode_nextcast(rwptr)
 
   end do
   return
