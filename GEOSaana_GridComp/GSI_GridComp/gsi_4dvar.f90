@@ -24,7 +24,7 @@ module gsi_4dvar
 !   2015-02-23 Rancic/Thomas - iwinbgn changed from hours to mins, added thin4d
 !                         option to remove thinning in time       
 !   2015-10-01 Guo      - trigger for redistribution of obs when applicable
-!   2017-05-06 todling  - add tau_fcst to determine EFSOI-like calculation
+!   2017-05-06 todling  - add tau_fcst to determine EnVarFSOI-like calculation
 !   2020-02-26 todling  - obsbin time now in minutes
 !
 ! Subroutines Included:
@@ -119,9 +119,9 @@ module gsi_4dvar
   public :: lwrite4danl,thin4d,nhr_anal
   public :: mPEs_observer
   public :: tau_fcst
-  public :: efsoi_order
-  public :: efsoi_afcst
-  public :: efsoi_ana
+  public :: evfsoi_order
+  public :: evfsoi_afcst
+  public :: evfsoi_ana
 
   logical         :: l4dvar
   logical         :: lsqrtb
@@ -140,8 +140,8 @@ module gsi_4dvar
   logical         :: lnested_loops
   logical         :: lwrite4danl
   logical         :: thin4d
-  logical         :: efsoi_afcst
-  logical         :: efsoi_ana
+  logical         :: evfsoi_afcst
+  logical         :: evfsoi_ana
 
   integer(i_kind),dimension(21) ::  nhr_anal
 
@@ -157,7 +157,7 @@ module gsi_4dvar
   integer(i_kind) :: ens_nstarthr,ibin_anl
   integer(i_kind),allocatable,dimension(:) :: ens_fmnlevs
   integer(i_kind) :: tau_fcst
-  integer(i_kind) :: efsoi_order
+  integer(i_kind) :: evfsoi_order
 
   integer(i_kind),save:: mPEs_observer=0
 
@@ -227,10 +227,10 @@ thin4d = .false.
 ! if > 0, output specific fcst time given by nhr_anal
 nhr_anal = 0 
 
-tau_fcst = -1          ! ensemble of forecast at hour current+tau_fcst 
-efsoi_order = 1        ! order of appox used in EFSOI-like settings
-efsoi_afcst = .false.  ! internal EFSOI-like parameter (NEVER to be in namelist)
-efsoi_ana   = .false.  ! internal EFSOI-like parameter (NEVER to be in namelist)
+tau_fcst = -1           ! ensemble of forecast at hour current+tau_fcst 
+evfsoi_order = 1        ! order of appox used in EnVarFSOI-like settings
+evfsoi_afcst = .false.  ! internal EnVarFSOI-like parameter (NEVER to be in namelist)
+evfsoi_ana   = .false.  ! internal EnVarFSOI-like parameter (NEVER to be in namelist)
 
 end subroutine init_4dvar
 ! --------------------------------------------------------------------

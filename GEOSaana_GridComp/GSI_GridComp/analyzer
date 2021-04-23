@@ -550,8 +550,9 @@ sub init {
                $tau_fcst = `nmlread.py $rcname SETUP tau_fcst`; chomp($tau_fcst);
                if ( $tau_fcst > 0 ) {
                   if ( -e "$fvwork/atmens_eprg.acq" ) {
-                     my ($nymd_fcst, $nhms_fcst) = ( tick($nymd,$nhms,($tau_fcst-6)*3600) ); # tick time tau-6 (since Xfb are stored 6-hr earlier)
-                     $cmd = "acquire_atmens.csh $expid $nymd_fcst $nhms_fcst $fvwork/atmens_eprg.acq";
+#                    my ($nymd_fcst, $nhms_fcst) = ( tick($nymd,$nhms,($tau_fcst-6)*3600) ); # tick time tau-6 (since Xfb are stored 6-hr earlier)
+#                    $cmd = "acquire_atmens.csh $expid $nymd_fcst $nhms_fcst $fvwork/atmens_eprg.acq";
+                     $cmd = "acquire_atmens.csh $expid $nymd      $nhms      $fvwork/atmens_eprg.acq";
                      print " $cmd\n";
                      $rc = System($cmd, "$log_ana","acquire_atmens.csh");
                      if ( $rc ) {
