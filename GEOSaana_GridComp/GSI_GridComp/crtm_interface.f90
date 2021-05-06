@@ -521,7 +521,7 @@ subroutine init_crtm(init_pass,mype_diaghdr,mype,nchanl,nreal,isis,obstype,radmo
    isazi_ang2= 37  ! index of solar azimuth angle (degrees)
    icount = isazi_ang2
    if(dval_use) icount=icount+2
- else if  ( obstype == 'amsr2' ) then
+ else if  ( obstype == 'amsr2' .or. obstype == 'amsre' ) then
    icount=ilate+2
  endif
 
@@ -1990,10 +1990,13 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
         auxrh(k)      =rh(kk2)
      endif
 
+     ! total column q, tpwc_guess
+     kgkg_kgm2=(atmosphere(1)%level_pressure(k)-atmosphere(1)%level_pressure(k-1))*r100/grav
+     if(present(tpwc_guess)) tpwc_guess = tpwc_guess + q(kk2)*kgkg_kgm2
+
 ! Include cloud guess profiles in mw radiance computation
 
      if (n_clouds_fwd_wk>0) then
-        kgkg_kgm2=(atmosphere(1)%level_pressure(k)-atmosphere(1)%level_pressure(k-1))*r100/grav
         if (cw_cv.or.ql_cv) then
           if (icmask) then 
               c6(k) = kgkg_kgm2
@@ -2012,7 +2015,6 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
               end if
 
               ! total column q, tpw
-              if(present(tpwc_guess)) tpwc_guess = tpwc_guess + q(kk2)*c6(k)
               clw_guess = clw_guess +  cloud_cont(k,1)
               ciw_guess = ciw_guess +  cloud_cont(k,2)
               if(n_clouds_fwd_wk > 2) rain_guess = rain_guess +  cloud_cont(k,3)

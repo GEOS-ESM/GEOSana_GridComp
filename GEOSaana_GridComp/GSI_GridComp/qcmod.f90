@@ -958,8 +958,9 @@ end subroutine tz_retrieval
 subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
      temp,wmix,ts,pems,ierrret,kraintype,tpwc,clw,sgagl,tzbgr,   &
      tbc,tbcnob,tb_ges,tnoise,ssmi,amsre_low,amsre_mid,amsre_hig,ssmis, &
-     varinv,errf,aivals,id_qc)
-!    varinv,errf,aivals,id_qc,radmod) ! all-sky
+     tmi,amsre,sfc_speed,frac_sea,iscan_edge, &
+!    varinv,errf,aivals,id_qc)
+     varinv,errf,aivals,id_qc,radmod,clw_guess_retrieval) ! all-sky
 
 !$$$ subprogram documentation block
 !               .      .    .
@@ -992,6 +993,10 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
 !      6) realx the qc criteria for the data at channels from 1 to 2
 !      7) add two references
 !     2013-02-13  eliu     - tighten up the qc criteria for ssmis
+!     2014-06-02  j.jin/MJ Kim    - add ifail_scanedge_qc. applies only to TMI
+!     2014-06-03  j.jin    - apply this to tmi (images).
+!     2014-10-10  Akella & Jin    - add sfc_speed (wind speed) so as to QC obs at (high) wind speed locations
+!     2014-11-18  Jin    & Akella - add qc based on surface height. Over Sea, surface height is strictly = 0.
 !
 ! input argument list:
 !     nchanl  - number of channels per obs
@@ -1018,6 +1023,8 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
 !     amsre_low   - logical true if amsre_low is processed 
 !     amsre_mid   - logical true if amsre_mid is processed 
 !     amsre_hig   - logical true if amsre_hig is processed 
+!     sfc_speed   - surface wind speed (10m)
+!     frac_sea     - fraction of grid box covered with water
 !
 ! NOTE! if retrieved clw/tpwc not available over ocean,set -9.99e+11, 
 !       but 0 over land/mixed/ice
@@ -1060,9 +1067,13 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
   integer(i_kind),dimension(nchanl),intent(in   ) :: ich
   integer(i_kind)                  ,intent(in   ) :: kraintype,ierrret
   integer(i_kind),dimension(nchanl),intent(inout) :: id_qc
+  integer(i_kind)                  ,intent(in   ) :: iscan_edge 
 
   logical                          ,intent(in   ) :: sea,mixed,luse
   logical                          ,intent(in   ) :: ssmi,amsre_low,amsre_mid,amsre_hig,ssmis
+  logical                          ,intent(in   ) :: tmi
+  logical                          ,intent(in   ) :: amsre
+  real(r_kind)                     ,intent(in   ) :: sfc_speed,frac_sea
 
   real(r_kind)                     ,intent(in   ) :: sfchgt,tpwc,clw,sgagl,tzbgr
   real(r_kind)   ,dimension(nchanl),intent(in   ) :: ts,pems,tnoise
@@ -1071,6 +1082,9 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
 
   real(r_kind)   ,dimension(nchanl),intent(inout) :: varinv,errf
   real(r_kind)   ,dimension(40)    ,intent(inout) :: aivals
+  type(rad_obs_type),               intent(in   ) :: radmod
+  real(r_kind)                     ,intent(in   ), optional :: clw_guess_retrieval
+
 
 ! Declare local variables
   integer(i_kind), dimension(nchanl) :: irday
@@ -1079,15 +1093,23 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
   real(r_kind),dimension(nchanl) :: demisf_mi,clwcutofx 
   real(r_kind) :: pred9,pred10,pred11
   real(r_kind) :: dtz,ts_ave,xindx,tzchks
+  real(r_kind) :: top_clw
 
 !------------------------------------------------------------------
   irday = 1
+  top_clw = 0.8
 
 ! Set cloud qc criteria  (kg/m2) :  reject when clw>clwcutofx
   if(ssmi) then
      clwcutofx(1:nchanl) =  &  
           (/0.35_r_kind, 0.35_r_kind, 0.27_r_kind, 0.10_r_kind, &
           0.10_r_kind, 0.024_r_kind, 0.024_r_kind/) 
+  else if(tmi) then
+     !j.jin   -- tmi cha 1&2 should be the same as amsre channel 10.65 GHz.
+     !s.akella-- use updated values from j.jin [10/09/2014]
+     clwcutofx(1:nchanl) =  &
+          (/0.35_r_kind, 0.35_r_kind, 0.35_r_kind, 0.35_r_kind, 0.27_r_kind, 0.15_r_kind, &
+          0.10_r_kind, 0.10_r_kind, 0.10_r_kind/)
   else if(amsre_low.or.amsre_mid.or.amsre_hig) then
      clwcutofx(1:nchanl) =  &  
           (/0.350_r_kind, 0.350_r_kind, 0.350_r_kind, 0.350_r_kind, &
@@ -1125,7 +1147,7 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
   if(sea) then 
 
 !    dtb/rain/clw qc using SSM/I RAYTHEON algorithm
-     if( ierrret > 0  .or. kraintype /= 0 .or. tpwc<zero ) then 
+     if( ierrret > 0  .or. (kraintype /= 0 .and. .not.radmod%lcloud_fwd) .or. tpwc<zero ) then 
         efact=zero; vfact=zero
         if(luse) then
            aivals(8) = aivals(8) + one
@@ -1177,7 +1199,7 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
            if(luse) aivals(13) = aivals(13) + one
         end if
 
-     else if(clw > zero)then
+     else if(clw > zero .and. .not.radmod%lcloud_fwd)then
 
 !      If dtb is larger than demissivity and dwmin contribution, 
 !      it is assmued to be affected by  rain and cloud, tossing it out
@@ -1197,7 +1219,115 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
         end do  !l_loop
      end if
 
-!    Use data not over over sea
+     if((amsre.or.ssmi) .and. radmod%lcloud_fwd ) then
+!       set max clw 'top_clw' 0.8 in all-sky DA. 
+!       clw_guess_retrieval must be an input of qc_ssmi() in all-sky
+        if( clw > top_clw .or. clw_guess_retrieval > top_clw .or. &
+            abs(clw-clw_guess_retrieval)>0.15_r_kind) then
+           do i=1,nchanl
+              if( id_qc(i)== igood_qc ) then
+                 id_qc(i)=ifail_cloud_qc
+                 if(luse) aivals(9) = aivals(9) + one
+              endif
+           enddo
+           varinv(1:nchanl) = zero
+        else if( abs(sfchgt) > 0.01_r_kind .or. frac_sea < 0.999_r_kind  ) then
+           ! toss data at the coast
+           do i=1,nchanl
+              if( id_qc(i)== igood_qc ) then
+                 id_qc(i)  = ifail_surface_qc
+                 varinv(i)  = zero
+              endif
+              if(luse)  aivals(5) = aivals(5) + one
+           end do
+        else if (tzbgr < 275.0_r_kind) then
+           ! Toss data when SST < 275 K
+           do i=1,nchanl
+              if( id_qc(i)== igood_qc ) then
+                 varinv(i)=zero
+                 id_qc(i)=ifail_emiss_qc
+              endif
+           end do
+           if(luse) aivals(13) = aivals(13) + one
+        else if( (tpwc < five .and. amsre) .or. (tpwc < 10. .and. ssmi) )then
+           ! Toss data where model is dry (it is tpwc_guess in all-sky)
+           do i=1,nchanl
+              if( id_qc(i)== igood_qc ) then
+                 varinv(i)=zero
+                 id_qc(i)=ifail_model_tpw_qc
+                 if(luse) aivals(8) = aivals(8) + one
+              endif
+           enddo
+        endif
+     endif
+     if(tmi ) then
+        if( radmod%lcloud_fwd) then
+           !All-sky, toss data if 0.5*(clw_obs + clw_guess_retrieval)  > 0.3
+           !if(clw > 0.8 .and. luse) then  !jjin from clw > 0.3. AUg 1, 2020. 
+           if( clw > top_clw .or. clw_guess_retrieval > top_clw .or. &
+               abs(clw-clw_guess_retrieval)>0.15_r_kind) then
+              do i=1,nchanl
+                 if(id_qc(i)== igood_qc) then
+                    id_qc(i)=ifail_cloud_qc
+                    aivals(9)=aivals(9) + one
+                 end if
+              enddo
+              varinv(1:nchanl) = zero
+           endif
+           ! All-sky, check TPWC guess
+           if((tpwc < 15.0 .or. tpwc > 65.0) .and. luse) then
+              do i=1,nchanl
+                 if( id_qc(i)== igood_qc )then
+                    id_qc(i)=ifail_tpwc_qc
+                    aivals(8)=aivals(8) + one
+                 end if
+              end do
+              varinv(1:nchanl) = zero
+           endif
+        endif
+        if(iscan_edge > 0_i_kind) then
+           id_qc(1:nchanl) = ifail_scanedge_qc   ! Remove some obs near scan edges.
+           varinv(1:nchanl) = zero
+        endif
+
+        if(abs(sgagl) < 20.0_r_kind) then
+           do i=1,nchanl
+              id_qc(i)  =ifail_sgagl_qc
+              varinv(i) = zero
+           enddo
+           if(luse) aivals(11) = aivals(11) + one
+        else if ( abs(sfchgt) > 0.01_r_kind .or. frac_sea < 0.999_r_kind) then
+           ! toss data at the coast
+           do i=1,nchanl
+              if( id_qc(i)== igood_qc ) then
+                 id_qc(i)  = ifail_surface_qc
+                 varinv(i) = zero
+              endif
+              if(luse)  aivals(5) = aivals(5) + one
+           end do
+        else
+           if (.not.radmod%lcloud_fwd)then
+              ! qc: based on sfc (10m) wind speed for Ch 1, i.e, for 10.65GHz V
+              ! For now, keep the check of surface wind speed in clear-sky DA only.
+              i = 1  
+              if ( (id_qc(i) == igood_qc) .and. (sfc_speed > 8.0)) then
+                 id_qc(i)   = ifail_sfc_speed
+                 varinv(i)  = zero
+              end if
+           endif
+           ! Toss data when SST < 275 K
+           if (tzbgr < 275.0_r_kind) then
+              do i=1,nchanl
+                 if( id_qc(i)== igood_qc ) then
+                    varinv(i)=zero
+                    id_qc(i)=ifail_emiss_qc
+                 endif
+              end do
+              if(luse) aivals(13) = aivals(13) + one
+           endif
+        endif
+     end if
+!    Use data not over sea
   else  !land,sea ice,mixed
 
 !   Reduce q.c. bounds over higher topography

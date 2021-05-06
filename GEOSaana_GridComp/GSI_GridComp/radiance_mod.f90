@@ -413,6 +413,7 @@ contains
           rtype(i) == 'hsb'    .or. rtype(i) == 'goes_img' .or.  rtype(i) == 'ahi'    .or. &
           rtype(i) == 'avhrr'  .or. rtype(i) == 'amsre'    .or.  rtype(i) == 'ssmis'  .or. & 
           rtype(i) == 'ssmi'   .or. rtype(i) == 'atms'     .or.  rtype(i) == 'cris'   .or. & 
+          rtype(i) == 'tmi'    .or.                                                        & 
           rtype(i) == 'amsr2'  .or. rtype(i) == 'gmi'      .or.  rtype(i) == 'saphir' .or. &
           rtype(i) == 'cris-fsr'  ) then
           drtype(i)='rads'
@@ -1176,10 +1177,20 @@ contains
              cld_rbc_idx(i)=zero
           endif
        end do
+    else  if( trim(radmod%rtype) == 'tmi') then
+!      TMI in all-sky: choose obs with clouds < 0.05 for BC. (J.Jin)
+       do i=1,nchanl
+          if (radmod%lcloud4crtm(i)<0) cycle
+          if ( clwp_amsua > 0.1  .or. clw_guess_retrieval > 0.1 &
+              .or. abs(clwp_amsua - clw_guess_retrieval) > 0.05 ) then
+             cld_rbc_idx(i)=zero
+          endif
+       end do
     else   
 
-!      call ret_amsua(tb_obs,nchanl,tsavg5,zasat,clwp_amsua,ierrret)
-       call ret_amsua(tsim_bc,nchanl,tsavg5,zasat,clw_guess_retrieval,ierrret)
+       if( trim(radmod%rtype) /= 'amsre' .and. trim(radmod%rtype) /= 'ssmi') then
+          call ret_amsua(tsim_bc,nchanl,tsavg5,zasat,clw_guess_retrieval,ierrret)
+       endif
 
        do i=1,nchanl
           if (radmod%lcloud4crtm(i)<0) cycle
