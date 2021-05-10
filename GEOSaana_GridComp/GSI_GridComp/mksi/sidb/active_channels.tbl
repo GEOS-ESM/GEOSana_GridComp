@@ -96,6 +96,7 @@
 #  06Apr2020 Todling - pushed back MetopA-MHS deactivation from 20190915 to 20190531
 #  13May2020 W. Gu   - replaced CrIS-nsr SNPP with CrIS-fsr
 #  30Sep2020 M. Chattopadhyay - historic AVHRR: N15, N16 and N17
+#  10May2021 Sienkiewicz - update GOES-15 with end date for data received
 #=================
 #  For reference: http://www.emc.ncep.noaa.gov/mmb/data_processing/Satellite_Historical_Documentation.htm
 #                 http://geos5.org/wiki/index.php?title=Talk:GEOS-5_ADAS_Radiance_Monitoring
@@ -643,10 +644,10 @@ g15  20100304 000000  20111206 240000  sndrD2   0                               
 g15  20100304 000000  20111206 240000  sndrD3   0
 g15  20100304 000000  20111206 240000  sndrD4   0
 
-g15  20111207 000000  21001231 240000  sndrD1  11  1 2 3 4 5 6 7 8   10 11 12                  # GOES-15 became ops GOES-West on 5 Dec 2011
-g15  20111207 000000  21001231 240000  sndrD2  11  1 2 3 4 5 6 7 8   10 11 12         
-g15  20111207 000000  21001231 240000  sndrD3  11  1 2 3 4 5 6 7 8   10 11 12         
-g15  20111207 000000  21001231 240000  sndrD4  11  1 2 3 4 5 6 7 8   10 11 12         
+g15  20111207 000000  20200302 240000  sndrD1  11  1 2 3 4 5 6 7 8   10 11 12                  # GOES-15 became ops GOES-West on 5 Dec 2011
+g15  20111207 000000  20200302 240000  sndrD2  11  1 2 3 4 5 6 7 8   10 11 12                  # GOES-17 (no sounder) operational in 2019,
+g15  20111207 000000  20200302 240000  sndrD3  11  1 2 3 4 5 6 7 8   10 11 12                  # last G15 data on 20200302
+g15  20111207 000000  20200302 240000  sndrD4  11  1 2 3 4 5 6 7 8   10 11 12         
 
 #==============
 # GOES Imager 
