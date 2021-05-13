@@ -102,6 +102,7 @@ subroutine setupbend(obsLL,odiagLL, &
 !   2020-03-18  Shao    - update observation error for COSMIC-2
 !   2020-04-13  Shao    - update the statistis QC for COSMIC-2
 !   2020-04-15  Shao    - revise profile integration (Todling: implemente as option)
+!   2021-03-13  mccarty - QC updates for commercial RO from NOAA Comm. Data Purchase
 !
 !   input argument list:
 !     lunin    - unit from which to read observations

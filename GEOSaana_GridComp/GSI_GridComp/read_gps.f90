@@ -59,7 +59,8 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 !   2015-02-23  Rancic/Thomas - add l4densvar to time window logical
 !   2015-10-01  guo     - consolidate use of ob location (in deg)
 !   2017-11-16  dutta   - addition of profile quality flags for KOMPSAT5 GPSRO.
-!
+!   2021-05-13 mccarty  - code updates to handle commercial RO sources from NOAA Comm. Data Purchase
+
 !   input argument list:
 !     infile   - unit from which to read BUFR data
 !     lunout   - unit to which to write data for further processing
