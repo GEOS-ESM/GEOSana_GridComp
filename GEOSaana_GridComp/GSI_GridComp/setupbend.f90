@@ -189,6 +189,8 @@ subroutine setupbend(obsLL,odiagLL, &
 
 ! Declare local parameters
   real(r_kind),parameter::  r240 = 240.0_r_kind
+  !mxc
+  !real(r_kind),parameter:: five = 5.0_r_kind
   real(r_kind),parameter:: six = 6.0_r_kind
   real(r_kind),parameter:: ten = 10.0_r_kind
   real(r_kind),parameter:: eight = 8.0_r_kind
@@ -290,6 +292,8 @@ subroutine setupbend(obsLL,odiagLL, &
 !750-755 => COSMIC-2 Equatorial
 !724-729 => COSMIC-2 Polar
 !825 => KOMPSAT-5
+!265 => GeoOptics
+!269 => Spire
 !5   => MetOpC
 
 ! Check to see if required guess fields are available
@@ -846,6 +850,33 @@ subroutine setupbend(obsLL,odiagLL, &
            ratio_errors(i) = zero
            muse(i)=.false.
          endif
+
+! GMAO Spire - Remove data below 5km for GPS (iclass = 401); 9 km for other (GLONASS/GALILEO/etc.)
+        if((alt <= 5_r_kind) .and. (data(isatid,i)==269) .and. (data(iclass,i)==401)) then
+           qcfail(i)=.true.
+           data(ier,i) = zero
+           ratio_errors(i) = zero
+           muse(i)=.false.
+        elseif ((alt <= nine) .and. (data(isatid,i)==269) .and. (data(iclass,i)>=402)) then
+           qcfail(i)=.true.
+           data(ier,i) = zero
+           ratio_errors(i) = zero
+           muse(i)=.false.
+        endif
+! GMAO GeoOptics - Remove data below 5 km for GPS (iclass = 401); 8 km for other
+        if((alt <= 5_r_kind) .and. (data(isatid,i)==265) .and. (data(iclass,i)==401)) then
+           qcfail(i)=.true.
+           data(ier,i) = zero
+           ratio_errors(i) = zero
+           muse(i)=.false.
+        elseif ((alt <= eight) .and. (data(isatid,i)==265) .and. (data(iclass,i)>=402)) then
+           qcfail(i)=.true.
+           data(ier,i) = zero
+           ratio_errors(i) = zero
+           muse(i)=.false.
+        endif
+
+
 
        end if ! obs above super-refraction and shadow layers
      end if ! obs inside the vertical grid
