@@ -68,7 +68,7 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
   use jfunc, only: jiter
   use convinfo, only: nconvtype
   use convinfo, only: icsubtype
-  use m_dtime, only: dtime_setup, dtime_check, dtime_show
+  use m_dtime, only: dtime_setup, dtime_check
   use rapidrefresh_cldsurf_mod, only: i_cloud_q_innovation, &
                                       cld_bld_hgt,i_ens_mean
   use gsi_bundlemod, only : gsi_bundlegetpointer
@@ -85,8 +85,8 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
   implicit none
 
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
   real(r_kind),dimension(100+7*nsig)               ,intent(inout) :: awork

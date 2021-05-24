@@ -55,7 +55,7 @@
   use radinfo, only: crtm_coeffs_path
   use ozinfo, only: diag_ozone,init_oz
   use aeroinfo, only: diag_aero, init_aero, init_aero_vars, final_aero_vars
-  use coinfo, only: diag_co,init_co
+  use tgasinfo, only: diag_tgas,init_tgas
   use convinfo, only: init_convinfo, &
                       diag_conv,&
                       use_prepb_satwnd,id_drifter, ec_amv_qc,&
@@ -66,6 +66,7 @@
      oneobtest,magoberr,maginnov,init_oneobmod,pctswitch,lsingleradob,obchan,&
      anaz_rw,anel_rw,range_rw,sstn,lsingleradar,singleradar,learthrel_rw
   use balmod, only: init_balmod,fstat,lnobalance
+
   use turblmod, only: use_pbl,init_turbl
   use qcmod, only: dfact,dfact1,create_qcvars,destroy_qcvars,&
       erradar_inflate,tdrerr_inflate,use_poq7,qc_satwnds,&
@@ -322,6 +323,7 @@
 !  12-10-2013 zhu       add cwoption
 !  02-05-2014 todling   add parameter cwcoveqqcov (cw_cov=q_cov)
 !  02-24-2014 sienkiewicz added aircraft_t_bc_ext for GMAO external aircraft temperature bias correction
+!  04-21-2014 weir      replaced co settings with trace gas settings
 !  05-29-2014 Thomas    add lsingleradob logical for single radiance ob test
 !                       (originally of mccarty)
 !  06-19-2014 carley/zhu  add factl and R_option for twodvar_regional lcbas/ceiling analysis
@@ -383,7 +385,7 @@
 !                       prescribed vis/cldch obs. errort in read_prepbufr. (tentatively?)
 !  03-22-2018 Yang      remove "logical closest_obs", previously applied to the analysis of vis and cldch.
 !                       The option to use only the closest ob to the analysis time is now handled
-!                       by Ming Hu's "logical l_closeobs" for all variables.
+!                       by Ming Hu''s "logical l_closeobs" for all variables.
 !  01-04-2018 Apodaca   add diag_light and lightinfo for GOES/GLM lightning
 !                           data assimilation
 !  08-16-2018 akella    id_ship flag - modify KX values for ships if set
@@ -455,7 +457,7 @@
 !     diag_conv-logical to turn off or on the diagnostic conventional file (true=on)
 !     diag_ozone - logical to turn off or on the diagnostic ozone file (true=on)
 !     diag_aero  - logical to turn off or on the diagnostic aerosol file (true=on)
-!     diag_co - logical to turn off or on the diagnostic carbon monoxide file (true=on)
+!     diag_tgas - logical to turn off or on the diagnostic trace gas file (true=on)
 !     diag_light - logical to turn off or on the diagnostic lightning file (true=on)
 !     diag_radardbz - logical to turn off or on the diagnostic radar reflectivity file (true=on)
 !     write_diag - logical to write out diagnostic files on outer iteration
@@ -606,7 +608,8 @@
        min_offset,pseudo_q2,&
        iout_iter,npredp,retrieval,&
        tzr_qc,tzr_bufrsave,&
-       diag_rad,diag_pcp,diag_conv,diag_ozone,diag_aero,diag_co,diag_light,diag_radardbz,iguess, &
+       diag_rad,diag_pcp,diag_conv,diag_ozone,diag_aero,diag_light,diag_radardbz,iguess, &
+       diag_tgas, &
        write_diag,reduce_diag, &
        oneobtest,sfcmodel,dtbduv_on,ifact10,offtime_data,&
        use_pbl,use_compress,nsig_ext,gpstop,&
@@ -830,7 +833,7 @@
 !     buddydiag_save - When true, output files containing buddy check QC info for all
 !                      obs run through the buddy check
 !     njqc  -  When true, use Purser''s non linear QC
-!     vqc   -  when true, use ECMWF's non linear QC
+!     vqc   -  when true, use ECMWF''s non linear QC
 !     multiple observations at a station.  Currently only applied to Ceiling
 !     height and visibility.
 !     pvis   - power parameter in nonlinear transformation for vis 
@@ -1206,7 +1209,7 @@
   call init_rad
   call init_oz
   call init_aero
-  call init_co
+  call init_tgas
   call init_convinfo
   call init_jfunc
   call init_balmod
@@ -1461,7 +1464,7 @@
      diag_conv=.false.
      diag_ozone=.false.
      diag_aero=.false.
-     diag_co=.false.
+     diag_tgas=.false.
      diag_pcp=.false.
      diag_light=.false.
      diag_radardbz=.false.

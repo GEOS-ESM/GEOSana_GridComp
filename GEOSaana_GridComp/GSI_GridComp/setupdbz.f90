@@ -103,8 +103,8 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
  
   implicit none
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
   real(r_kind),dimension(100+7*nsig)               ,intent(inout) :: awork

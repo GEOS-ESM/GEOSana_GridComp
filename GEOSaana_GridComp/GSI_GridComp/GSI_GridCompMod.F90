@@ -235,6 +235,8 @@
 !                      - Remove reference to vars not used here
 !   18Sep2012 Akella   - Add SwapJI2i_ to GSI_GridCompSwapJI_ for use in writing out TSKIN when doing NST analysis
 !   19Oct2013 Todling - metguess now holds background
+!   24Mar2014 Weir    - Changed carbon monoxide to be stored as its log
+!   10Aug2014 Weir    - Added methane
 !
 !EOP
 !-------------------------------------------------------------------------
@@ -250,8 +252,11 @@
    real, parameter     :: UNDEF_SNOW_DEP  = 1.E+12
    real, parameter     :: PPMV2GpG        = 1.6571E-6         ! ((47.9982 g/mol)/((28.9644 g/mol))*1e-6(mol/mol)-> g/g
    real, parameter     :: KGpKG2PPBV      = (28./28.97)*1.E+9 ! mol/mol to ppbv
+                                                              ! mol/mol to Kg/Kg as well
    real, parameter     :: KGpKG2PPBVaero  = 1.E+9             ! kg/kg to ppbv (mol/mol to ppbv)
    real, parameter     :: KGpKG2ppmvCO2   = 1.E+6             ! kg/kg to ppmv (mol/mol to ppmv)
+   real, parameter     :: PPMV2DU         = 1.657E-6
+   real, parameter     :: PPMV            = 1.E6
    real, parameter     :: kPa_per_Pa      = 0.001
    real, parameter     :: Pa_per_kPa      = 1000.
    logical, parameter  :: verbose         = .false.
@@ -647,7 +652,6 @@ _ENTRY_(trim(Iam))
 
 !-------------------------------------------------------------------------
    subroutine GSI_GridCompGridCreate_ ( grid, agcmPertGrid )
-
 !-------------------------------------------------------------------------
 ! !REVISION HISTORY:
 !
@@ -1806,7 +1810,10 @@ _ENTRY_(trim(Iam))
       endif
       if(associated(cop)) then
          where ( cop /= MAPL_UNDEF )
-                 cop = cop * KGpKG2PPBV  ! convert carbon monoxide unit (need gen. way of handling chemistry)
+!                Carbon monox is now stored as a log; this makes the obs operator for mopitt linear and
+!                prevents us from having to use an ad hoc lower bound; update_guess also needs to reflect
+!                this by not applying the lower bound; also inverse in dcop needs to reflect change (weir)
+                 cop = log10(cop * KGpKG2PPBV)  ! convert carbon monoxide unit (need gen. way of handling chemistry)
          endwhere
       endif
       if(associated(co2p)) then
@@ -1945,7 +1952,6 @@ _ENTRY_(trim(Iam))
    integer(i_kind) :: irank, ipnt, ier,istatus
    character(len=ESMF_MAXSTR) :: cvar
    real(r_kind),pointer,dimension(:,:,:):: ptr_cwmr,ptr_qimr,ptr_qlmr
-
 
 ! start   
 
@@ -2970,8 +2976,10 @@ _ENTRY_(trim(Iam))
       if(associated(dhs)) dhs = grav * dhs
       if(associated(doz)) doz = doz  / PPMV2GpG
       if(idco.and.associated(dcop)) then
-         dcop = dcop  / KGpKG2PPBV
+!        changed this because forward transform has changed (weir)
+         dcop = 10._r_kind**(dcop) / KGpKG2PPBV
       endif
+      if(associated(dco2p)) dco2p = dco2p / PPMV
    endif
    end subroutine UnScale_Export_
 
@@ -3852,8 +3860,8 @@ _ENTRY_(trim(Iam))
                       'dry organic carbon              ',  &
                       'wet organic carbon              '/)
    character(len=16), parameter :: inunits3dg(nin3dg) = (/ &
-                                   'g/g             ',     &
-                                   'g/g             ',     &
+                                   'mol/mol         ',     &
+                                   'mol/mol         ',     &
                                    'g/g             ',     &
                                    'g/g             ',     &
                                    'g/g             ',     &
@@ -3971,8 +3979,8 @@ _ENTRY_(trim(Iam))
                       'carbon monoxide inc             ',  &
                       'carbon dioxide inc              '/)
    character(len=16), parameter :: exunits3dg(nex3dg) = (/ &
-                                   'g/g             ',     &
-                                   'g/g             '     /)
+                                   'mol/mol         ',     &
+                                   'mol/mol         '     /)
 
 
 ! Begin

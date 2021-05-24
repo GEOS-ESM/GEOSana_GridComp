@@ -79,8 +79,8 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
   use gsi_metguess_mod, only : gsi_metguess_get,gsi_metguess_bundle
   implicit none
 
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
   integer(i_kind)                                  ,intent(in   ) :: is ! ndat index
