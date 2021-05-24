@@ -105,7 +105,7 @@ subroutine setuppw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   use m_obsLList, only: obsLList
   use obsmod, only: luse_obsdiag
   use gsi_4dvar, only: nobs_bins,mn_obsbin
-  use constants, only: zero,one,tpwcon,r1000,r10, &
+  use constants, only: zero,one,tpwcon,r1000,r10,r100,&
        tiny_r_kind,three,half,two,cg_term,huge_single,&
        wgtlim, rd
   use jfunc, only: jiter,last,miter,jiterstart
@@ -723,7 +723,7 @@ subroutine setuppw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
            call nc_diag_metadata("Latitude",                      sngl(data(ilate,i))     )
            call nc_diag_metadata("Longitude",                     sngl(data(ilone,i))     )
            call nc_diag_metadata("Station_Elevation",             sngl(data(istnelv,i))   )
-           call nc_diag_metadata("Pressure",                      sngl(prest)             )
+           call nc_diag_metadata("Pressure",                      sngl(prest*r100)        )
            call nc_diag_metadata("Height",                        sngl(data(iobshgt,i))   )
            call nc_diag_metadata("Time",                          sngl(dtime-time_offset) )
            call nc_diag_metadata("Prep_QC_Mark",                  sngl(data(iqc,i))       )

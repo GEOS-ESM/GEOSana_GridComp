@@ -31,7 +31,7 @@ subroutine setupdw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
 
   use constants, only: grav_ratio,flattening,grav,zero,rad2deg,deg2rad, &
        grav_equator,one,two,somigliana,semi_major_axis,eccentricity,r1000,&
-       wgtlim
+       wgtlim,r100
   use constants, only: tiny_r_kind,half,cg_term,huge_single
 
   use obsmod, only: rmiss_single,lobsdiag_forenkf
@@ -906,7 +906,7 @@ subroutine setupdw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
            call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
            call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
            call nc_diag_metadata("Station_Elevation",       missing                )
-           call nc_diag_metadata("Pressure",                sngl(presw)            )
+           call nc_diag_metadata("Pressure",                sngl(presw*r100)       )
            call nc_diag_metadata("Height",                  sngl(data(ihgt,i))     )
            call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
            call nc_diag_metadata("Prep_QC_Mark",            missing                )
