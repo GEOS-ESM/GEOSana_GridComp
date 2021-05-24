@@ -266,11 +266,7 @@ subroutine glbsoi
 ! If l_hyb_ens is true, then read in ensemble perturbations
   if(l_hyb_ens) then
      call revBens_init(miter)
-!    if (lsensrecompute.and.miter==jiterend) then
-!       call load_ensemble(tau_fcst)
-!    else
-        call load_ensemble(-1)
-!    endif
+     call load_ensemble(-1)
      call hybens_localization_setup
   end if
 
