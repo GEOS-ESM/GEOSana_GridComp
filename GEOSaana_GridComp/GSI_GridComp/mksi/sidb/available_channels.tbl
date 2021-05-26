@@ -24,7 +24,7 @@
 #  24Sep2019 Meta    - Add MetOp-C AMSU-A and MHS - start date reflects data start in regular AMSU-A/MHS files
 #  23Jan2020 J. Jin  - Add gcom-w1 AMSR2
 #  13May2020 W. Gu   - replace CrIS-nsr for SNPP with CrIS-fsr
-#  24May2020 Meta    - change start dates for FSR to match when the data starts in our archive.  If we
+#  24May2021 Meta    - change start dates for FSR to match when the data starts in our archive.  If we
 #                          obtain/process data from eariler dates, we can change this
 #
 # Information in this list tells the avaibility of given channels at a given
