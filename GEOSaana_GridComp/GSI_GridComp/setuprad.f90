@@ -2560,20 +2560,36 @@ contains
                  call nc_diag_metadata("Ice_Fraction",          sngl(surface(1)%ice_coverage)       ) ! fractional coverage by ice
                  call nc_diag_metadata("Snow_Fraction",         sngl(surface(1)%snow_coverage)      ) ! fractional coverage by snow
 
-                 call nc_diag_metadata("Water_Temperature",     sngl(surface(1)%water_temperature) ) ! surface temperature over water (K)
-                 call nc_diag_metadata("Land_Temperature",      sngl(surface(1)%land_temperature)  ) ! surface temperature over land (K)
-                 call nc_diag_metadata("Ice_Temperature",       sngl(surface(1)%ice_temperature)   ) ! surface temperature over ice (K)
-                 call nc_diag_metadata("Snow_Temperature",      sngl(surface(1)%snow_temperature)  ) ! surface temperature over snow (K)
-                 call nc_diag_metadata("Soil_Temperature",      sngl(surface(1)%soil_temperature)  ) ! soil temperature (K)
-                 call nc_diag_metadata("Soil_Moisture",         sngl(surface(1)%soil_moisture_content) ) ! soil moisture
-                 call nc_diag_metadata("Land_Type_Index",       surface(1)%land_type             ) ! surface land type
+                 if(.not. retrieval)then
+                    call nc_diag_metadata("Water_Temperature",     sngl(surface(1)%water_temperature) ) ! surface temperature over water (K)
+                    call nc_diag_metadata("Land_Temperature",      sngl(surface(1)%land_temperature)  ) ! surface temperature over land (K)
+                    call nc_diag_metadata("Ice_Temperature",       sngl(surface(1)%ice_temperature)   ) ! surface temperature over ice (K)
+                    call nc_diag_metadata("Snow_Temperature",      sngl(surface(1)%snow_temperature)  ) ! surface temperature over snow (K)
+                    call nc_diag_metadata("Soil_Temperature",      sngl(surface(1)%soil_temperature)  ) ! soil temperature (K)
+                    call nc_diag_metadata("Soil_Moisture",         sngl(surface(1)%soil_moisture_content) ) ! soil moisture
+                    call nc_diag_metadata("Land_Type_Index",       surface(1)%land_type             ) ! surface land type
+                    call nc_diag_metadata("sstcu",                 missing                          ) ! NCEP SST analysis at t            
+                    call nc_diag_metadata("sstph",                 missing                          ) ! Physical SST retrieval             
+                    call nc_diag_metadata("sstnv",                 missing                          ) ! Navy SST retrieval               
+                    call nc_diag_metadata("dta",                   missing                          ) ! d(ta) corresponding to sstph
+                    call nc_diag_metadata("dqa",                   missing                          ) ! d(qa) corresponding to sstph
+                    call nc_diag_metadata("dtp_avh",               missing                          ) ! data type             
+                 else
+                    call nc_diag_metadata("Water_Temperature",     missing                          ) ! surface temperature over water (K)
+                    call nc_diag_metadata("Land_Temperature",      missing                          ) ! surface temperature over land (K)
+                    call nc_diag_metadata("Ice_Temperature",       missing                          ) ! surface temperature over ice (K)
+                    call nc_diag_metadata("Snow_Temperature",      missing                          ) ! surface temperature over snow (K)
+                    call nc_diag_metadata("Soil_Temperature",      missing                          ) ! soil temperature (K)
+                    call nc_diag_metadata("Soil_Moisture",         missing                          ) ! soil moisture
+                    call nc_diag_metadata("Land_Type_Index",       imissing                         ) ! surface land type
+                    call nc_diag_metadata("sstcu",                 sngl(sstcu)                      ) ! NCEP SST analysis at t            
+                    call nc_diag_metadata("sstph",                 sngl(sstph)                      ) ! Physical SST retrieval             
+                    call nc_diag_metadata("sstnv",                 sngl(sstnv)                      ) ! Navy SST retrieval               
+                    call nc_diag_metadata("dta",                   sngl(dta)                        ) ! d(ta) corresponding to sstph
+                    call nc_diag_metadata("dqa",                   sngl(dqa)                        ) ! d(qa) corresponding to sstph
+                    call nc_diag_metadata("dtp_avh",               sngl(dtp_avh)                    ) ! data type             
+                 endif
                  call nc_diag_metadata("tsavg5",                sngl(tsavg5)                     ) ! SST first guess used for SST retrieval
-                 call nc_diag_metadata("sstcu",                 sngl(sstcu)                      ) ! NCEP SST analysis at t            
-                 call nc_diag_metadata("sstph",                 sngl(sstph)                      ) ! Physical SST retrieval             
-                 call nc_diag_metadata("sstnv",                 sngl(sstnv)                      ) ! Navy SST retrieval               
-                 call nc_diag_metadata("dta",                   sngl(dta)                        ) ! d(ta) corresponding to sstph
-                 call nc_diag_metadata("dqa",                   sngl(dqa)                        ) ! d(qa) corresponding to sstph
-                 call nc_diag_metadata("dtp_avh",               sngl(dtp_avh)                    ) ! data type             
 
                  call nc_diag_metadata("Vegetation_Fraction",   sngl(surface(1)%vegetation_fraction) )
                  call nc_diag_metadata("Snow_Depth",            sngl(surface(1)%snow_depth)         )
