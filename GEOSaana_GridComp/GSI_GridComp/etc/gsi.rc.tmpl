@@ -89,6 +89,7 @@ OBS_INPUT::
    omibufr        omi         aura        omi_aura              0.0     2      0        ncep_aura_omi_bufr
    ompsnmbufr     ompsnm      npp         ompsnm_npp            0.0     2      0        npp_ompsnm_bufr
    ompsnpbufr     ompsnp      npp         ompsnp_npp            0.0     0      0        npp_ompsnp_bufr
+   ompsnpnc       ompsnpnc    npp         ompsnpnc_npp          0.0     0      0        npp_ompsnp_nc
 !  NOomibufr      omi         aura        omi_aura              0.0     2      0        test
    hirs2bufr      hirs2       n14         hirs2_n14             0.0     1      0        ncep_1bhrs2_bufr
    hirs3bufr      hirs3       n16         hirs3_n16             0.0     1      0        ncep_1bhrs3_bufr
@@ -161,6 +162,7 @@ OBS_INPUT::
 !  gomebufr       gome        metop-b     gome_metop-b          0.0     2      0        test
    amsuabufr      amsua       metop-c     amsua_metop-c         0.0     1      0        ncep_1bamua_bufr
    mhsbufr        mhs         metop-c     mhs_metop-c           0.0     1      0        ncep_mhs_bufr
+   iasibufr       iasi        metop-c     iasi_metop-c          0.0     3      0        ncep_mtiasi_bufr
    atmsbufr       atms        npp         atms_npp              0.0     1      0        ncep_atms_bufr
    atmsbufr       atms        n20         atms_n20              0.0     1      0        ncep_atms_bufr
    crisfsrbufr    cris-fsr    npp         cris-fsr_npp          0.0     3      0        ncep_crisfsr_bufr
@@ -171,7 +173,8 @@ OBS_INPUT::
    avcsambufr     avhrr       metop-a     avhrr3_metop-a        0.0     1      0        ncep_avcsam_bufr
    avcsambufr     avhrr       metop-b     avhrr3_metop-b        0.0     1      0        ncep_avcsam_bufr
 !  omieffbufr     omieff      aura        omieff_aura           0.0     2      0        test
-!  omieffnc       omieff      aura        omieff_aura           0.0     2      0        test
+   omieffnc       omieff      aura        omieff_aura           0.0     2      0        aura_omieff_nc
+   ompsnmeffnc    ompsnmeff   npp         ompsnmeff_npp         1.0     2      0        npp_ompsnmeff_nc
 !  mlstbufr       t           aura        t                     0.0     0      0        test
    gsnd1bufr      sndrd1      g15         sndrD1_g15            0.0     1      0        ncep_goesfv_bufr
    gsnd1bufr      sndrd2      g15         sndrD2_g15            0.0     1      0        ncep_goesfv_bufr

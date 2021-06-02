@@ -1134,7 +1134,7 @@ end subroutine normal_new_factorization_rf_y
 
   end subroutine create_ensemble
 
-  subroutine load_ensemble
+  subroutine load_ensemble (tau)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    load_ensemble    read/generate ensemble perturbations
@@ -1182,9 +1182,11 @@ end subroutine normal_new_factorization_rf_y
 
     implicit none
 
-   type(get_pseudo_ensperts_class) :: pseudo_enspert
-   type(get_wrf_mass_ensperts_class) :: wrf_mass_enspert
-   type(get_wrf_nmm_ensperts_class) :: wrf_nmm_enspert
+    integer,intent(in) :: tau
+
+    type(get_pseudo_ensperts_class) :: pseudo_enspert
+    type(get_wrf_mass_ensperts_class) :: wrf_mass_enspert
+    type(get_wrf_nmm_ensperts_class) :: wrf_nmm_enspert
     type(gsi_bundle),allocatable:: en_bar(:)
     type(gsi_bundle):: bundle_anl,bundle_ens
     type(gsi_grid)  :: grid_anl,grid_ens
@@ -1300,7 +1302,7 @@ end subroutine normal_new_factorization_rf_y
 !            read in ensembles
        if (.not.regional) then
 
-          call get_gefs_ensperts_dualres
+          call get_gefs_ensperts_dualres(tau)
 
        else
 
@@ -5168,7 +5170,7 @@ subroutine ens_iterate_update(jiter)
 
 ! reload ensemble but this time use analysis for recentering
   call create_ensemble
-  call load_ensemble
+  call load_ensemble(-1)
   call hybens_localization_setup
 
 end subroutine ens_iterate_update
