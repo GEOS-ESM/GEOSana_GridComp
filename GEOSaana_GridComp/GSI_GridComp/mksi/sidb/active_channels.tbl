@@ -96,6 +96,7 @@
 #  06Apr2020 Todling - pushed back MetopA-MHS deactivation from 20190915 to 20190531
 #  13May2020 W. Gu   - replaced CrIS-nsr SNPP with CrIS-fsr
 #  30Sep2020 M. Chattopadhyay - historic AVHRR: N15, N16 and N17
+#  25May2021 Meta    - updated start of ATMS N20 to match the start date of data in our archive. (Not equal to start date for NPP!)
 #=================
 #  For reference: http://www.emc.ncep.noaa.gov/mmb/data_processing/Satellite_Historical_Documentation.htm
 #                 http://geos5.org/wiki/index.php?title=Talk:GEOS-5_ADAS_Radiance_Monitoring
@@ -650,7 +651,7 @@ g13  20060630 000000  21001231 240000  imgr   0
 # NPP ATMS/CrIS
 #==============
 npp  20111116 000000  21001231 240000  atms  17         5 6 7 8 9 10 11 12 13 14 15    17 18 19 20 21 22
-n20  20111116 000000  21001231 240000  atms  17         5 6 7 8 9 10 11 12 13 14 15    17 18 19 20 21 22
+n20  20180510 120000  21001231 240000  atms  17         5 6 7 8 9 10 11 12 13 14 15    17 18 19 20 21 22
 
 # cris active channels                           m       01    02    03    04    05    06    07    08    09    10
 npp  20120101 000000  29991231 240000 cris-fsr   9             57    58    59    60    61    62    63    64    65
