@@ -179,6 +179,7 @@
 #  21Nov2018 RT/WM/WG/Guo - update CRTM coeffs to REL-2.2.3-r60152_local-rev_3; add RERROR Covs
 #  10Feb2020 Karpowicz/RT - update Rcov to 13jan2020: add O3 sensitive IR chans for hyperspectral obs
 #  20May2020 Todling/JG - update CRTM coeffs to point to fix_ncep20200513 (to allow for CrIS FSR)
+#  30Nov2020 Guo/MC/MS - add program to rescale values in satbias_pc file for specified date/sis/channels
 #-----------------------------------------------------------------------------------------------------
 
 use Env;                 # make env vars readily available
@@ -828,7 +829,23 @@ sub init {
 	       print " $cmd\n";
 	       $rc_ignore = system($cmd);
 	   }
-		
+	   # Scaling varx of satbias_pc
+	   my ($pc_dbname) = "$fvroot/etc/gmao_pcscaling.db";
+	   if ( $ENV{PCSCALING_DB} ) { $pc_dbname = $ENV{PCSCALING_DB} }
+	   if ( -d $pc_dbname ) {
+              $cmd = "echo '&setup nymd = $nymd nhms = $nhms npred = 12
+	   		pcinp  = \"./satbias_pc\"
+	   		pcout  = \"./satbias_pc.scaled\"
+	   		dbname = \"$pc_dbname\"
+			/' | $fvroot/bin/make_pcscaling.x";
+	      print " $cmd\n";
+  	      $rc = System($cmd, "$log_ana","make_pcscaling.x");
+  	      die "analyzer: >>> ERROR <<< running make_pcscaling.x, \$rc = $rc\n" if ( $rc );
+	      if ( -e "./satbias_pc.scaled" ) {
+                 print "analyzer: relinking ./satbias_pc to ./satbias_pc.scaled";
+	         Assignfn ( "./satbias_pc.scaled", "satbias_pc"   );
+	      }
+	   }
        }
        if ( -e "$fvwork/satbang" ) {
             if ($doDSB) { # overwrite satbias when taking care of diurnal cycle

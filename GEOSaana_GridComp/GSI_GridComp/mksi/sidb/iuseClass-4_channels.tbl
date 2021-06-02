@@ -23,6 +23,7 @@
 #  11Mar2014 McCarty    - remove SSU ch 3 when AMSU-A Ch 14 appears
 #  20Nov2018 McCarty    - Add NOAA-20
 #  12Jan2020 Sienkiewicz - Add MetOp-C AMSU-A
+#  25May2021 Meta    - updated start of ATMS N20 to match the start date of data in our archive. (Not equal to start date for NPP!)
 # NOAA-05 (tn)
 #=============
 # tirosn SSU ch 3 unusable
@@ -168,5 +169,5 @@ metop-c 20190917 000000  21001231 240000  amsua  1     14            #
 
 # Downgrade & upgrade 14 to iuse=4
 npp  20111116 000000  21001231 240000  atms  1  15
-n20  20111116 000000  21001231 240000  atms  1  15
+n20  20180510 000000  21001231 240000  atms  1  15
 
