@@ -641,6 +641,7 @@ set (OBJS_OPENBUFR
    getcount_bufr.f90
    m_extOzone.F90
    read_aerosol.f90
+   read_abi.f90
    read_ahi.f90
    read_airs.f90
    read_amsre.f90
