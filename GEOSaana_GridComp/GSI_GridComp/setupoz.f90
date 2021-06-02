@@ -578,7 +578,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
                    k1=nlevs-1
                    k2=1
                  endif
-                 if (obstype == 'sbuv2' .or. obstype == 'ompsnp' ) then
+                 if (obstype == 'sbuv2' .or. obstype == 'ompsnp' .or. obstype == 'ompsnpnc' ) then
                  call nc_diag_metadata("TopLevelPressure",sngl(pobs(k2)*r100))
                  call nc_diag_metadata("BottomLevelPressure", &
                                                       sngl(pobs(k1)*r100))
