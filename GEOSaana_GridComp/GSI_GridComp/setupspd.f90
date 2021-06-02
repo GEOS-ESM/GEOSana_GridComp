@@ -119,7 +119,7 @@ subroutine setupspd(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
   use gridmod, only: nsig,get_ij,twodvar_regional
   use qcmod, only: npres_print,ptop,pbot
   use constants, only: one,grav,rd,zero,four,tiny_r_kind, &
-       half,two,cg_term,huge_single,r1000,wgtlim
+       half,two,cg_term,huge_single,r1000,wgtlim,r100
   use jfunc, only: jiter,last,miter,jiterstart
   use state_vectors, only: svars3d, levels, nsdim
   use qcmod, only: dfact,dfact1
@@ -920,7 +920,7 @@ subroutine setupspd(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
            call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
            call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
            call nc_diag_metadata("Station_Elevation",       sngl(data(istnelv,i))  )
-           call nc_diag_metadata("Pressure",                sngl(presw)            )
+           call nc_diag_metadata("Pressure",                sngl(presw*r100)       )
            call nc_diag_metadata("Height",                  sngl(data(ihgt,i))     )
            call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
            call nc_diag_metadata("Prep_QC_Mark",            sngl(data(iqc,i))      )

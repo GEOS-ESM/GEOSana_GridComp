@@ -79,7 +79,7 @@ subroutine setupuwnd10m(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_d
   use constants, only: zero,tiny_r_kind,one,one_tenth,half,wgtlim,rd,grav,&
             two,cg_term,three,four,five,ten,huge_single,r1000,r3600,&
             grav_ratio,flattening,grav,deg2rad,grav_equator,somigliana, &
-            semi_major_axis
+            semi_major_axis,r100
   use jfunc, only: jiter,last,miter
   use qcmod, only: dfact,dfact1,npres_print,qc_satwnds
   use convinfo, only: nconvtype,cermin,cermax,cgross,cvar_b,cvar_pg,ictype
@@ -970,7 +970,7 @@ subroutine setupuwnd10m(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_d
         call nc_diag_metadata("Latitude",                data(ilate,i)          )
         call nc_diag_metadata("Longitude",               data(ilone,i)          )
         call nc_diag_metadata("Station_Elevation",       data(ielev,i)          )
-        call nc_diag_metadata("Pressure",                presw                  )
+        call nc_diag_metadata("Pressure",                presw*r100             )
         call nc_diag_metadata("Height",                  data(ihgt,i)           )
         call nc_diag_metadata("Time",                    dtime-time_offset      )
         call nc_diag_metadata("Prep_QC_Mark",            data(iqc,i)            )
