@@ -301,7 +301,7 @@ subroutine setupsst(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
                   elon = data(ilone,i)  ,&
                   luse = luse(i)        ,&
                  miter = miter          )
-
+    
         if(.not.associated(my_diag)) call die(myname, &
                 'obsdiagLList_nextNode(), create =', .not.lobsdiag_allocated)
      endif
@@ -606,6 +606,10 @@ contains
            call nc_diag_metadata("Observation",                   sngl(data(isst,i)) )
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(ddiff)      )
            call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(data(isst,i)-sstges) )
+           call nc_diag_metadata("Forecast_unadjusted", sngl(sstges))
+           call nc_diag_metadata("Forecast_adjusted", sngl(data(isst,i)-ddiff))
+           !GeoVaLs
+           call nc_diag_metadata("sea_surface_temperature", sngl(sstges) )
  
            if (lobsdiagsave) then
               do jj=1,miter
