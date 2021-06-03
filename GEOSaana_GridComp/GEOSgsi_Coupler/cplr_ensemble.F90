@@ -35,7 +35,7 @@ function typename()
   typename='['//myname//'::ensemble]'
 end function typename
 
-subroutine get_geos_ens(this,grd,member,ntindex,atm_bundle,iret)
+subroutine get_geos_ens(this,grd,member,ntindex,tau,atm_bundle,iret)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    get_user_ens_    pretend atmos bkg is the ensemble
@@ -76,7 +76,6 @@ use gsi_bundlemod, only: gsi_bundledestroy
 use gsi_bundlemod, only: gsi_bundlegetpointer
 use gsi_metguess_mod, only: gsi_metguess_bundle
 use gsi_4dvar, only: min_offset,l4densvar,ibdate,ens_fmnlevs
-use gsi_4dvar, only: tau_fcst
 use geos_StateIO, only: State_get
 use obsmod, only: iadate
 use hybrid_ensemble_parameters, only: uv_hyb_ens
@@ -96,6 +95,7 @@ implicit none
    type(sub2grid_info)                   ,intent(in   ) :: grd
    integer(i_kind)                       ,intent(in   ) :: member
    integer(i_kind)                       ,intent(in   ) :: ntindex
+   integer(i_kind)                       ,intent(in   ) :: tau
    integer(i_kind)                       ,intent(  out) :: iret
    type(gsi_bundle)                      ,intent(inout) :: atm_bundle                      
 
@@ -161,7 +161,7 @@ implicit none
       nhms = iadate(4)*10000 + iadate(5)*100
    endif
    call timer_ini('GetEns')
-   call state_get(flds,grd,nymd,nhms,member,tau=tau_fcst)
+   call state_get(flds,grd,nymd,nhms,member,tau=tau)
    call timer_fnl('GetEns')
 
 !  take care of rank-2 fields
@@ -204,7 +204,7 @@ implicit none
 
 end subroutine get_geos_ens
 
-subroutine get_geos_Nens(this,grd,members,ntindex,atm_bundle,iret)
+subroutine get_geos_Nens(this,grd,members,ntindex,tau,atm_bundle,iret)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    get_user_Nens_    pretend atmos bkg is the ensemble
@@ -246,7 +246,6 @@ use gsi_bundlemod, only: gsi_bundledestroy
 use gsi_bundlemod, only: gsi_bundlegetpointer
 use gsi_metguess_mod, only: gsi_metguess_bundle
 use gsi_4dvar, only: min_offset,l4densvar,ibdate,ens_fmnlevs
-use gsi_4dvar, only: tau_fcst
 use geos_StateIO, only: State_get
 use obsmod, only: iadate
 use hybrid_ensemble_parameters, only: uv_hyb_ens
@@ -266,6 +265,7 @@ implicit none
    type(sub2grid_info)                   ,intent(in   ) :: grd
    integer(i_kind)                       ,intent(in   ) :: members
    integer(i_kind)                       ,intent(in   ) :: ntindex
+   integer(i_kind)                       ,intent(in   ) :: tau
    integer(i_kind)                       ,intent(  out) :: iret
    type(gsi_bundle)                      ,intent(inout) :: atm_bundle(:)                      
 
@@ -335,7 +335,7 @@ implicit none
       nhms = iadate(4)*10000 + iadate(5)*100
    endif
    call timer_ini('GetEns')
-   call state_get(flds,grd,nymd,nhms,tau=tau_fcst)
+   call state_get(flds,grd,nymd,nhms,tau=tau)
    call timer_fnl('GetEns')
 
 !  take care of rank-2 fields

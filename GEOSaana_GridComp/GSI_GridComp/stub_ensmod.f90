@@ -58,7 +58,7 @@ contains
     mytype="["//myname//"::ensemble]"
   end function mytype
 
-  subroutine get_user_ens(this,grd,member,ntindex,atm_bundle,iret)
+  subroutine get_user_ens(this,grd,member,ntindex,tau,atm_bundle,iret)
 
      use kinds, only: i_kind
      use general_sub2grid_mod, only: sub2grid_info
@@ -71,6 +71,7 @@ contains
      type(sub2grid_info), intent(in   ) :: grd
      integer(i_kind),     intent(in   ) :: member
      integer(i_kind),     intent(in   ) :: ntindex
+     integer(i_kind),     intent(in   ) :: tau
      type(gsi_bundle),    intent(inout) :: atm_bundle
      integer(i_kind),     intent(  out) :: iret
 !    associate( this => this ) ! eliminates warning for unused dummy argument needed for binding
@@ -81,7 +82,7 @@ contains
 
   end subroutine get_user_ens
   
-  subroutine get_user_Nens(this,grd,members,ntindex,atm_bundle,iret)
+  subroutine get_user_Nens(this,grd,members,ntindex,tau,atm_bundle,iret)
  
      use kinds, only: i_kind
      use general_sub2grid_mod, only: sub2grid_info
@@ -94,6 +95,7 @@ contains
      type(sub2grid_info), intent(in   ) :: grd
      integer(i_kind),     intent(in   ) :: members
      integer(i_kind),     intent(in   ) :: ntindex
+     integer(i_kind),     intent(in   ) :: tau
      type(gsi_bundle),    intent(inout) :: atm_bundle(:)
      integer(i_kind),     intent(  out) :: iret
 !!   associate( this => this ) ! eliminates warning for unused dummy argument needed for binding
