@@ -1,4 +1,4 @@
-subroutine get_gefs_ensperts_dualres
+subroutine get_gefs_ensperts_dualres (tau)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    get_gefs_ensperts_dualres copy of get_gefs_ensperts for dual resolution
@@ -73,6 +73,8 @@ subroutine get_gefs_ensperts_dualres
   use general_sub2grid_mod, only: sub2grid_info,general_sub2grid_create_info,general_sub2grid_destroy_info
   use m_revBens, only: revBens_ensmean_overwrite
   implicit none
+
+  integer(i_kind),intent(in) :: tau
 
   real(r_kind),pointer,dimension(:,:)   :: ps
   real(r_kind),pointer,dimension(:,:,:) :: tv
@@ -158,7 +160,7 @@ subroutine get_gefs_ensperts_dualres
 
      en_bar(m)%values=zero
 
-     call gsi_enscoupler_get_user_Nens(grd_tmp,n_ens,m,en_read,iret)
+     call gsi_enscoupler_get_user_Nens(grd_tmp,n_ens,m,tau,en_read,iret)
 
      ! Check read return code.  Revert to static B if read error detected
      if ( iret /= 0 ) then
