@@ -130,7 +130,7 @@ subroutine glbsoi
       init_fc_sens, save_fc_sens, lobsensincr, lobsensjb
   use smooth_polcarf, only: norsp,destroy_smooth_polcas
   use jcmod, only: ljcdfi
-  use gsi_4dvar, only: l4dvar, lsqrtb, lbicg, lanczosave, lnested_loops, ladtest_obs
+  use gsi_4dvar, only: l4dvar, lsqrtb, lbicg, lanczosave, lnested_loops, ladtest_obs, tau_fcst
   use pcgsoimod, only: pcgsoi
   use control_vectors, only: dot_product
   use radinfo, only: radinfo_write,passive_bc,newpc4pred
@@ -266,7 +266,7 @@ subroutine glbsoi
 ! If l_hyb_ens is true, then read in ensemble perturbations
   if(l_hyb_ens) then
      call revBens_init(miter)
-     call load_ensemble
+     call load_ensemble(-1)
      call hybens_localization_setup
   end if
 
