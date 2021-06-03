@@ -70,7 +70,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
           ntguessig
   use gridmod, only: get_ij,nsig
   use constants, only: zero,half,one,tiny_r_kind,two,cg_term, &
-          wgtlim,g_over_rd,huge_r_kind,pi,huge_single,tiny_single,r10
+          wgtlim,g_over_rd,huge_r_kind,pi,huge_single,tiny_single,r10,r1000
   use convinfo, only: nconvtype,cermin,cermax,cgross,cvar_b,cvar_pg,ictype,&
           icsubtype
   use jfunc, only: jiter,last,jiterstart,miter
@@ -116,7 +116,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
   real(r_kind) pob,pges,pgesorig,half_tlapse,ddiff,halfpi,r0_005,rdelz,psges2
 
   real(r_kind),dimension(nele,nobs):: data
-  real(r_kind),dimension(nsig)::prsltmp
+  real(r_kind),dimension(nsig)::prsltmp,tvges
 
   type(sparr2) :: dhx_dx
   real(r_single), dimension(nsdim) :: dhx_dx_array
@@ -252,6 +252,8 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
      call tintrp2a11(ges_ps,psges,dlat,dlon,dtime,hrdifsig,&
         mype,nfldsig)
      call tintrp2a1(ges_lnprsl,prsltmp,dlat,dlon,dtime,hrdifsig,&
+        nsig,mype,nfldsig)
+     call tintrp2a1(ges_tv,tvges,dlat,dlon,dtime,hrdifsig,&
         nsig,mype,nfldsig)
 
 ! Convert pressure to grid coordinates
@@ -662,7 +664,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
            call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
            call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
            call nc_diag_metadata("Station_Elevation",       sngl(zero)             )
-           call nc_diag_metadata("Pressure",                sngl(data(ipres,i)*r10))
+           call nc_diag_metadata("Pressure",                sngl(data(ipres,i)*r1000))
            call nc_diag_metadata("Height",                  sngl(zero)             )
            call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
            call nc_diag_metadata("Prep_QC_Mark",            sngl(one)              )
@@ -702,6 +704,11 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
               call fullarray(dhx_dx, dhx_dx_array)
               call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
           endif
+
+           call nc_diag_data2d("virtual_temperature", tvges)
+
+           call nc_diag_metadata("surface_air_pressure", psges )
+           call nc_diag_metadata("surface_geopotential_height", zsges )
 
   end subroutine contents_netcdf_diag_
 

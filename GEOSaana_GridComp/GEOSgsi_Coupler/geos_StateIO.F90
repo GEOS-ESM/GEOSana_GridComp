@@ -27,7 +27,7 @@
   use mpimod,      only : mype,mpi_rtype,mpi_comm_world
   use gridmod,     only : nsig           ! no. levels
   use gridmod,     only : bk5         
-  use gsi_4dvar,   only : efsoi_afcst    ! might want to have this as opt arg of interface        
+  use gsi_4dvar,   only : evfsoi_afcst    ! might want to have this as opt arg of interface        
   use constants,   only : zero,one,tiny_r_kind,grav
   use state_vectors,only: dot_product
 
@@ -97,7 +97,7 @@ integer(i_kind):: tau_
      call tick (nymdb,nhmsb,tau_)
   endif
   if (tau_>0) then ! read forecast fields
-     if (efsoi_afcst) then
+     if (evfsoi_afcst) then
         write(fname,'(a,i3.3,2a)') 'mem',iwhat,'/',trim(GSI_ensprga_fname_tmpl)
      else
         write(fname,'(a,i3.3,2a)') 'mem',iwhat,'/',trim(GSI_ensprgb_fname_tmpl)
@@ -111,7 +111,7 @@ integer(i_kind):: tau_
        write(fname,'(3a,i3.3,a)')  trim(GSI_ExpId), '.', 'xinc.', abs(iwhat), '.eta.%y4%m2%d2_%h2%n2z.nc4'
      else
 #endif /* _ALSO_READ_XINC_ */
-       if (efsoi_afcst) then
+       if (evfsoi_afcst) then
           write(fname,'(a,i3.3,2a)') 'mem',iwhat,'/',trim(GSI_ensana_fname_tmpl)
        else
           write(fname,'(a,i3.3,2a)') 'mem',iwhat,'/',trim(GSI_ensbkg_fname_tmpl)
@@ -148,26 +148,26 @@ integer(i_kind):: ierr
 integer(i_kind):: tau_
 integer nf
 
-  tau_  = -one
+  tau_  = -1
   nymdb = nymd
   nhmsb = nhms
   if (present(tau)) then
      tau_ = tau
   endif
-  if (tau_>zero) then
+  if (tau_>0) then
      tau_ = 3600*tau
      call tick (nymdb,nhmsb,tau_)
   endif
   allocate(fname(size(xx)))
   do nf=1,size(xx)
      if (tau_>0) then ! read forecast fields
-        if (efsoi_afcst) then
+        if (evfsoi_afcst) then
            write(fname(nf),'(a,i3.3,2a)') 'mem',nf,'/',trim(GSI_ensprga_fname_tmpl)
         else
            write(fname(nf),'(a,i3.3,2a)') 'mem',nf,'/',trim(GSI_ensprgb_fname_tmpl)
         endif
      else             ! read background fields
-        if (efsoi_afcst) then
+        if (evfsoi_afcst) then
            write(fname(nf),'(a,i3.3,2a)') 'mem',nf,'/',trim(GSI_ensana_fname_tmpl)
         else
            write(fname(nf),'(a,i3.3,2a)') 'mem',nf,'/',trim(GSI_ensbkg_fname_tmpl)

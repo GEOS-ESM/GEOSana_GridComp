@@ -167,7 +167,7 @@ subroutine revBens_ensmean_overwrite (en_bar,ibin)
      if (istatus/=0)then
         call die(myname_,': cannot create bundle, aborting ...',91)
      endif
-     call GSI_EnsCoupler_get_user_ens(grd_tmp,0,ibin,guess,istatus)
+     call GSI_EnsCoupler_get_user_ens(grd_tmp,0,-1,ibin,guess,istatus)
      if (istatus/=0)then
         call die(myname_,': cannot create guess bundle, aborting ...',92)
      endif

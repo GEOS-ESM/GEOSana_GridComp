@@ -31,7 +31,7 @@ subroutine jgrad(xhat,yhat,fjcost,gradx,lupdfgs,nprt,calledby)
 use kinds, only: r_kind,i_kind,r_quad
 use gsi_4dvar, only: nobs_bins, nsubwin, l4dvar, ltlint, iwrtinc
 use gsi_4dvar, only: l4densvar
-use gsi_4dvar, only: efsoi_order
+use gsi_4dvar, only: evfsoi_order
 use constants, only: zero,zero_quad
 use mpimod, only: mype
 use jfunc, only : xhatsave,yhatsave
@@ -57,7 +57,7 @@ use gsi_4dcouplermod, only: gsi_4dcoupler_grtests
 use xhat_vordivmod, only : xhat_vordiv_init, xhat_vordiv_calc, xhat_vordiv_clean
 use hybrid_ensemble_parameters,only : l_hyb_ens,ntlevs_ens
 use mpl_allreducemod, only: mpl_allreduce
-use obs_sensitivity, only: efsoi_o2_update
+use obs_sensitivity, only: evfsoi_o2_update
 
 implicit none
 
@@ -144,8 +144,8 @@ else
 end if
 
 if (.not.l_do_adjoint) then
-   if(lsaveobsens.and.l_hyb_ens.and.efsoi_order==2) then
-     call efsoi_o2_update(sval)
+   if(lsaveobsens.and.l_hyb_ens.and.evfsoi_order==2) then
+     call evfsoi_o2_update(sval)
    end if
 end if
 
