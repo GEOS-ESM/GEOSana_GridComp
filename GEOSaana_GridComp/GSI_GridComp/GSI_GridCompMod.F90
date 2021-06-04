@@ -3614,19 +3614,17 @@ _ENTRY_(trim(Iam))
    call destroy_metguess_grids(mype,status)
    VERIFY_(STATUS)
 
-   deallocate( isli     ,&
-               fact10   ,&
-               sfct     ,&
-               dsfct    ,&
-               sno      ,&
-               veg_type ,&
-               veg_frac ,&
-               soil_type,&
-               soil_temp,&
-               soil_moi ,&
-               sfc_rough,&
-               stat=STATUS)
-   VERIFY_(STATUS)
+   if(allocated(isli)) deallocate(isli)
+   if(allocated(fact10)) deallocate(fact10)
+   if(allocated(sfct)) deallocate(sfct)
+   if(allocated(dsfct)) deallocate(dsfct)
+   if(allocated(sno)) deallocate(sno)
+   if(allocated(veg_type)) deallocate(veg_type)
+   if(allocated(veg_frac)) deallocate(veg_frac)
+   if(allocated(soil_type)) deallocate(soil_type)
+   if(allocated(soil_temp)) deallocate(soil_temp)
+   if(allocated(soil_moi)) deallocate(soil_moi)
+   if(allocated(sfc_rough)) deallocate(sfc_rough)
 
    call destroy_grid_vars
 
