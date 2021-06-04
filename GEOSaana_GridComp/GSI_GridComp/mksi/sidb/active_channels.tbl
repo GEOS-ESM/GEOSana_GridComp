@@ -96,8 +96,11 @@
 #  06Apr2020 Todling - pushed back MetopA-MHS deactivation from 20190915 to 20190531
 #  13May2020 W. Gu   - replaced CrIS-nsr SNPP with CrIS-fsr
 #  30Sep2020 M. Chattopadhyay - historic AVHRR: N15, N16 and N17
-#  25May2021 Meta    - turn off CrIS-FSR SNPP after LW side 2 anomaly until switch to side-2, change start date to initial date in our data
+#  25May2021 Sienkiewicz - turn off CrIS-FSR SNPP after LW side 2 anomaly until switch to side-2, change start date to initial date in our data
 #                      start date for CrIS-FSR N20 set to start date in our data; correct start date for N20 ATMS
+#  25May2021 Todling - Add IASI on Metop-C as copy of that on Metop-B
+#   4Jun2021 Sienkiewicz - modify start date of MetOp-C IASI to match start of clear FOV data in our archive  2020/05/19 12z
+#                          (All-FOV data starts20210104 18z in MTIASIX directory)
 #=================
 #  For reference: http://www.emc.ncep.noaa.gov/mmb/data_processing/Satellite_Historical_Documentation.htm
 #                 http://geos5.org/wiki/index.php?title=Talk:GEOS-5_ADAS_Radiance_Monitoring
@@ -652,7 +655,7 @@ g13  20060630 000000  21001231 240000  imgr   0
 # NPP ATMS/CrIS
 #==============
 npp  20111116 000000  21001231 240000  atms  17         5 6 7 8 9 10 11 12 13 14 15    17 18 19 20 21 22
-n20  20180510 000000  21001231 240000  atms  17         5 6 7 8 9 10 11 12 13 14 15    17 18 19 20 21 22
+n20  20180510 120000  21001231 240000  atms  17         5 6 7 8 9 10 11 12 13 14 15    17 18 19 20 21 22
 
 # cris active channels                           m       01    02    03    04    05    06    07    08    09    10
 npp  20171020 000000  20190325 180000 cris-fsr   9             57    58    59    60    61    62    63    64    65
@@ -885,6 +888,70 @@ metop-b  20130213 000000  21001231 240000  iasi    0                            
 metop-b  20130213 000000  21001231 240000  iasi    0                                                   #   590
 metop-b  20130213 000000  21001231 240000  iasi    0                                                   #   600
 metop-b  20130213 000000  21001231 240000  iasi    0                                                   #   610-616
+
+# iasi active channels                                m   01   02   03   04   05   06   07   08   09   10
+metop-c  20200519 120000  21001231 240000  iasi    3   16                  38                  49      #     0
+metop-c  20200519 120000  21001231 240000  iasi    7   51        55        57   59   61        63   66 #    10
+metop-c  20200519 120000  21001231 240000  iasi    6        70   72   74             79   81        83 #    20
+metop-c  20200519 120000  21001231 240000  iasi    2        85        87                               #    30
+metop-c  20200519 120000  21001231 240000  iasi    7            104  106  109       111  113  116  119 #    40
+metop-c  20200519 120000  21001231 240000  iasi   10  122  125  128  131  133  135  138  141  144  146 #    50
+metop-c  20200519 120000  21001231 240000  iasi    8  148       151  154  157  159       161  163  167 #    60
+metop-c  20200519 120000  21001231 240000  iasi    7  170  173  176       180  185  187       193      #    70
+metop-c  20200519 120000  21001231 240000  iasi    6  199                 205  207  210  212       214 #    80
+metop-c  20200519 120000  21001231 240000  iasi    6  217       219  222  224       226       230      #    90
+metop-c  20200519 120000  21001231 240000  iasi    8  232  236       239  243  246  249  252  254      #   100
+metop-c  20200519 120000  21001231 240000  iasi    5  260  262                 275       282       294 #   110
+metop-c  20200519 120000  21001231 240000  iasi    5  296  299       303  306                 323      #   120
+metop-c  20200519 120000  21001231 240000  iasi    9  327  329       335  345  347  350  354  356  360 #   130
+metop-c  20200519 120000  21001231 240000  iasi    8       366  371       373  375  377  379  381  383 #   140
+metop-c  20200519 120000  21001231 240000  iasi    7  386  389  398  401  404       407       410      #   150
+metop-c  20200519 120000  21001231 240000  iasi    7  414  416            426  428  432       434  439 #   160
+metop-c  20200519 120000  21001231 240000  iasi    3       445       457                           515 #   170
+metop-c  20200519 120000  21001231 240000  iasi    6  546  552  559  566  571  573                     #   180
+metop-c  20200519 120000  21001231 240000  iasi    7  646  662  668            756       867  906  921 #   190
+metop-c  20200519 120000  21001231 240000  iasi    6 1027 1046           1121 1133      1191 1194      #   200
+metop-c  20200519 120000  21001231 240000  iasi    2 1271                               1427           #   210
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   220
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   230
+metop-c  20200519 120000  21001231 240000  iasi    1                     1536                          #   240
+metop-c  20200519 120000  21001231 240000  iasi    3                1579      1585      1626           #   250
+metop-c  20200519 120000  21001231 240000  iasi    2 1643                     1671                     #   260
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   270
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   280
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   290
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   300
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   310
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   320
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   330
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   340
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   350
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   360
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   370
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   380
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   390
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   400
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   410
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   420
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   430
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   440
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   450
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   460
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   470
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   480
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   490
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   500
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   510
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   520
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   530
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   540
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   550
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   560
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   570
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   580
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   590
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   600
+metop-c  20200519 120000  21001231 240000  iasi    0                                                   #   610-616
 
 
 # GPM/TRMM
