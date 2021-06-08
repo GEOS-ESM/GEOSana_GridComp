@@ -4002,7 +4002,7 @@ subroutine hybens_localization_setup
 !
 !$$$
    use kinds, only: r_kind,i_kind
-   use constants, only: one,zero
+   use constants, only: one,zero,half
    use mpimod, only: mype
    use gridmod,only: regional
    use gfs_stratosphere, only: use_gfs_stratosphere,blend_rm
@@ -4013,6 +4013,7 @@ subroutine hybens_localization_setup
                                          vvlocal,s_ens_h,s_ens_hv,s_ens_v,s_ens_vv
    use gsi_io, only: verbose
    use m_revBens, only: revBens_ensloc_refactor
+   use guess_grids, only: get_ref_gesprs
 
    implicit none
 
@@ -4021,6 +4022,7 @@ subroutine hybens_localization_setup
    integer(i_kind) :: k,msig,istat,nz,kl
    logical         :: lexist,print_verbose
    real(r_kind),allocatable:: s_ens_h_gu_x(:),s_ens_h_gu_y(:)
+   real(r_kind),allocatable:: prs(:)
    print_verbose=.false. .and. mype == 0
    if(verbose .and. mype == 0)print_verbose=.true.
 
@@ -4045,6 +4047,8 @@ subroutine hybens_localization_setup
             close(lunin)
             call stop2(123)
          endif
+         allocate(prs(grd_ens%nsig+1))
+         call get_ref_gesprs(prs)
          do k = 1,grd_ens%nsig
             read(lunin,101) s_ens_hv(k), s_ens_vv(k), beta_s(k), beta_e(k)
          enddo
@@ -4054,8 +4058,9 @@ subroutine hybens_localization_setup
 
          if(mype==0) write(6,'(" LOCALIZATION, BETA_S, BETA_E VERTICAL PROFILES FOLLOW")')
          do k = 1,grd_ens%nsig
-            if(mype==0) write(6,101) s_ens_hv(k), s_ens_vv(k), beta_s(k), beta_e(k)
+            if(mype==0) write(6,102) s_ens_hv(k), s_ens_vv(k), beta_s(k), beta_e(k), half*(prs(k)+prs(k+1))
          enddo
+         deallocate(prs)
 
       else
 
@@ -4077,6 +4082,7 @@ subroutine hybens_localization_setup
 100 format(I4)
 !101 format(F8.1,3x,F5.1,2(3x,F8.4))
 101 format(F8.1,3x,F8.3,F8.4,3x,F8.4)
+102 format(F8.1,3x,F8.3,F8.4,3x,F8.4,F10.4)
 
    if ( .not. readin_beta ) then ! assign all levels to same value, sum = 1.0
       beta_s = beta_s0
@@ -4142,12 +4148,15 @@ subroutine hybens_localization_setup
 
    ! write out final values for s_ens_hv, s_ens_vv, beta_s, beta_e
 !_RT_DEBUG   if ( print_verbose ) then
+   allocate(prs(grd_ens%nsig+1))
+   call get_ref_gesprs(prs)
    if ( mype==0 ) then
       write(6,*) 'HYBENS_LOCALIZATION_SETUP(FINAL): s_ens_hv,s_ens_vv,beta_s,beta_e'
       do k=1,grd_ens%nsig
-         write(6,101) s_ens_hv(k), s_ens_vv(k), beta_s(k), beta_e(k)
+         write(6,102) s_ens_hv(k), s_ens_vv(k), beta_s(k), beta_e(k), half*(prs(k)+prs(k+1))
       enddo
    endif
+   deallocate(prs)
 
    return
 
