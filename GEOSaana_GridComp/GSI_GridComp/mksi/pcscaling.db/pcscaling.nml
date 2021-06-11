@@ -1,6 +1,6 @@
 &PCSCALING_NML
   pcscaling=.true.
-  verbose=.true.
+  verbose=.false.
   pcscales(:)=
 !   yyyymmddhh     isis       ichan   scale
     2009041200  amsua_n15       0    1000.
