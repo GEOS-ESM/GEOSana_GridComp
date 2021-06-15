@@ -24,6 +24,7 @@
 #  24Sep2019 Meta    - Add MetOp-C AMSU-A and MHS - start date reflects data start in regular AMSU-A/MHS files
 #  23Jan2020 J. Jin  - Add gcom-w1 AMSR2
 #  13May2020 W. Gu   - replace CrIS-nsr for SNPP with CrIS-fsr
+#  11Apr2021 Meta    - add end date for GOES-13 Sounder
 #  24May2021 Meta    - change start dates for FSR  & N20 ATMS to match when the data starts in our archive.
 #                          If we obtain/process data from eariler dates, we can change this
 #  25May2021 Todling - Add IASI on Metop-C as copy of that on Metop-B
@@ -350,10 +351,10 @@ g12  20070222 000000  20100414 240000 sndrD4 18 1 2 3 4 5 6 7 8 9 10 11 12 13 14
 
 # GOES-13  GS
 g13  20060630 000000  20120922 240000 imgr    4   2 3 4 5
-g13  20060630 000000  29991231 240000 sndrD1 18 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
-g13  20060630 000000  29991231 240000 sndrD2 18 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
-g13  20060630 000000  29991231 240000 sndrD3 18 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
-g13  20060630 000000  29991231 240000 sndrD4 18 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
+g13  20060630 000000  20151120 120000 sndrD1 18 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
+g13  20060630 000000  20151120 120000 sndrD2 18 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
+g13  20060630 000000  20151120 120000 sndrD3 18 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
+g13  20060630 000000  20151120 120000 sndrD4 18 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
 
 # GOES-14 
 g14  20121001 000000  29991231 240000 imgr    4   2 3 4 5
