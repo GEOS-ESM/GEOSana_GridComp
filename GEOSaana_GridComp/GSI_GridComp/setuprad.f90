@@ -223,6 +223,7 @@ contains
 !   2020-01-17  j.jin   - add all-sky AMSR2 
 !   2020-02-26  todling - reset obsbin from hr to min
 !   2020-08-26  mkim    - adjusted MHS QC for all-sky
+!   2020-09-27  j.jin   - assimilate SSMI, TMI and AMSRE (gmao format) in all-sky conditions.
 !
 !  input argument list:
 !     lunin   - unit from which to read radiance (brightness temperature, tb) obs
@@ -293,6 +294,7 @@ contains
       ifrac_sea,ifrac_lnd,ifrac_ice,ifrac_sno,itsavg, &
       izz,idomsfc,isfcr,iff10,ilone,ilate, &
       isst_hires,isst_navy,idata_type,iclr_sky,itref,idtw,idtc,itz_tr
+  use crtm_interface, only: iedge_log
   use crtm_interface, only: ilzen_ang2,iscan_ang2,iszen_ang2,isazi_ang2
   use clw_mod, only: calc_clw, ret_amsua, gmi_37pol_diff,mhs_si
   use qcmod, only: qc_ssmi,qc_seviri,qc_abi,qc_ssu,qc_avhrr,qc_goesimg,qc_msu,qc_irsnd,qc_amsua,qc_mhs,qc_atms
@@ -373,6 +375,7 @@ contains
   real(r_single), dimension(nsdim) :: dhx_dx_array
   logical avhrr,avhrr_navy,lextra,ssu,iasi,cris,seviri,atms
   logical ssmi,ssmis,amsre,amsre_low,amsre_mid,amsre_hig,amsr2,gmi,saphir
+  logical tmi
   logical ssmis_las,ssmis_uas,ssmis_env,ssmis_img
   logical sea,mixed,land,ice,snow,toss,l_may_be_passive,eff_area
   logical microwave, microwave_low
@@ -427,6 +430,7 @@ contains
   integer(i_kind),dimension(nchanl):: kmax
   integer(i_kind),allocatable,dimension(:) :: sc_index
   integer(i_kind)  :: state_ind, nind, nnz
+  integer(i_kind)  :: iscan_edge
 
   integer(i_kind)  :: neg_posi_one(0:1)=(/-1,1/)
   logical channel_passive
@@ -514,8 +518,9 @@ contains
   amsre_low  = obstype == 'amsre_low'
   amsre_mid  = obstype == 'amsre_mid'
   amsre_hig  = obstype == 'amsre_hig'
-  amsre      = amsre_low .or. amsre_mid .or. amsre_hig
+  amsre      = amsre_low .or. amsre_mid .or. amsre_hig .or. obstype == 'amsre'
   amsr2      = obstype == 'amsr2'
+  tmi        = obstype == 'tmi'
   gmi        = obstype == 'gmi'
   ssmis      = obstype == 'ssmis'
   ssmis_las  = obstype == 'ssmis_las'
@@ -533,6 +538,7 @@ contains
 
   microwave=amsua .or. amsub  .or. mhs .or. msu .or. hsb .or. &
             ssmi  .or. ssmis  .or. amsre .or. atms .or. &
+            tmi   .or. &
             amsr2 .or. gmi  .or.  saphir
 
   microwave_low =amsua  .or.  msu .or. ssmi .or. ssmis .or. amsre
@@ -937,7 +943,7 @@ contains
              tvp,qvp,clw_guess,ciw_guess,rain_guess,snow_guess,prsltmp,prsitmp, &
              trop5,tzbgr,dtsavg,sfc_speed, &
              tsim,emissivity,ptau5,ts,emissivity_k, &
-             temp,wmix,jacobian,error_status)
+             temp,wmix,jacobian,error_status, tpwc_guess=tpwc_guess)
           if(gmi) then
              gmi_low_angles(1:3)=data_s(ilzen_ang:iscan_ang,n)
              gmi_low_angles(4:5)=data_s(iszen_ang:isazi_ang,n)
@@ -1003,7 +1009,8 @@ contains
         if (adp_anglebc) then
            do i=1,nchanl
               mm=ich(i)
-              if (goessndr .or. goes_img .or. ahi .or. seviri .or. ssmi .or. ssmis .or. gmi .or. abi .or. amsr2) then
+              if (goessndr .or. goes_img .or. ahi .or. seviri .or. ssmi .or. ssmis .or. gmi .or. abi .or. amsr2 .or. &
+                  amsre .or. tmi ) then
                  pred(npred,i)=nadir*deg2rad
               else
                  pred(npred,i)=data_s(iscan_ang,n)
@@ -1034,7 +1041,7 @@ contains
            if(radmod%lcloud_fwd .and. (amsua .or. atms)) then
               call ret_amsua(tb_obs,nchanl,tsavg5,zasat,clw_obs,ierrret,scat)
               scatp=scat 
-           else
+           else if(.not. (radmod%lcloud_fwd .and. (ssmi .or. amsre .or. tmi))) then
               call calc_clw(nadir,tb_obs,tsim,ich,nchanl,no85GHz,amsua,ssmi,ssmis,amsre,atms, &
                    amsr2,gmi,saphir,tsavg5,sfc_speed,zasat,clw_obs,tpwc_obs,gwp,kraintype,ierrret)
            end if
@@ -1097,14 +1104,14 @@ contains
            if (.not. newpc4pred) then
               pred(1,i) = r0_01
               pred(2,i) = one_tenth*(one/cosza-one)**2-.015_r_kind
-              if(ssmi .or. ssmis .or. amsre .or. gmi .or. amsr2)pred(2,i)=zero
+              if(ssmi .or. ssmis .or. amsre .or. tmi .or. gmi .or. amsr2)pred(2,i)=zero
            else
               pred(1,i) = one
               if (adp_anglebc) then
                  pred(2,i) = zero
               else
                  pred(2,i) = (one/cosza-one)**2
-                 if(ssmi .or. ssmis .or. amsre .or. gmi .or. amsr2)pred(2,i)=zero
+                 if(ssmi .or. ssmis .or. amsre .or. gmi .or. amsr2 .or. tmi)pred(2,i)=zero
               end if
            end if
 
@@ -1240,13 +1247,21 @@ contains
            end do
 
            if(amsua) call ret_amsua(tsim_bc,nchanl,tsavg5,zasat,clw_guess_retrieval,ierrret)
-           if(gmi) then
+           if(gmi .or. tmi) then
              call gmi_37pol_diff(tsim_bc(6),tsim_bc(7),tsim_clr_bc(6),tsim_clr_bc(7),clw_guess_retrieval,ierrret)
              call gmi_37pol_diff(tb_obs(6),tb_obs(7),tsim_clr_bc(6),tsim_clr_bc(7),clw_obs,ierrret)
            end if
            if(mhs) then
              call mhs_si(tb_obs(1),tb_obs(2), tsim_clr_bc(1),tsim_clr_bc(2),clw_obs,ierrret)
              call mhs_si(tsim_bc(1),tsim_bc(2), tsim_clr_bc(1),tsim_clr_bc(2),clw_guess_retrieval,ierrret)
+           end if
+           if(obstype == 'amsre') then
+             call gmi_37pol_diff(tsim_bc(9),tsim_bc(10),tsim_clr_bc(9),tsim_clr_bc(10),clw_guess_retrieval,ierrret)
+             call gmi_37pol_diff(tb_obs(9),tb_obs(10),tsim_clr_bc(9),tsim_clr_bc(10),clw_obs,ierrret)
+           endif
+           if(ssmi) then
+             call gmi_37pol_diff(tsim_bc(4),tsim_bc(5),tsim_clr_bc(4),tsim_clr_bc(5),clw_guess_retrieval,ierrret)
+             call gmi_37pol_diff(tb_obs(4),tb_obs(5),tsim_clr_bc(4),tsim_clr_bc(5),clw_obs,ierrret)
            endif
            if (radmod%ex_obserr=='ex_obserr1') then
               call radiance_ex_biascor(radmod,nchanl,tsim_bc,tsavg5,zasat, &
@@ -1538,22 +1553,39 @@ contains
 !  ---------- SSM/I , SSMIS, AMSRE  -------------------
 !       SSM/I, SSMIS, & AMSRE Q C
 
-        else if( ssmi .or. amsre .or. ssmis )then   
+        else if( ssmi .or. amsre .or. ssmis .or. tmi )then
 
            frac_sea=data_s(ifrac_sea,n)
-           if(amsre)then
+           iscan_edge = -1_i_kind
+           if(obstype == 'amsre_low' .or. obstype == 'amsre_mid' .or. obstype == 'amsre_hig')then
               bearaz= (270._r_kind-data_s(ilazi_ang,n))*deg2rad
               sun_zenith=data_s(iszen_ang,n)*deg2rad
               sun_azimuth=(r90-data_s(isazi_ang,n))*deg2rad
               sgagl =  acos(coscon * cos( bearaz ) * cos( sun_zenith ) * cos( sun_azimuth ) + &
                        coscon * sin( bearaz ) * cos( sun_zenith ) * sin( sun_azimuth ) +  &
                        sincon *  sin( sun_zenith )) * rad2deg
+           else if(tmi .or. obstype == 'amsre') then
+              bearaz=(data_s(isazi_ang,n)-data_s(ilazi_ang,n))*deg2rad + pi
+              sun_zenith=data_s(iszen_ang,n)*deg2rad
+              sgagl = acos( cos(sun_zenith)*cosza + sin(sun_zenith)*sin(zasat)*cos(bearaz))*rad2deg 
+              if(tmi) iscan_edge = int(data_s(iedge_log,n))
            end if
-           call qc_ssmi(nchanl,nsig,ich, &
-              zsges,luse(n),sea,mixed, &
-              temp,wmix,ts,emissivity_k,ierrret,kraintype,tpwc_obs,clw_obs,sgagl,tzbgr, &
-              tbc,tbcnob,tsim,tnoise,ssmi,amsre_low,amsre_mid,amsre_hig,ssmis, &
-              varinv,errf,aivals(1,is),id_qc)
+           if (radmod%lcloud_fwd.and.(tmi.or.amsre.or.ssmi)) then
+              clw_avg = half*(clw_obs+clw_guess_retrieval)
+              call qc_ssmi(nchanl,nsig,ich, &
+                 zsges,luse(n),sea,mixed, &
+                 temp,wmix,ts,emissivity_k,ierrret,kraintype,tpwc_guess,clw_obs,sgagl,tzbgr, &
+                 tbc,tbcnob,tsim,tnoise,ssmi,amsre_low,amsre_mid,amsre_hig,ssmis, &
+                 tmi,amsre, sfc_speed,frac_sea, iscan_edge, &
+                 varinv,errf,aivals(1,is),id_qc,radmod,clw_guess_retrieval)
+           else 
+              call qc_ssmi(nchanl,nsig,ich, &
+                 zsges,luse(n),sea,mixed, &
+                 temp,wmix,ts,emissivity_k,ierrret,kraintype,tpwc_obs,clw_obs,sgagl,tzbgr, &
+                 tbc,tbcnob,tsim,tnoise,ssmi,amsre_low,amsre_mid,amsre_hig,ssmis, &
+                 tmi,amsre, sfc_speed,frac_sea, iscan_edge, &
+                 varinv,errf,aivals(1,is),id_qc,radmod)
+           endif
 
 !  ---------- AMSR2  -------------------
 !       AMSR2 Q C
@@ -1619,7 +1651,8 @@ contains
                     errf(i) = three*errf(i)    
                  else if(radmod%rtype == 'atms' .and. (i <= 6 .or. i>=16) ) then
                     errf(i) = min(three*errf(i),10.0_r_kind)    
-                 else if(radmod%rtype == 'gmi') then
+                 else if(radmod%rtype == 'gmi' .or. radmod%rtype == 'tmi' &
+                         .or. radmod%rtype == 'amsre') then
                     errf(i) = min(2.0_r_kind*errf(i),ermax_rad(m))
                  else if(radmod%rtype == 'amsr2') then
                     if( (i >=7 .and. i <=14) ) then
@@ -2546,9 +2579,9 @@ contains
                     call nc_diag_metadata("Sol_Azimuth_Angle",  sngl(data_s(isazi_ang2,n))          ) ! solar azimuth angle (degrees)
                     call nc_diag_metadata("Scan_Angle",         sngl(data_s(iscan_ang2,n)*rad2deg)  ) ! scan angle
                  else
-                 call nc_diag_metadata("Sat_Zenith_Angle",      sngl(zasat*rad2deg)                 ) ! satellite zenith angle (degrees)
-                 call nc_diag_metadata("Sol_Zenith_Angle",      sngl(pangs)                         ) ! solar zenith angle (degrees)
-                 call nc_diag_metadata("Sol_Azimuth_Angle",     sngl(data_s(isazi_ang,n))           ) ! solar azimuth angle (degrees)
+                    call nc_diag_metadata("Sat_Zenith_Angle",   sngl(zasat*rad2deg)                 ) ! satellite zenith angle (degrees)
+                    call nc_diag_metadata("Sol_Zenith_Angle",   sngl(pangs)                         ) ! solar zenith angle (degrees)
+                    call nc_diag_metadata("Sol_Azimuth_Angle",  sngl(data_s(isazi_ang,n))           ) ! solar azimuth angle (degrees)
                     call nc_diag_metadata("Scan_Angle",         sngl(data_s(iscan_ang,n)*rad2deg)   ) ! scan angle
                  endif
                  call nc_diag_metadata("Sat_Azimuth_Angle",     sngl(data_s(ilazi_ang,n))           ) ! satellite azimuth angle (degrees)
@@ -2607,6 +2640,14 @@ contains
                  call nc_diag_metadata("clw_obs",               sngl(clw_obs)                       )
                  call nc_diag_metadata("clwp_amsua",            sngl(clw_obs)                       ) !_RT: ease IODA conversion NCEP needs to clean up
                  call nc_diag_metadata("clw_guess",             sngl(clw_guess)                     )
+                 call nc_diag_metadata("ciw_guess",             sngl(ciw_guess)                     ) ! model column qi (kg/m^2)
+                 call nc_diag_metadata("rain_guess",            sngl(rain_guess)                    ) ! model column qr (kg/m^2)
+                 call nc_diag_metadata("snow_guess",            sngl(ciw_guess)                     ) ! model column qs (kg/m^2)
+                 if (radmod%lcloud_fwd) then
+                     call nc_diag_metadata("tsim_clr",          sngl(tsim_clr(i))                   ) ! simulated tsim from profiles that clw is excluded.
+                     call nc_diag_metadata("tsim_clr_bc",       sngl(tsim_clr_bc(i))                ) ! simulated tsim in  after BC
+                     call nc_diag_metadata("cld_rbc_idx",       sngl(cld_rbc_idx(i))                ) ! BC id in all-sky DA
+                 endif
 
                  if (nstinfo==0) then
                     data_s(itref,n)  = missing

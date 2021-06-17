@@ -341,6 +341,7 @@ function dtype2index_(dtype) result(index_)
     case("gmi"    ); index_= iobOper_rad
     case("seviri" ); index_= iobOper_rad
     case("ahi"    ); index_= iobOper_rad
+    case("tmi"    ); index_= iobOper_rad
         !
     case("avhrr_navy"); index_= iobOper_rad
     case("avhrr"  ); index_= iobOper_rad
