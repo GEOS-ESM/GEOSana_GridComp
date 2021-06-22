@@ -85,7 +85,7 @@ state_tendencies::
 chem_guess::
 #!var     level  itracer crtm_use   type              orig_name
 # co      181      1        -1       n-a                CO
-  co2     132      1         3       n-a                CO2
+  co2     181      1         3       n-a                CO2
 #      GOCART Aerosols
 #    ------ Dust ------
 #du001    181      1         11      dust               DU001
