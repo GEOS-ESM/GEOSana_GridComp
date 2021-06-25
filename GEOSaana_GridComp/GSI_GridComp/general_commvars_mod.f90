@@ -90,7 +90,7 @@ contains
 !   2013-10-28  todling - rename p3d to prse
 !   2018-05-09  mtong - use derivative vector to structure variable s2g_d
 !   2018-05-09  eliu - construct variable s2g_d for derivatives when derivative variables
-!                      are set (drv_set_ = .true.)   
+!                      are set (drv_set = .true.)   
 !
 !   input argument list:
 !
@@ -107,7 +107,7 @@ contains
                          ijn_s,irc_s,ijn,displs_g,isc_g,isd_g,vlevs
       use mpimod, only: npe,levs_id,nvar_id,nvar_pe
       use control_vectors, only: cvars2d,cvars3d,mvars,cvarsmd,nrf_var
-      use derivsmod, only: dvars2d, dvars3d, drv_set_ 
+      use derivsmod, only: dvars2d, dvars3d, drv_set
       use general_sub2grid_mod, only: general_sub2grid_create_info
       use mpeu_util, only: getindex
 
@@ -208,7 +208,7 @@ contains
 
 !  create general_sub2grid structure variable s2g_d, which is used in get_derivatives.f90
 
-      if (drv_set_) then 
+      if (drv_set) then 
 
          inner_vars=1
          num_fields=size(dvars2d)+nsig*size(dvars3d)

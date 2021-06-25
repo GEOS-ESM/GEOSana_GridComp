@@ -69,6 +69,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 !                       - Read WMO pre-approved new BUFR Goes-16 AMVs (Goes-R)
 !   2018-06-13  Genkova - Goes-16 AMVs use ECMWF QC till new HAM late 2018
 !                         and OE/2 
+!   2021-06-21  Todling - Allow code to bypass hack to half-GOES-R errors
 ! 
 !   
 !
@@ -98,6 +99,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
        tll2xy,txy2ll,rotate_wind_ll2xy,rotate_wind_xy2ll,&
        rlats,rlons,twodvar_regional,wrf_nmm_regional
   use qcmod, only: errormod,njqc
+  use qcmod, only: half_goesr_err
   use convthin, only: make3grids,map3grids,map3grids_m,del3grids,use_all
   use convthin_time, only: make3grids_tm,map3grids_tm,map3grids_m_tm,del3grids_tm,use_all_tm
   use constants, only: deg2rad,zero,rad2deg,one_tenth,&
@@ -1275,10 +1277,12 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 ! Reduce OE for the GOES-R winds by half following Sharon Nebuda's work
 ! GOES-R wind are identified/recognised here by subset, but it could be done by itype or SAID
 ! After completing the evaluation of GOES-R winds, REVISE this section!!!
+          if (half_goesr_err) then
             if(trim(subset) == 'NC005030' .or. trim(subset) == 'NC005031' .or. trim(subset) == 'NC005032' .or. &  
                trim(subset) == 'NC005034' .or. trim(subset) == 'NC005039' ) then  
                obserr=obserr/two
             endif
+          endif
 
 !         Set usage variable
            usage = 0 
