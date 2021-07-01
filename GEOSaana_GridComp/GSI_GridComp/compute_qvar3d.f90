@@ -24,6 +24,7 @@ subroutine compute_qvar3d
 ! 2015-09-10 zhu  - use centralized cloud_names_fwd and n_clouds_fwd in the assignments of cloud 
 !                   variances (either cw or individual hydrometerors) for all-sky radiance assimilation
 !                 - remove cwoption1
+! 2021-03-03 zhu  - add pblh
 !
 !   input argument list:
 !
@@ -36,10 +37,10 @@ subroutine compute_qvar3d
 !
 !$$$
   use kinds, only: r_kind,i_kind,r_single
-  use berror, only: dssv
+  use berror, only: dssv,dssvs
   use jfunc, only: varq,qoption,varcw,cwoption,clip_supersaturation
   use derivsmod, only: qsatg,qgues
-  use control_vectors, only: cvars3d
+  use control_vectors, only: cvars3d,cvars2d
   use gridmod, only: lat2,lon2,nsig
   use constants, only: zero,one,fv,r100,qmin
   use guess_grids, only: fact_tv,ntguessig,nfldsig,ges_tsen,ges_prsl,ges_qsat
@@ -54,13 +55,13 @@ subroutine compute_qvar3d
 
 ! Declare local variables
   logical ice
-  integer(i_kind) :: i,j,k,it,n,np,iderivative,nrf3_q,nrf3_cw
+  integer(i_kind) :: i,j,k,it,n,np,iderivative,nrf3_q,nrf3_cw,nrf2_pblh
   integer(i_kind) :: ic,nrf3_var
   real(r_kind) d,dn1,dn2
   real(r_kind),allocatable,dimension(:,:,:):: rhgues
 
   integer(i_kind):: istatus,ier,ier6
-  real(r_kind):: cwtmp
+  real(r_kind):: cwtmp,htmp
   real(r_kind),pointer,dimension(:,:,:):: ges_var=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_ql=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_qi=>NULL()
@@ -69,11 +70,13 @@ subroutine compute_qvar3d
   real(r_kind),pointer,dimension(:,:,:):: ges_qg=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_qh=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_q =>NULL()
+  real(r_kind),pointer,dimension(:,:):: ges_pblh =>NULL()
   integer(i_kind):: maxvarq1
 
 
   nrf3_q=getindex(cvars3d,'q')
   nrf3_cw=getindex(cvars3d,'cw')
+  nrf2_pblh=getindex(cvars2d,'pblh')
 
 ! Calculate qsat independently of presence of q in guess
   iderivative = 0
@@ -152,6 +155,19 @@ subroutine compute_qvar3d
   end if
 
   deallocate(rhgues)
+
+  if (nrf2_pblh>0) then
+     call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'pblh',ges_pblh,istatus)
+     if (istatus/=0) return
+     do j = 1,lon2
+        do i = 1,lat2
+           htmp=ges_pblh(i,j)
+           if (ges_pblh(i,j)<one) htmp=one
+           dn1=0.1_r_kind*htmp
+           dssvs(i,j,nrf2_pblh)=dn1
+        end do
+     end do
+  end if
 
   if (.not. icloud_cv) return
   if (nrf3_cw>0) then 

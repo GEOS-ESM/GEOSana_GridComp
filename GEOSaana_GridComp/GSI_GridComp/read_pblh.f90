@@ -1,4 +1,4 @@
-      subroutine read_pblh(nread,ndata,nodata,infile,obstype,lunout,twindin,&
+      subroutine read_pblh0(nread,ndata,nodata,infile,obstype,lunout,twindin,&
          sis,nobs)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -488,6 +488,341 @@
      if (ndata == 0) then
         call closbf(lunin)
         write(6,*)'READ_PREPFITS:  closbf(',lunin,')'
+     endif
+
+     close(lunin)
+     end subroutine read_pblh0
+      subroutine read_pblh(nread,ndata,nodata,infile,obstype,lunout,twindin,&
+         sis,hgtl_full,nobs)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:  read_pblh     read obs from msgs in PREPFITS files (rpf == read aircraft)
+!
+! program history log:
+!   2009-06     whiting - coding rpf
+!   2009-10-20    zhu   - modify rpf for reading in pblh data in GSI
+!   2009-10-21  whiting - modify cnem & pblhob for reading Caterina's files
+!   2013-01-26  parrish - change from grdcrd to grdcrd1 (to allow successful debug compile on WCOSS)
+!   2015-02-23  Rancic/Thomas - add l4densvar to time window logical
+!   2015-10-01  guo     - consolidate use of ob location (in deg)
+!
+!   input argument list:
+!     infile   - unit from which to read BUFR data
+!     obstype  - observation type to process
+!     lunout   - unit to which to write data for further processing
+!     hgtl_full- 3d geopotential height on full domain grid
+!
+!   output argument list:
+!     nread    - number of type "obstype" observations read
+!     nodata   - number of individual "obstype" observations read
+!     ndata    - number of type "obstype" observations retained for further processing
+!     twindin  - input group time window (hours)
+!     sis      - satellite/instrument/sensor indicator
+!     nobs     - array of observations on each subdomain for each processor
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+      use kinds, only: r_kind,r_double,i_kind,r_single
+      use constants, only: zero,one_tenth,one,deg2rad,rad2deg,three,rearth, &
+           grav_equator,eccentricity,somigliana,grav_ratio,grav, &
+           semi_major_axis,flattening,two
+      use gridmod, only: diagnostic_reg,regional,nlon,nlat,nsig, &
+           tll2xy,txy2ll,rotate_wind_ll2xy,rotate_wind_xy2ll,&
+           rlats,rlons
+      use convinfo, only: nconvtype,ctwind, &
+           icuse,ictype,ioctype
+      use gsi_4dvar, only: l4dvar,l4densvar,time_4dvar,winlen
+      use obsmod, only: iadate,offtime_data,bmiss
+      use deter_sfc_mod, only: deter_sfc2
+      use mpimod, only: npe
+      implicit none
+
+!     Declare passed variables
+      character(len=*),intent(in):: infile,obstype
+      character(20),intent(in):: sis
+      integer(i_kind),intent(in):: lunout
+      integer(i_kind),intent(inout):: nread,ndata,nodata
+      integer(i_kind),dimension(npe),intent(inout):: nobs
+      real(r_kind),intent(in):: twindin
+      real(r_kind),dimension(nlat,nlon,nsig),intent(in):: hgtl_full
+
+!     Declare local parameters
+      real(r_kind),parameter:: r360 = 360.0_r_kind
+
+      integer(i_kind) lunin,idate
+
+      real(r_kind),allocatable,dimension(:,:):: cdata_all
+
+      character(10) date
+      logical first,outside,inflate_error,lexist,more_data
+      integer(i_kind) ihh,idd,iret,im,iy,istat,i,j,k
+      integer(i_kind) ikx,nkx,kx,nreal,ilat,ilon,iout
+      integer(i_kind) kk,klon1,klat1,klonp1,klatp1
+      integer(i_kind) ntest,nchanl
+      integer(i_kind) pblhqm,maxobs,idomsfc
+!     integer(i_kind),dimension(8):: obs_time,anal_time,lobs_time
+!     real(r_kind) ltime,cenlon_tmp
+      real(r_kind) usage
+      real(r_kind) pblhob,pblhoe,pblhelev
+      real(r_kind) dlat,dlon,dlat_earth,dlon_earth,stnelev
+      real(r_kind) dlat_earth_deg,dlon_earth_deg
+      real(r_kind) cdist,disterr,disterrmax,rlon00,rlat00
+      real(r_kind) :: tsavg,ff10,sfcr,zz
+!     real(r_kind),dimension(5):: tmp_time
+      real(r_kind) sin2,termg,termr,termrg
+      real(r_kind),dimension(nsig):: zges,hges
+      real(r_kind) dx,dy,dx1,dy1,w00,w10,w01,w11
+
+      integer(i_kind) idate5(5),minobs,minan
+      real(r_kind) time_correction,timeobs,time,toff,t4dv,zeps
+
+!     real(r_single) stationid,lat_deg,lon_deg,altitude,localtime,utctime,localday,utcday,pblh_wp
+      real(r_kind) stationid,lat_deg,lon_deg,altitude,localtime,utctime,localday,utcday,pblh_wp
+      data lunin /50/
+
+!     Initialize variables
+      nreal=14
+      ntest=0
+      kx= 888
+
+!     Check if pblh file exists
+      inquire(file=trim(infile),exist=lexist)
+      if (.not.lexist) return
+      
+      open(lunin,file=trim(infile),form='formatted')
+      read(lunin, *) idate
+
+      maxobs=0
+      first=.true.
+      more_data=.true.
+      readfile1: do while(more_data)
+         read(lunin,*,iostat=istat) stationid, lat_deg, lon_deg, altitude, localtime, utctime, localday, utcday, pblh_wp
+         if (istat/=0) then
+            more_data=.false.
+         else
+            maxobs=maxobs+1
+         end if
+
+!        Time offset
+         if (first) then
+            call time_4dvar(idate,toff)
+            first=.false.
+         end if
+      end do readfile1
+
+      if (maxobs == 0) return
+
+      allocate(cdata_all(nreal,maxobs))
+      nread=0
+      nchanl=0
+      ilon=2
+      ilat=3
+      close(lunin)
+      open(lunin,file=trim(infile),form='formatted')
+      read(lunin, *) idate
+      print*, 'read_pblh idate=',idate,' maxobs=',maxobs
+      do i=1,maxobs
+
+         nread=nread+1
+         if(kx == 120) nkx= 120
+         if(kx == 227) nkx= 181
+         if(kx == 888) nkx= 888
+
+!        Is pblh in convinfo file
+         ikx=0
+         do j=1,nconvtype
+            if(kx == ictype(j)) then
+               ikx=j
+               exit
+            end if
+         end do
+         if(ikx == 0) cycle
+
+         read(lunin,*) stationid, lat_deg, lon_deg, altitude, localtime, utctime, localday, utcday, pblh_wp
+         print*, 'read_pblh:', stationid, lat_deg, lon_deg, altitude, localtime, utctime, localday, utcday, pblh_wp
+
+         if(lon_deg>= r360)lon_deg=lon_deg-r360
+         if(lon_deg < zero)lon_deg=lon_deg+r360
+         dlon_earth_deg=lon_deg
+         dlat_earth_deg=lat_deg
+         dlon_earth=lon_deg*deg2rad
+         dlat_earth=lat_deg*deg2rad
+         if(regional)then
+            call tll2xy(dlon_earth,dlat_earth,dlon,dlat,outside)    ! convert to rotated coordinate
+            if(diagnostic_reg) then
+               call txy2ll(dlon,dlat,rlon00,rlat00)
+               ntest=ntest+1
+               cdist=sin(dlat_earth)*sin(rlat00)+cos(dlat_earth)*cos(rlat00)* &
+                    (sin(dlon_earth)*sin(rlon00)+cos(dlon_earth)*cos(rlon00))
+               cdist=max(-one,min(cdist,one))
+               disterr=acos(cdist)*rad2deg
+               disterrmax=max(disterrmax,disterr)
+            end if
+            if(outside) cycle   ! check to see if outside regional domain
+         else
+            dlat = dlat_earth
+            dlon = dlon_earth
+            call grdcrd1(dlat,rlats,nlat,1)
+            call grdcrd1(dlon,rlons,nlon,1)
+         endif
+
+!        Interpolate guess pressure profile to observation location
+         klon1= int(dlon);  klat1= int(dlat)
+         dx   = dlon-klon1; dy   = dlat-klat1
+         dx1  = one-dx;     dy1  = one-dy
+         w00=dx1*dy1; w10=dx1*dy; w01=dx*dy1; w11=dx*dy
+
+         klat1=min(max(1,klat1),nlat); klon1=min(max(0,klon1),nlon)
+         if (klon1==0) klon1=nlon
+         klatp1=min(nlat,klat1+1); klonp1=klon1+1
+         if (klonp1==nlon+1) klonp1=1
+         do kk=1,nsig
+            hges(kk)=w00*hgtl_full(klat1 ,klon1 ,kk) +  &
+                     w10*hgtl_full(klatp1,klon1 ,kk) + &
+                     w01*hgtl_full(klat1 ,klonp1,kk) + &
+                     w11*hgtl_full(klatp1,klonp1,kk)
+         end do
+         sin2  = sin(dlat_earth)*sin(dlat_earth)
+         termg = grav_equator * &
+            ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
+         termr = semi_major_axis /(one + flattening + grav_ratio -  &
+            two*flattening*sin2)
+         termrg = (termg/grav)*termr
+         do k=1,nsig
+            zges(k) = (termr*hges(k)) / (termrg-hges(k))
+         end do
+
+
+         if(offtime_data) then
+
+!          in time correction for observations to account for analysis
+!                time being different from obs file time.
+           write(date,'( i10)') idate
+           read (date,'(i4,3i2)') iy,im,idd,ihh
+           idate5(1)=iy
+           idate5(2)=im
+           idate5(3)=idd
+           idate5(4)=ihh
+           idate5(5)=0
+           call w3fs21(idate5,minobs)    !  obs ref time in minutes relative to historic date
+           idate5(1)=iadate(1)
+           idate5(2)=iadate(2)
+           idate5(3)=iadate(3)
+           idate5(4)=iadate(4)
+           idate5(5)=0
+           call w3fs21(idate5,minan)    !  analysis ref time in minutes relative to historic date
+
+!          Add obs reference time, then subtract analysis time to get obs time relative to analysis
+
+           time_correction=float(minobs-minan)/60._r_kind
+
+         else
+           time_correction=zero
+         end if
+
+
+!        Time check
+         timeobs=real(utctime, r_double)
+         time=timeobs + time_correction
+         t4dv=timeobs + toff
+         zeps=1.0e-8_r_kind
+         if (t4dv<zero  .and.t4dv>      -zeps) t4dv=zero
+         if (t4dv>winlen.and.t4dv<winlen+zeps) t4dv=winlen
+         t4dv=t4dv + time_correction
+         if (l4dvar.or.l4densvar) then
+           if (t4dv<zero.OR.t4dv>winlen) cycle
+         else
+           if((real(abs(time)) > real(ctwind(ikx)) .or. real(abs(time)) > real(twindin))) cycle 
+         end if
+         print*, 'read_pblh: idate, iadate, timeobs, toff, t4dv=', idate, iadate, timeobs, toff, t4dv
+
+         stnelev=altitude
+         pblhelev=stnelev
+         pblhob=pblh_wp
+         pblhqm=0
+         if (pblhob .lt. 0.0) pblhqm=15
+
+!        if (nkx==131 .or. nkx==133 .or. nkx==135) then
+!          anal_time=0
+!          obs_time=0
+!          tmp_time=zero
+!          tmp_time(2)=timeobs
+!          anal_time(1)=iadate(1)
+!          anal_time(2)=iadate(2)
+!          anal_time(3)=iadate(3)
+!          anal_time(5)=iadate(4)
+!          call w3movdat(tmp_time,anal_time,obs_time) ! observation time
+
+!          lobs_time=0
+!          tmp_time=zero
+!          cenlon_tmp=hdr(2)
+!          if (hdr(2) > 180.0) cenlon_tmp=hdr(2)-360.0_r_kind
+!          tmp_time(2)=cenlon_tmp/15.0_r_kind
+!          call w3movdat(tmp_time,obs_time,lobs_time) ! local observation time
+!          ltime = lobs_time(5)+lobs_time(6)/60.0_r_kind+lobs_time(7)/3600.0_r_kind
+!          if ((ltime.gt.21.0) .and. (ltime.lt.5.0)) pblhqm=3
+!        end if
+
+!        Set usage variable
+         usage = 0.
+         if(icuse(ikx) <= 0) usage=150.
+         if(pblhqm == 15 .or. pblhqm == 9) usage=150.
+
+!        Set inflate_error logical 
+         inflate_error=.false.
+         if (pblhqm == 3) inflate_error=.true.
+
+!--Outputs
+
+         ndata=ndata+1
+         nodata=nodata+1
+         iout=ndata
+
+         if(ndata > maxobs) then
+            write(6,*)'READ_PBLH:  ***WARNING*** ndata > maxobs for ',obstype
+            ndata = maxobs
+         end if
+
+!        Get information from surface file necessary for conventional data here
+         call deter_sfc2(dlat_earth,dlon_earth,t4dv,idomsfc,tsavg,ff10,sfcr,zz)
+
+!        setup for sort of averaged obs 
+         pblhoe=100.0_r_kind  ! temporarily
+         if (nkx==120) pblhoe=50.
+         if (nkx==181) pblhoe=100.
+         if (inflate_error) pblhoe=pblhoe*1.5_r_kind
+
+         cdata_all(1,iout)=pblhoe                  ! pblh error (cb)
+         cdata_all(2,iout)=dlon                    ! grid relative longitude
+         cdata_all(3,iout)=dlat                    ! grid relative latitude
+         cdata_all(4,iout)=pblhelev                ! pblh obs elevation
+         cdata_all(5,iout)=pblhob                  ! pblh obs
+         cdata_all(6,iout)=stationid               ! station id
+         cdata_all(7,iout)=t4dv                    ! time
+         cdata_all(8,iout)=ikx                     ! type
+         cdata_all(9,iout)=localtime               ! obs local time
+         cdata_all(10,iout)=pblhqm                 ! quality mark
+         cdata_all(11,iout)=usage                  ! usage parameter
+         cdata_all(12,iout)=dlon_earth_deg         ! earth relative longitude (degrees)
+         cdata_all(13,iout)=dlat_earth_deg         ! earth relative latitude (degrees)
+         cdata_all(14,iout)=altitude               ! station elevation (m)
+
+      end do 
+      close(lunin)
+!   Normal exit
+
+!   Write observation to scratch file
+     call count_obs(ndata,nreal,ilat,ilon,cdata_all,nobs)
+     write(lunout) obstype,sis,nreal,nchanl,ilat,ilon
+     write(lunout) ((cdata_all(j,i),j=1,nreal),i=1,ndata)
+     deallocate(cdata_all)
+ 
+     if (ndata == 0) then
+        close(lunin)
+        write(6,*)'READ_pblh:  close(',lunin,')'
      endif
 
      close(lunin)

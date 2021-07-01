@@ -397,6 +397,7 @@ subroutine put_geos_ens(this,grd,member,ntindex,pert,iret)
 !   2011-10-01  todling  - created for testing purposes
 !   2012-05-15  el akkraoui/todling  - overload for r4/r8; pass time index
 !   2015-10-19  todling  - add qi/ql/qr/qs and should work for all cases of CV/SV
+!   2020-03-09  yzhu - add pblh
 !
 !   input argument list:
 !     grd      - structure variable containing information about grid
@@ -448,9 +449,9 @@ implicit none
    type(gsi_bundle) flds
 
 !  Declare fields in file (should come from resource file)
-   integer(i_kind),parameter:: no2d=2
+   integer(i_kind),parameter:: no2d=3
    integer(i_kind),dimension(no2d)::iptr2d
-   character(len=4), parameter :: ovars2d(no2d) = (/ 'ps  ', 'z   '/)
+   character(len=4), parameter :: ovars2d(no2d) = (/ 'ps  ', 'z   ', 'pblh'/)
    integer(i_kind),parameter:: no3d=10
    integer(i_kind),dimension(no3d)::iptr3d
    character(len=5), parameter :: ovars3d(no3d) = (/ 'u    ', 'v    ',&
@@ -511,6 +512,21 @@ implicit none
 !     if(mype==0) write(6,*) myname,': z ens member not in incoming pert'
 !     call stop2(999)
 !  endif
+
+!  PBLH
+   call gsi_bundlegetpointer (pert,'pblh',ipnt,istatus)
+   if(istatus==0) then
+      call gsi_bundlegetpointer (flds,'pblh',optr2d,istatus)
+      if(iamsingle) then
+        optr2d=pert%r2(ipnt)%qr4
+      else
+        optr2d=pert%r2(ipnt)%qr8
+      endif
+   else
+      if(mype==0) write(6,*) myname,': pblh ens member not in incoming pert'
+      call stop2(999)
+   endif
+
 !  SF/VP->U/V
    istatus=0
    call gsi_bundlegetpointer (pert,'sf',isf,ier);istatus=ier+istatus

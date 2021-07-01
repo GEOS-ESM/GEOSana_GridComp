@@ -64,7 +64,7 @@ subroutine intpblh(pblhhead,rval,sval)
   use kinds, only: r_kind,i_kind
   use constants, only: half,one,tiny_r_kind,cg_term
   use obsmod, only: lsaveobsens, l_do_adjoint,luse_obsdiag
-  use qcmod, only: nlnqc_iter,varqc_iter
+  use qcmod, only: nlnqc_iter,varqc_iter,vqc
   use jfunc, only: jiter
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -86,6 +86,9 @@ subroutine intpblh(pblhhead,rval,sval)
   real(r_kind),pointer,dimension(:) :: spblh
   real(r_kind),pointer,dimension(:) :: rpblh
   type(pblhNode), pointer :: pblhptr
+
+! If no ps data return
+  if(.not. associated(pblhhead))return
 
 ! Retrieve pointers
 ! Simply return if any pointer not found
@@ -126,7 +129,7 @@ subroutine intpblh(pblhhead,rval,sval)
            if( .not. ladtest_obs)   val=val-pblhptr%res
 
 !          gradient of nonlinear operator
-           if (nlnqc_iter .and. pblhptr%pg > tiny_r_kind .and. &
+           if (vqc .and. nlnqc_iter .and. pblhptr%pg > tiny_r_kind .and. &
                                 pblhptr%b  > tiny_r_kind) then
               pg_pblh=pblhptr%pg*varqc_iter
               cg_pblh=cg_term/pblhptr%b
@@ -136,9 +139,9 @@ subroutine intpblh(pblhhead,rval,sval)
               val = val*(one-p0)
            endif
            if( ladtest_obs ) then
-           grad = val
+              grad = val
            else
-           grad = val*pblhptr%raterr2*pblhptr%err2
+              grad = val*pblhptr%raterr2*pblhptr%err2
            end if
         endif
 
