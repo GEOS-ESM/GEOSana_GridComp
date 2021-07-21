@@ -55,7 +55,7 @@ subroutine stppblh(pblhhead,rval,sval,out,sges,nstep)
 !
 !$$$
   use kinds, only: r_kind,i_kind,r_quad
-  use qcmod, only: nlnqc_iter,varqc_iter
+  use qcmod, only: nlnqc_iter,varqc_iter,vqc
   use constants, only: half,one,two,tiny_r_kind,cg_term,zero_quad
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -117,7 +117,7 @@ subroutine stppblh(pblhhead,rval,sval,out,sges,nstep)
         end if
  
 !  Modify penalty term if nonlinear QC
-        if (nlnqc_iter .and. pblhptr%pg > tiny_r_kind .and.  &
+        if (vqc .and. nlnqc_iter .and. pblhptr%pg > tiny_r_kind .and.  &
                              pblhptr%b  > tiny_r_kind) then
            pg_pblh=pblhptr%pg*varqc_iter
            cg_pblh=cg_term/pblhptr%b

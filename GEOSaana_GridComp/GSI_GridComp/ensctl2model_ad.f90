@@ -71,7 +71,7 @@ integer(i_kind) :: isps(nsvars)
 character(len=4), parameter :: mysvars(nsvars) = (/  &  ! vars from ST needed here
                                'u   ', 'v   ', 'prse', 'q   ', 'tsen' /)
 logical :: ls_u,ls_v,ls_prse,ls_q,ls_tsen
-real(r_kind),pointer,dimension(:,:)   :: rv_ps,rv_sst
+real(r_kind),pointer,dimension(:,:)   :: rv_ps,rv_sst,rv_pblh
 real(r_kind),pointer,dimension(:,:,:) :: rv_u,rv_v,rv_prse,rv_q,rv_tsen,rv_tv,rv_oz
 real(r_kind),pointer,dimension(:,:,:) :: rv_rank3
 
@@ -156,6 +156,7 @@ do jj=1,ntlevs_ens
    call gsi_bundlegetpointer (eval(jj),'q'   ,rv_q ,  istatus)
    call gsi_bundlegetpointer (eval(jj),'oz'  ,rv_oz , istatus)
    call gsi_bundlegetpointer (eval(jj),'sst' ,rv_sst, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblh' ,rv_pblh, istatus)
 
 !  Adjoint of consistency for sensible temperature, calculate sensible temperature
    if(do_tv_to_tsen_ad) call tv_to_tsen_ad(rv_tv,rv_q,rv_tsen)
@@ -178,6 +179,8 @@ do jj=1,ntlevs_ens
    call gsi_bundleputvar ( wbundle_c, 'ps',  rv_ps,  istatus )
    call gsi_bundleputvar ( wbundle_c, 'oz',  rv_oz,  istatus )
    call gsi_bundleputvar ( wbundle_c, 'sst', rv_sst, istatus )
+   call gsi_bundleputvar ( wbundle_c, 'pblh', rv_pblh, istatus )
+   if (istatus/=0) print*, 'ensctl2model_ad not find pblh'
 
 !  Since cloud-vars map one-to-one, take care of them together
    do ic=1,nclouds

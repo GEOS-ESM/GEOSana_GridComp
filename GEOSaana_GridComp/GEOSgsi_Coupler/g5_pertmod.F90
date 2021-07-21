@@ -65,6 +65,7 @@
       use stepon,      only : ak          ! GEOS-5 ADM/TLM pressure levels
       use stepon,      only : bk          ! GEOS-5 ADM/TLM pressure levels
       use stepon,      only : ts
+!     use stepon,      only : pblht
       use stepon,      only : oro
       use stepon,      only : job
       use stepon,      only : nstep
@@ -1494,6 +1495,7 @@ end subroutine pertmod_finalize
        write(fname,'(4a,i3.3)') trim(job), '.', trim(fnxgsi), '_', mycount
      endif
      call putpert ( job, nymd, nhms, xpert, fvpsasdt, nstep, &
+!                   ak, bk, Ts, pblht, oro, ps, fname, vectype=vectype_, forceflip=.true. )
                     ak, bk, Ts, oro, ps, fname, vectype=vectype_, forceflip=.true. )
        if(ierr/=0)then
            stat = 90

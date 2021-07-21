@@ -93,6 +93,7 @@ character(len=max_varname_length),allocatable,dimension(:) :: cvars2dpm  ! names
                                                                          !  motley vars (if any)
 real(r_kind),pointer,dimension(:,:)   :: sv_ps=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: sv_sst=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_pblh=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: sv_u=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: sv_v=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: sv_prse=>NULL()
@@ -185,6 +186,7 @@ do jj=1,nsubwin
    call gsi_bundlegetpointer (sval(jj),'q'   ,sv_q ,  istatus)
    call gsi_bundlegetpointer (sval(jj),'oz'  ,sv_oz , istatus)
    call gsi_bundlegetpointer (sval(jj),'sst' ,sv_sst, istatus)
+   call gsi_bundlegetpointer (sval(jj),'pblh' ,sv_pblh, istatus)
 
 !  Copy variables from CV to SV
    call gsi_bundlegetvar ( wbundle, 'sf' , workst, istatus )
@@ -194,6 +196,7 @@ do jj=1,nsubwin
    call gsi_bundlegetvar ( wbundle, 'oz' , sv_oz,  istatus )
    call gsi_bundlegetvar ( wbundle, 'ps' , sv_ps,  istatus )
    call gsi_bundlegetvar ( wbundle, 'sst', sv_sst, istatus )
+   call gsi_bundlegetvar ( wbundle, 'pblh', sv_pblh, istatus )
 
 !  Same one-to-one map for chemistry-vars; take care of them together
    do ic=1,ngases

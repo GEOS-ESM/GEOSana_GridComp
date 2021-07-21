@@ -166,11 +166,12 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
   integer(i_kind) ,intent(in)     :: minuse
   integer(i_kind) ,intent(inout)  :: nread
 
-  integer(i_kind) :: lnbufr,idate,idate2,iret,kidsat
+  integer(i_kind) :: lnbufr,idate,idate2,iret,kidsat,istat
   integer(i_kind) :: ireadsb,ireadmg,kx,nc,said
-  real(r_double) :: satid,rtype
+  real(r_double) :: satid,rtype,stationid
   character(8) subset
   logical,parameter:: GMAO_READ=.false.
+  logical pblexist
 
   satid=1      ! debug executable wants default value ???
   idate=0
@@ -187,10 +188,15 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
 
   if(lexist .and. trim(dtype) /= 'tcp' )then
       lnbufr = 15
-      open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
-      call openbf(lnbufr,'IN',lnbufr)
-      call datelen(10)
-      call readmg(lnbufr,subset,idate,iret)
+      if (dtype=='pblh') then
+         open(lnbufr,file=trim(filename),form='formatted',status ='unknown')
+         read(lnbufr,*, iostat=iret) idate
+      else
+         open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
+         call openbf(lnbufr,'IN',lnbufr)
+         call datelen(10)
+         call readmg(lnbufr,subset,idate,iret)
+      end if
       if(iret == 0)then
 
 !        Extract date and check for consistency with analysis date
@@ -323,10 +329,16 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
          kidsat = 0
        end if
 
-       call closbf(lnbufr)
-       open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
-       call openbf(lnbufr,'IN',lnbufr)
-       call datelen(10)
+       if (dtype=='pblh') then
+          close(lnbufr)
+          open(lnbufr,file=trim(filename),form='formatted',status ='unknown')
+          read(lnbufr,*) idate2
+       else
+          call closbf(lnbufr)
+          open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
+          call openbf(lnbufr,'IN',lnbufr)
+          call datelen(10)
+       end if
 
        if(kidsat /= 0)then
         lexist = .false.
@@ -370,6 +382,21 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
           end do
           nread = nread + 1
          end do file2loop
+       else if(trim(filename) == 'wppblh')then
+         lexist = .false.
+         pblexist=.true.
+         wppblhloop: do while(pblexist)
+           read(lnbufr,iostat=istat) stationid
+           if (istat /=0) pblexist=.false.
+           kx=888
+           do nc=1,nconvtype
+             if(trim(ioctype(nc)) == trim(dtype) .and. kx == ictype(nc) .and. icuse(nc) > minuse)then
+               lexist = .true.
+               exit wppblhloop
+             end if
+           end do
+           nread = nread + 1
+         end do wppblhloop
        else if(trim(filename) == 'gps_ref' .or.  trim(filename) == 'gps_bnd')then
          lexist = .false.
          gpsloop: do while(ireadmg(lnbufr,subset,idate2) >= 0)
@@ -1249,6 +1276,12 @@ subroutine read_obs(ndata,mype)
              use_hgtl_full=.true.
              if(belong(i))use_hgtl_full_proc=.true.
           end if
+          if(obstype == 'pblh')then
+             use_hgtl_full=.true.
+             if(belong(i))use_hgtl_full_proc=.true.
+!            use_prsl_full=.true.
+!            if(belong(i))use_prsl_full_proc=.true.
+          end if
           if(obstype == 'sst')then
             if(belong(i))use_sfc=.true.
           endif
@@ -1583,8 +1616,10 @@ subroutine read_obs(ndata,mype)
 
 !            Process pblh
              else if (obstype == 'pblh') then
+!               call read_pblh(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+!                   nobs_sub1(1,i))
                 call read_pblh(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
-                    nobs_sub1(1,i))
+                    hgtl_full,nobs_sub1(1,i))
                 string='READ_PBLH'
              end if conv_obstype_select
 !            Process swcp and lwcp

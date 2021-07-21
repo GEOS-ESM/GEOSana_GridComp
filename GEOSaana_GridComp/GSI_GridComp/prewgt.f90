@@ -73,6 +73,7 @@ subroutine prewgt(mype)
 !   2014-08-02  zhu     - set up new background error variance and correlation lengths of cw 
 !                         for all-sky radiance assimilation
 !   2020-07-14  todling- add adjustozhscl as optional
+!   2021-03-03  zhu    - add pblh
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -126,7 +127,7 @@ subroutine prewgt(mype)
   integer(i_kind) ix,jx,mlat
   integer(i_kind) nf2p,istatus
   integer(i_kind),dimension(0:40):: iblend
-  integer(i_kind) nrf3_sf,nrf3_q,nrf3_vp,nrf3_t,nrf3_oz,nrf2_ps,nrf2_sst,nrf3_cw
+  integer(i_kind) nrf3_sf,nrf3_q,nrf3_vp,nrf3_t,nrf3_oz,nrf2_ps,nrf2_sst,nrf2_pblh,nrf3_cw
   integer(i_kind),allocatable,dimension(:) :: nrf3_loc,nrf2_loc
 
   real(r_kind) wlipi,wlipih,df
@@ -205,6 +206,7 @@ subroutine prewgt(mype)
   nrf3_cw   = getindex(cvars3d,'cw')
   nrf2_ps   = getindex(cvars2d,'ps')
   nrf2_sst  = getindex(cvars2d,'sst')
+  nrf2_pblh = getindex(cvars2d,'pblh')
 ! nrf2_stl  = getindex(cvarsmd,'stl')
 ! nrf2_sti  = getindex(cvarsmd,'sti')
 
@@ -326,6 +328,12 @@ subroutine prewgt(mype)
      end do
   endif
 
+! pbl height
+  if(nrf2_pblh>0) then
+     do i=1,nlat
+        hwllp(i,nrf2_pblh)=hwllinp(i,nrf2_pblh)
+     end do
+  endif
 
 ! sea surface temperature, convert from km to m
 ! also calculate a minimum horizontal length scale for
@@ -488,7 +496,7 @@ subroutine prewgt(mype)
   end do
 
 ! Special case of dssv for qoption=2 and cw
-  if (qoption==2) call compute_qvar3d
+  if (qoption==2 .or. nrf2_pblh>0) call compute_qvar3d
 
 !!!$omp parallel do  schedule(dynamic,1) private(i,n,j,jx,ix,loc)
   do n=1,nc2d

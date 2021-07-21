@@ -77,7 +77,7 @@ character(len=4), parameter :: mysvars(nsvars) = (/  &  ! vars from ST needed he
 logical :: ls_u,ls_v,ls_prse,ls_q,ls_tsen,ls_ql,ls_qi
 logical :: ls_qr,ls_qs,ls_qg,ls_qh
 logical :: ls_w,ls_dw
-real(r_kind),pointer,dimension(:,:)   :: sv_ps,sv_sst
+real(r_kind),pointer,dimension(:,:)   :: sv_ps,sv_sst,sv_pblh
 real(r_kind),pointer,dimension(:,:,:) :: sv_u,sv_v,sv_prse,sv_q,sv_tsen,sv_tv,sv_oz
 real(r_kind),pointer,dimension(:,:,:) :: sv_rank3,sv_w,sv_dw
 
@@ -231,6 +231,7 @@ do jj=1,ntlevs_ens
 !  Get pointers to required state variables
    call gsi_bundlegetpointer (eval(jj),'oz'  ,sv_oz , istatus)
    call gsi_bundlegetpointer (eval(jj),'sst' ,sv_sst, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblh',sv_pblh,istatus)
    if(ls_w)then
      call gsi_bundlegetpointer (eval(jj),'w' ,sv_w, istatus)
      if(ls_dw.and.nems_nmmb_regional)then
@@ -240,6 +241,7 @@ do jj=1,ntlevs_ens
 !  Copy variables
    call gsi_bundlegetvar ( wbundle_c, 'oz' , sv_oz,  istatus )
    call gsi_bundlegetvar ( wbundle_c, 'sst', sv_sst, istatus )
+   call gsi_bundlegetvar ( wbundle_c, 'pblh', sv_pblh, istatus )
    if(lc_w)then
       call gsi_bundlegetvar ( wbundle_c, 'w' , sv_w,  istatus )
       if(lc_dw.and.nems_nmmb_regional)then
