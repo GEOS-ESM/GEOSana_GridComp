@@ -12,7 +12,7 @@ module derivsmod
 !   2015-07-10 Pondeca - add cldchgues and dcldchdlog
 !   2016-05-10 Thomas - remove references to cwgues0
 !   2019-05-08 mtong - replace set_ with init_anadv 
-!   2019-05-08 eliu - recover logic (drv_set_) to indicate the derivative
+!   2019-05-08 eliu - recover logic (drv_set) to indicate the derivative
 !                     vars are allocated and defined
 !
 ! public subroutines:
@@ -26,7 +26,7 @@ module derivsmod
 !  dvars2d, dvars3d        - names of 2d/3d derivatives
 !  dsrcs2d, dsrcs3d        - names of where original fields reside
 !  drv_initialized         - flag indicating initialization status
-!  drv_set_                - flag indicating the variables are allocated and defined 
+!  drv_set                 - flag indicating the variables are allocated and defined 
 !
 ! attributes:
 !   language: f90
@@ -57,7 +57,7 @@ save
 private
 
 public :: drv_initialized
-public :: drv_set_         
+public :: drv_set
 public :: create_ges_derivatives
 public :: destroy_ges_derivatives
 
@@ -72,6 +72,7 @@ public :: qsatg,qgues,dqdt,dqdrh,dqdp
 public :: init_anadv
 
 logical :: drv_initialized = .false.
+logical :: drv_set = .false.  
 
 type(gsi_bundle),pointer :: gsi_xderivative_bundle(:)
 type(gsi_bundle),pointer :: gsi_yderivative_bundle(:)
@@ -86,7 +87,6 @@ real(r_kind),target,allocatable,dimension(:,:,:):: cwgues,cfgues
 ! below this point: declare vars not to be made public
 
 character(len=*),parameter:: myname='derivsmod'
-logical,save :: drv_set_=.false.  
 integer(i_kind),allocatable,dimension(:):: levels
 contains
 
@@ -104,7 +104,7 @@ subroutine init_anadv
 !   2013-09-27  todling  - initial code
 !   2014-02-03  todling  - negative levels mean rank-3 array
 !   2019-05-08  mtong    - replace set_ with init_anadv 
-!   2019-05-08  eliu     - recover logic (drv_set_) to indicate the derivative
+!   2019-05-08  eliu     - recover logic (drv_set) to indicate the derivative
 !                          vars are allocated and defined
 !
 !   input argument list: see Fortran 90 style document below
@@ -133,7 +133,7 @@ character(len=max_varname_length),allocatable,dimension(:):: vars
 character(len=max_varname_length),allocatable,dimension(:):: sources
 logical matched
 
-if(drv_set_) return 
+if(drv_set) return 
 
 open(newunit=luin,file=trim(rcname),form='formatted')
 
@@ -246,7 +246,7 @@ if (mype == 0) then
 end if
 
 deallocate(vars,nlevs,sources)
-drv_set_=.true.  
+drv_set=.true.  
 
  end subroutine init_anadv
 

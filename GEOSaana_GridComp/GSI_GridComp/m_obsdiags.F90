@@ -169,7 +169,7 @@ module m_obsdiags
 #include "mytrace.H"
 #include "myassert.H"
 
-#define _TIMER_ON_
+!#define _TIMER_ON_
 #ifdef  _TIMER_ON_
 #undef  _TIMER_ON_
 #undef  _TIMER_OFF_

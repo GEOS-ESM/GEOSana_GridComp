@@ -61,6 +61,7 @@
 
    integer, save        :: BKGfreq_sc
    logical, save        :: analysis_is_done=.false.
+   integer              :: gsi_id
 
    CONTAINS
 
@@ -95,7 +96,7 @@
    character(len=ESMF_MAXSTR) :: COMP_NAME
    type(TGEOSaana), pointer   :: ThisIntSt
    type(Twrap)                :: wrap
-   type(ESMF_Config)          :: cf 
+   type(ESMF_Config)          :: cf
    character(len=ESMF_MAXSTR) :: observer
    logical                    :: do_observer
    integer                    :: BKGfreq, BKGfreq_hr, BKGfreq_mn
@@ -106,6 +107,7 @@
    call ESMF_GridCompGet( gcAANA, NAME=COMP_NAME, config=cf, RC=STATUS )
    VERIFY_(STATUS)
    Iam = trim(COMP_NAME) // 'SetServices'
+
 
    call ESMF_ConfigGetAttribute( cf, BKGfreq, label ='BKG_FREQUENCY:', rc = STATUS )
    VERIFY_(STATUS)
@@ -137,8 +139,8 @@
 !       -----------------------------
         allocate(ThisIntSt, stat=status)
         VERIFY_(STATUS)
-        call GEOSaana_Create_( gcAANA, ThisIntSt, rc=status)
-        VERIFY_(STATUS)
+        !call GEOSaana_Create_( gcAANA, ThisIntSt, rc=status)
+        !VERIFY_(STATUS)
 
 !       Save the "internal" state
 !       -------------------------
@@ -148,7 +150,9 @@
    
 !       Register the GSI gridded component
 !       ----------------------------------
-        call ESMF_GridCompSetServices ( ThisIntSt%gcGSI, GSI_SetServices, RC=status )
+       
+      gsi_id = MAPL_AddChild(gcAANA,name="GSI_GridComp",ss=GSI_SetServices,rc=status) 
+        !call ESMF_GridCompSetServices ( ThisIntSt%gcGSI, GSI_SetServices, RC=status )
         VERIFY_(STATUS)
 
 !       Set Import/Export Coupling SPECS
@@ -220,6 +224,10 @@
    type(Twrap)                :: wrap
    type(ESMF_Config)          :: cf
    type(ESMF_Alarm)           :: Final_End_Time_Alarm
+   type (ESMF_State),         pointer  :: GIM(:)
+   type (ESMF_State),         pointer  :: GEX(:)
+    type(ESMF_Field) :: field
+   integer :: rank
 
 ! Begin...
 
@@ -241,15 +249,26 @@
 !  Initialize GSI
 !  --------------
    if ( MAPL_AM_I_ROOT() ) print *, 'Initialize GSI'      
-   call ESMF_GridCompInitialize ( ThisIntSt%gcGSI, &
-                                  importState=ThisIntSt%impGSI, &
-                                  exportState=ThisIntSt%expGSI, &
-                                  clock=clock, &
-                                  rc=status )
-   VERIFY_(STATUS) 
+   !call ESMF_GridCompInitialize ( ThisIntSt%gcGSI, &
+                                  !importState=ThisIntSt%impGSI, &
+                                  !exportState=ThisIntSt%expGSI, &
+                                  !clock=clock, &
+                                  !rc=status )
+   !VERIFY_(STATUS) 
 
    call MAPL_GetObjectFromGC ( gcAANA, STATE, RC=STATUS)
    VERIFY_(STATUS)
+   call MAPL_Get ( STATE, GIM=GIM, GEX=GEX, RC=STATUS )
+   VERIFY_(STATUS)
+
+   call ESMF_StateGet(impAANA,'frlake',field,rc=status)
+   VERIFY_(status)
+   call ESMF_FieldValidate(field,rc=status)
+   VERIFY_(status)
+   call ESMF_FieldGet(field,dimCount=rank,rc=status)
+   VERIFY_(status)
+   thisIntSt%impGsi=gim(gsi_id)
+   thisIntSt%expGsi=gex(gsi_id)
 
    call AANA_SetAlarms(STATE, gcAANA, cf, clock)
 
@@ -306,6 +325,9 @@
    type(Twrap)                :: wrap
    type(ESMF_Alarm)           :: Alarm
    type(ESMF_Time)            :: AlaTime
+   type (ESMF_GridComp),      pointer  :: GCS(:)
+   type (ESMF_State),         pointer  :: GIM(:)
+   type (ESMF_State),         pointer  :: GEX(:)
 
 ! Begin...
 
@@ -323,6 +345,8 @@
    ThisIntSt => wrap%intST
 
    call MAPL_GetObjectFromGC ( gcAANA, STATE, RC=STATUS)
+   VERIFY_(STATUS)
+   call MAPL_Get( STATE, GCS=GCS, GIM=GIM, GEX=GEX,rc=status)
    VERIFY_(STATUS)
 
    call ESMF_ClockGet ( clock, currTime=CurrT,  rc=STATUS ) ; VERIFY_(STATUS)
@@ -346,10 +370,11 @@
    
    !   RUN GSI
    !   -------
-   call ESMF_GridCompRun ( ThisIntSt%gcGSI, &
-        importState=ThisIntSt%impGSI, &
-        exportState=ThisIntSt%expGSI, &
-        clock=clock, rc=status )
+   call ESMF_GridCompRun(gcs(gsi_id),importState=gim(gsi_id),exportState=gex(gsi_id),clock=clock,rc=status)
+   !call ESMF_GridCompRun ( ThisIntSt%gcGSI, &
+        !importState=ThisIntSt%impGSI, &
+        !exportState=ThisIntSt%expGSI, &
+        !clock=clock, rc=status )
    VERIFY_(STATUS)
 
    call MAPL_StateAlarmGet(STATE, ALARM, NAME='last-bkg', RC=STATUS)
@@ -359,7 +384,7 @@
    if (analysis_is_done) then   
      ! Regrid impGSI  to    expAANA
      ! (halowidth=1)  -> (halowidth=0)
-     ! -------------------------------  
+     ! ------------------------------- 
       call ESMFL_Regrid (ThisIntSt%expGSI, expAANA, rc=status)
       VERIFY_(status)  
    end if
@@ -409,12 +434,15 @@
 
 !  Finalize GSI
 !  ------------
-   call ESMF_GridCompFinalize ( ThisIntSt%gcGSI, &
-        importState=ThisIntSt%impGSI, &
-        exportState=ThisIntSt%expGSI, &
-        clock=clock, &
-        rc=status )
-   VERIFY_(STATUS) 
+   call MAPL_GenericInitialize(gcAANA, impAANA, expAANA, clock, rc=STATUS)
+   VERIFY_(STATUS)  
+ 
+   !call ESMF_GridCompFinalize ( ThisIntSt%gcGSI, &
+        !importState=ThisIntSt%impGSI, &
+        !exportState=ThisIntSt%expGSI, &
+        !clock=clock, &
+        !rc=status )
+   !VERIFY_(STATUS) 
 
    call GEOSaana_Destroy_ ( ThisIntSt, rc=status)
    VERIFY_(STATUS)
@@ -449,7 +477,8 @@
 !EOPI
 !----------------------------------------------------------------------
 
-   type(ESMF_Config)  :: cf
+   type(ESMF_Config)  :: cf,mycon
+   logical :: has_config
    type(ESMF_Grid)    :: geosGrid
    integer            :: status
    character(len=*), parameter :: IAm = 'GEOSaana_Create'
@@ -477,6 +506,9 @@
         configfile="GSI_GridComp.rc", &
 !        gridcomptype=ESMF_ATM, &
         rc=status)
+   VERIFY_(status)
+   call ESMF_GridCompGet(this%gcGSI,ConfigISPresent=has_config)
+   call ESMF_GridCompGet(this%gcGSI,config=mycon,rc=status)
    VERIFY_(status)
    if(present(rc)) rc = STATUS
   

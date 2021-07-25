@@ -56,6 +56,7 @@
  &OBSQC
    dfact=0.75,dfact1=3.0,noiqc=.false.,oberrflg=.true.,c_varqc=0.02,blacklst=.true.,
    use_poq7=.true.,qc_noirjaco3=.false.,qc_satwnds=.false.,cld_det_dec2bin=.true.,
+   half_goesr_err=.false.,
 !  tcp_ermin=0.75,tcp_ermax=0.75,
    >>>AIRCFT_BIAS<<<
  /
@@ -78,6 +79,7 @@ OBS_INPUT::
    prepbufr       pw          null        pw                    0.0     0      0        ncep_prep_bufr
    preprscat      uv          null        uv                    0.0     0      0        rscat_bufr
    gpsrobufr      gps_bnd     null        gps                   0.0     0      0        ncep_gpsro_bufr
+   gpsrocombufr   gps_bnd     null        gps                   0.0     0      0        ncep_gpsro_com_bufr
    ssmirrbufr     pcp_ssmi    dmsp        pcp_ssmi              0.0     0      0        ncep_spssmi_bufr
    tmirrbufr      pcp_tmi     trmm        pcp_tmi               0.0     0      0        ncep_sptrmm_bufr
    sbuvbufr       sbuv2       n16         sbuv8_n16             0.0     0      0        ncep_osbuv_bufr
@@ -158,6 +160,7 @@ OBS_INPUT::
    gomebufr       gome        metop-b     gome_metop-b          0.0     2      0        test
    amsuabufr      amsua       metop-c     amsua_metop-c         0.0     1      0        ncep_1bamua_bufr
    mhsbufr        mhs         metop-c     mhs_metop-c           0.0     1      0        ncep_mhs_bufr
+   iasibufr       iasi        metop-c     iasi_metop-c          0.0     3      0        ncep_mtiasi_bufr
    atmsbufr       atms        npp         atms_npp              0.0     1      0        ncep_atms_bufr
    atmsbufr       atms        n20         atms_n20              0.0     1      0        ncep_atms_bufr
    crisfsrbufr    cris-fsr    npp         cris-fsr_npp          0.0     3      0        ncep_crisfsr_bufr
