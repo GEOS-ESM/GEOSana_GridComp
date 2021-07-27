@@ -36,7 +36,8 @@
 ! !USES:
 
    use ESMF                  ! ESMF
-   use MAPL_Mod              ! MAPL Generic
+   use MAPL              ! MAPL Generic
+   use MAPL_Profiler, only: BaseProfiler, TimeProfiler, get_global_time_profiler
    use gsimod                ! GSI original interface
    use mpeu_util, only: StrTemplate         ! grads style templates
    use m_chars,   only: lowercase
@@ -48,8 +49,6 @@
    use gsi_bundlemod, only : GSI_BundleGetPointer
    use gsi_bundlemod, only : GSI_Bundle
    use gsi_bundlemod, only : GSI_BundlePrint
-   use MAPL_LatLonGridFactoryMod
-   use MAPL_GridManagerMod
 
 ! Access to GSI's global data segments
 
@@ -374,6 +373,8 @@
    integer                               :: STATUS
    logical                               :: IamRoot    
    character(len=*), parameter :: IAm='GSI_GridComp.SetServices'
+   type(MAPL_MetaComp), pointer :: child_maplobj
+   type(ESMF_VM) :: vm
 
 ! start
 _ENTRY_(trim(Iam))
@@ -408,8 +409,24 @@ _ENTRY_(trim(Iam))
 
 ! Generic SetServices
 
+   call ESMF_VMGetCurrent(vm=vm, rc=STATUS)
+   VERIFY_(STATUS)
+   call ESMF_VMGet(vm, mpiCommunicator=mpi_comm_world, &
+        rc=STATUS)
+   VERIFY_(STATUS)
+   call MAPL_InternalStateRetrieve(gc, CHILD_MAPLOBJ, RC=status)
+   VERIFY_(status)
+   !CHILD_MAPLOBJ%t_profiler = TimeProfiler('GSI_GridComp', comm_world = MPI_COMM_WORLD)
+  !call CHILD_MAPLOBJ%t_profiler%start(rc=status)
+   !VERIFY_(status)
+  !call CHILD_MAPLOBJ%t_profiler%start('SetService',rc=status)
+   !VERIFY_(status)
    call MAPL_GenericSetServices ( gc, RC=STATUS)
    VERIFY_(STATUS)
+  !call CHILD_MAPLOBJ%t_profiler%stop('SetService',rc=status)
+   !VERIFY_(status)
+  !call CHILD_MAPLOBJ%t_profiler%stop(rc=status)
+   !VERIFY_(status)
 
 ! A non-standard serServices() call for non-standard pertmod component
    call gsi_4dCoupler_setServices (RC=STATUS)
@@ -554,7 +571,7 @@ _ENTRY_(trim(Iam))
    
    call MAPL_GenericInitialize(gc, import, export, clock, rc=STATUS)
    VERIFY_(STATUS)
-
+     
 !                       --------------
 !                       Set GSI alarms
 !                       --------------
@@ -3605,19 +3622,17 @@ _ENTRY_(trim(Iam))
    call destroy_metguess_grids(mype,status)
    VERIFY_(STATUS)
 
-   deallocate( isli     ,&
-               fact10   ,&
-               sfct     ,&
-               dsfct    ,&
-               sno      ,&
-               veg_type ,&
-               veg_frac ,&
-               soil_type,&
-               soil_temp,&
-               soil_moi ,&
-               sfc_rough,&
-               stat=STATUS)
-   VERIFY_(STATUS)
+   if(allocated(isli)) deallocate(isli)
+   if(allocated(fact10)) deallocate(fact10)
+   if(allocated(sfct)) deallocate(sfct)
+   if(allocated(dsfct)) deallocate(dsfct)
+   if(allocated(sno)) deallocate(sno)
+   if(allocated(veg_type)) deallocate(veg_type)
+   if(allocated(veg_frac)) deallocate(veg_frac)
+   if(allocated(soil_type)) deallocate(soil_type)
+   if(allocated(soil_temp)) deallocate(soil_temp)
+   if(allocated(soil_moi)) deallocate(soil_moi)
+   if(allocated(sfc_rough)) deallocate(sfc_rough)
 
    call destroy_grid_vars
 

@@ -55,7 +55,7 @@ function typename()
   typename='['//myname//'::ensemble]'
 end function typename
 
-subroutine get_gfs_Nens(this,grd,members,ntindex,atm_bundle,iret)
+subroutine get_gfs_Nens(this,grd,members,ntindex,tau,atm_bundle,iret)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    get_gfs_Nens    pretend atmos bkg is the ensemble
@@ -98,6 +98,7 @@ subroutine get_gfs_Nens(this,grd,members,ntindex,atm_bundle,iret)
     type(sub2grid_info), intent(in   ) :: grd
     integer(i_kind),     intent(in   ) :: members
     integer(i_kind),     intent(in   ) :: ntindex
+    integer(i_kind),     intent(in   ) :: tau
     type(gsi_bundle),    intent(inout) :: atm_bundle(:)
     integer(i_kind),     intent(  out) :: iret
 
@@ -1136,7 +1137,7 @@ subroutine move1_(work,temp,nlon,nlat)
 
 end subroutine move1_
 
- subroutine get_gfs_ens(this,grd,member,ntindex,atm_bundle,iret)
+ subroutine get_gfs_ens(this,grd,member,ntindex,tau,atm_bundle,iret)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    get_gfs_ens
@@ -1184,6 +1185,7 @@ end subroutine move1_
     type(sub2grid_info), intent(in   ) :: grd
     integer(i_kind),     intent(in   ) :: member
     integer(i_kind),     intent(in   ) :: ntindex
+    integer(i_kind),     intent(in   ) :: tau
     type(gsi_bundle),    intent(inout) :: atm_bundle
     integer(i_kind),     intent(  out) :: iret
 

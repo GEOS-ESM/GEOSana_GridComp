@@ -283,7 +283,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
         iouse(jc)=iuse_oz(j)
         tnoise(jc)=error_oz(j)
         gross(jc)=min(r10*gross_oz(j),h300)
-        if (obstype == 'sbuv2' .or. obstype == 'ompsnp') then
+        if (obstype == 'sbuv2' .or. obstype == 'ompsnp' .or. obstype == 'ompsnpnc') then
            pobs(jc)=pob_oz(j) * 1.01325_r_kind
         else
            pobs(jc)=pob_oz(j)
@@ -367,7 +367,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
         dlon=data(ilon,i)
         dtime=data(itime,i)
  
-        if (obstype == 'sbuv2' .or. obstype == 'ompsnp') then
+        if (obstype == 'sbuv2' .or. obstype == 'ompsnp' .or. obstype == 'ompsnpnc') then
            if (nobskeep>0) then
 !             write(6,*)'setupozlay: nobskeep',nobskeep
               call stop2(259)
@@ -392,7 +392,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
            enddo
         end if
        
-        if (obstype == 'omieff' .or. obstype == 'tomseff') then
+        if (obstype == 'omieff' .or. obstype == 'tomseff' .or. obstype == 'ompsnmeff') then
            pob_oz_omi(nloz_omi) = 1000.0_r_kind* 1.01325_r_kind
            do j=nloz_omi-1, 1, -1
               pob_oz_omi(j) = pob_oz_omi(j+1)/2.0
@@ -418,7 +418,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
           nsig,mype,nfldsig)
 
 
-        if (obstype /= 'omieff' .and. obstype /= 'tomseff') then
+        if (obstype /= 'omieff' .and. obstype /= 'tomseff' .and. &
+            obstype /= 'ompsnmeff' ) then
            call intrp3oz1(ges_oz,ozges,dlat,dlon,ozp,dtime,&
                 nlevs,mype,doz_dz)
         endif
@@ -440,7 +441,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 !       For OMI/GOME, nlev=1 
         do k=1,nlev
            j=ipos(k)
-           if (obstype == 'omieff' .or. obstype == 'tomseff' ) then
+           if (obstype == 'omieff' .or. obstype == 'tomseff' .or. obstype == 'ompsnmeff') then
               ioff=ifovn+1 !
            else
               ioff=nreal+k ! SBUV and OMI w/o efficiency factors
@@ -448,7 +449,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 
 !          Compute innovation and load obs error into local array
             ! KW  OMI and TOMS have averaging kernels
-           if (obstype == 'omieff' .or. obstype == 'tomseff' ) then
+           if (obstype == 'omieff' .or. obstype == 'tomseff' .or. obstype == 'ompsnmeff') then
               ! everything in data is from top to bottom
               nlayers = nloz_omi + 1
               apriori(1:nloz_omi) = data(ioff:ioff+nloz_omi -1, i)
@@ -538,7 +539,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
               rdiagbuf(3,k,ii) = errorinv               ! inverse observation error
               if (obstype == 'gome' .or. obstype == 'omieff'  .or. &
                   obstype == 'omi'  .or. obstype == 'tomseff' .or. &
-                  obstype == 'ompstc8') then
+                  obstype == 'ompsnmeff' .or. obstype == 'ompstc8') then
                  rdiagbuf(4,k,ii) = data(isolz,i)       ! solar zenith angle
                  rdiagbuf(5,k,ii) = data(ifovn,i)       ! field of view number
               else
@@ -577,7 +578,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
                    k1=nlevs-1
                    k2=1
                  endif
-                 if (obstype == 'sbuv2' .or. obstype == 'ompsnp' ) then
+                 if (obstype == 'sbuv2' .or. obstype == 'ompsnp' .or. obstype == 'ompsnpnc' ) then
                  call nc_diag_metadata("TopLevelPressure",sngl(pobs(k2)*r100))
                  call nc_diag_metadata("BottomLevelPressure", &
                                                       sngl(pobs(k1)*r100))
@@ -601,7 +602,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
                  call nc_diag_metadata("Forecast_unadjusted", sngl(ozges(k)))
                  call nc_diag_metadata("Forecast_adjusted",sngl(ozges(k)))
                  if (obstype == 'gome' .or. obstype == 'omieff'  .or. &
-                     obstype == 'omi'  .or. obstype == 'tomseff' ) then
+                     obstype == 'omi'  .or. obstype == 'tomseff' .or. &
+                     obstype == 'ompsnmeff') then
                     call nc_diag_metadata("Solar_Zenith_Angle", sngl(data(isolz,i)) )
                     call nc_diag_metadata("Scan_Position",      sngl(data(ifovn,i)) )
                  else
@@ -659,7 +661,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
               my_head%elon= data(ilone,i)
 
               nlevp=max(nlev-1,1)
-              if (obstype == 'omieff' .or. obstype == 'tomseff' ) nlevp = nloz_omi
+              if (obstype == 'omieff' .or. obstype == 'tomseff' .or. &
+                   obstype == 'ompsnmeff') nlevp = nloz_omi
               allocate(my_head%res(nlev), &
                        my_head%err2(nlev), &
                        my_head%raterr2(nlev), &
@@ -696,11 +699,12 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
               my_head%luse=luse(i)
               my_head%time=dtime
 
-              if (obstype == 'sbuv2'.or. obstype == 'ompsnp' ) then
+              if (obstype == 'sbuv2' .or. obstype == 'ompsnp' .or. obstype == 'ompsnpnc') then
                  do k=1,nlevs-1
                     my_head%prs(k) = ozp(k)
                  enddo
-              else if (obstype == 'omieff' .or. obstype == 'tomseff') then
+              else if (obstype == 'omieff' .or. obstype == 'tomseff' .or. &
+                   obstype == 'ompsnmeff') then
                  do k=1,nloz_omi
                     my_head%prs(k) = ozp_omi(k)
                  enddo
@@ -714,8 +718,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
         endif ! (in_curbin)
 
 !       Link obs to diagnostics structure
-           do k=1,nlevs
-              if (luse_obsdiag) then
+        do k=1,nlevs
+           if (luse_obsdiag) then
               nperobs=-99999; if(k==1) nperobs=nlevs
               my_diag => obsdiagLList_nextNode(my_diagLL        ,&
                         create = .not.lobsdiag_allocated        ,&
@@ -729,7 +733,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 
               if(.not.associated(my_diag)) call die(myname, &
                         'obsdiagLList_nextNode(), create =', .not.lobsdiag_allocated)
-              endif
+           endif
 
            if(in_curbin) then
               if (luse_obsdiag) then
@@ -784,7 +788,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
                  enddo
                 end associate ! odiag
 
-                 if (netcdf_diag) then
+                if (netcdf_diag) then
 !                   TBD: Sensitivities must be written out in coordination w/ rest of obs
 !                 associate(odiag => my_diagLL%tail)
 !                   call nc_diag_data2d("ObsDiagSave_iuse",     obsdiag_iuse                              )
@@ -792,7 +796,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 !                   call nc_diag_data2d("ObsDiagSave_tldepart", odiag%tldepart )
 !                   call nc_diag_data2d("ObsDiagSave_obssen",   odiag%obssen   )
 !                 end associate ! odiag
-                 endif
+                endif
               endif
            endif ! (in_curbin)
 

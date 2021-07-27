@@ -278,8 +278,8 @@ function dtype2index_(dtype) result(index_)
     case("ompsnm" ); index_= iobOper_oz
     case("omieff"   ); index_= iobOper_oz
     case("tomseff"  ); index_= iobOper_oz
-    case("ompslpuv" ); index_= iobOper_oz
-    case("ompslpvis"); index_= iobOper_oz
+    case("ompsnmeff"); index_= iobOper_oz
+    case("ompsnpnc" ); index_= iobOper_oz
 
   case("o3l"    ,"[o3loper]"    ); index_= iobOper_o3l
     case("o3lev"    ); index_= iobOper_o3l
@@ -287,6 +287,8 @@ function dtype2index_(dtype) result(index_)
     case("mls22"    ); index_= iobOper_o3l
     case("mls30"    ); index_= iobOper_o3l
     case("mls55"    ); index_= iobOper_o3l
+    case("ompslpuv" ); index_= iobOper_o3l
+    case("ompslpvis"); index_= iobOper_o3l
 
   case("gpsbend","[gpsbendoper]"); index_= iobOper_gpsbend
     case("gps_bnd"); index_= iobOper_gpsbend

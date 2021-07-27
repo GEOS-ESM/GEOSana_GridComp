@@ -106,6 +106,7 @@ set (SRCS_UTIL
   mod_strong.f90
   mod_wrfmass_to_a.f90
   mp_compact_diffs_mod1.f90
+  mp_compact_diffs_mod2.f90
   mp_compact_diffs_support.f90
   mpimod.F90
   mpl_allreduce.F90
@@ -283,6 +284,7 @@ set (SRCS_SOLVER
   adjtest.f90
   adjtest_obs.f90
   adjust_cloudobs_mod.f90
+  advect_cv.f90
   aeroinfo.f90
   anberror.f90
   anbkerror.f90
@@ -638,6 +640,7 @@ set (OBJS_OPENBUFR
    getcount_bufr.f90
    m_extOzone.F90
    read_aerosol.f90
+   read_abi.f90
    read_ahi.f90
    read_airs.f90
    read_amsre.f90
@@ -731,11 +734,11 @@ install(
   
 esma_add_library (GSI_GridComp
    SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
-  DEPENDENCIES MAPL_Base NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
+  DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 esma_add_library (GSI_GridComp_with_stubs
    SRCS ${SRCS_STUBS} ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
-   DEPENDENCIES MAPL_Base NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
+   DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 foreach (item HAVE_ESMF _SKIP_READ_OBS_CHECK_ _TIMER_ON_ _REAL8_)
    target_compile_definitions (GSI_GridComp PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${item}>)
@@ -754,19 +757,19 @@ endforeach()
 
 #esma_add_library (GSI_Util
 #  SRCS ${SRCS_UTIL}
-#  DEPENDENCIES GSI_Observer MAPL_Base NCEP_crtm NCEP_nemsio nc_diag_read GMAO_stoch)  
+#  DEPENDENCIES GSI_Observer MAPL NCEP_crtm NCEP_nemsio nc_diag_read GMAO_stoch)  
 #
 #esma_add_library (GSI_Observer
 #  SRCS ${SRCS_OBSVR}
-#  DEPENDENCIES MAPL_Base GSI_Util nc_diag_write)
+#  DEPENDENCIES MAPL GSI_Util nc_diag_write)
 #
 #esma_add_library (GSI_Other
 #  SRCS ${SRCS_OTHER}
-#  DEPENDENCIES MAPL_Base GSI_Util nc_diag_write)
+#  DEPENDENCIES MAPL GSI_Util nc_diag_write)
 #
 #esma_add_library (GSI_Solver
 #  SRCS ${SRCS_SOLVER}
-#  DEPENDENCIES MAPL_Base)
+#  DEPENDENCIES MAPL)
 #
 #foreach (t GSI_Util GSI_Observer GSI_Other GSI_Solver)
 #  target_compile_definitions (${t} PUBLIC _REAL8_ _SKIP_READ_OBS_CHECK_ LINUX funder FortranByte=char FortranInt=int FortranLlong=long\ long)
