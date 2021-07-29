@@ -200,7 +200,7 @@ set (SRCS_OBSNODES
   gsi_aeroOper.F90
   gsi_cldchOper.F90
   gsi_cldtotOper.F90
-  gsi_colvkOper.F90
+  gsi_tgasOper.F90
   gsi_dbzOper.F90
   gsi_dwOper.F90
   gsi_gpsbendOper.F90
@@ -241,7 +241,7 @@ set (SRCS_OBSNODES
   m_aerolNode.F90
   m_aeroNode.F90
   m_cldchNode.F90
-  m_colvkNode.F90
+  m_tgasNode.F90
   m_dbzNode.F90
   m_dwNode.F90
   m_gpsNode.F90
@@ -314,8 +314,7 @@ set (SRCS_SOLVER
   chemmod.f90
   clw_mod.f90
   cmaq_routines.f90
-  co_mop_ak.f90
-  coinfo.f90
+  tgasinfo.f90
   combine_radobs.f90
   compute_derived.f90
   compute_qvar3d.f90
@@ -362,7 +361,7 @@ set (SRCS_SOLVER
   intall.f90
   intaod.f90
   intcldch.f90
-  intco.f90
+  inttgas.f90
   intdbz.f90
   intdw.f90
   intgps.f90
@@ -465,7 +464,7 @@ set (SRCS_SOLVER
   read_avhrr.f90
   read_avhrr_navy.f90
   read_bufrtovs.f90
-  read_co.f90
+  read_tgas.f90
   read_dbz_nc.f90
   read_dbz_netcdf.f90
   read_files.f90
@@ -512,7 +511,7 @@ set (SRCS_SOLVER
   setupbend.f90
   setupcldch.f90
   setupcldtot.F90
-  setupco.f90
+  setuptgas.f90
   setupdbz.f90
   setupdbz_lib.f90
   setupdw.f90
@@ -556,7 +555,7 @@ set (SRCS_SOLVER
   sqrtmin.f90
   ssmis_spatial_average_mod.f90
   sst_retrieval.f90
-  statsco.f90
+  statstgas.f90
   statsconv.f90
   statsoz.f90
   statslight.f90
@@ -565,7 +564,7 @@ set (SRCS_SOLVER
   stpaod.f90
   stpcalc.f90
   stpcldch.f90
-  stpco.f90
+  stptgas.f90
   stpdbz.f90
   stpdw.f90
   stpgps.f90

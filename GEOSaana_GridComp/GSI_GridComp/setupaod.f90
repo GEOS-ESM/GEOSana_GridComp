@@ -82,9 +82,8 @@ subroutine setupaod(obsLL,odiagLL,lunin,mype,nchanl,nreal,nobs,&
   use m_obsNode, only: obsNode
   use m_aeroNode, only: aeroNode_appendto
   use m_obsLList, only: obsLList
-  use m_aeroNode, only: aeroNode, aeroNode_typecast
+  use m_aeroNode, only: aeroNode
   use m_obsLList, only: obsLList_appendNode
-  use m_obsLlist, only: obsLList_tailNode
   use obsmod, only: rmiss_single, netcdf_diag, binary_diag
   use qcmod, only: ifail_crtm_qc
   use radiance_mod, only: rad_obs_type,radiance_obstype_search
@@ -97,8 +96,8 @@ subroutine setupaod(obsLL,odiagLL,lunin,mype,nchanl,nreal,nobs,&
   implicit none
 
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
   logical                           ,intent(in   ) :: aero_diagsave
   character(10)                     ,intent(in   ) :: obstype
   character(20)                     ,intent(in   ) :: isis

@@ -14,7 +14,7 @@ set (etc_txt_files
    gmao_global_anavinfo_rcov.txt
    gmao_global_blacklist.txt
    gmao_global_cloudy_radiance_info.txt
-   gmao_global_coinfo.txt
+   gmao_global_tgasinfo.txt
    gmao_global_convinfo.txt
    gmao_global_insituinfo.txt
    gmao_global_ozinfo.txt

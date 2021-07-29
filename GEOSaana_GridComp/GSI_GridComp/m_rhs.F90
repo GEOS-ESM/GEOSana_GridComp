@@ -12,11 +12,14 @@ module m_rhs
 !   2010-03-22  j guo   - added this document block
 !   2010-04-22  tangborn- add co knobs
 !   2010-05-27  j guo   - cut off GPS related variables to m_gpsrhs
+!   2014-04-20  weir    - replaced co knobs with trace gas knobs
 !   2018-08-10  j guo   - moved in all type-indices from setuprhsall().  These
 !                         type-indices are now defined from this module itself,
 !                         through an enum block.
 !                       - removed external dimension argument aworkdim2 of
 !                         rhs_alloc().
+!   2021-05-13 j guo    - replaced i_co entry with i_tgas to support new tgas
+!                         modules.
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -45,7 +48,7 @@ module m_rhs
   public:: rhs_aivals
   public:: rhs_stats
   public:: rhs_stats_oz
-  public:: rhs_stats_co
+  public:: rhs_stats_tgas
   public:: rhs_toss_gps
 
   ! variable indices to rhs_awork(:,i_work).  e.g.
@@ -61,7 +64,7 @@ module m_rhs
   public:: i_sst
   public:: i_tcp
   public:: i_lag
-  public:: i_co
+  public:: i_tgas
   public:: i_gust
   public:: i_vis
   public:: i_pblh
@@ -110,7 +113,7 @@ module m_rhs
   real(r_kind),allocatable,dimension(:,:    ),save:: rhs_aivals
   real(r_kind),allocatable,dimension(:,:    ),save:: rhs_stats
   real(r_kind),allocatable,dimension(:,:    ),save:: rhs_stats_oz
-  real(r_kind),allocatable,dimension(:,:    ),save:: rhs_stats_co
+  real(r_kind),allocatable,dimension(:,:    ),save:: rhs_stats_tgas
   real(r_kind),allocatable,dimension(:      ),save:: rhs_toss_gps
 
   enum, bind(C)
@@ -127,7 +130,7 @@ module m_rhs
     enumerator:: i_sst
     enumerator:: i_tcp
     enumerator:: i_lag
-    enumerator:: i_co
+    enumerator:: i_tgas
     enumerator:: i_gust
     enumerator:: i_vis
     enumerator:: i_pblh
@@ -169,7 +172,7 @@ subroutine rhs_alloc()
   use obsmod  , only: nprof_gps
   use radinfo , only: jpch_rad
   use ozinfo  , only: jpch_oz
-  use coinfo  , only: jpch_co
+  use tgasinfo, only: jpch_tgas
   use qcmod   , only: npres_print
   use gridmod , only: nsig
   use convinfo, only: nconvtype
@@ -191,7 +194,7 @@ _ENTRY_(myname_)
      call tell(myname_,'nconvtype ='  ,nconvtype)
      call tell(myname_,'ndat ='       ,ndat)
      call tell(myname_,'jpch_rad ='   ,jpch_rad)
-     call tell(myname_,'jpch_co ='    ,jpch_co)
+     call tell(myname_,'jpch_tgas ='  ,jpch_tgas)
      call tell(myname_,'jpch_oz ='    ,jpch_oz)
      call tell(myname_,'nprof_gps ='  ,nprof_gps)
   end if
@@ -201,7 +204,7 @@ _ENTRY_(myname_)
   allocate(rhs_bwork(npres_print,nconvtype,5,3))
   allocate(rhs_aivals(40,ndat))
   allocate(rhs_stats(7,jpch_rad))
-  allocate(rhs_stats_co(9,jpch_co))
+  allocate(rhs_stats_tgas(9,jpch_tgas))
   allocate(rhs_stats_oz(9,jpch_oz))
 
   allocate(rhs_toss_gps(max(1,nprof_gps)))
@@ -210,7 +213,7 @@ _ENTRY_(myname_)
   rhs_bwork    =zero
   rhs_aivals   =zero
   rhs_stats    =zero
-  rhs_stats_co =zero
+  rhs_stats_tgas=zero
   rhs_stats_oz =zero
   rhs_toss_gps =zero
 
@@ -230,7 +233,7 @@ _ENTRY_(myname_)
   deallocate(rhs_bwork)
   deallocate(rhs_aivals)
   deallocate(rhs_stats)
-  deallocate(rhs_stats_co)
+  deallocate(rhs_stats_tgas)
   deallocate(rhs_stats_oz)
 
   deallocate(rhs_toss_gps)

@@ -15,6 +15,7 @@
 #  25May2013 Todling  Implement parallelization 
 #  16Nov2013 Todling  Check all diag-types for consistency w/ obs-sys from MERRA2
 #  01Oct2014 Stassi   Unwired intrument-platform names: see gsidiags.rc
+#  09Oct2014 Weir     Begin adding support for trace gases
 #  09Dec2016 McCarty  Add support for nc4 diag concatenation
 #  13Feb2017 Todling  Set default for GSI binary output; revised env var names
 #  02Aug2018 McCarty  Integrated bin2txt processing for pyradmon usage
@@ -169,7 +170,7 @@ sub lndiag_files {
   my ( $todo ) = @_;
 
   my($echorc_x, $gsidiags_rc);
-  my(@loops, @satlist, @ozlist, @convlist);
+  my(@loops, @satlist, @ozlist, @convlist, @tgaslist);
   my($var,$var1,$var2,$miter,$totiter);
 
   print "Entering gsidiag todo = $todo \n";
@@ -206,6 +207,10 @@ sub lndiag_files {
   shift @convlist until $convlist[0];
   pop   @convlist until $convlist[-1];
 
+  @tgaslist= (split /\s+/, `$echorc_x -rc $gsidiags_rc tgaslist`);
+  shift @tgaslist until $tgaslist[0];
+  pop   @tgaslist until $tgaslist[-1];
+
   if ( $todo eq "set" ) {
     print " lndiag_files: Collecting diag files ... \n";
 
@@ -216,37 +221,8 @@ sub lndiag_files {
     handle_obs($loop,$diagtag,1,@satlist);
     handle_obs($loop,$diagtag,0,@convlist);
     handle_obs($loop,$diagtag,0,@ozlist);
+    handle_obs($loop,$diagtag,0,@tgaslist);
   } # <while>
-
-## wm - ozone to still be done
-## Cat ozone data diagnostic files for each processor into single file
-## --------------------------------------------------------------------------
-#  while ( ($loop,$diagtag) = each(%loops) ) {
-#    print "gsidiag: inside ozone loop for case: $loop $diagtag \n";
-#    foreach $ols (@ozlist) {
-#        $filecnt = 0;
-#        foreach ( <pe*.${ols}_$loop> ) { $filecnt ++ };
-#        next unless ($filecnt);
-#        if ( $suffix ) {
-#             $this_diag_file = "diag_${ols}_${diagtag}.${nymd}${hh}${suffix}";
-#        } else {
-#             $this_diag_file = "diag_${ols}_$loop.${nymd}${hh}";
-#        }
-#        $cmd = "cat `ls pe*.${ols}_$loop` > ${this_diag_file}";
-#        print " ($filecnt files) $cmd\n";
-#        $rc_ignore = system($cmd);
-#        if ( -z "${this_diag_file}" ) {
-#             rm("${this_diag_file}");
-#        } else {
-#             if ( $opt_catonly ) {
-#             } else {
-#               rename("${this_diag_file}","$fvwork/$expid.diag_${ols}_${diagtag}.${nymd}_${hh}z.bin");
-#               $cmd = "/bin/rm pe*.${ols}_$loop";
-#               print " ($filecnt files) $cmd\n";
-#             }
-#        }
-#    }
-#  }
 
 
   } else { # clean up diag files
@@ -254,7 +230,9 @@ sub lndiag_files {
 
     my(@newlist);
     @newlist = @satlist;
+    push(@newlist,@convlist);
     push(@newlist,@ozlist);
+    push(@newlist,@tgaslist);
     foreach $sat (@newlist) {
           $files_tmp = `sh -c "ls diag_${sat}.* 2>/dev/null"`;
           chomp($files_tmp);
