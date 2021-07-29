@@ -109,8 +109,8 @@ subroutine setuppm10(obsLL,odiagLL,lunin,mype,nreal,nobs,isis,is,conv_diagsave)
 
   implicit none
   
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
 ! !input parameters:
 

@@ -85,6 +85,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !                         PBL pseudo obs
 !   2013-10-19  todling - metguess now holds background
 !   2013-05-24      zhu - add ostats_t and rstats_t for aircraft temperature bias correction
+!   2014-04-21  weir    - added call for trace gas data
 !   2014-03-19  pondeca - add wspd10m
 !   2014-04-10  pondeca - add td2m,mxtm,mitm,pmsl
 !   2014-05-07  pondeca - add howv
@@ -135,7 +136,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   use radinfo, only: mype_rad,jpch_rad,retrieval,fbias,npred,ostats,rstats
   use aircraftinfo, only: aircraft_t_bc_pof,aircraft_t_bc,ostats_t,rstats_t,npredt,ntail
   use ozinfo, only: mype_oz,jpch_oz,ihave_oz
-  use coinfo, only: mype_co,jpch_co,ihave_co
+  use tgasinfo, only: mype_tgas,jpch_tgas,ihave_tgas
   use lightinfo, only: mype_light
   use mpimod, only: ierror,mpi_comm_world,mpi_rtype,mpi_sum
   use gridmod, only: twodvar_regional,wrf_mass_regional,nems_nmmb_regional
@@ -160,7 +161,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   use m_rhs, only: bwork  => rhs_bwork
   use m_rhs, only: aivals => rhs_aivals
   use m_rhs, only: stats    => rhs_stats
-  use m_rhs, only: stats_co => rhs_stats_co
+  use m_rhs, only: stats_tgas => rhs_stats_tgas
   use m_rhs, only: stats_oz => rhs_stats_oz
   use m_rhs, only: toss_gps_sub => rhs_toss_gps
 
@@ -210,6 +211,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   !external:: read_obsdiags
   external:: statsconv
   external:: statsoz
+  external:: statstgas
   external:: statspcp
   external:: statsrad
   external:: statslight
@@ -234,7 +236,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   real(r_kind),dimension(40,ndat):: aivals1
   real(r_kind),dimension(7,jpch_rad):: stats1
   real(r_kind),dimension(9,jpch_oz):: stats_oz1
-  real(r_kind),dimension(9,jpch_co):: stats_co1
+  real(r_kind),dimension(9,jpch_tgas):: stats_tgas1
   real(r_kind),dimension(npres_print,nconvtype,5,3):: bwork1
   real(r_kind),allocatable,dimension(:,:):: awork1
 
@@ -588,7 +590,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   if (ihave_oz) call mpi_reduce(stats_oz,stats_oz1,size(stats_oz1),mpi_rtype,mpi_sum,mype_oz, &
        mpi_comm_world,ierror)
 
-  if (ihave_co) call mpi_reduce(stats_co,stats_co1,size(stats_co1),mpi_rtype,mpi_sum,mype_co, &
+  if (ihave_tgas) call mpi_reduce(stats_tgas,stats_tgas1,size(stats_tgas1),mpi_rtype,mpi_sum,mype_tgas, &
        mpi_comm_world,ierror)
 
 ! Collect conventional data statistics
@@ -617,7 +619,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
         if (mype==mype_oz .and. ihave_oz) call statsoz(stats_oz1,ndata)
 
 !       Compute and print statistics for carbon monoxide
-!????   if (mype==mype_co .and. ihave_co) call statsco(stats_co1,bwork1,awork1(1,i_co),ndata)
+        if (mype==mype_tgas .and. ihave_tgas) call statstgas(stats_tgas1,ndata)
 
      endif
 

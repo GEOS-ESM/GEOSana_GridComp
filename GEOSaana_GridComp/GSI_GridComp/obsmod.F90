@@ -93,6 +93,7 @@ module obsmod
 !                        - removed type(aofp_obs_diag) from public entity list, which is not used
 !                          anywhere else, except in this module.  It might be needed to be public
 !                          in the future, but atleast not now.
+!   2014-01-31  weir     - generalize colvk to trace gas observation type
 !   2014-03-19  pondeca  - add wspd10m
 !   2014-04-10  pondeca  - add td2m,mxtm,mitm,pmsl
 !   2014-05-07  pondeca  - add howv
@@ -230,8 +231,8 @@ module obsmod
 !   def oztail       - sbuv ozone profile linked list tail
 !   def o3lhead      - ozone level data linked list head
 !   def o3ltail      - ozone level data linked list tail
-!   def colvkhead    - carbon monoxide level data linked list head 
-!   def colvktail    - carbon monoxide level data linked list tail 
+!   def tgashead     - trace gas level linked list head 
+!   def tgastail     - trace gas level data linked list tail 
 !   def aerohead     - aerosol profile linked list head
 !   def aerotail     - aerosol profile linked list tail
 !   def aerolhead    - aerosol level data linked list head
@@ -283,7 +284,7 @@ module obsmod
 !   def iout_q       - output unit for moisture stats
 !   def iout_uv      - output unit for wind stats
 !   def iout_oz      - output unit for ozone stats
-!   def iout_co      - output unit for co stats 
+!   def iout_tgas    - output unit for tgas stats 
 !   def iout_aero    - output unit for aerosol stats
 !   def iout_ps      - output unit for surface pressure stats
 !   def iout_pw      - output unit for precipitable water stats
@@ -416,13 +417,15 @@ module obsmod
   public :: lsaveobsens
   public ::                  iout_cldch, mype_cldch
   public ::          nprof_gps,time_offset,ianldate
-  public :: iout_oz,iout_co,dsis,ref_obs,obsfile_all,lobserver,perturb_obs,ditype,dsfcalc,dplat
+  public :: iout_oz,dsis,ref_obs,obsfile_all,lobserver,perturb_obs,ditype,dsfcalc,dplat
+  public :: iout_tgas
   public :: time_window,dval,dtype,dfile,dirname,obs_setup,oberror_tune,offtime_data
   public :: lobsdiagsave,lobsdiag_forenkf,blacklst,hilbert_curve,lobskeep,time_window_max,sfcmodel,ext_sonde
   public :: time_window_rad
   public :: perturb_fact,dtbduv_on,nsat1,obs_sub_comm,mype_diaghdr
   public :: lobsdiag_allocated
-  public :: nloz_v8,nloz_v6,nloz_omi,nlco,nobskeep
+  public :: nloz_v8,nloz_v6,nloz_omi,nobskeep
+  public :: nlmopitt,nlacos,nlflask
   public :: grids_dim,rmiss_single,nchan_total,mype_sst,mype_gps
   public :: mype_uv,mype_dw,mype_rw,mype_q,mype_tcp,mype_lag,mype_ps,mype_t
   public :: mype_pw,iout_rw,iout_dw,iout_sst,iout_pw,iout_t,iout_q,iout_tcp
@@ -504,11 +507,12 @@ module obsmod
   integer(i_kind) grids_dim,nchan_total,ianldate
   integer(i_kind) ndat,ndat_types,ndat_times,nprof_gps
   integer(i_kind) lunobs_obs,nloz_v6,nloz_v8,nobskeep,nloz_omi
-  integer(i_kind) nlco,use_limit
+  integer(i_kind) nlmopitt,nlacos,nlflask,use_limit 
   integer(i_kind) iout_rad,iout_pcp,iout_t,iout_q,iout_uv, &
                   iout_oz,iout_ps,iout_pw,iout_rw, iout_dbz
   integer(i_kind) iout_dw,iout_gps,iout_sst,iout_tcp,iout_lag
-  integer(i_kind) iout_co,iout_gust,iout_vis,iout_pblh,iout_tcamt,iout_lcbas
+  integer(i_kind) iout_gust,iout_vis,iout_pblh,iout_tcamt,iout_lcbas
+  integer(i_kind) iout_tgas
   integer(i_kind) iout_cldch
   integer(i_kind) iout_wspd10m,iout_td2m,iout_mxtm,iout_mitm,iout_pmsl,iout_howv
   integer(i_kind) iout_uwnd10m,iout_vwnd10m
@@ -709,7 +713,7 @@ contains
     iout_sst=213   ! conventional sst
     iout_tcp=214   ! synthetic tc-mslp
     iout_lag=215   ! lagrangian tracers
-    iout_co=216    ! co tracers
+    iout_tgas=216  ! tgas tracers
     iout_aero=217  ! aerosol product (aod)
     iout_gust=218  ! wind gust
     iout_vis=219   ! visibility
@@ -739,6 +743,7 @@ contains
     mype_pw = max(0,npe-5)   ! precipitable water
     mype_rw = max(0,npe-6)   ! radial winds
     mype_dw = max(0,npe-7)   ! doppler lidar winds
+    !  mype_co is no longer used, but kept here as a space holder for counting.
     mype_co = max(0,npe-8)   ! carbon monoxide
     mype_gps= max(0,npe-9)   ! gps refractivity or bending angle
     mype_sst= max(0,npe-10)  ! conventional sst
@@ -776,7 +781,10 @@ contains
     nloz_v6 = 12               ! number of "levels" in ozone version8 data
     nloz_v8 = 21               ! number of "levels" in ozone version6 data
     nloz_omi= 11               ! number of "levels" in OMI apriori profile
-    nlco    = 10               ! number of "levels" in MOPITT version 4 CO data
+
+    nlmopitt = 10              ! number of "levels" in MOPITT version 6 CO data
+    nlacos   = 20              ! number of "levels" in ACOS/GOSAT version 3.4 CO2 data
+    nlflask  = 1               ! number of "levels" in NOAA flask data
 
     lunobs_obs = 2             ! unit to which to write/read information
                                ! related to brightness temperature and 
