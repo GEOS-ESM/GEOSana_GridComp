@@ -613,7 +613,7 @@ subroutine setupbend(obsLL,odiagLL, &
                 qcfail(i)=.true.
              elseif (tpdpres(i) < ref_rad(top_layer_SR+1)) then !obs below model close-to-SR layer
                 qcfail(i)=.true.
-             elseif (tpdpres(i) >= ref_rad(top_layer_SR+1) .and. tpdpres(i) <= ref_rad(top_layer_SR+5)) then !source too close
+             elseif (tpdpres(i) >= ref_rad(top_layer_SR+1) .and. tpdpres(i) <= ref_rad(top_layer_SR+2)) then !source too close
                 qcfail(i)=.true.
              else !above
                 qcfail(i)=.false.
