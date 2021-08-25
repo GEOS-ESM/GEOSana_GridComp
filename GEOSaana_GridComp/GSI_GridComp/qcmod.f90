@@ -1219,11 +1219,11 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
         end do  !l_loop
      end if
 
-     if((amsre.or.ssmi) .and. radmod%lcloud_fwd ) then
+     if((amsre .or. ssmi) .and. radmod%lcloud_fwd ) then
 !       set max clw 'top_clw' 0.8 in all-sky DA. 
 !       clw_guess_retrieval must be an input of qc_ssmi() in all-sky
         if( clw > top_clw .or. clw_guess_retrieval > top_clw .or. &
-            abs(clw-clw_guess_retrieval)>0.15_r_kind) then
+            abs(clw-clw_guess_retrieval)>0.40_r_kind) then
            do i=1,nchanl
               if( id_qc(i)== igood_qc ) then
                  id_qc(i)=ifail_cloud_qc
@@ -1240,7 +1240,7 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
               endif
               if(luse)  aivals(5) = aivals(5) + one
            end do
-        else if (tzbgr < 275.0_r_kind) then
+        else if (tzbgr < 273.0_r_kind) then
            ! Toss data when SST < 275 K
            do i=1,nchanl
               if( id_qc(i)== igood_qc ) then
@@ -1249,7 +1249,7 @@ subroutine qc_ssmi(nchanl,nsig,ich,sfchgt,luse,sea,mixed, &
               endif
            end do
            if(luse) aivals(13) = aivals(13) + one
-        else if( (tpwc < five .and. amsre) .or. (tpwc < 10. .and. ssmi) )then
+        else if( tpwc < five ) then
            ! Toss data where model is dry (it is tpwc_guess in all-sky)
            do i=1,nchanl
               if( id_qc(i)== igood_qc ) then

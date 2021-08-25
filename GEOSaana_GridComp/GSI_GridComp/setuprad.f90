@@ -1652,6 +1652,7 @@ contains
                  else if(radmod%rtype == 'atms' .and. (i <= 6 .or. i>=16) ) then
                     errf(i) = min(three*errf(i),10.0_r_kind)    
                  else if(radmod%rtype == 'gmi' .or. radmod%rtype == 'tmi' &
+                         .or. radmod%rtype == 'ssmi'  &
                          .or. radmod%rtype == 'amsre') then
                     errf(i) = min(2.0_r_kind*errf(i),ermax_rad(m))
                  else if(radmod%rtype == 'amsr2') then

@@ -55,6 +55,7 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
 !   2015-02-23  Rancic/Thomas - add thin4d to time window logical
 !   2015-10-01  guo     - consolidate use of ob location (in deg)
 !   2018-05-21  j.jin   - added time-thinning. Moved the checking of thin4d into satthin.F90.
+!   2020-05-05  j.jin   - Stop skipping rain data in all-sky DA.
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -100,7 +101,7 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
   use gsi_nstcouplermod, only: nst_gsi,nstinfo
   use gsi_nstcouplermod, only: gsi_nstcoupler_skindepth, gsi_nstcoupler_deter
   use mpimod, only: npe
-! use radiance_mod, only: rad_obs_type
+  use radiance_mod, only: rad_obs_type,radiance_obstype_search
 
   implicit none
 
@@ -180,6 +181,7 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
   real(r_kind):: dlon_earth_deg,dlat_earth_deg
   real(r_kind):: ssmi_def_ang,ssmi_zen_ang  ! default and obs SSM/I zenith ang
   logical  do85GHz, ch6, ch7
+  type(rad_obs_type) :: radmod
   real(r_kind)    :: ptime,timeinflat,crit0
   integer(i_kind) :: ithin_time,n_tbin,it_mesh
 
@@ -222,6 +224,8 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
      rlndsea(2) = 30._r_kind
      rlndsea(3) = 30._r_kind
      rlndsea(4) = 100._r_kind
+!    Determine cloud usage in radiance assimilation
+     call radiance_obstype_search(obstype,radmod)
   end if
 
 ! If all channels of a given sensor are set to monitor or not
@@ -402,39 +406,44 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
            crit1 = crit1 + rlndsea(isflg)
            call checkob(dist1,crit1,itx,iuse)
            if(.not. iuse)cycle scan_loop
-
-           if (do85GHz) then  ! do regular checks if 85 GHz available
-  
-!    ---- Set data quality predictor for initial qc -------------
-!      -  simple si index : taken out from ssmiqc()
-!            note! it exclude emission rain
-              tb19v=tbob(1);  tb22v=tbob(3); tb85v=tbob(6)
-              if(isflg/=0)  then !land+snow+ice
-                 si85 = 451.9_r_kind - 0.44_r_kind*tb19v - 1.775_r_kind*tb22v + &
-                    0.00574_r_kind*tb22v*tb22v - tb85v
-              else    !sea
-                 si85 = -174.4_r_kind + 0.715_r_kind*tb19v + 2.439_r_kind*tb22v -  &
-                    0.00504_r_kind*tb22v*tb22v - tb85v
-              end if
-
-!             Compute "score" for observation.  All scores>=0.0.  Lowest score is "best"
-              pred = abs(si85)*three  !range: 0 to 30
-
-           else              ! otherwise do alternate check for rain
-
-              if (isflg/=0) then     ! just try to scren out land pts.
-                 pred = 50_r_kind
-              else
-                 tb19v=tbob(1);  tb22v=tbob(3);
-                 if (tb19v < 288.0_r_kind .and. tb22v < 288.0_r_kind) then
-                    q19 = -6.723_r_kind * ( log(290.0_r_kind - tb19v)  &
-                         - 2.850_r_kind - 0.405_r_kind* log(290.0_r_kind - tb22v))
-                    pred = min(75._r_kind * q19,50.)  ! scale 0.4mm -> pred ~ 30
+           if( .not. radmod%lcloud_fwd) then   ! original clear-sky DA.
+              if (do85GHz) then  ! do regular checks if 85 GHz available
+     
+!       ---- Set data quality predictor for initial qc -------------
+!         -  simple si index : taken out from ssmiqc()
+!                  note! it exclude emission rain
+                 tb19v=tbob(1);  tb22v=tbob(3); tb85v=tbob(6)
+                 if(isflg/=0)  then !land+snow+ice
+                    si85 = 451.9_r_kind - 0.44_r_kind*tb19v - 1.775_r_kind*tb22v + &
+                       0.00574_r_kind*tb22v*tb22v - tb85v
+                 else    !sea
+                    si85 = -174.4_r_kind + 0.715_r_kind*tb19v + 2.439_r_kind*tb22v -  &
+                       0.00504_r_kind*tb22v*tb22v - tb85v
+                 end if
+   
+!                Compute "score" for observation.  All scores>=0.0.  Lowest score is "best"
+                 pred = abs(si85)*three  !range: 0 to 30
+   
+              else              ! otherwise do alternate check for rain
+   
+                 if (isflg/=0) then     ! just try to scren out land pts.
+                    pred = 50_r_kind
                  else
-                    pred = 50_r_kind      ! default if Tb 19/22 > 288
+                    tb19v=tbob(1);  tb22v=tbob(3);
+                    if (tb19v < 288.0_r_kind .and. tb22v < 288.0_r_kind) then
+                       q19 = -6.723_r_kind * ( log(290.0_r_kind - tb19v)  &
+                            - 2.850_r_kind - 0.405_r_kind* log(290.0_r_kind - tb22v))
+                       pred = min(75._r_kind * q19,50.)  ! scale 0.4mm -> pred ~ 30
+                    else
+                       pred = 50_r_kind      ! default if Tb 19/22 > 288
+                    endif
                  endif
               endif
-           endif
+           else   ! not to check rain in all-sky DA. 
+              if ( isflg /= 0 ) then    ! screen out land pts.
+                 pred = 50.0
+              endif
+           endif  ! radmod%lcloud_fwd
 
 !          Compute final "score" for observation.  All scores>=0.0.  
 !          Lowest score is "best"

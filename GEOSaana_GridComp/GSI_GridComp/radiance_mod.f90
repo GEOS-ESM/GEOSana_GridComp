@@ -1186,9 +1186,15 @@ contains
              cld_rbc_idx(i)=zero
           endif
        end do
-    else   
-
-       if( trim(radmod%rtype) /= 'amsre' .and. trim(radmod%rtype) /= 'ssmi') then
+    else if (trim(radmod%rtype) == 'ssmi') then
+       do i=1,nchanl
+          if (radmod%lcloud4crtm(i)<0) cycle
+          if ( (clwp_amsua-cclr(i)) > zero  .or. (clw_guess_retrieval-cclr(i)) > zero ) then
+             cld_rbc_idx(i)=zero
+          endif
+       end do
+    else
+       if (trim(radmod%rtype) /= 'amsre') then
           call ret_amsua(tsim_bc,nchanl,tsavg5,zasat,clw_guess_retrieval,ierrret)
        endif
 
