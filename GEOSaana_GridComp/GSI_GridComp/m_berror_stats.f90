@@ -38,7 +38,13 @@ module m_berror_stats
    use kinds,          only : i_kind
    use constants,      only: one,zero
    use control_vectors,only: cvars2d,cvars3d
-   use mpeu_util,      only: getindex,check_iostat
+   use mpeu_util,      only: getindex,check_iostat,die
+
+   use m_nc_berror, only: nc_berror_dims
+   use m_nc_berror, only: nc_berror_read
+   use m_nc_berror, only: nc_berror_vars
+   use m_nc_berror, only: nc_berror_vars_final
+   use m_nc_berror, only: nc_berror_getpointer
 
    implicit none
 
@@ -71,6 +77,7 @@ module m_berror_stats
 !       18Dec15 - Rahul.Mahajan <rahul.mahajan@noaa.gov>
 !               - replace die calls with check_iostat to clean code
 !               - fix haphazard indentation and add return to all sub-routines
+!       30Aug21 - Todling - introduce netcdf capability
 !EOP ___________________________________________________________________
 
    character(len=*),parameter :: myname='m_berror_stats'
@@ -80,6 +87,8 @@ module m_berror_stats
 
    character(len=256),save :: berror_stats = "berror_stats"      ! filename
    logical,save :: cwcoveqqcov_
+
+   logical,save :: bin_berror=.false.
 
 contains
 
@@ -95,6 +104,7 @@ contains
 
 subroutine get_dims(msig,mlat,mlon,lunit)
 
+   use mpimod, only: mype
    implicit none
 
    integer(i_kind)         ,intent(  out) :: msig  ! dimension of levels
@@ -109,7 +119,31 @@ subroutine get_dims(msig,mlat,mlon,lunit)
 !EOP ___________________________________________________________________
 
    character(len=*),parameter :: myname_=myname//'::get_dims'
-   integer(i_kind) :: inerr,mlon_,ier
+   integer(i_kind) :: inerr,mlon_,status
+
+!  Try reading as NetCDF ...
+   if(mype==0) print*, myname_, ": Try reading berror from NetCDF file"
+   call nc_(status)
+   if (status==0) then
+      if(mype==0) print*, myname_, ": Reading berror from NetCDF file"
+      bin_berror = .false.
+   else ! if failed, read as NetCDF
+     call bin_(status)
+     if (status==0) then
+        bin_berror = .true.
+        if(mype==0) print*, myname_, ": Read berror from Binary file"
+     else
+        if(mype==0) call die(myname_,'Failed reading Berror file', 99)
+     endif
+   endif
+   if ( present(mlon) ) mlon = mlon_
+
+   return
+
+   contains
+
+   subroutine bin_(ier)
+   integer,intent(inout) :: ier
 
    ! Read dimension of stats file
    inerr = default_unit_
@@ -118,12 +152,26 @@ subroutine get_dims(msig,mlat,mlon,lunit)
    call check_iostat(ier,myname_,'open('//trim(berror_stats)//')')
    rewind inerr
    read(inerr,iostat=ier) msig,mlat,mlon_
+   if (ier/=0) return
    call check_iostat(ier,myname_,'read header')
    close(inerr,iostat=ier)
    call check_iostat(ier,myname_,'close('//trim(berror_stats)//')')
-   if ( present(mlon) ) mlon = mlon_
 
    return
+   end subroutine bin_
+
+   subroutine nc_(ier)
+   integer,intent(inout) :: ier
+
+   integer :: mlat_, mlev_
+
+   call nc_berror_dims (berror_stats,mlat_,mlon_,mlev_,ier, mype,0)
+
+   mlat = mlat_
+   msig = mlev_
+
+   return
+   end subroutine nc_
 end subroutine get_dims
 
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -203,6 +251,19 @@ subroutine read_bal(agvin,bvin,wgvin,pputin,fut2ps,mype,lunit)
    integer(i_kind) :: nsigstat,nlatstat
    integer(i_kind) :: inerr,ier
 
+   ier=0
+   if (bin_berror) then
+      call bin_
+   else
+      call nc_()
+   endif
+
+   return
+
+   contains
+
+   subroutine bin_
+
    ! Open background error statistics file
    inerr = default_unit_
    if ( present(lunit) ) inerr = lunit
@@ -214,6 +275,7 @@ subroutine read_bal(agvin,bvin,wgvin,pputin,fut2ps,mype,lunit)
 
    rewind inerr
    read(inerr,iostat=ier) nsigstat,nlatstat
+   if (ier/=0) return
    call check_iostat(ier,myname_,'read('//trim(berror_stats)//') for (nsigstat,nlatstat)')
 
    if ( mype==0 ) then
@@ -245,7 +307,24 @@ subroutine read_bal(agvin,bvin,wgvin,pputin,fut2ps,mype,lunit)
    close(inerr,iostat=ier)
    call check_iostat(ier,myname_,'close('//trim(berror_stats)//')')
 
-   return
+   end subroutine bin_
+
+   subroutine nc_
+   type(nc_berror_vars) bvars
+   if ( fut2ps ) then
+      call die(myname_," fut2ps not available in this form "//trim(berror_stats), 99)
+   endif
+   call nc_berror_read (berror_stats,bvars,ier, myid=mype,root=0)
+   if (nlat/=bvars%nlat .or. nsig/=bvars%nsig ) then
+      call die(myname_," inconsistent dims in "//trim(berror_stats), 99)
+   endif
+   agvin = bvars%tcon
+   bvin  = bvars%vpcon
+   wgvin = bvars%pscon
+   pputin=zero
+   call nc_berror_vars_final(bvars)
+   end subroutine nc_
+
 end subroutine read_bal
 
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -322,6 +401,86 @@ subroutine read_wgt(corz,corp,hwll,hwllp,vz,corsst,hsst,varq,qoption,varcw,cwopt
    real(r_single),allocatable,dimension(:,:):: corq2
    real(r_single),allocatable,dimension(:,:):: vscalesin
 
+   allocate(found3d(size(cvars3d)),found2d(size(cvars2d)))
+   found3d=.false.
+   found2d=.false.
+
+   if ( bin_berror ) then
+     call bin_()
+   else
+     call nc_()
+   endif
+
+   ! corz, hwll & vz for undefined 3d variables
+   do n=1,size(cvars3d)
+      if ( .not.found3d(n) ) then
+         if ( n>0 ) then
+            if ( cvars3d(n)=='oz' ) then
+               call setcoroz_(corz(:,:,n),mype)
+               call sethwlloz_(hwll(:,:,n),mype)
+            else
+               call setcorchem_(cvars3d(n),corz(:,:,n),ier)
+               call sethwllchem_(hwll(:,:,n),mype)
+               if(ier/=0) cycle ! if this happens, code will crash later
+            endif
+            call setvscalesoz_(vz(:,:,n))
+         endif
+         if ( mype==0 ) write(6,*) myname_, ': WARNING, using general Berror template for ', cvars3d(n)
+      endif
+   enddo
+
+!  if so, overwrite cw-cov with q-cov
+   iq=-1;icw=-1
+   do n=1,size(cvars3d)
+      if(trim(cvars3d(n))=='q' ) iq =n
+      if(trim(cvars3d(n))=='cw') icw=n
+   enddo
+   if (cwcoveqqcov_) then
+      if(iq>0.and.icw>0) then
+        hwll(:,:,icw)=hwll(:,:,iq)
+        vz  (:,:,icw)=vz  (:,:,iq)
+      end if
+   end if
+   if (cwoption==1 .or. cwoption==3) then
+      if (iq>0.and.icw>0) then
+         do k=1,nsig
+            do i=1,nlat
+               corz(i,k,icw)=one
+            end do
+         end do
+         hwll(:,:,icw)=0.5_r_kind*hwll(:,:,iq)
+         vz  (:,:,icw)=0.5_r_kind*vz  (:,:,iq)
+      end if 
+
+      if (n_clouds_fwd>0 .and. icw<=0) then
+         do n=1,size(cvars3d)
+            do ic=1,n_clouds_fwd
+               if(trim(cvars3d(n))==trim(cloud_names_fwd(ic))) then
+                  ivar=n
+                  do k=1,nsig
+                     do i=1,nlat
+                        corz(i,k,ivar)=one
+                     end do
+                  end do
+                  hwll(:,:,ivar)=0.5_r_kind*hwll(:,:,iq)
+                  vz  (:,:,ivar)=0.5_r_kind*vz  (:,:,iq)
+                  exit
+               end if   
+            end do
+         end do
+      end if
+   endif
+
+   ! need simliar general template for undefined 2d variables ...
+
+   deallocate(found3d,found2d)
+
+  return
+ 
+  contains
+
+  subroutine bin_
+
    ! Open background error statistics file
    inerr = default_unit_
    if ( present(lunit) ) inerr = lunit
@@ -352,9 +511,6 @@ subroutine read_wgt(corz,corp,hwll,hwllp,vz,corsst,hsst,varq,qoption,varcw,cwopt
    call check_iostat(ier,myname_,'read('//trim(berror_stats)//') for (agvin,bvin,wgvin)')
 
    ! Read amplitudes
-   allocate(found3d(size(cvars3d)),found2d(size(cvars2d)))
-   found3d=.false.
-   found2d=.false.
    readloop: do
       read(inerr,iostat=istat) var, isig
       if ( istat/=0 ) exit
@@ -446,71 +602,100 @@ subroutine read_wgt(corz,corp,hwll,hwllp,vz,corsst,hsst,varq,qoption,varcw,cwopt
    enddo readloop 
    close(inerr)
 
-   ! corz, hwll & vz for undefined 3d variables
-   do n=1,size(cvars3d)
-      if ( .not.found3d(n) ) then
-         if ( n>0 ) then
-            if ( cvars3d(n)=='oz' ) then
-               call setcoroz_(corz(:,:,n),mype)
-               call sethwlloz_(hwll(:,:,n),mype)
-            else
-               call setcorchem_(cvars3d(n),corz(:,:,n),ier)
-               call sethwllchem_(hwll(:,:,n),mype)
-               if(ier/=0) cycle ! if this happens, code will crash later
-            endif
-            call setvscalesoz_(vz(:,:,n))
-         endif
-         if ( mype==0 ) write(6,*) myname_, ': WARNING, using general Berror template for ', cvars3d(n)
+
+  end subroutine bin_
+
+  subroutine nc_
+
+   type(nc_berror_vars) bvars
+   real(r_single), pointer :: ptr1d(:)
+   real(r_single), pointer :: ptr2d(:,:)
+   integer :: nv 
+   call nc_berror_read (berror_stats,bvars,ier, myid=mype,root=0)
+   if (nlat/=bvars%nlat .or. nlon/=bvars%nlon .or.  nsig/=bvars%nsig ) then
+      call die(myname_," inconsistent dims in "//trim(berror_stats), 99)
+   endif
+   isig=bvars%nsig
+
+!  RTodling: the following is bad since it wires all naming conventions ... to be revised
+   do nv=1,size(cvars2d)
+      if (trim(cvars2d(nv))=='sst') then
+         n = getindex(cvars2d,'sst')
+         found2d(n)=.true.
+         call nc_berror_getpointer (cvars2d(nv),bvars,ptr2d,ier)
+         if(ier==0) corsst=ptr2d
+         call nc_berror_getpointer ('h'//cvars2d(nv),bvars,ptr2d,ier)
+         if(ier==0) hsst=ptr2d
+      endif
+      if (trim(cvars2d(nv))=='ps') then
+         n = getindex(cvars2d,'ps')
+         found2d(n)=.true.
+         call nc_berror_getpointer (cvars2d(nv),bvars,ptr1d,ier)
+         if(ier==0) corp(:,n)=ptr1d
+         call nc_berror_getpointer ('h'//cvars2d(nv),bvars,ptr1d,ier)
+         if(ier==0) hwllp(:,n)=ptr1d
       endif
    enddo
-
-!  if so, overwrite cw-cov with q-cov
-   iq=-1;icw=-1
-   do n=1,size(cvars3d)
-      if(trim(cvars3d(n))=='q' ) iq =n
-      if(trim(cvars3d(n))=='cw') icw=n
+   do nv=1,size(cvars3d)
+      call nc_berror_getpointer (cvars3d(nv),bvars,ptr2d,ier)
+      if (ier==0) then
+          n = getindex(cvars3d,cvars3d(nv))
+          found3d(n)=.true.
+          corz(:,:,n)=ptr2d
+          call nc_berror_getpointer ('h'//trim(cvars3d(nv)),bvars,ptr2d,ier)
+          if(ier==0) hwll(:,:,n)=ptr2d
+          call nc_berror_getpointer ('v'//trim(cvars3d(nv)),bvars,ptr2d,ier)
+          if(ier==0) vz(:,:,n)=transpose(ptr2d)
+          if (trim(cvars3d(nv))=='cw' .and. cwoption==2) then
+             allocate(corq2(bvars%nlat,bvars%nsig))
+             call nc_berror_getpointer ('nrh',bvars,ptr2d,ier)
+             if (ier==0) then
+                corq2=ptr2d
+                do k=1,bvars%nsig
+                   do i=1,bvars%nlat
+                      corq2x=corq2(i,k)
+                      varcw(i,k)=max(corq2x,zero)
+                   enddo
+                enddo
+             else
+                call die(myname_," in cw, failed to find bvar nrh ", 99)
+             endif
+             corz(:,:,n)=one
+             deallocate(corq2)
+          endif
+          if (trim(cvars3d(nv))=='q' .and. qoption==2) then
+             allocate(corq2(bvars%nlat,bvars%nsig))
+             call nc_berror_getpointer ('nrh',bvars,ptr2d,ier)
+             if (ier==0) then
+                corq2=ptr2d
+                do k=1,bvars%nsig
+                   do i=1,bvars%nlat
+                      corq2x=corq2(i,k)
+                      varq(i,k)=min(max(corq2x,0.00015_r_kind),one)
+                   enddo
+                enddo
+             else
+                call die(myname_," in q, failed to find bvar nrh ", 99)
+             endif
+             corz(:,:,n)=one
+             deallocate(corq2)
+          endif
+          cycle
+      endif
+      if (trim(cvars3d(nv))=='q') then
+          n = getindex(cvars3d,'q')
+          found3d(n)=.true.
+          corz(:,:,n)=bvars%qvar
+          if (qoption == 2) then
+          endif
+          hwll(:,:,n)=bvars%qhln
+          vz(:,:,n)=transpose(bvars%qvln)
+          cycle
+      endif
    enddo
-   if (cwcoveqqcov_) then
-      if(iq>0.and.icw>0) then
-        hwll(:,:,icw)=hwll(:,:,iq)
-        vz  (:,:,icw)=vz  (:,:,iq)
-      end if
-   end if
-   if (cwoption==1 .or. cwoption==3) then
-      if (iq>0.and.icw>0) then
-         do k=1,nsig
-            do i=1,nlat
-               corz(i,k,icw)=one
-            end do
-         end do
-         hwll(:,:,icw)=0.5_r_kind*hwll(:,:,iq)
-         vz  (:,:,icw)=0.5_r_kind*vz  (:,:,iq)
-      end if 
+   call nc_berror_vars_final(bvars)
+  end subroutine nc_
 
-      if (n_clouds_fwd>0 .and. icw<=0) then
-         do n=1,size(cvars3d)
-            do ic=1,n_clouds_fwd
-               if(trim(cvars3d(n))==trim(cloud_names_fwd(ic))) then
-                  ivar=n
-                  do k=1,nsig
-                     do i=1,nlat
-                        corz(i,k,ivar)=one
-                     end do
-                  end do
-                  hwll(:,:,ivar)=0.5_r_kind*hwll(:,:,iq)
-                  vz  (:,:,ivar)=0.5_r_kind*vz  (:,:,iq)
-                  exit
-               end if   
-            end do
-         end do
-      end if
-   endif
-
-   ! need simliar general template for undefined 2d variables ...
-
-   deallocate(found3d,found2d)
-
-  return
 end subroutine read_wgt
 
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -671,7 +856,7 @@ subroutine sethwlloz_(hwlloz,mype)
    do k=1,nnnn1o
       k1=levs_id(k)
       if ( k1>0 ) then
-      write(6,*) myname_,'(PREWGT): mype = ',mype, k1
+      if(mype==0) write(6,*) myname_,'(PREWGT): mype = ',mype, k1
          if ( k1<=nsig*3/4 ) then
            ! fact=1./hwl
            fact=r40000/(r400*nlon)
