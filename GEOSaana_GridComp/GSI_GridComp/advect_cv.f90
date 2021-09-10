@@ -4,11 +4,10 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 ! subprogram:    advect_cv    advect cv using guess winds
 !   prgmmr: todling          org: np20                date: 2005-09-29
 !
-! abstract: advect cv using guess winds
-!           both AB and RK4 are not good for time reversal (i.e., 
-!           change of sign in t; will require adjoint).
-!  >>       I think we need to do this using spectral decomposition
-!           of the gradient operator.
+! abstract: advect cv using guess winds. 
+! 
+! remarks: time stepping schemes implemented are AB2-6 and RK4. I am 
+!          sure someone else can do better than these.
 !
 ! program history log:
 !   2013-10-28  todling - stripped off from calctends
@@ -28,13 +27,15 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   use kinds,only: r_kind,i_kind
   use gsi_4dvar, only: nsubwin, lsqrtb
   use gridmod, only: lat2,lon2,nsig,istart,rlats,nlat,&
-     jstart,nlon,nthreads,jtstart,jtstop,bk5
+     jstart,nlon,bk5,nthreads,jtstart,jtstop
   use guess_grids, only: ntguessig
   use constants, only: zero,one,two,three,half,max_varname_length
   use control_vectors, only: control_vector,cvars3d,cvars2d  
   use derivsmod, only: dvars2d,dvars3d
   use derivsmod, only: init_anadv
 
+  use mp_compact_diffs_mod1, only: init_mp_compact_diffs1
+  use mp_compact_diffs_mod1, only: destroy_mp_compact_diffs1
   use mp_compact_diffs_mod2, only: init_mp_compact_diffs2
   use mp_compact_diffs_mod2, only: destroy_mp_compact_diffs2
 
@@ -65,14 +66,15 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   character(len=4) label
   integer(i_kind) i,j,k,it,ii,jj,kk,idx,n2d,n3d,nc,norder,ntimes,istatus 
   integer(i_kind) order
-  real(r_kind) mytau, dt
+  real(r_kind) advtau, dt
+  logical :: cfl ! estimate dt using half-baked CFL calculation
 
   character(len=3) :: scheme
-  integer(i_kind), parameter :: aborder = 1
-! real(r_kind), parameter :: advrate = 0.75 ! pass via namelist
-  real(r_kind), parameter :: advrate = 1.00 ! pass via namelist
-  logical, parameter :: filter = .true.
-  logical, parameter :: cnstwind_test = .false.
+  real(r_kind) :: advrate
+  logical :: filter              ! for now a hack filter (will do spectral)
+  logical :: cnstwind_test       ! test code using a couple settings for constant winds
+  logical :: fluxform            ! use flux-form of continuity equation
+  logical, parameter :: vflux = .false.
 
   type(gsi_bundle) :: f
   type(gsi_bundle) :: aux
@@ -98,9 +100,12 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   if (lsqrtb) then
       call die(myname,': should not be here, aborting ... ',99)
   endif
+
+! initialize parameters
+  call init_
+
 ! if (tau<0) return
 
-  scheme = "rk4"
 
 ! Mark sure derivative variables are defined
   call init_anadv
@@ -140,13 +145,13 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'v',vwind,istatus);
 
 ! Get dt based on some rough estimate of CFL
-  mytau=tau
-  mytau=1.0
-  call check_cfl (dt,mytau,uwind,vwind)
-
-  ntimes = nint(advrate*mytau*3600._r_kind / dt)
+  if (cfl) then
+     call check_cfl (dt,advtau,uwind,vwind)
+  else
+     ntimes = nint(advtau*3600._r_kind/dt)
+  endif
   if (mype==0) then
-     write(6,'(2a,(2f7.3,i5))') myname, " tau_fcst, dt, ntimes  = ", mytau, dt, ntimes
+     write(6,'(2a,(2(f9.5,1x),i5))') myname, " tau_fcst, dt, ntimes  = ", advtau, dt, ntimes
   endif
 
   do jj=1,nsubwin
@@ -157,47 +162,52 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 !    Loop over integration time
      do it=1,ntimes
 
-        order = min(it,norder)
-        if (order <= norder) call abcoeff_(scheme,order)
-
         select case(scheme(1:2))
            case ('ab') ! A class of Adams-Bashforth schemes
+
+!            Define coefficiences
+             order = min(it,norder)
+             if (order <= norder) call abcoeff_('ab',order)
 
 !            Calculate horizontal advection term at iteration it
              call hadvect_(dt,f,fn(1))
      
 !            Adams-Bashforth N-th order update
              do ii=1,order
-                call axpy_(alpha(ii),f,fn(ii))
+                call axpby_(alpha(ii),fn(ii),one,f)
              enddo
   
 !            Store evaluated function (advection term) as term at time-step it-1
-             if(it<ntimes) call rotate_(it,fn)
+             if(it<ntimes) call shift_(it,fn)
 
            case ('rk') ! A class of Runge-Kutta schemes
+
+!            Define coefficients
+             if(it==1) call abcoeff_('rk',norder)
 
 !            Calculate horizontal advection term at iteration it
              call hadvect_  (dt,f,fn(1))
 
-             call    axpy_ (beta(2),f,fn(1),gx=aux)
+             call   axpby_ (beta(2),fn(1),one,f,gyy=aux)
              call hadvect_ (dt,aux,fn(2))
 
              if (norder>2) then
-                call    axpy_ (beta(3),f,fn(2),gx=aux)
+                call   axpby_ (beta(3),fn(2),one,f,gyy=aux)
                 call hadvect_ (dt,aux,fn(3))
              endif
 
              if (norder>3) then
-                call    axpy_ (beta(4),f,fn(3),gx=aux)
+                call   axpby_ (beta(4),fn(3),one,f,gyy=aux)
                 call hadvect_ (dt,aux,fn(4))
              endif
 
              do ii=1,norder
-                call axpy_(alpha(ii),f,fn(ii))
+                call axpby_(alpha(ii),fn(ii),one,f)
              enddo
 
         end select
 
+        if(mype==0) print*, trim(myname), ' done with time step: ', it
      enddo
 
 !    Retrieve advected fields back to CV
@@ -224,6 +234,42 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   return
 
   contains
+
+  subroutine init_
+
+  implicit none
+
+  character(len=*), parameter :: myname_ = myname//"::init_"
+  integer ios
+
+! Set detaults
+  cfl=.true.
+  dt = 180.               ! user time step
+  scheme = "rk4"          ! finite-difference scheme
+  advtau=tau              ! length of integration
+  advrate=0.75            ! advection rate (need to think how it relates to tau)
+
+  filter = .true.         ! apply filter to solution (for now, a hack)
+  cnstwind_test = .true.  ! test w/ constant winds in a few low-levels
+  fluxform = .true.       ! opt for flux-form or not
+
+  namelist/padvect/dt,scheme,advtau,cfl,filter,cnstwind_test,fluxform,advrate
+
+  open(11,file='gsiparm.anl')
+  read(11,padvect,iostat=ios)
+  if(ios/=0) call die(myname_,'read(padvect)',ios)
+  close(11)
+
+  if (mype==0) then
+     print *
+     print *, myname, ': differecing scheme:     ', trim(scheme)
+     print *, myname, ': user time stepping (s): ', dt
+     print *, myname, ': redefine dt per CFL:    ', cfl
+     print *, myname, ': integration length (h)  ', advtau
+     print *
+  endif
+
+  end subroutine init_
 
   subroutine from_cv_(jjj)
 
@@ -269,8 +315,33 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   call gsi_bundlegetpointer (f                ,'ps',avptr2d,istatus);ier=ier+istatus
   if(ier/=0) call die(myname_,'invalid pointer =',ier)
   adv2d(idx)=.true.
-  avptr2d=cvptr2d
- 
+  avptr2d=zero !DEBUG cvptr2d
+
+! WARNING: handle prescribed winds in a tricky/dirty way (hidden in bundle)
+! ------------------------------------------------------ 
+  ier=0
+  idx=getindex(dvars3d,'qr')
+  call gsi_bundlegetpointer (f                ,'qr' ,avptr3d,istatus);ier=ier+istatus
+  if(ier/=0) call die(myname_,'invalid pointer =',ier)
+  adv3d(idx)=.false.  ! intentional so it does not become part of the prognostic fields
+  avptr3d=uwind
+  if (cnstwind_test) then
+     avptr3d(:,:,1) = 20._r_kind ! constant zonal wind
+     avptr3d(:,:,2) = zero       ! constant meridional wind
+     avptr3d(:,:,3) = 20._r_kind ! constant north-east wind
+  endif
+  ier=0
+  idx=getindex(dvars3d,'qs')
+  call gsi_bundlegetpointer (f                ,'qs' ,avptr3d,istatus);ier=ier+istatus
+  if(ier/=0) call die(myname_,'invalid pointer =',ier)
+  adv3d(idx)=.false.  ! intentional so it does not become part of the prognostic fields
+  avptr3d=vwind
+  if (cnstwind_test) then
+     avptr3d(:,:,1) = zero       ! constant zonal wind
+     avptr3d(:,:,2) = 20._r_kind ! constant meridional wind
+     avptr3d(:,:,3) = 20._r_kind ! constant north-east wind
+  endif
+
   end subroutine from_cv_
 
   subroutine to_cv_(jjj)
@@ -326,10 +397,15 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   integer k1
   real(r_kind), pointer ::  func3d(:,:,:),dx3d(:,:,:),dy3d(:,:,:), x3d(:,:,:)
   real(r_kind), pointer ::  func2d(:,:  ),dx2d(:,:  ),dy2d(:,:  )
+  real(r_kind), pointer ::    dudx(:,:,:),dvdy(:,:,:)
 
   real(r_kind),dimension(lat2,lon2,nsig):: div
   real(r_kind),dimension(lat2,lon2,nsig):: prdif9u,prdif9v
   real(r_kind),dimension(lat2,lon2,nsig):: prdif9u_x,prdif9v_y2
+
+! Recover (hidden) winds
+  call gsi_bundlegetpointer (gi,'qr',uwind,istatus);
+  call gsi_bundlegetpointer (gi,'qs',vwind,istatus);
 
   do k=1,nsig
     do j=1,lon2
@@ -374,116 +450,92 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   end do
 
 ! Calculate derivatives
-  call get_derivatives (gi,xderivative,yderivative)
-! call get_derivatives_(gi,xderivative,yderivative)
+  call get_derivatives (gi,xderivative,yderivative)  ! external
+! call get_derivatives_(gi,xderivative,yderivative)  ! internal
+
+! Get derivative of advecting winds (hidden in x/y-derivatives)
+  call gsi_bundlegetpointer (xderivative,'qr', dudx,istatus)
+  call gsi_bundlegetpointer (yderivative,'qs', dvdy,istatus)
 
 ! Loop over 3d-fields
   n3d = size(dvars3d)
   do nc = 1,n3d
-    if(.not.adv3d(nc)) cycle ! don''t waste time
+    if(.not.adv3d(nc)) cycle ! don''t use nor waste time
 
     call gsi_bundlegetpointer (gi         ,dvars3d(nc),   x3d,istatus)
     call gsi_bundlegetpointer (go         ,dvars3d(nc),func3d,istatus)
     call gsi_bundlegetpointer (xderivative,dvars3d(nc),  dx3d,istatus)
     call gsi_bundlegetpointer (yderivative,dvars3d(nc),  dy3d,istatus)
 
-    if (filter) then ! the better thing to do to wipe small scale stuff would be to do a 
-                     ! back/forth spectral decomposition eliminating the small scales in between
-       localx = maxval(abs(dx3d))
-       localy = maxval(abs(dy3d))
-       where(abs(dx3d)<1e-10*localx) dx3d=zero
-       where(abs(dy3d)<1e-10*localy) dy3d=zero
-    endif
-
 ! Loop over threads
 !$omp parallel do schedule(dynamic,1) private(i,j,k,kk,k1)
    do kk=1,nthreads
 
-    k1=1
-!   Horizontal advection of "tracer" quantities
-    if ( cnstwind_test ) then
-       k=1
+    do k=1,nsig
       do j=jtstart(kk),jtstop(kk)
         do i=1,lat2
            ix=istart(mype+1)+i-2
            if (ix==1 .OR. ix==nlat) then
               func3d(i,j,k) = zero
            else
-              func3d(i,j,k) = - deltime * ( 20._r_kind*dx3d(i,j,k) ) ! constant zonal wind
+              if (fluxform) then
+                func3d(i,j,k) = - deltime * ( uwind(i,j,k)* dx3d(i,j,k) + vwind(i,j,k)*dy3d(i,j,k) &
+                                            + x3d(i,j,k)  *(dudx(i,j,k) +              dvdy(i,j,k) ) )
+              else
+                func3d(i,j,k) = - deltime * ( uwind(i,j,k)* dx3d(i,j,k) + vwind(i,j,k)*dy3d(i,j,k) )
+              endif
            endif
         end do
       end do
-       k=2
-      do j=jtstart(kk),jtstop(kk)
-        do i=1,lat2
-           ix=istart(mype+1)+i-2
-           if (ix==1 .OR. ix==nlat) then
-              func3d(i,j,k) = zero
-           else
-              func3d(i,j,k) = - deltime * ( 20._r_kind*dy3d(i,j,k) ) ! constant meridional wind
-           endif
-        end do
-      end do
-      k1=3
-    endif
-    do k=k1,nsig
-      do j=jtstart(kk),jtstop(kk)
-        do i=1,lat2
-           ix=istart(mype+1)+i-2
-           if (ix==1 .OR. ix==nlat) then
-              func3d(i,j,k) = zero
-           else
-              func3d(i,j,k) = - deltime * ( uwind(i,j,k)*dx3d(i,j,k) + vwind(i,j,k)*dy3d(i,j,k) )
-           endif
-        end do
-      end do
+      if (filter) then ! the better thing to do to wipe small scale stuff would be to do a 
+                       ! back/forth spectral decomposition eliminating the small scales in between
+         localx = maxval(abs(func3d))
+         localy = maxval(abs(func3d))
+         where(abs(func3d)<1.e-10*localx) func3d=zero
+         where(abs(func3d)<1.e-10*localy) func3d=zero
+         where(abs(func3d)>2.) func3d=zero
+         where(abs(func3d)>2.) func3d=zero
+      endif
     end do
 
-   end do ! end of threading loop
-
-!  call hdiff_(deltime,avptr3d,dxptr3d,dyptr3d,mype)
+  end do ! end of threading loop
 
 ! vertical flux terms
-  do k=1,nsig
-    do j=1,lon2
-      do i=1,lat2
-        if (k.gt.1) then
-          tmp = half*what9(i,j,k)*r_prdif9(i,j,k)
-          func3d(i,j,k) = func3d(i,j,k) - tmp*(x3d(i,j,k-1)-x3d(i,j,k))
-        end if
-        if (k.lt.nsig) then
-          tmp = half*what9(i,j,k+1)*r_prdif9(i,j,k)
-          func3d(i,j,k) = func3d(i,j,k) - tmp*(x3d(i,j,k)-x3d(i,j,k+1))
-        end if
-      end do  !end do i
-    end do    !end do j
-  end do      !end do k
+  if (vflux) then
+    do k=1,nsig
+      do j=1,lon2
+        do i=1,lat2
+          if (k.gt.1) then
+            tmp = half*what9(i,j,k)*r_prdif9(i,j,k)
+            func3d(i,j,k) = func3d(i,j,k) - tmp*(x3d(i,j,k-1)-x3d(i,j,k))
+          end if
+          if (k.lt.nsig) then
+            tmp = half*what9(i,j,k+1)*r_prdif9(i,j,k)
+            func3d(i,j,k) = func3d(i,j,k) - tmp*(x3d(i,j,k)-x3d(i,j,k+1))
+          end if
+        end do  !end do i
+      end do    !end do j
+    end do      !end do k
+  endif
+
+! call hdiff_(deltime,avptr3d,dxptr3d,dyptr3d,mype)
 
  end do ! end loop over 3d-fields
 
 ! Loop over 2d-fields
   n2d = size(dvars2d)
   do nc = 1,n2d
-    if(.not.adv2d(nc)) cycle ! don''t waste time
+    if(.not.adv2d(nc)) cycle ! don''t use nor waste time
 
     call gsi_bundlegetpointer (go         ,dvars2d(nc),func2d,istatus)
     call gsi_bundlegetpointer (xderivative,dvars2d(nc),  dx2d,istatus)
     call gsi_bundlegetpointer (yderivative,dvars2d(nc),  dy2d,istatus)
-
-    if (filter) then ! the better thing to do to wipe small scale stuff would be to do a 
-                     ! back/forth spectral decomposition eliminating the small scales in between
-       localx = maxval(abs(dx2d))
-       localy = maxval(abs(dy2d))
-       where(abs(dx2d)<1e-10*localx) dx2d=zero
-       where(abs(dy2d)<1e-10*localy) dy2d=zero
-    endif
 
 ! Loop over threads
 !$omp parallel do schedule(dynamic,1) private(i,j,k,kk)
    do kk=1,nthreads
 
 !   Horizontal advection of "tracer" quantities
-    k=1
     do j=jtstart(kk),jtstop(kk)
       do i=1,lat2
          ix=istart(mype+1)+i-2
@@ -494,6 +546,14 @@ subroutine advect_cv(mype,mydate,tau,cvector)
           endif
       end do
     end do
+    if (filter) then ! the better thing to do to wipe small scale stuff would be to do a 
+                     ! back/forth spectral decomposition eliminating the small scales in between
+       localx = maxval(abs(func2d))
+       localy = maxval(abs(func2d))
+       where(abs(func2d)<1e-10*localx) func2d=zero
+       where(abs(func2d)<1e-10*localy) func2d=zero
+    endif
+
 
    end do ! end of threading loop
 
@@ -501,44 +561,48 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 
  end subroutine hadvect_
 
- subroutine rotate_(istep,gn)
+ subroutine shift_(istep,gn)
   
   integer istep
   type(gsi_bundle) gn(:)
 
-  character(len=*), parameter :: myname_ = myname//"*rotate_"
+  character(len=*), parameter :: myname_ = myname//"*shift_"
   integer ii,order,idxi,idxo,iv,ier
 
-  integer(i_kind),  parameter :: mynvars3d = 4
-  character(len=2), parameter :: myvars3d(mynvars3d) = (/ 'qi', 'ql', 'tv', 'q ' /)
+!_OUT  integer(i_kind),  parameter :: mynvars3d = 4
+!_OUT  character(len=2), parameter :: myvars3d(mynvars3d) = (/ 'qi', 'ql', 'tv', 'q ' /)
   
   order = min(istep,norder)
 
   do ii=order,1,-1
      idxo=min(ii,norder)
      idxi=max(ii-1,1)
-     !if(mype==0) then
-     !  print *, myname_, ' ', idxi, idxo
-     !endif
+     if(mype==0) then
+       print *, myname_, ' t-1 ', idxi, ' t ', idxo
+     endif
      if(idxo==idxi) cycle
 
-     do iv=1,mynvars3d
+     do iv=1,size(adv3d)
+        if(.not.adv3d(iv)) cycle
         ier=0
-        call gsi_bundlegetpointer (gn(idxi),trim(myvars3d(iv)),avptr3d,istatus);ier=ier+istatus
-        call gsi_bundlegetpointer (gn(idxo),trim(myvars3d(iv)),cvptr3d,istatus);ier=ier+istatus
+        call gsi_bundlegetpointer (gn(idxi),trim(dvars3d(iv)),avptr3d,istatus);ier=ier+istatus
+        call gsi_bundlegetpointer (gn(idxo),trim(dvars3d(iv)),cvptr3d,istatus);ier=ier+istatus
         if(ier/=0) call die(myname_,'invalid pointer =',ier)
         cvptr3d=avptr3d
      enddo
 
-     ier=0
-     call gsi_bundlegetpointer (gn(idxi),'ps',avptr2d,istatus);ier=ier+istatus
-     call gsi_bundlegetpointer (gn(idxo),'ps',cvptr2d,istatus);ier=ier+istatus
-     if(ier/=0) call die(myname_,'invalid pointer =',ier)
-     cvptr2d=avptr2d
+     do iv=1,size(adv2d)
+        if(.not.adv2d(iv)) cycle
+        ier=0
+        call gsi_bundlegetpointer (gn(idxi),trim(dvars2d(iv)),avptr2d,istatus);ier=ier+istatus
+        call gsi_bundlegetpointer (gn(idxo),trim(dvars2d(iv)),cvptr2d,istatus);ier=ier+istatus
+        if(ier/=0) call die(myname_,'invalid pointer =',ier)
+        cvptr2d=avptr2d
+     enddo
 
   enddo
  
- end subroutine rotate_
+ end subroutine shift_
 
  subroutine get_derivatives_(x,dx,dy)
 
@@ -606,7 +670,7 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   xaux3d=zero
   xaux3d(:,:,1) =  xptr2d
   call mp_compact_dlon2(xaux3d,daux3d,vector,nsig,mype)
-  dxptr2d = daux3d(:,:,1)
+  dxptr2d = daux3d(:,:,1); daux3d(:,:,1)=zero
   call mp_compact_dlat2(xaux3d,daux3d,vector,nsig,mype)
   dyptr2d = daux3d(:,:,1)
   deallocate(daux3d)
@@ -631,14 +695,20 @@ subroutine advect_cv(mype,mydate,tau,cvector)
          alpha(2) =  half
          beta(1)  =  zero
          beta(2)  =  one
+      else if (trim(sch)=='ab') then
+         alpha(1) =  three*half ! t
+         alpha(2) = -half       ! t-1
       else
-         alpha(1) =  three/two
-         alpha(2) = -half
+         call die(myname_,': bad scheme choice ... ',99)
       endif
    case(3)
-      alpha(1) =  23./12._r_kind
-      alpha(2) = -16./12._r_kind
-      alpha(3) =   5./12._r_kind
+      if (trim(sch)=='ab') then
+         alpha(1) =  23./12._r_kind ! t
+         alpha(2) = -16./12._r_kind ! t-1
+         alpha(3) =   5./12._r_kind ! t-2
+       else
+         call die(myname_,': bad scheme choice ... ',99)
+       endif
    case(4)
       if (trim(sch)=='rk') then
          alpha(1) =  one/6._r_kind
@@ -649,42 +719,52 @@ subroutine advect_cv(mype,mydate,tau,cvector)
          beta(2)  =  half
          beta(3)  =  half
          beta(4)  =  one
-      else
-         alpha(1) =  55./24._r_kind
-         alpha(2) = -59./24._r_kind
-         alpha(3) =  37./24._r_kind
-         alpha(4) =  -9./24._r_kind
+      else if (trim(sch)=='ab') then
+         alpha(1) =  55./24._r_kind  ! t
+         alpha(2) = -59./24._r_kind  ! t-1
+         alpha(3) =  37./24._r_kind  ! t-2
+         alpha(4) =  -9./24._r_kind  ! t-3
+       else
+         call die(myname_,': bad scheme choice ... ',99)
       endif
    case(5)
-      alpha(1) =  1901./720._r_kind
-      alpha(2) = -2774./720._r_kind
-      alpha(3) =  2616./720._r_kind
-      alpha(4) = -1274./720._r_kind
-      alpha(5) =   251./720._r_kind
+      if (trim(sch)=='ab') then
+        alpha(1) =  1901./720._r_kind ! t
+        alpha(2) = -2774./720._r_kind ! t-1
+        alpha(3) =  2616./720._r_kind ! t-2
+        alpha(4) = -1274./720._r_kind ! t-3
+        alpha(5) =   251./720._r_kind ! t-4
+      else
+        call die(myname_,': bad scheme choice ... ',99)
+      endif
    case(6)
-      alpha(1) =  4277./1440._r_kind
-      alpha(2) = -7923./1440._r_kind
-      alpha(3) =  9982./1440._r_kind
-      alpha(4) = -7298./1440._r_kind
-      alpha(5) =  2877./1440._r_kind
-      alpha(6) =  -475./1440._r_kind
+      if (trim(sch)=='ab') then
+        alpha(1) =  4277./1440._r_kind
+        alpha(2) = -7923./1440._r_kind
+        alpha(3) =  9982./1440._r_kind
+        alpha(4) = -7298./1440._r_kind
+        alpha(5) =  2877./1440._r_kind
+        alpha(6) =  -475./1440._r_kind
+      else
+        call die(myname_,': bad scheme choice ... ',99)
+      endif
    case default
       call die(myname_,'Unacceptable Adams-Bashforth order, aborting',99)   
    end select
 
  end subroutine abcoeff_
 
- subroutine axpy_(coef,g,gn,gx)
+ subroutine axpby_(a,xx,b,yy,gyy)
 
 ! Adams–Bashforth
 
- real(r_kind)    :: coef
- type(gsi_bundle) g
- type(gsi_bundle) gn
- type(gsi_bundle),optional :: gx
+ real(r_kind)    :: a,b
+ type(gsi_bundle) xx
+ type(gsi_bundle) yy
+ type(gsi_bundle),optional :: gyy
 
- real(r_kind), pointer, dimension(:,:,:) :: ptr3d,ptr3dn,ptr3dx
- real(r_kind), pointer, dimension(:,:  ) :: ptr2d,ptr2dn,ptr2dx
+ real(r_kind), pointer, dimension(:,:,:) :: ptr3dx,ptr3dy,ptr3dyy
+ real(r_kind), pointer, dimension(:,:  ) :: ptr2dx,ptr2dy,ptr2dyy
  integer(i_kind) ii
 
 ! Loop over 3d-fields
@@ -692,13 +772,13 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   do nc = 1,n3d
     if(.not.adv3d(nc)) cycle ! don''t waste time
 
-    call gsi_bundlegetpointer (g ,dvars3d(nc),ptr3d ,istatus)
-    call gsi_bundlegetpointer (gn,dvars3d(nc),ptr3dn,istatus)
-    if (present(gx)) then
-       call gsi_bundlegetpointer (gx,dvars3d(nc),ptr3dx,istatus)
-       ptr3dx = ptr3d + coef*ptr3dn
+    call gsi_bundlegetpointer (xx,dvars3d(nc),ptr3dx,istatus)
+    call gsi_bundlegetpointer (yy,dvars3d(nc),ptr3dy,istatus)
+    if (present(gyy)) then
+       call gsi_bundlegetpointer (gyy,dvars3d(nc),ptr3dyy,istatus)
+       ptr3dyy = b*ptr3dy + a*ptr3dx
     else
-       ptr3d  = ptr3d + coef*ptr3dn
+       ptr3dy  = b*ptr3dy + a*ptr3dx
     endif
 
  enddo
@@ -708,18 +788,18 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   do nc = 1,n2d
     if(.not.adv2d(nc)) cycle ! don''t waste time
 
-    call gsi_bundlegetpointer (g ,dvars2d(nc),ptr2d ,istatus)
-    call gsi_bundlegetpointer (gn,dvars2d(nc),ptr2dn,istatus)
-    if (present(gx)) then
-       call gsi_bundlegetpointer (gx,dvars2d(nc),ptr2dx,istatus)
-       ptr2dx = ptr2d + coef*ptr2dn
+    call gsi_bundlegetpointer (xx,dvars2d(nc),ptr2dx,istatus)
+    call gsi_bundlegetpointer (yy,dvars2d(nc),ptr2dy,istatus)
+    if (present(gyy)) then
+       call gsi_bundlegetpointer (gyy,dvars2d(nc),ptr2dyy,istatus)
+       ptr2dyy = b*ptr2dy + a*ptr2dx
     else
-       ptr2d  = ptr2d + coef*ptr2dn
+       ptr2dy  = b*ptr2dy + a*ptr2dx
     endif
 
  enddo
 
- end subroutine axpy_
+ end subroutine axpby_
 
  subroutine blob_(blob)
 
@@ -871,7 +951,6 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   call mp_compact_dlon2_ad(qc_x,q_xx,.false.,nsig,mype)  
   call mp_compact_dlat2_ad(qc_y,q_yy,.false.,nsig,mype)     
 
-
   do k=nsig,1,-1
     if(k<nsig-2) then
       facdec=exp(-3.*(k-1)/(nsig-1))   
@@ -896,7 +975,7 @@ subroutine advect_cv(mype,mydate,tau,cvector)
  use gridmod, only: nlon,nlat
  implicit none
 ! RT: needless to say this is not really CFL since CFL varies from cell to cell
-! (depending in dlon,dlat on spherical coordinates) and getting impossible at 
+! (depending in dlon,dlat on spherical coordinates) and get impossible at 
 ! the poles
  real(r_kind), intent(inout) :: deltat
  real(r_kind), intent(in) :: fcstlen
@@ -908,7 +987,6 @@ subroutine advect_cv(mype,mydate,tau,cvector)
  dlat=rearth/(nlat-1)
  allocate(ple(size(u,3)+1))
  call get_ref_gesprs(ple)
- deltat = 180.0
  dt0 = deltat
  if(mype==0) then
    print *, 'on way in (dt): ', deltat
@@ -925,16 +1003,25 @@ subroutine advect_cv(mype,mydate,tau,cvector)
     cfl = deltat*wfc
     mindt = one/wfc
     if(mype==0) then
-       write(6,'(3(f7.2,1x))')  ten*ple(k), cfl, mindt
+       write(6,'(3(f7.2,1x))')  ple(k), cfl, mindt
     endif
     if(mindt<deltat) deltat=mindt
  enddo
  if (deltat<dt0) then
-    deltat = 0.8*deltat
+    deltat = nint(0.8*deltat)
+    if (deltat==zero) then
+       if(mype==0) then
+         print *
+         print *, 'WARNING ** WARINING ** WARNING ** WARNING'
+         print *, 'CFL dt too small, resetting to 1 sec'
+         print *, 'Resulting advection likely unstable'
+         print *
+       endif
+       deltat = one
+    endif
     if(mype==0) print *, 'on way out (dt): ', deltat
     ntimes = nint(fcstlen*3600._r_kind/deltat)
     if(mype==0) print *, 'on way out (ntimes): ', ntimes
-    deltat = fcstlen*3600_r_kind/ntimes
  endif
  if(mype==0) print *, 'final (dt): ', deltat
  deallocate(ple)
