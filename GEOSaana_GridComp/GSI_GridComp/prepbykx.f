@@ -16,7 +16,7 @@
       character*8 subset,last
       integer newtyp,jdatep,lsttyp,kx(512),nsub,ntot,nsel,nargs,n
       character*(80) head1
-      CHARACTER (len=255) :: fin, fout
+      CHARACTER (len=255) :: fin, fout, kxlist
       character*255, allocatable :: arg(:)
       real*8 hdr(14)
 
@@ -33,10 +33,11 @@
       fout='prepbufr.out'
       nargs =  iargc()
       if( nargs.eq.0 ) then
-         print *, 'usage: prepbykx.x {-r} infilename {-o outfilename}'
+         print *, 'usage: prepbykx.x {-r} infilename {-o outfilename} {-k kxlist}'
          stop
       end if
       opt_r = .false.
+      kxlist = 'kxlist'
 
       allocate (arg(nargs))
       do n=1,nargs
@@ -51,10 +52,11 @@
 
       do n=1,nargs
          if( trim(arg(n)).eq.'-o' ) fout = trim(arg(n+1))
+         if( trim(arg(n)).eq.'-k' ) kxlist = trim(arg(n+1))
       end do
       fin = trim(arg(iin))
       numkx=0
-      open(unit=10,file='kxlist',form='formatted')
+      open(unit=10,file=kxlist,form='formatted')
       do k=1,512
          read(10,*,end=999)kx(k)
          numkx=numkx+1
