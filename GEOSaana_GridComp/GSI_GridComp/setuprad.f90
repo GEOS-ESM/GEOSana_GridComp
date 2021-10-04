@@ -289,10 +289,11 @@ contains
       finish_sst_retrieval,spline_cub
   use m_dtime, only: dtime_setup, dtime_check
   use crtm_interface, only: init_crtm,call_crtm,destroy_crtm,sensorindex,surface, &
-      itime,ilon,ilat,ilzen_ang,ilazi_ang,iscan_ang,iscan_pos,iszen_ang,isazi_ang, &
+      atmosphere,itime,ilon,ilat,ilzen_ang,ilazi_ang,iscan_ang,iscan_pos,iszen_ang,isazi_ang, &
       ifrac_sea,ifrac_lnd,ifrac_ice,ifrac_sno,itsavg, &
       izz,idomsfc,isfcr,iff10,ilone,ilate, &
-      isst_hires,isst_navy,idata_type,iclr_sky,itref,idtw,idtc,itz_tr
+      isst_hires,isst_navy,idata_type,iclr_sky,itref,idtw,idtc,itz_tr,&
+      n_clouds_fwd_wk,n_actual_aerosols_wk,n_absorbers
   use crtm_interface, only: ilzen_ang2,iscan_ang2,iszen_ang2,isazi_ang2
   use clw_mod, only: calc_clw, ret_amsua, gmi_37pol_diff,mhs_si
   use qcmod, only: qc_ssmi,qc_seviri,qc_abi,qc_ssu,qc_avhrr,qc_goesimg,qc_msu,qc_irsnd,qc_amsua,qc_mhs,qc_atms
@@ -304,7 +305,7 @@ contains
   use radinfo, only: iland_det, isnow_det, iwater_det, imix_det, iice_det, &
                       iomg_det, itopo_det, isst_det,iwndspeed_det
   use qcmod, only: setup_tzr_qc,ifail_scanedge_qc,ifail_outside_range
-  use state_vectors, only: svars3d, levels, svars2d, ns3d, nsdim
+  use state_vectors, only: svars3d, levels, svars2d, ns3d
   use oneobmod, only: lsingleradob,obchan,oblat,oblon,oneob_type
   use correlated_obsmod, only: corr_adjust_jacobian, idnames
   use radiance_mod, only: rad_obs_type,radiance_obstype_search,radiance_ex_obserr,radiance_ex_biascor
@@ -366,11 +367,10 @@ contains
   real(r_kind) factch6    
   real(r_kind) stability,tcwv,hwp_ratio         
   real(r_kind) si_obs,si_fg,si_mean                     
-  
+
   logical cao_flag                       
   logical hirs2,msu,goessndr,hirs3,hirs4,hirs,amsua,amsub,airs,hsb,goes_img,ahi,mhs,abi
   type(sparr2) :: dhx_dx
-  real(r_single), dimension(nsdim) :: dhx_dx_array
   logical avhrr,avhrr_navy,lextra,ssu,iasi,cris,seviri,atms
   logical ssmi,ssmis,amsre,amsre_low,amsre_mid,amsre_hig,amsr2,gmi,saphir
   logical ssmis_las,ssmis_uas,ssmis_env,ssmis_img
@@ -833,19 +833,19 @@ contains
 
         iinstr=-1
         if(allocated(idnames)) then
-          if(sea)then
+        if(sea) then
              covtype = trim(isis)//':sea'
              iinstr=getindex(idnames,trim(covtype))
-          else if(land)then
+        else if(land) then
              covtype = trim(isis)//':land'
              iinstr=getindex(idnames,trim(covtype))
-          else if(ice)then
+        else if(ice) then
              covtype = trim(isis)//':ice'
              iinstr=getindex(idnames,trim(covtype))
-          else if(snow)then
+        else if(snow) then
              covtype = trim(isis)//':snow'
              iinstr=getindex(idnames,trim(covtype))
-          else if(mixed)then
+        else if(mixed) then
              covtype = trim(isis)//':mixed'
              iinstr=getindex(idnames,trim(covtype))
           endif
@@ -900,10 +900,10 @@ contains
         tsim_clr=zero
         tcc=zero
         if (radmod%lcloud_fwd) then
-          call call_crtm(obstype,dtime,data_s(:,n),nchanl,nreal,ich, &
+           call call_crtm(obstype,dtime,data_s(:,n),nchanl,nreal,ich, &
              tvp,qvp,clw_guess,ciw_guess,rain_guess,snow_guess,prsltmp,prsitmp, &
-             trop5,tzbgr,dtsavg,sfc_speed, &
-             tsim,emissivity,ptau5,ts,emissivity_k, &
+                trop5,tzbgr,dtsavg,sfc_speed, &
+                tsim,emissivity,ptau5,ts,emissivity_k, &
                 temp,wmix,jacobian,error_status,tsim_clr=tsim_clr,tcc=tcc, & 
                 tcwv=tcwv,hwp_ratio=hwp_ratio,stability=stability, tpwc_guess=tpwc_guess)         
           if(gmi) then
@@ -933,11 +933,11 @@ contains
              cosza2 = cos(data_s(ilzen_ang2,n))
           endif
         else
-          call call_crtm(obstype,dtime,data_s(:,n),nchanl,nreal,ich, &
+           call call_crtm(obstype,dtime,data_s(:,n),nchanl,nreal,ich, &
              tvp,qvp,clw_guess,ciw_guess,rain_guess,snow_guess,prsltmp,prsitmp, &
-             trop5,tzbgr,dtsavg,sfc_speed, &
-             tsim,emissivity,ptau5,ts,emissivity_k, &
-             temp,wmix,jacobian,error_status)
+                trop5,tzbgr,dtsavg,sfc_speed, &
+                tsim,emissivity,ptau5,ts,emissivity_k, &
+                temp,wmix,jacobian,error_status)
           if(gmi) then
              gmi_low_angles(1:3)=data_s(ilzen_ang:iscan_ang,n)
              gmi_low_angles(4:5)=data_s(iszen_ang:isazi_ang,n)
@@ -1029,7 +1029,7 @@ contains
         tpwc_obs=zero
         kraintype=0
         cldeff_obs=zero 
-        cldeff_fg=zero  
+        cldeff_fg=zero 
         if(microwave .and. sea) then 
            if(radmod%lcloud_fwd .and. (amsua .or. atms)) then
               call ret_amsua(tb_obs,nchanl,tsavg5,zasat,clw_obs,ierrret,scat)
@@ -1114,7 +1114,7 @@ contains
            else
               pred(3,i) = clw_obs*cosza*cosza
            end if
-           if(radmod%lcloud_fwd .and. sea) pred(3,i ) = zero
+           if(radmod%lcloud_fwd .and. sea) pred(3,i ) = zero 
  
 
 
@@ -1218,7 +1218,7 @@ contains
 
 !       End of loop over channels
         end do
-
+ 
 !       Compute retrieved microwave cloud liquid water and 
 !       assign cld_rbc_idx for bias correction in allsky conditions
         cld_rbc_idx=one
@@ -1297,7 +1297,7 @@ contains
               enddo
            endif
 
-        end if !radmod%lcloud_fwd .and. radmod%ex_biascor
+        end if ! radmod%lcloud_fwd .and. radmod%ex_biascor
         
         do i=1,nchanl
            error0(i) = tnoise(i)
@@ -1630,7 +1630,7 @@ contains
                  else if(radmod%rtype == 'mhs') then
                     errf(i) = min(two*errf(i),ermax_rad(m))
                  else if (radmod%rtype/='amsua' .and. radmod%rtype/='atms' .and. radmod%rtype/='gmi' .and. radmod%rtype/='mhs' .and. radmod%lcloud4crtm(i)>=0) then
-                    errf(i) = three*errf(i)    
+                    errf(i) = three*errf(i)
                  else 
                     errf(i) = min(three*errf(i),ermax_rad(m))
                  endif
@@ -2523,6 +2523,8 @@ contains
   real(r_single),parameter::  missing = -9.99e9_r_single
   integer(i_kind),parameter:: imissing = -999999
   real(r_kind),dimension(:),allocatable :: predbias_angord
+  character(128) :: fieldname
+  integer(i_kind) :: iabsorb, icloud
 
   if (adp_anglebc) then
     allocate(predbias_angord(angord) )
@@ -2546,9 +2548,9 @@ contains
                     call nc_diag_metadata("Sol_Azimuth_Angle",  sngl(data_s(isazi_ang2,n))          ) ! solar azimuth angle (degrees)
                     call nc_diag_metadata("Scan_Angle",         sngl(data_s(iscan_ang2,n)*rad2deg)  ) ! scan angle
                  else
-                    call nc_diag_metadata("Sat_Zenith_Angle",   sngl(zasat*rad2deg)                 ) ! satellite zenith angle (degrees)
-                    call nc_diag_metadata("Sol_Zenith_Angle",   sngl(pangs)                         ) ! solar zenith angle (degrees)
-                    call nc_diag_metadata("Sol_Azimuth_Angle",  sngl(data_s(isazi_ang,n))           ) ! solar azimuth angle (degrees)
+                    call nc_diag_metadata("Sat_Zenith_Angle",      sngl(zasat*rad2deg)                 ) ! satellite zenith angle (degrees)
+                    call nc_diag_metadata("Sol_Zenith_Angle",      sngl(pangs)                         ) ! solar zenith angle (degrees)
+                    call nc_diag_metadata("Sol_Azimuth_Angle",     sngl(data_s(isazi_ang,n))           ) ! solar azimuth angle (degrees)
                     call nc_diag_metadata("Scan_Angle",         sngl(data_s(iscan_ang,n)*rad2deg)   ) ! scan angle
                  endif
                  call nc_diag_metadata("Sat_Azimuth_Angle",     sngl(data_s(ilazi_ang,n))           ) ! satellite azimuth angle (degrees)
@@ -2593,9 +2595,11 @@ contains
 
                  call nc_diag_metadata("Vegetation_Fraction",   sngl(surface(1)%vegetation_fraction) )
                  call nc_diag_metadata("Snow_Depth",            sngl(surface(1)%snow_depth)         )
+                 call nc_diag_metadata("tpwc_amsua",            sngl(tpwc_obs)                      ) ! cope w/ NCEP outdated changes
+                 call nc_diag_metadata("tpwc",                  sngl(tpwc_obs)                      ) ! this should be the general name
                  call nc_diag_metadata("tpwc_guess",            sngl(tpwc_guess)                    ) ! model column q (kg/m^2)
-!                call nc_diag_metadata("tpwc",                  sngl(tpwc_obs)                      )
                  call nc_diag_metadata("clw_guess_retrieval",   sngl(clw_guess_retrieval)           )
+                 call nc_diag_metadata("clwp_amsua",            sngl(clw_obs)                       ) !_RT: ease IODA conversion NCEP needs to clean up
                  call nc_diag_metadata("scat_amsua",            sngl(scat)                          )
 
                  call nc_diag_metadata("Sfc_Wind_Speed",        sngl(surface(1)%wind_speed)         )
@@ -2604,7 +2608,6 @@ contains
                  call nc_diag_metadata("CLW",                   sngl(clw_obs)                       )
                  call nc_diag_metadata("TPWC",                  sngl(tpwc_obs)                      )
                  call nc_diag_metadata("clw_obs",               sngl(clw_obs)                       )
-                 call nc_diag_metadata("clwp_amsua",            sngl(clw_obs)                       ) !_RT: ease IODA conversion NCEP needs to clean up
                  call nc_diag_metadata("clw_guess",             sngl(clw_guess)                     )
 
                  if (nstinfo==0) then
@@ -2623,20 +2626,16 @@ contains
                  call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(tbc0(ich_diag(i)  ))  )     ! observed - simulated Tb with bias corrrection (K)
                  call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(tbcnob(ich_diag(i)))  )     ! observed - simulated Tb with no bias correction (K)
                  call nc_diag_metadata("Forecast_unadjusted_clear",     sngl(tsim_clr(ich_diag(i))))     ! simulated Tb under clear-sky condition
+                 call nc_diag_metadata("Forecast_unadjusted",           sngl(tb_obs(ich_diag(i))-tbcnob(ich_diag(i)))) ! simulated Tb with no bias correction
+                 call nc_diag_metadata("Forecast_adjusted",             sngl(tb_obs(ich_diag(i))-tbc(ich_diag(i)))     ) ! simulated Tb with bias correction
+           !     call nc_diag_metadata("Bias_Correction", sngl(tbc(ich_diag(i))-tbcnob(ich_diag(i)))       ) ! bias correction
+                 call nc_diag_metadata("Bias_Correction", sngl(tbcnob(ich_diag(i))-tbc(ich_diag(i)))       ) ! bias correction
+                 call nc_diag_metadata("Bias_Correction_Constant", sngl(predbias(1,ich_diag(i)))           ) ! constant bias correction
+                 call nc_diag_metadata("Bias_Correction_ScanAngle", sngl(predbias(npred+1,ich_diag(i)))    ) ! scan angle bias correction
 
-                 errinv = sqrt(varinv0(ich_diag(i)))
-                 call nc_diag_metadata("Inverse_Observation_Error",     sngl(errinv)               )
-                 call nc_diag_metadata("Input_Observation_Error",       sngl(error0(ich_diag(i)))  )   ! observed brightness temperature (K)
-                 if (save_jacobian .and. allocated(idnames)) then
-                    call nc_diag_metadata("Observation_scaled", sngl(tb_obs(ich_diag(i)))  )     ! observed brightness temperature (K) scaled by R^{-1/2}
-                    call nc_diag_metadata("Obs_Minus_Forecast_adjusted_scaled", sngl(tbc(ich_diag(i)))  )     ! observed - simulated Tb with bias corrrection (K) scaled by R^{-1/2}
-                    errinv = sqrt(varinv(ich_diag(i)))
-                    call nc_diag_metadata("Inverse_Observation_Error_scaled", sngl(errinv)          )
-
-                    call nc_diag_metadata("Bias_Correction", sngl(tbcnob(ich_diag(i))-tbc(ich_diag(i)))) ! bias correction
-                    call nc_diag_metadata("Bias_Correction_Constant", sngl(predbias(1,ich_diag(i))))        ! constant bias correction
-                    call nc_diag_metadata("Bias_Correction_ScanAngle", sngl(predbias(npred+1,ich_diag(i)))) ! scan angle bias correction
-                 endif
+                 errinv = sqrt(varinv(ich_diag(i)))
+                 call nc_diag_metadata("Inverse_Observation_Error", sngl(errinv)                           ) ! inverse of observaton error
+                 call nc_diag_metadata("Input_Observation_Error", sngl(error0(ich_diag(i)))                ) ! input observation error
 
                  if (save_jacobian) then
                     j = 1
@@ -2667,7 +2666,6 @@ contains
                        endif
                     enddo
 
-                    call fullarray(dhx_dx, dhx_dx_array)
                     call nc_diag_data2d("Observation_Operator_Jacobian_stind", dhx_dx%st_ind)
                     call nc_diag_data2d("Observation_Operator_Jacobian_endind", dhx_dx%end_ind)
                     call nc_diag_data2d("Observation_Operator_Jacobian_val",  real(dhx_dx%val,r_single))
@@ -2718,6 +2716,26 @@ contains
                     endif
                  end if
 
+                 call nc_diag_metadata("Vegetation_Type", sngl(surface(1)%vegetation_type))
+                 call nc_diag_metadata("Lai",             sngl(surface(1)%lai))
+                 call nc_diag_metadata("Soil_Type",  sngl(surface(1)%soil_type))
+
+                 call nc_diag_metadata("Sfc_Wind_Direction", sngl(surface(1)%wind_direction)    )
+                 call nc_diag_metadata("Sfc_Height",    sngl(zsges    ) )
+                 call nc_diag_data2d("air_temperature", sngl(atmosphere(1)%temperature) )  ! K 
+                 call nc_diag_data2d("air_pressure", sngl(atmosphere(1)%pressure*r100))
+                 call nc_diag_data2d("air_pressure_levels", sngl(atmosphere(1)%level_pressure*r100) )
+
+                 do iabsorb = 1, n_absorbers
+                   write (fieldname, "(A,I0.2)") "atmosphere_absorber_", atmosphere(1)%absorber_id(iabsorb)
+                   call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
+                 enddo
+                 do icloud = 1, n_clouds_fwd_wk
+                   write (fieldname, "(A,I0.2)") "atmosphere_mass_content_of_cloud_", atmosphere(1)%Cloud(icloud)%Type
+                   call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%Cloud(icloud)%Water_Content))
+                   write (fieldname, "(A,I0.2)") "effective_radius_of_cloud_particle_", atmosphere(1)%Cloud(icloud)%Type
+                   call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%Cloud(icloud)%Effective_Radius))
+                 enddo
               enddo
 !  if (adp_anglebc) then
     if(allocated(predbias_angord)) deallocate(predbias_angord)

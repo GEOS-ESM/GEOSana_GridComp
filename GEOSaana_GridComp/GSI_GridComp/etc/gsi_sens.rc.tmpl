@@ -65,6 +65,7 @@
  &OBSQC
    dfact=0.75,dfact1=3.0,noiqc=.false.,oberrflg=.true.,c_varqc=0.02,blacklst=.true.,
    use_poq7=.true.,qc_noirjaco3=.false.,qc_satwnds=.false.,cld_det_dec2bin=.true.,
+   half_goesr_err=.false.,
 !  tcp_ermin=0.75,tcp_ermax=0.75,
    >>>AIRCFT_BIAS<<<
  /
@@ -87,6 +88,7 @@ OBS_INPUT::
    prepbufr       pw          null        pw                    0.0     0      0        ncep_prep_bufr
    preprscat      uv          null        uv                    0.0     0      0        rscat_bufr
    gpsrobufr      gps_bnd     null        gps                   0.0     0      0        ncep_gpsro_bufr
+   gpsrocombufr   gps_bnd     null        gps                   0.0     0      0        ncep_gpsro_com_bufr
    ssmirrbufr     pcp_ssmi    dmsp        pcp_ssmi              0.0     0      0        ncep_spssmi_bufr
    tmirrbufr      pcp_tmi     trmm        pcp_tmi               0.0     0      0        ncep_sptrmm_bufr
    sbuvbufr       sbuv2       n16         sbuv8_n16             0.0     0      0        ncep_osbuv_bufr
@@ -95,6 +97,7 @@ OBS_INPUT::
    omibufr        omi         aura        omi_aura              0.0     2      0        ncep_aura_omi_bufr
    ompsnmbufr     ompsnm      npp         ompsnm_npp            0.0     2      0        npp_ompsnm_bufr
    ompsnpbufr     ompsnp      npp         ompsnp_npp            0.0     0      0        npp_ompsnp_bufr
+   ompsnpnc       ompsnpnc    npp         ompsnpnc_npp          0.0     0      0        npp_ompsnp_nc
 !  NOomibufr      omi         aura        omi_aura              0.0     2      0        test
    hirs2bufr      hirs2       n14         hirs2_n14             0.0     1      0        ncep_1bhrs2_bufr
    hirs3bufr      hirs3       n16         hirs3_n16             0.0     1      0        ncep_1bhrs3_bufr
@@ -171,6 +174,7 @@ OBS_INPUT::
 !  gomebufr       gome        metop-b     gome_metop-b          0.0     2      0        test
    amsuabufr      amsua       metop-c     amsua_metop-c         0.0     1      0        ncep_1bamua_bufr
    mhsbufr        mhs         metop-c     mhs_metop-c           0.0     1      0        ncep_mhs_bufr
+   iasibufr       iasi        metop-c     iasi_metop-c          0.0     3      0        ncep_mtiasi_bufr
    atmsbufr       atms        npp         atms_npp              0.0     1      0        ncep_atms_bufr
    atmsbufr       atms        n20         atms_n20              0.0     1      0        ncep_atms_bufr
    crisfsrbufr    cris-fsr    npp         cris-fsr_npp          0.0     3      0        ncep_crisfsr_bufr
@@ -181,7 +185,8 @@ OBS_INPUT::
    avcsambufr     avhrr       metop-a     avhrr3_metop-a        0.0     1      0        ncep_avcsam_bufr
    avcsambufr     avhrr       metop-b     avhrr3_metop-b        0.0     1      0        ncep_avcsam_bufr
 !  omieffbufr     omieff      aura        omieff_aura           0.0     2      0        test
-!  omieffnc       omieff      aura        omieff_aura           0.0     2      0        test
+   omieffnc       omieff      aura        omieff_aura           0.0     2      0        aura_omieff_nc
+   ompsnmeffnc    ompsnmeff   npp         ompsnmeff_npp         1.0     2      0        npp_ompsnmeff_nc
 !  mlstbufr       t           aura        t                     0.0     0      0        test
    gsnd1bufr      sndrd1      g15         sndrD1_g15            0.0     1      0        ncep_goesfv_bufr
    gsnd1bufr      sndrd2      g15         sndrD2_g15            0.0     1      0        ncep_goesfv_bufr

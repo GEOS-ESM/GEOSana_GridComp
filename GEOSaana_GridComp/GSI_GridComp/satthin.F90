@@ -396,6 +396,10 @@ contains
     if(abs(rmesh) <= one .or. ithin <= 0)then
       use_all=.true.
       itxmax=1e9
+      if (present(n_tbin)) then
+          itxmax0 = itxmax 
+          itxmax  = itxmax0 * n_tbin
+      endif
       allocate(icount(itxmax))
       allocate(score_crit(itxmax))
       do j=1,itxmax

@@ -933,6 +933,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 
            if (.not.(aircraft_t_bc .and. acft_profl_file)) then
               if(abs(real(hdr(3),r_single))>r90 .or. abs(hdr(2))>r360) cycle loop_readsb
+              if(hdr(3)>=r90 .and. (int(hdr(5))==180 .or. int(hdr(5))==280) .and.&
+                 hdr(8)==561) cycle loop_readsb       !  no fixed buoy at North Pole
               if(hdr(2)== r360)hdr(2)=hdr(2)-r360
               if(hdr(2) < zero)hdr(2)=hdr(2)+r360
               dlon_earth_deg=hdr(2)

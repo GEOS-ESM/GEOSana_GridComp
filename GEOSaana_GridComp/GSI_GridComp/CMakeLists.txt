@@ -106,6 +106,7 @@ set (SRCS_UTIL
   mod_strong.f90
   mod_wrfmass_to_a.f90
   mp_compact_diffs_mod1.f90
+  mp_compact_diffs_mod2.f90
   mp_compact_diffs_support.f90
   mpimod.F90
   mpl_allreduce.F90
@@ -283,6 +284,7 @@ set (SRCS_SOLVER
   adjtest.f90
   adjtest_obs.f90
   adjust_cloudobs_mod.f90
+  advect_cv.f90
   aeroinfo.f90
   anberror.f90
   anbkerror.f90
@@ -639,6 +641,7 @@ set (OBJS_OPENBUFR
    getcount_bufr.f90
    m_extOzone.F90
    read_aerosol.f90
+   read_abi.f90
    read_ahi.f90
    read_airs.f90
    read_amsre.f90

@@ -35,4 +35,9 @@ correlated_observations::
  iasi_metop-b 2    0.2037    1.09  ice    iasi_metop_sea_rcov.bin
  iasi_metop-b 2    0.2037    1.09  snow   iasi_metop_sea_rcov.bin
  iasi_metop-b 2    0.2037    1.09  mixed  iasi_metop_sea_rcov.bin
+ iasi_metop-c 2    0.2037    1.09  sea    iasi_metop_sea_rcov.bin
+ iasi_metop-c 2    0.2037    1.09  land   iasi_metop_sea_rcov.bin
+ iasi_metop-c 2    0.2037    1.09  ice    iasi_metop_sea_rcov.bin
+ iasi_metop-c 2    0.2037    1.09  snow   iasi_metop_sea_rcov.bin
+ iasi_metop-c 2    0.2037    1.09  mixed  iasi_metop_sea_rcov.bin
 ::
