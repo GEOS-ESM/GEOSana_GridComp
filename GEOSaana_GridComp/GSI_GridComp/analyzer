@@ -698,12 +698,12 @@ sub init {
        Assignfn( "$fvwork/gmao_global_blacklist.rc",             "blacklist");
        Assignfn( "$fvwork/gmao_global_insituinfo.rc",           "insituinfo");
        Assignfn( "$fvwork/gmao_global_scaninfo.rc",               "scaninfo");
-       if ( -e "$fvwork/gmao_global_rad_time_thin.rc ") {
+       if ( -e "$fvwork/gmao_global_rad_time_thin.rc") {
           rename("anavinfo","anavinfo.hold");
           $cmd = "cat `ls anavinfo.hold $fvwork/gmao_global_rad_time_thin.rc`>>anavinfo";
           print " $cmd\n";
           $rc_ignore = system($cmd);
-          if ( -e "anavinfo" ) {rm("anavinfo.hold")};
+          if ( -e "anavinfo" ) {unlink("anavinfo.hold")};
        }
        if ( $doHYB ) {
           if( -e "$fvwork/gmao_global_hybens_info.x${nlon_ens}y${nlat_ens}l${nsig}.rc" ) {

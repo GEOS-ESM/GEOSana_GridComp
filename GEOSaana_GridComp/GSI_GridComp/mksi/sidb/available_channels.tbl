@@ -24,6 +24,7 @@
 #  24Sep2019 Meta    - Add MetOp-C AMSU-A and MHS - start date reflects data start in regular AMSU-A/MHS files
 #  23Jan2020 J. Jin  - Add gcom-w1 AMSR2
 #  13May2020 W. Gu   - replace CrIS-nsr for SNPP with CrIS-fsr
+#  01Oct2021 J. Jin  - Add abi_g16 (abi_gr), abi_g17,  ahi_himawari8, sevir_m08, and seviri_m11.
 #
 # Information in this list tells the avaibility of given channels at a given
 # time, to be used (at least) in the passive mode for the GSI.
@@ -369,6 +370,7 @@ g15  20100304 000000  29991231 240000 sndrD4 18 1 2 3 4 5 6 7 8 9 10 11 12 13 14
 m08  20120213 000000  29991231 240000  seviri 8   4 5 6 7 8 9 10 11
 m09  20120213 000000  29991231 240000  seviri 8   4 5 6 7 8 9 10 11
 m10  20130121 120000  29991231 240000  seviri 8   4 5 6 7 8 9 10 11
+m11  20160101 120000  29991231 240000  seviri 8   4 5 6 7 8 9 10 11
 
 
 # METOP-A IASI
@@ -512,5 +514,11 @@ gpm      20140320 000000  29991231 240000  gmi       13   1  2  3  4  5  6  7  8
 # amsr2_gcom-w1
 gcom-w1  20120724 000000  29991231 240000  amsr2     14   1  2  3  4  5  6  7  8  9 10 11 12 13 14
 
+# ahi_himawari8 
+himawari8  20201029 120000  29991231 240000  ahi     10   7  8  9 10 11 12 13 14 15 16
+# abi_g16
+g16        20201029 120000  29991231 240000  abi     10   7  8  9 10 11 12 13 14 15 16
+# abi_g17
+g17        20201029 120000  29991231 240000  abi     10   7  8  9 10 11 12 13 14 15 16
 #.	end of usable_channels.tbl
 

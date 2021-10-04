@@ -2546,9 +2546,9 @@ contains
                     call nc_diag_metadata("Sol_Azimuth_Angle",  sngl(data_s(isazi_ang2,n))          ) ! solar azimuth angle (degrees)
                     call nc_diag_metadata("Scan_Angle",         sngl(data_s(iscan_ang2,n)*rad2deg)  ) ! scan angle
                  else
-                 call nc_diag_metadata("Sat_Zenith_Angle",      sngl(zasat*rad2deg)                 ) ! satellite zenith angle (degrees)
-                 call nc_diag_metadata("Sol_Zenith_Angle",      sngl(pangs)                         ) ! solar zenith angle (degrees)
-                 call nc_diag_metadata("Sol_Azimuth_Angle",     sngl(data_s(isazi_ang,n))           ) ! solar azimuth angle (degrees)
+                    call nc_diag_metadata("Sat_Zenith_Angle",   sngl(zasat*rad2deg)                 ) ! satellite zenith angle (degrees)
+                    call nc_diag_metadata("Sol_Zenith_Angle",   sngl(pangs)                         ) ! solar zenith angle (degrees)
+                    call nc_diag_metadata("Sol_Azimuth_Angle",  sngl(data_s(isazi_ang,n))           ) ! solar azimuth angle (degrees)
                     call nc_diag_metadata("Scan_Angle",         sngl(data_s(iscan_ang,n)*rad2deg)   ) ! scan angle
                  endif
                  call nc_diag_metadata("Sat_Azimuth_Angle",     sngl(data_s(ilazi_ang,n))           ) ! satellite azimuth angle (degrees)
@@ -2568,7 +2568,6 @@ contains
                     call nc_diag_metadata("Soil_Temperature",      sngl(surface(1)%soil_temperature)  ) ! soil temperature (K)
                     call nc_diag_metadata("Soil_Moisture",         sngl(surface(1)%soil_moisture_content) ) ! soil moisture
                     call nc_diag_metadata("Land_Type_Index",       surface(1)%land_type             ) ! surface land type
-                    call nc_diag_metadata("tsavg5",                missing                          ) ! SST first guess used for SST retrieval
                     call nc_diag_metadata("sstcu",                 missing                          ) ! NCEP SST analysis at t            
                     call nc_diag_metadata("sstph",                 missing                          ) ! Physical SST retrieval             
                     call nc_diag_metadata("sstnv",                 missing                          ) ! Navy SST retrieval               
@@ -2583,7 +2582,6 @@ contains
                     call nc_diag_metadata("Soil_Temperature",      missing                          ) ! soil temperature (K)
                     call nc_diag_metadata("Soil_Moisture",         missing                          ) ! soil moisture
                     call nc_diag_metadata("Land_Type_Index",       imissing                         ) ! surface land type
-                    call nc_diag_metadata("tsavg5",                sngl(tsavg5)                     ) ! SST first guess used for SST retrieval
                     call nc_diag_metadata("sstcu",                 sngl(sstcu)                      ) ! NCEP SST analysis at t            
                     call nc_diag_metadata("sstph",                 sngl(sstph)                      ) ! Physical SST retrieval             
                     call nc_diag_metadata("sstnv",                 sngl(sstnv)                      ) ! Navy SST retrieval               
@@ -2591,6 +2589,7 @@ contains
                     call nc_diag_metadata("dqa",                   sngl(dqa)                        ) ! d(qa) corresponding to sstph
                     call nc_diag_metadata("dtp_avh",               sngl(dtp_avh)                    ) ! data type             
                  endif
+                 call nc_diag_metadata("tsavg5",                sngl(tsavg5)                     ) ! SST first guess used for SST retrieval
 
                  call nc_diag_metadata("Vegetation_Fraction",   sngl(surface(1)%vegetation_fraction) )
                  call nc_diag_metadata("Snow_Depth",            sngl(surface(1)%snow_depth)         )

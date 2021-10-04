@@ -96,6 +96,7 @@
 #  06Apr2020 Todling - pushed back MetopA-MHS deactivation from 20190915 to 20190531
 #  13May2020 W. Gu   - replaced CrIS-nsr SNPP with CrIS-fsr
 #  30Sep2020 M. Chattopadhyay - historic AVHRR: N15, N16 and N17
+#  01Oct2021 J. Jin  - Add abi_g16 (abi_gr), ahi_himawari8, sevir_m08, and seviri_m11.
 #=================
 #  For reference: http://www.emc.ncep.noaa.gov/mmb/data_processing/Satellite_Historical_Documentation.htm
 #                 http://geos5.org/wiki/index.php?title=Talk:GEOS-5_ADAS_Radiance_Monitoring
@@ -703,9 +704,10 @@ n20  20120101 000000  29991231 240000 cris-fsr   1                             1
 #==============
 # SEVIRI
 #==============
-m09  20120213 000000  29991231 240000  seviri 0
+m08  20170202 000000  29991231 240000  seviri 2    5 6
 m09  20120213 000000  29991231 240000  seviri 2    5 6
 m10  20130121 120000  29991231 240000  seviri 2    5 6
+m11  20160101 120000  29991231 240000  seviri 2    5 6
 
 
 
@@ -853,6 +855,13 @@ metop-b  20130213 000000  21001231 240000  iasi    0                            
 trmm     19971208 000000  29991231 240000  tmi        0   
 gpm      20140320 000000  29991231 240000  gmi        6    5 6 7  10  12 13
 gcom-w1  20190101 000000  29991231 240000  amsr2      2    9 11
+
+# abi_g16 (abi_gr)
+g16        20201029 120000  29991231 240000  abi     2   8  10
+# abi_g17
+g17        20201029 120000  29991231 240000  abi     0 
+# ahi_himawari8 
+himawari8  20201029 120000  29991231 240000  ahi     3   8 9 10
 
 
 #:: # end active_channels 

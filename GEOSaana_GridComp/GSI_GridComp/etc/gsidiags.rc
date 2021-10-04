@@ -1,5 +1,8 @@
 satlist::
 acos
+abi_gr
+abi_g17
+ahi_himawari8
 airs_aqua
 amsr2_gcom-w1
 amsre_hig_aqua
@@ -86,6 +89,7 @@ pcp_tmi_trmm_ocn
 seviri_m08
 seviri_m09
 seviri_m10
+seviri_m11
 sndr_g08_prep
 sndr_g10_prep
 sndr_g11
