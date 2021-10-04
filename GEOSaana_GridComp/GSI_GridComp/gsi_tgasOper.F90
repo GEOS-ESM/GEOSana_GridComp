@@ -1,12 +1,12 @@
-module gsi_colvkOper
+module gsi_tgasOper
 !$$$  subprogram documentation block
 !                .      .    .                                       .
-! subprogram:	 module gsi_colvkOper
+! subprogram:	 module gsi_tgasOper
 !   prgmmr:	 j guo <jguo@nasa.gov>
 !      org:	 NASA/GSFC, Global Modeling and Assimilation Office, 610.3
 !     date:	 2018-08-10
 !
-! abstract: an obOper extension for colvkNode type
+! abstract: an obOper extension for tgasNode type
 !
 ! program history log:
 !   2018-08-10  j guo   - added this document block
@@ -23,30 +23,30 @@ module gsi_colvkOper
 
 ! module interface:
 
-  use gsi_obOper , only: obOper
-  use m_colvkNode, only: colvkNode
+  use gsi_obOper, only: obOper
+  use m_tgasNode, only: tgasNode
   implicit none
-  public:: colvkOper      ! data stracture
+  public:: tgasOper      ! data stracture
 
-  type,extends(obOper):: colvkOper
+  type,extends(obOper):: tgasOper
   contains
     procedure,nopass:: mytype
     procedure,nopass:: nodeMold
     procedure:: setup_
     procedure:: intjo1_
     procedure:: stpjo1_
-  end type colvkOper
+  end type tgasOper
 
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  character(len=*),parameter :: myname='gsi_colvkOper'
-  type(colvkNode),save,target:: myNodeMold_
+  character(len=*),parameter :: myname='gsi_tgasOper'
+  type(tgasNode),save,target:: myNodeMold_
 
 contains
   function mytype(nodetype)
     implicit none
     character(len=:),allocatable:: mytype
     logical,optional, intent(in):: nodetype
-    mytype="[colvkOper]"
+    mytype="[tgasOper]"
     if(present(nodetype)) then
       if(nodetype) mytype=myNodeMold_%mytype()
     endif
@@ -61,19 +61,19 @@ contains
   end function nodeMold
 
   subroutine setup_(self, lunin, mype, is, nobs, init_pass,last_pass)
-    use colvk_setup, only: setup
+    use tgas_setup, only: setup
     use kinds, only: i_kind
     use gsi_obOper, only: len_obstype
     use gsi_obOper, only: len_isis
 
-    use m_rhs , only: stats => rhs_stats_co
+    use m_rhs , only: stats => rhs_stats_tgas
     use obsmod, only: write_diag
-    use coinfo, only: diag_co
+    use tgasinfo, only: diag_tgas
     use jfunc , only: jiter
 
     use mpeu_util, only: die
     implicit none
-    class(colvkOper ), intent(inout):: self
+    class(tgasOper), intent(inout):: self
     integer(i_kind), intent(in):: lunin
     integer(i_kind), intent(in):: mype
     integer(i_kind), intent(in):: is
@@ -94,7 +94,7 @@ contains
     read(lunin,iostat=ier) obstype,isis,nreal,nchanl
     if(ier/=0) call die(myname_,'read(obstype,...), iostat =',ier)
 
-    diagsave  = write_diag(jiter) .and. diag_co
+    diagsave  = write_diag(jiter) .and. diag_tgas
 
     call setup(self%obsLL(:), self%odiagLL(:), &
         lunin,mype,stats,nchanl,nreal,nobs,obstype,isis,is,diagsave,init_pass)
@@ -102,14 +102,14 @@ contains
   end subroutine setup_
 
   subroutine intjo1_(self, ibin, rval,sval, qpred,sbias)
-    use intcomod, only: intjo => intco
+    use inttgasmod, only: intjo => inttgas
     use gsi_bundlemod  , only: gsi_bundle
     use bias_predictors, only: predictors
     use m_obsNode , only: obsNode
     use m_obsLList, only: obsLList_headNode
     use kinds     , only: i_kind, r_quad
     implicit none
-    class(colvkOper  ),intent(in   ):: self
+    class(tgasOper ),intent(in   ):: self
     integer(i_kind ),intent(in   ):: ibin
     type(gsi_bundle),intent(inout):: rval   ! (ibin)
     type(gsi_bundle),intent(in   ):: sval   ! (ibin)
@@ -127,14 +127,14 @@ contains
   end subroutine intjo1_
 
   subroutine stpjo1_(self, ibin, dval,xval,pbcjo,sges,nstep,dbias,xbias)
-    use stpcomod, only: stpjo => stpco
+    use stptgasmod, only: stpjo => stptgas
     use gsi_bundlemod, only: gsi_bundle
     use bias_predictors, only: predictors
     use m_obsNode , only: obsNode
     use m_obsLList, only: obsLList_headNode
     use kinds, only: r_quad,r_kind,i_kind
     implicit none
-    class(colvkOper  ),intent(in):: self
+    class(tgasOper ),intent(in):: self
     integer(i_kind ),intent(in):: ibin
     type(gsi_bundle),intent(in):: dval
     type(gsi_bundle),intent(in):: xval
@@ -154,4 +154,4 @@ contains
     headNode => null()
   end subroutine stpjo1_
 
-end module gsi_colvkOper
+end module gsi_tgasOper

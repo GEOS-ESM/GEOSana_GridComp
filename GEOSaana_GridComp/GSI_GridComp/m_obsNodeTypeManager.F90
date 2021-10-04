@@ -43,7 +43,7 @@ module m_obsNodeTypeManager
   use m_radNode  , only:   radNode
   use m_tcpNode  , only:   tcpNode
   use m_lagNode  , only:   lagNode
-  use m_colvkNode, only: colvkNode
+  use m_tgasNode , only:  tgasNode
   use m_aeroNode , only:  aeroNode
   use m_aerolNode, only: aerolNode
   use m_pm2_5Node, only: pm2_5Node
@@ -100,7 +100,7 @@ module m_obsNodeTypeManager
   public:: iobsNode_rad
   public:: iobsNode_tcp
   public:: iobsNode_lag
-  public:: iobsNode_colvk
+  public:: iobsNode_tgas
   public:: iobsNode_aero
   public:: iobsNode_aerol
   public:: iobsNode_pm2_5
@@ -153,7 +153,7 @@ module m_obsNodeTypeManager
   type(radNode  ), target, save::   rad_mold
   type(tcpNode  ), target, save::   tcp_mold
   type(lagNode  ), target, save::   lag_mold
-  type(colvkNode), target, save:: colvk_mold
+  type(tgasNode) , target, save::  tgas_mold
   type(aeroNode ), target, save::  aero_mold
   type(aerolNode), target, save:: aerol_mold
   type(pm2_5Node), target, save:: pm2_5_mold
@@ -222,7 +222,7 @@ module m_obsNodeTypeManager
     enumerator:: iobsNode_rad
     enumerator:: iobsNode_tcp
     enumerator:: iobsNode_lag
-    enumerator:: iobsNode_colvk
+    enumerator:: iobsNode_tgas
     enumerator:: iobsNode_aero
     enumerator:: iobsNode_aerol
     enumerator:: iobsNode_pm2_5
@@ -283,7 +283,7 @@ function vname2index_(vname) result(index_)
   case("rad"  ,  "[radnode]"); index_ = iobsNode_rad
   case("tcp"  ,  "[tcpnode]"); index_ = iobsNode_tcp
   case("lag"  ,  "[lagnode]"); index_ = iobsNode_lag
-  case("colvk","[colvknode]"); index_ = iobsNode_colvk
+  case("tgas" , "[tgasnode]"); index_ = iobsNode_tgas
   case("aero" , "[aeronode]"); index_ = iobsNode_aero
   case("aerol","[aerolnode]"); index_ = iobsNode_aerol
   case("pm2_5","[pm2_5node]"); index_ = iobsNode_pm2_5
@@ -349,7 +349,7 @@ function vmold2index_select_(mold) result(index_)
   type is(  radNode); index_ = iobsNode_rad
   type is(  tcpNode); index_ = iobsNode_tcp
   type is(  lagNode); index_ = iobsNode_lag
-  type is(colvkNode); index_ = iobsNode_colvk
+  type is( tgasNode); index_ = iobsNode_tgas
   type is( aeroNode); index_ = iobsNode_aero
   type is(aerolNode); index_ = iobsNode_aerol
   type is(pm2_5Node); index_ = iobsNode_pm2_5
@@ -406,7 +406,7 @@ function index2vmold_(i_obType) result(obsmold_)
   case(iobsNode_rad  ); obsmold_ =>   rad_mold
   case(iobsNode_tcp  ); obsmold_ =>   tcp_mold
   case(iobsNode_lag  ); obsmold_ =>   lag_mold
-  case(iobsNode_colvk); obsmold_ => colvk_mold
+  case(iobsNode_tgas ); obsmold_ =>  tgas_mold
   case(iobsNode_aero ); obsmold_ =>  aero_mold
   case(iobsNode_aerol); obsmold_ => aerol_mold
   case(iobsNode_pm2_5); obsmold_ => pm2_5_mold

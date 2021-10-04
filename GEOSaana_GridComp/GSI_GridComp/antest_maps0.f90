@@ -644,8 +644,8 @@ subroutine outgrads1(f,nx,ny,label)
   ioutdat=11
   np=1
 
-  write(dsdes,'(a,".des")')trim(label)
-  write(dsdat,'(a,".dat")')trim(label)
+  write(dsdes,'(a,".ctl")')trim(label)
+  write(dsdat,'(a,".grd")')trim(label)
   open(unit=ioutcor,file=dsdes,form='formatted')
   open(unit=ioutdat,file=dsdat,form='unformatted')
   ntime=1

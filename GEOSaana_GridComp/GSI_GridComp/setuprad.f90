@@ -315,8 +315,8 @@ contains
   implicit none
 
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
   logical                           ,intent(in   ) :: rad_diagsave
   character(10)                     ,intent(in   ) :: obstype
   character(20)                     ,intent(in   ) :: isis
@@ -2570,7 +2570,6 @@ contains
                     call nc_diag_metadata("Soil_Temperature",      sngl(surface(1)%soil_temperature)  ) ! soil temperature (K)
                     call nc_diag_metadata("Soil_Moisture",         sngl(surface(1)%soil_moisture_content) ) ! soil moisture
                     call nc_diag_metadata("Land_Type_Index",       surface(1)%land_type             ) ! surface land type
-                    call nc_diag_metadata("tsavg5",                missing                          ) ! SST first guess used for SST retrieval
                     call nc_diag_metadata("sstcu",                 missing                          ) ! NCEP SST analysis at t            
                     call nc_diag_metadata("sstph",                 missing                          ) ! Physical SST retrieval             
                     call nc_diag_metadata("sstnv",                 missing                          ) ! Navy SST retrieval               
@@ -2585,7 +2584,6 @@ contains
                     call nc_diag_metadata("Soil_Temperature",      missing                          ) ! soil temperature (K)
                     call nc_diag_metadata("Soil_Moisture",         missing                          ) ! soil moisture
                     call nc_diag_metadata("Land_Type_Index",       imissing                         ) ! surface land type
-                    call nc_diag_metadata("tsavg5",                sngl(tsavg5)                     ) ! SST first guess used for SST retrieval
                     call nc_diag_metadata("sstcu",                 sngl(sstcu)                      ) ! NCEP SST analysis at t            
                     call nc_diag_metadata("sstph",                 sngl(sstph)                      ) ! Physical SST retrieval             
                     call nc_diag_metadata("sstnv",                 sngl(sstnv)                      ) ! Navy SST retrieval               
@@ -2593,6 +2591,7 @@ contains
                     call nc_diag_metadata("dqa",                   sngl(dqa)                        ) ! d(qa) corresponding to sstph
                     call nc_diag_metadata("dtp_avh",               sngl(dtp_avh)                    ) ! data type             
                  endif
+                 call nc_diag_metadata("tsavg5",                sngl(tsavg5)                     ) ! SST first guess used for SST retrieval
 
                  call nc_diag_metadata("Vegetation_Fraction",   sngl(surface(1)%vegetation_fraction) )
                  call nc_diag_metadata("Snow_Depth",            sngl(surface(1)%snow_depth)         )

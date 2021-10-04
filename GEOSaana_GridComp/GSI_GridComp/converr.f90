@@ -59,6 +59,7 @@ contains
 !   2013-05-14  guo     -- add status and iostat in open, to correctly
 !                          handle the error case of "obs error table not
 !                          available to 3dvar".
+!   2014-08-14  weir    -- added mype checks to warning statements
 !
 !   input argument list:
 !
@@ -83,7 +84,7 @@ contains
      ietabl=19
      open(ietabl,file='errtable',form='formatted',status='old',iostat=ier)
      if(ier/=0) then
-        write(6,*)'CONVERR:  ***WARNING*** obs error table ("errtable") not available to 3dvar.'
+        if(mype == 0) write(6,*)'CONVERR:  ***WARNING*** obs error table ("errtable") not available to 3dvar.'
         lcount=0
         oberrflg=.false.
         return
@@ -105,7 +106,7 @@ contains
 120  continue
 
      if(lcount<=0 .and. mype==0) then
-        write(6,*)'CONVERR:  ***WARNING*** obs error table not available to 3dvar.'
+        if(mype == 0) write(6,*)'CONVERR:  ***WARNING*** obs error table not available to 3dvar.'
         oberrflg=.false.
      else
         if(mype == 0) write(6,*)'CONVERR:  using observation errors from user provided table'

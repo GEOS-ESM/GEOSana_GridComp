@@ -11,10 +11,8 @@
 
 
   use ESMF, only: ESMF_MAXGRIDDIM
-  use MAPL_BaseMod
-  use MAPL_CommsMod
+  use MAPL
 
-  use MAPL_SimpleBundleMod
   use GSI_GridCompMod, only: GSI_bkg_fname_tmpl
   use GSI_GridCompMod, only: GSI_ensbkg_fname_tmpl
   use GSI_GridCompMod, only: GSI_ensana_fname_tmpl
@@ -34,9 +32,6 @@
   use m_tick, only: tick
   use mpeu_util, only: tell,warn,perr,die
   use timermod, only: timer_ini,timer_fnl
-
-  use MAPL_LatLonGridFactoryMod
-  use MAPL_GridManagerMod
 
   implicit none
   private
@@ -230,9 +225,6 @@ end subroutine put_1State_
 ! !USES:
 
       use ESMF
-      use MAPL_Mod
-      use MAPL_CFIOMod
-      use MAPL_ProfMod
 
       use GSI_GridCompMod, only: GSI_ExpId
       use GSI_GridCompMod, only: GSI_RefTime
@@ -784,9 +776,6 @@ end subroutine put_1State_
       use m_StrTemplate, only: StrTemplate
 
       use ESMF
-      use MAPL_Mod
-      use MAPL_CFIOMod
-      use MAPL_ProfMod
 
       use GSI_GridCompMod, only: GSI_RefTime
       use GSI_GridCompMod, only: GSI_ExpId
@@ -958,9 +947,6 @@ end subroutine put_1State_
       use m_StrTemplate, only: StrTemplate
 
       use ESMF
-      use MAPL_Mod
-      use MAPL_CFIOMod
-      use MAPL_ProfMod
 
       use GSI_GridCompMod, only: GSI_RefTime
       use GSI_GridCompMod, only: GSI_ExpId
@@ -1202,41 +1188,41 @@ end subroutine put_1State_
       i_ph = MAPL_SimpleBundleGetIndex ( xpert, 'phis' , 2, rc=status )
       if (i_u>0.and.i_v>0) then
          allocate(sub_u(sg%lat2,sg%lon2,nsig), stat=ierr )
-         call pert2gsi_ ( xpert%r3(i_u)%qr4 , sub_u  , ierr )
+         call pert2gsi_ ( xpert%r3(i_u)%qr4 , sg, sub_u  , ierr )
          allocate(sub_v(sg%lat2,sg%lon2,nsig), stat=ierr )
-         call pert2gsi_ ( xpert%r3(i_v)%qr4 , sub_v  , ierr )
+         call pert2gsi_ ( xpert%r3(i_v)%qr4 , sg, sub_v  , ierr )
       endif
       if (i_t>0) then
          allocate(sub_tv(sg%lat2,sg%lon2,nsig), stat=ierr )
-         call pert2gsi_ ( xpert%r3(i_t)%qr4 , sub_tv , ierr )
+         call pert2gsi_ ( xpert%r3(i_t)%qr4 , sg, sub_tv , ierr )
       endif
       if (i_q>0) then
          allocate(sub_q(sg%lat2,sg%lon2,nsig), stat=ierr )
-         call pert2gsi_ ( xpert%r3(i_q)%qr4 , sub_q  , ierr )
+         call pert2gsi_ ( xpert%r3(i_q)%qr4 , sg, sub_q  , ierr )
       endif
       if (i_oz>0) then
          allocate(sub_oz(sg%lat2,sg%lon2,nsig), stat=ierr )
-         call pert2gsi_ ( xpert%r3(i_oz)%qr4, sub_oz , ierr )
+         call pert2gsi_ ( xpert%r3(i_oz)%qr4, sg, sub_oz , ierr )
       endif
       if (i_cl>0) then
          allocate(sub_cl(sg%lat2,sg%lon2,nsig), stat=ierr )
-         call pert2gsi_ ( xpert%r3(i_cl)%qr4, sub_cl , ierr )
+         call pert2gsi_ ( xpert%r3(i_cl)%qr4, sg, sub_cl , ierr )
       endif
       if (i_ci>0) then
          allocate(sub_ci(sg%lat2,sg%lon2,nsig), stat=ierr )
-         call pert2gsi_ ( xpert%r3(i_ci)%qr4, sub_ci , ierr )
+         call pert2gsi_ ( xpert%r3(i_ci)%qr4, sg, sub_ci , ierr )
       endif
       if (i_ps>0) then
          allocate(sub_ps(sg%lat2,sg%lon2))
-         call pert2gsi2d_ ( xpert%r2(i_ps)%qr4, sub_ps, ierr )
+         call pert2gsi2d_ ( xpert%r2(i_ps)%qr4, sg, sub_ps, ierr )
       endif
       if (i_ph>0) then
          allocate(sub_ph(sg%lat2,sg%lon2))
-         call pert2gsi2d_ ( xpert%r2(i_ph)%qr4, sub_ph, ierr )
+         call pert2gsi2d_ ( xpert%r2(i_ph)%qr4, sg, sub_ph, ierr )
       endif
       if (i_ts>0) then
          allocate(sub_ts(sg%lat2,sg%lon2))
-         call pert2gsi2d_ ( xpert%r2(i_ts)%qr4, sub_ts, ierr )
+         call pert2gsi2d_ ( xpert%r2(i_ts)%qr4, sg, sub_ts, ierr )
       endif
       if ( ierr/=0 ) then
           stat = 99
@@ -1354,7 +1340,7 @@ end subroutine put_1State_
                if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_cr)'
                return
            end if
-           call pert2gsi_ ( xpert%r3(j_cr)%qr4, sub_cr , ierr )
+           call pert2gsi_ ( xpert%r3(j_cr)%qr4, sg, sub_cr , ierr )
          endif
          if (i_cr>0) then ! present in xpert
             do k=1,nsig
@@ -1378,7 +1364,7 @@ end subroutine put_1State_
                if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_cs)'
                return
            end if
-           call pert2gsi_ ( xpert%r3(j_cs)%qr4, sub_cs , ierr )
+           call pert2gsi_ ( xpert%r3(j_cs)%qr4, sg, sub_cs , ierr )
          endif
          if (i_cs>0) then ! present in xpert
             do k=1,nsig
@@ -1437,11 +1423,15 @@ end subroutine put_1State_
       if(allocated(sub_cl)) deallocate(sub_cl)
       if(allocated(sub_ci)) deallocate(sub_ci)
 
-      CONTAINS
+   end subroutine gcm2gsi1_
+!     CONTAINS
 
-      subroutine pert2gsi2d_ ( fld, sub, stat_ )
+      subroutine pert2gsi2d_ ( fld, sg, sub, stat_ )
 
+      use general_sub2grid_mod, only: sub2grid_info
+      implicit none
       real(4),        intent(in)  :: fld(:,:)
+      type(sub2grid_info),intent(in) :: sg     ! subdomain grid
       real(r_kind),   intent(out) :: sub(:,:)
       integer(i_kind),intent(out) :: stat_
 
@@ -1462,9 +1452,12 @@ end subroutine put_1State_
       call timer_fnl('pert2gsi_')
       end subroutine pert2gsi2d_
 
-      subroutine pert2gsi_ ( fld, sub, stat_ )
+      subroutine pert2gsi_ ( fld, sg, sub, stat_ )
 
+      use general_sub2grid_mod, only: sub2grid_info
+      implicit none
       real(4),        intent(in)  :: fld(:,:,:)
+      type(sub2grid_info), intent(in) :: sg     ! subdomain grid
       real(r_kind),   intent(out) :: sub(:,:,:)
       integer(i_kind),intent(out) :: stat_
 
@@ -1493,7 +1486,7 @@ end subroutine put_1State_
       call timer_fnl('pert2gsi_')
       end subroutine pert2gsi_
 
-   end subroutine gcm2gsi1_
+!  end subroutine gcm2gsi1_
 
 !------ BELOW THIS POINT: Routines of general (internal-only) use --------
 
