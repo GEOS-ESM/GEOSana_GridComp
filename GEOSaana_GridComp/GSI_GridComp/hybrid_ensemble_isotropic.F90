@@ -2904,7 +2904,7 @@ subroutine init_sf_xy(jcap_in)
   real(r_kind) s_ens_h_min
   real(r_kind) rlats_ens_local(grd_ens%nlat)
   real(r_kind) rlons_ens_local(grd_ens%nlon)
-  character(5) mapname
+  character(8) mapname
   logical make_test_maps
   logical,allocatable,dimension(:)::ksame
   integer(i_kind) nord_sploc2ens
@@ -3169,7 +3169,7 @@ subroutine init_sf_xy(jcap_in)
            out1(j,i)=ftest(i,j,grd_loc%kbegin_loc)
         enddo
      enddo
-     write(mapname,'("out_",i2.2)')1+mod(grd_loc%kbegin_loc-1,grd_ens%nsig)
+     write(mapname,'("out_",i4.4)')1+mod(grd_loc%kbegin_loc-1,grd_ens%nsig)
      call outgrads1(out1,grd_ens%nlon,grd_ens%nlat,mapname)
    end if
   end if

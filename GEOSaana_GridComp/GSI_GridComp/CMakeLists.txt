@@ -410,6 +410,7 @@ set (SRCS_SOLVER
   loglcbas_to_lcbas.f90
   logcldch_to_cldch.f90
   logvis_to_vis.f90
+  m_nc_berror.f90
   m_berror_stats.f90
   m_berror_stats_reg.f90
   m_cvgridLookup.F90
@@ -605,6 +606,7 @@ set (SRCS_SOLVER
   strong_fast_global_mod.f90
   sub2fslab_mod.f90
   support_2dvar.f90
+  test_advpert.f90
   test_obsens.f90
   tcv_mod.f90
   tpause.f90
