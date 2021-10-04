@@ -1,4 +1,12 @@
-subroutine advect_cv(mype,mydate,tau,cvector)
+subroutine advect_cv(mype,mydate,tau,fpert)
+! WARNING*WARNING*WARNING*
+! WARNING*WARNING*WARNING*
+!    This code is not ready to be used in anything real
+!    The filter option is a hack test - needs a real filtering to
+!    take care of well known pole problem w/ this trivial adv strategy
+!    RTodling
+! WARNING*WARNING*WARNING*
+! WARNING*WARNING*WARNING*
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    advect_cv    advect cv using guess winds
@@ -14,10 +22,13 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 !
 ! usage:
 !   input argument list:
-!     mype     - task id
+!     mype   - process number
+!     mydate - date of perturbation (can be fake)
+!     tau    - integration time length
+!     fpert  - perturbation
 !
 !   output argument list:
-!     p_t      - time tendency of 3d prs
+!     fpert  - propagated perturbation
 !
 ! attributes:
 !   language: f90
@@ -25,17 +36,17 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 !
 !$$$
   use kinds,only: r_kind,i_kind
+  use mpi, only: mpi_logical,mpi_character
+  use mpimod, only: mpi_comm_world,mpi_rtype,mpi_max
   use gsi_4dvar, only: nsubwin, lsqrtb
   use gridmod, only: lat2,lon2,nsig,istart,rlats,nlat,&
      jstart,nlon,bk5,nthreads,jtstart,jtstop
   use guess_grids, only: ntguessig
   use constants, only: zero,one,two,three,half,max_varname_length
-  use control_vectors, only: control_vector,cvars3d,cvars2d  
+  use state_vectors,only: dot_product
   use derivsmod, only: dvars2d,dvars3d
   use derivsmod, only: init_anadv
 
-  use mp_compact_diffs_mod1, only: init_mp_compact_diffs1
-  use mp_compact_diffs_mod1, only: destroy_mp_compact_diffs1
   use mp_compact_diffs_mod2, only: init_mp_compact_diffs2
   use mp_compact_diffs_mod2, only: destroy_mp_compact_diffs2
 
@@ -54,13 +65,12 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   integer(i_kind),intent(in) :: mype
   integer(i_kind),intent(in) :: mydate(5)
   integer(i_kind),intent(in) :: tau
-  type(control_vector) :: cvector
+  type(gsi_bundle) :: fpert(nsubwin)
 
 ! Declare local variables
   character(len=*), parameter :: myname = "advect_cv"
 
-  logical, parameter :: debug = .false.
-  logical, parameter :: showcv = .true.
+  logical :: showsens
   logical,allocatable :: adv2d(:),adv3d(:)
   character(max_varname_length) :: varname
   character(len=4) label
@@ -71,10 +81,14 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 
   character(len=3) :: scheme
   real(r_kind) :: advrate
+  logical :: blobtest            ! test advecting a few blobs around
+  logical :: backward            ! forward or backward (idealized)
   logical :: filter              ! for now a hack filter (will do spectral)
   logical :: cnstwind_test       ! test code using a couple settings for constant winds
   logical :: fluxform            ! use flux-form of continuity equation
-  logical, parameter :: vflux = .false.
+  logical :: vflux
+  logical :: altderiv            ! alternative derivative calc
+  logical :: advect_pert         ! determine whether to do anything or not
 
   type(gsi_bundle) :: f
   type(gsi_bundle) :: aux
@@ -97,19 +111,19 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   real(r_kind),dimension(:,:  ),pointer :: dxptr2d=>NULL()
   real(r_kind),dimension(:,:  ),pointer :: dyptr2d=>NULL()
 
+  real(r_kind) :: cvn
+
   if (lsqrtb) then
       call die(myname,': should not be here, aborting ... ',99)
   endif
 
 ! initialize parameters
-  call init_
-
-! if (tau<0) return
-
+  call init_(advect_pert)
+  if(.not.advect_pert) return
 
 ! Mark sure derivative variables are defined
-  call init_anadv
-  call init_mp_compact_diffs2(nsig,mype,.false.)
+  !_RT_OUT call init_anadv
+  if (vflux.or.altderiv) call init_mp_compact_diffs2(nsig,mype,.false.)
 
   allocate(adv2d(size(dvars2d)),adv3d(size(dvars3d)))
   adv2d=.false.
@@ -119,26 +133,26 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   read(scheme(3:3),*) norder
   allocate(alpha(norder),beta(norder))
 
-! Debug (advect blob)
-  if (debug) call blob_ (cvector%step(1))
+! Debug (advect blobs)
+! if (blobtest) call blobs_ (cvector%step(1))
 
 ! Write out input CV for testing
-  if (showcv) call view_cv (cvector,mydate,'cv_before_adv',.false.)
+  if (showsens) call view_(fpert(1),'before_adv')
 
 ! Create temporary bundle to hold two instance of fields at two time steps
-  call gsi_bundlecreate(f,cvector%grid_step,'f',istatus,names2d=dvars2d,names3d=dvars3d)
+  call gsi_bundlecreate(f,fpert(1)%grid,'f',istatus,names2d=dvars2d,names3d=dvars3d)
   allocate(fn(norder))
   do jj=1,norder
      write(label,'(a,i1,a)') 'f(', jj, ')'
-     call gsi_bundlecreate(fn(jj),cvector%grid_step,label,istatus,names2d=dvars2d,names3d=dvars3d)
+     call gsi_bundlecreate(fn(jj),fpert(1)%grid,label,istatus,names2d=dvars2d,names3d=dvars3d)
   enddo
   if (scheme(1:2)=='rk') then
-     call gsi_bundlecreate(aux,cvector%grid_step,label,istatus,names2d=dvars2d,names3d=dvars3d)
+     call gsi_bundlecreate(aux,fpert(1)%grid,label,istatus,names2d=dvars2d,names3d=dvars3d)
   endif
 
 ! Create vectors to hold x and y derivatives
-  call gsi_bundlecreate(xderivative,cvector%grid_step,'dx',istatus,names2d=dvars2d,names3d=dvars3d)
-  call gsi_bundlecreate(yderivative,cvector%grid_step,'dy',istatus,names2d=dvars2d,names3d=dvars3d)
+  call gsi_bundlecreate(xderivative,fpert(1)%grid,'dx',istatus,names2d=dvars2d,names3d=dvars3d)
+  call gsi_bundlecreate(yderivative,fpert(1)%grid,'dy',istatus,names2d=dvars2d,names3d=dvars3d)
 
 ! Get pointer for guess wind components
   call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'u',uwind,istatus);
@@ -153,6 +167,10 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   if (mype==0) then
      write(6,'(2a,(2(f9.5,1x),i5))') myname, " tau_fcst, dt, ntimes  = ", advtau, dt, ntimes
   endif
+  if (backward) dt = -dt
+
+  cvn=dot_product(fpert(1),fpert(1))
+  if (mype==0) write(6,'(2a,1p,e18.11)') myname, ': Norm on entry= ',sqrt(cvn)
 
   do jj=1,nsubwin
 
@@ -215,6 +233,9 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 
   enddo
 
+  cvn=dot_product(fpert(1),fpert(1))
+  if (mype==0) write(6,'(2a,1p,e18.11)') myname, ': Norm on exit= ',sqrt(cvn)
+
 ! Clean up
   if (scheme(1:2)=='rk') call gsi_bundledestroy(aux,istatus)
   call gsi_bundledestroy(f ,istatus)
@@ -224,50 +245,103 @@ subroutine advect_cv(mype,mydate,tau,cvector)
      call gsi_bundledestroy(fn(jj),istatus)
   enddo
   deallocate(fn)
-  call destroy_mp_compact_diffs2
+  if(vflux.or.altderiv) call destroy_mp_compact_diffs2
   deallocate(adv2d,adv3d)
   deallocate(alpha,beta)
 
 ! Write out advected CV
-  if (showcv) call view_cv (cvector,mydate,'cv_after_adv',.false.)
+  if (showsens) call view_ (fpert(1),'after_adv')
 
   return
 
   contains
 
-  subroutine init_
+  subroutine init_(advpert)
 
   implicit none
 
+  logical, intent(out) :: advpert
+
   character(len=*), parameter :: myname_ = myname//"::init_"
-  integer ios
+  integer ios,ier
 
 ! Set detaults
-  cfl=.true.
+  cfl=.true.              ! redefine dt based on half-based CFL check
   dt = 180.               ! user time step
-  scheme = "rk4"          ! finite-difference scheme
-  advtau=tau              ! length of integration
-  advrate=0.75            ! advection rate (need to think how it relates to tau)
+  scheme = "ab2"          ! finite-difference scheme
+  advrate=1.00            ! advection rate (need to think how it relates to tau)
+  backward=.false.
+  advpert=.false.
 
+! no need to echo these in print lines below
+  showsens = .false.      ! allows viewing sensitivity before and after advection
+  blobtest = .false.      ! advect a few blobs around
   filter = .true.         ! apply filter to solution (for now, a hack)
-  cnstwind_test = .true.  ! test w/ constant winds in a few low-levels
+  cnstwind_test = .false. ! test w/ constant winds in a few low-levels
   fluxform = .true.       ! opt for flux-form or not
+  vflux = .false.         ! vertical fluxes
+  altderiv = .false.      ! alternative derivative calc (old stuff)
 
-  namelist/padvect/dt,scheme,advtau,cfl,filter,cnstwind_test,fluxform,advrate
+  namelist/padvect/dt,scheme,cfl,filter,cnstwind_test,fluxform,advrate,&
+                   vflux,altderiv,backward,blobtest,advpert,showsens
 
-  open(11,file='gsiparm.anl')
-  read(11,padvect,iostat=ios)
-  if(ios/=0) call die(myname_,'read(padvect)',ios)
-  close(11)
+! call mpi_barrier(ier)
+  if (mype==0) then
+    open(11,file='gsiparm.anl')
+    read(11,padvect,iostat=ios)
+    if (ios/=0) then
+       if(mype==0) then
+          print *, 'WARNING: no PADVECT namelist found, skipping advection'
+          print *, 'WARNING: make sure this is what is meant to be'
+       endif
+       close(11)
+       return
+    endif
+    close(11)
+  endif
+  call mpi_bcast(scheme,3,mpi_character,0,mpi_comm_world,ier)
+  call mpi_bcast(advrate,1,mpi_rtype,0,mpi_comm_world,ier)
+  call mpi_bcast(dt,1,mpi_rtype,0,mpi_comm_world,ier)
+  call mpi_bcast(advpert,1,mpi_logical,0,mpi_comm_world,ier)
+  call mpi_bcast(altderiv,1,mpi_logical,0,mpi_comm_world,ier)
+  call mpi_bcast(backward,1,mpi_logical,0,mpi_comm_world,ier)
+  call mpi_bcast(blobtest,1,mpi_logical,0,mpi_comm_world,ier)
+  call mpi_bcast(cfl,1,mpi_logical,0,mpi_comm_world,ier)
+  call mpi_bcast(cnstwind_test,1,mpi_logical,0,mpi_comm_world,ier)
+  call mpi_bcast(filter,1,mpi_logical,0,mpi_comm_world,ier)
+  call mpi_bcast(fluxform,1,mpi_logical,0,mpi_comm_world,ier)
+  call mpi_bcast(showsens,1,mpi_logical,0,mpi_comm_world,ier)
+  call mpi_bcast(vflux,1,mpi_logical,0,mpi_comm_world,ier)
+! advrate = 0.25   ! DEBUG
+! backward = .true.
+! advpert = .true.
+! showsens = .true.
+
+  if (.not.advpert) then
+     if (mype==0) then
+        print *
+        print *, myname, ': no perturbation advection performed.'
+        print *
+     endif
+     return
+  endif
+
+  if (vflux) altderiv = .true.
 
   if (mype==0) then
      print *
-     print *, myname, ': differecing scheme:     ', trim(scheme)
-     print *, myname, ': user time stepping (s): ', dt
-     print *, myname, ': redefine dt per CFL:    ', cfl
-     print *, myname, ': integration length (h)  ', advtau
+     print *, myname, ': differecing scheme:      ', trim(scheme)
+     print *, myname, ': user time stepping (s):  ', dt
+     print *, myname, ': redefine dt per CFL:     ', cfl
+     print *, myname, ': integration length (h)   ', tau
+     print *, myname, ': advection rate           ', advrate
+     print *, myname, ': effective int length (h) ', advrate * tau
+     print *, myname, ': backward integration     ', backward
+     print *, myname, ': show sensitivity         ', showsens
      print *
   endif
+
+  advtau = advrate * tau
 
   end subroutine init_
 
@@ -279,49 +353,49 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 
   ier=0
   idx=getindex(dvars3d,'qi')
-  call gsi_bundlegetpointer (cvector%step(jjj),'sf',cvptr3d,istatus);ier=ier+istatus
-  call gsi_bundlegetpointer (f                ,'qi',avptr3d,istatus);ier=ier+istatus
+  call gsi_bundlegetpointer (fpert(jjj),'u' ,cvptr3d,istatus);ier=ier+istatus
+  call gsi_bundlegetpointer (f         ,'qi',avptr3d,istatus);ier=ier+istatus
   if(ier/=0) call die(myname_,'invalid pointer =',ier)
   adv3d(idx)=.true.
   avptr3d=cvptr3d
 
   ier=0
   idx=getindex(dvars3d,'ql')
-  call gsi_bundlegetpointer (cvector%step(jjj),'vp',cvptr3d,istatus);ier=ier+istatus 
-  call gsi_bundlegetpointer (f                ,'ql',avptr3d,istatus);ier=ier+istatus 
+  call gsi_bundlegetpointer (fpert(jjj),'v' ,cvptr3d,istatus);ier=ier+istatus 
+  call gsi_bundlegetpointer (f         ,'ql',avptr3d,istatus);ier=ier+istatus 
   if(ier/=0) call die(myname_,'invalid pointer =',ier)
   adv3d(idx)=.true.
   avptr3d=cvptr3d
 
   ier=0
   idx=getindex(dvars3d,'tv')
-  call gsi_bundlegetpointer (cvector%step(jjj),'t' ,cvptr3d,istatus);ier=ier+istatus
-  call gsi_bundlegetpointer (f                ,'tv',avptr3d,istatus);ier=ier+istatus
+  call gsi_bundlegetpointer (fpert(jjj),'tv',cvptr3d,istatus);ier=ier+istatus
+  call gsi_bundlegetpointer (f         ,'tv',avptr3d,istatus);ier=ier+istatus
   if(ier/=0) call die(myname_,'invalid pointer =',ier)
   adv3d(idx)=.true.
   avptr3d=cvptr3d
 
   ier=0
   idx=getindex(dvars3d,'q')
-  call gsi_bundlegetpointer (cvector%step(jjj),'q' ,cvptr3d,istatus);ier=ier+istatus
-  call gsi_bundlegetpointer (f                ,'q' ,avptr3d,istatus);ier=ier+istatus
+  call gsi_bundlegetpointer (fpert(jjj),'q' ,cvptr3d,istatus);ier=ier+istatus
+  call gsi_bundlegetpointer (f         ,'q' ,avptr3d,istatus);ier=ier+istatus
   if(ier/=0) call die(myname_,'invalid pointer =',ier)
   adv3d(idx)=.true.
   avptr3d=cvptr3d
 
   ier=0
   idx=getindex(dvars2d,'ps')
-  call gsi_bundlegetpointer (cvector%step(jjj),'ps',cvptr2d,istatus);ier=ier+istatus
-  call gsi_bundlegetpointer (f                ,'ps',avptr2d,istatus);ier=ier+istatus
+  call gsi_bundlegetpointer (fpert(jjj),'ps',cvptr2d,istatus);ier=ier+istatus
+  call gsi_bundlegetpointer (f         ,'ps',avptr2d,istatus);ier=ier+istatus
   if(ier/=0) call die(myname_,'invalid pointer =',ier)
   adv2d(idx)=.true.
-  avptr2d=zero !DEBUG cvptr2d
+  avptr2d=cvptr2d
 
 ! WARNING: handle prescribed winds in a tricky/dirty way (hidden in bundle)
 ! ------------------------------------------------------ 
   ier=0
   idx=getindex(dvars3d,'qr')
-  call gsi_bundlegetpointer (f                ,'qr' ,avptr3d,istatus);ier=ier+istatus
+  call gsi_bundlegetpointer (f,'qr' ,avptr3d,istatus);ier=ier+istatus
   if(ier/=0) call die(myname_,'invalid pointer =',ier)
   adv3d(idx)=.false.  ! intentional so it does not become part of the prognostic fields
   avptr3d=uwind
@@ -332,7 +406,7 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   endif
   ier=0
   idx=getindex(dvars3d,'qs')
-  call gsi_bundlegetpointer (f                ,'qs' ,avptr3d,istatus);ier=ier+istatus
+  call gsi_bundlegetpointer (f,'qs' ,avptr3d,istatus);ier=ier+istatus
   if(ier/=0) call die(myname_,'invalid pointer =',ier)
   adv3d(idx)=.false.  ! intentional so it does not become part of the prognostic fields
   avptr3d=vwind
@@ -352,34 +426,49 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   integer ier
 
   ier=0
-  call gsi_bundlegetpointer (f                ,'ql',avptr3d,istatus);ier=ier+istatus
-  call gsi_bundlegetpointer (cvector%step(jjj),'sf',cvptr3d,istatus);ier=ier+istatus
-  if(ier/=0) call die(myname_,'invalid pointer =',ier)
-  cvptr3d=avptr3d
+  idx=getindex(dvars3d,'qi')
+  if (adv3d(idx)) then
+     call gsi_bundlegetpointer (f         ,'qi',avptr3d,istatus);ier=ier+istatus
+     call gsi_bundlegetpointer (fpert(jjj),'u' ,cvptr3d,istatus);ier=ier+istatus
+     if(ier/=0) call die(myname_,'invalid pointer =',ier)
+     cvptr3d=avptr3d
+  endif
 
   ier=0
-  call gsi_bundlegetpointer (f                ,'ql',avptr3d,istatus);ier=ier+istatus
-  call gsi_bundlegetpointer (cvector%step(jjj),'vp',cvptr3d,istatus);ier=ier+istatus
-  if(ier/=0) call die(myname_,'invalid pointer =',ier)
-  cvptr3d=avptr3d
+  idx=getindex(dvars3d,'ql')
+  if (adv3d(idx)) then
+     call gsi_bundlegetpointer (f         ,'ql',avptr3d,istatus);ier=ier+istatus
+     call gsi_bundlegetpointer (fpert(jjj),'v' ,cvptr3d,istatus);ier=ier+istatus
+     if(ier/=0) call die(myname_,'invalid pointer =',ier)
+     cvptr3d=avptr3d
+  endif
 
   ier=0
-  call gsi_bundlegetpointer (f                ,'tv',avptr3d,istatus);ier=ier+istatus
-  call gsi_bundlegetpointer (cvector%step(jjj),'t' ,cvptr3d,istatus);ier=ier+istatus
-  if(ier/=0) call die(myname_,'invalid pointer =',ier)
-  cvptr3d=avptr3d
+  idx=getindex(dvars3d,'tv')
+  if (adv3d(idx)) then
+     call gsi_bundlegetpointer (f         ,'tv',avptr3d,istatus);ier=ier+istatus
+     call gsi_bundlegetpointer (fpert(jjj),'tv',cvptr3d,istatus);ier=ier+istatus
+     if(ier/=0) call die(myname_,'invalid pointer =',ier)
+     cvptr3d=avptr3d
+  endif
 
   ier=0
-  call gsi_bundlegetpointer (f                ,'q' ,avptr3d,istatus);ier=ier+istatus
-  call gsi_bundlegetpointer (cvector%step(jjj),'q' ,cvptr3d,istatus);ier=ier+istatus
-  if(ier/=0) call die(myname_,'invalid pointer =',ier)
-  cvptr3d=avptr3d
+  idx=getindex(dvars3d,'q')
+  if (adv3d(idx)) then
+     call gsi_bundlegetpointer (f         ,'q' ,avptr3d,istatus);ier=ier+istatus
+     call gsi_bundlegetpointer (fpert(jjj),'q' ,cvptr3d,istatus);ier=ier+istatus
+     if(ier/=0) call die(myname_,'invalid pointer =',ier)
+     cvptr3d=avptr3d
+  endif
 
   ier=0
-  call gsi_bundlegetpointer (f                ,'ps',avptr2d,istatus);ier=ier+istatus
-  call gsi_bundlegetpointer (cvector%step(jjj),'ps',cvptr2d,istatus);ier=ier+istatus
-  if(ier/=0) call die(myname_,'invalid pointer =',ier)
-  cvptr2d=avptr2d
+  idx=getindex(dvars2d,'ps')
+  if (adv2d(idx)) then
+     call gsi_bundlegetpointer (f         ,'ps',avptr2d,istatus);ier=ier+istatus
+     call gsi_bundlegetpointer (fpert(jjj),'ps',cvptr2d,istatus);ier=ier+istatus
+     if(ier/=0) call die(myname_,'invalid pointer =',ier)
+     cvptr2d=avptr2d
+  endif
  
   end subroutine to_cv_
 
@@ -396,7 +485,7 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   real(r_kind) :: tmp,localx,localy
   integer k1
   real(r_kind), pointer ::  func3d(:,:,:),dx3d(:,:,:),dy3d(:,:,:), x3d(:,:,:)
-  real(r_kind), pointer ::  func2d(:,:  ),dx2d(:,:  ),dy2d(:,:  )
+  real(r_kind), pointer ::  func2d(:,:  ),dx2d(:,:  ),dy2d(:,:  ), x2d(:,:)
   real(r_kind), pointer ::    dudx(:,:,:),dvdy(:,:,:)
 
   real(r_kind),dimension(lat2,lon2,nsig):: div
@@ -407,51 +496,57 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   call gsi_bundlegetpointer (gi,'qr',uwind,istatus);
   call gsi_bundlegetpointer (gi,'qs',vwind,istatus);
 
-  do k=1,nsig
-    do j=1,lon2
-      do i=1,lat2
-        prdif9u(i,j,k)=prdif9(i,j,k)*uwind(i,j,k)
-        prdif9v(i,j,k)=prdif9(i,j,k)*vwind(i,j,k)
-      end do
-    end do
-  end do
-
-  call mp_compact_dlon2(prdif9u,prdif9u_x,.false.,nsig,mype)
-  call mp_compact_dlat2(prdif9v,prdif9v_y2,.true.,nsig,mype)
-
-  div(:,:,:)=zero
-  do k=1,nsig
-    do j=1,lon2
-      do i=1,lat2
-        div(i,j,k)=div(i,j,k)+prdif9u_x(i,j,k)+prdif9v_y2(i,j,k)
-      end do
-    end do
-  end do
-
-  do j=1,lon2
-    do i=1,lat2
-      prsth9(i,j,nsig+1)=zero
-    end do
-  end do
-  do k=nsig,1,-1
-    do j=1,lon2
-      do i=1,lat2
-         prsth9(i,j,k)=prsth9(i,j,k+1) - div(i,j,k)
-      end do
-    end do
-  end do
-
-  do k=2,nsig
-     do j=1,lon2
-       do i=1,lat2
-          what9(i,j,k)=prsth9(i,j,k)-bk5(k)*prsth9(i,j,1)
+  if (vflux) then
+     do k=1,nsig
+       do j=1,lon2
+         do i=1,lat2
+           prdif9u(i,j,k)=prdif9(i,j,k)*uwind(i,j,k)
+           prdif9v(i,j,k)=prdif9(i,j,k)*vwind(i,j,k)
+         end do
        end do
      end do
-  end do
+
+     call mp_compact_dlon2(prdif9u,prdif9u_x,.false.,nsig,mype)
+     call mp_compact_dlat2(prdif9v,prdif9v_y2,.true.,nsig,mype)
+
+     div(:,:,:)=zero
+     do k=1,nsig
+       do j=1,lon2
+         do i=1,lat2
+           div(i,j,k)=div(i,j,k)+prdif9u_x(i,j,k)+prdif9v_y2(i,j,k)
+         end do
+       end do
+     end do
+
+     do j=1,lon2
+       do i=1,lat2
+         prsth9(i,j,nsig+1)=zero
+       end do
+     end do
+     do k=nsig,1,-1
+       do j=1,lon2
+         do i=1,lat2
+            prsth9(i,j,k)=prsth9(i,j,k+1) - div(i,j,k)
+         end do
+       end do
+     end do
+
+     do k=2,nsig
+        do j=1,lon2
+          do i=1,lat2
+             what9(i,j,k)=prsth9(i,j,k)-bk5(k)*prsth9(i,j,1)
+          end do
+        end do
+     end do
+
+  endif
 
 ! Calculate derivatives
-  call get_derivatives (gi,xderivative,yderivative)  ! external
-! call get_derivatives_(gi,xderivative,yderivative)  ! internal
+  if (altderiv) then
+     call get_derivatives_(gi,xderivative,yderivative)  ! internal
+  else
+     call get_derivatives (gi,xderivative,yderivative)  ! external
+  endif
 
 ! Get derivative of advecting winds (hidden in x/y-derivatives)
   call gsi_bundlegetpointer (xderivative,'qr', dudx,istatus)
@@ -493,8 +588,8 @@ subroutine advect_cv(mype,mydate,tau,cvector)
          localy = maxval(abs(func3d))
          where(abs(func3d)<1.e-10*localx) func3d=zero
          where(abs(func3d)<1.e-10*localy) func3d=zero
-         where(abs(func3d)>2.) func3d=zero
-         where(abs(func3d)>2.) func3d=zero
+         where(abs(func3d)>0.01) func3d=zero
+         where(abs(func3d)>0.01) func3d=zero
       endif
     end do
 
@@ -527,6 +622,7 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   do nc = 1,n2d
     if(.not.adv2d(nc)) cycle ! don''t use nor waste time
 
+    call gsi_bundlegetpointer (gi         ,dvars2d(nc),   x2d,istatus)
     call gsi_bundlegetpointer (go         ,dvars2d(nc),func2d,istatus)
     call gsi_bundlegetpointer (xderivative,dvars2d(nc),  dx2d,istatus)
     call gsi_bundlegetpointer (yderivative,dvars2d(nc),  dy2d,istatus)
@@ -534,6 +630,7 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 ! Loop over threads
 !$omp parallel do schedule(dynamic,1) private(i,j,k,kk)
    do kk=1,nthreads
+    k=nsig
 
 !   Horizontal advection of "tracer" quantities
     do j=jtstart(kk),jtstop(kk)
@@ -542,8 +639,13 @@ subroutine advect_cv(mype,mydate,tau,cvector)
          if (ix==1 .OR. ix==nlat) then
             func2d(i,j) = zero
          else
-            func2d(i,j) = - deltime *( uwind(i,j,k)*dx2d(i,j) + vwind(i,j,k)*dy2d(i,j) )
-          endif
+            if (fluxform) then
+               func2d(i,j) = - deltime * ( uwind(i,j,k)* dx2d(i,j)   + vwind(i,j,k)*dy2d(i,j) &
+                                         +   x2d(i,j)  *(dudx(i,j,k) +              dvdy(i,j,k) ) )
+            else
+               func2d(i,j) = - deltime *( uwind(i,j,k)*dx2d(i,j) + vwind(i,j,k)*dy2d(i,j) )
+            endif
+        endif
       end do
     end do
     if (filter) then ! the better thing to do to wipe small scale stuff would be to do a 
@@ -552,8 +654,9 @@ subroutine advect_cv(mype,mydate,tau,cvector)
        localy = maxval(abs(func2d))
        where(abs(func2d)<1e-10*localx) func2d=zero
        where(abs(func2d)<1e-10*localy) func2d=zero
+       where(abs(func2d)>0.01) func2d=zero
+       where(abs(func2d)>0.01) func2d=zero
     endif
-
 
    end do ! end of threading loop
 
@@ -569,9 +672,6 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   character(len=*), parameter :: myname_ = myname//"*shift_"
   integer ii,order,idxi,idxo,iv,ier
 
-!_OUT  integer(i_kind),  parameter :: mynvars3d = 4
-!_OUT  character(len=2), parameter :: myvars3d(mynvars3d) = (/ 'qi', 'ql', 'tv', 'q ' /)
-  
   order = min(istep,norder)
 
   do ii=order,1,-1
@@ -614,7 +714,7 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   type(gsi_bundle)  dy
 
   character(len=*), parameter :: myname_ = myname//"*get_derivatives_"
-  character(len=20) varname
+  character(len=max_varname_length) varname
   logical, parameter :: vector=.false.
   integer ier
 
@@ -668,11 +768,11 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   allocate(xaux3d(size(xptr2d,1),size(xptr2d,2),nsig))
   allocate(daux3d(size(xptr2d,1),size(xptr2d,2),nsig))
   xaux3d=zero
-  xaux3d(:,:,1) =  xptr2d
+  xaux3d(:,:,nsig) = xptr2d
   call mp_compact_dlon2(xaux3d,daux3d,vector,nsig,mype)
-  dxptr2d = daux3d(:,:,1); daux3d(:,:,1)=zero
+  dxptr2d = daux3d(:,:,nsig);
   call mp_compact_dlat2(xaux3d,daux3d,vector,nsig,mype)
-  dyptr2d = daux3d(:,:,1)
+  dyptr2d = daux3d(:,:,nsig)
   deallocate(daux3d)
   deallocate(xaux3d)
 
@@ -801,9 +901,9 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 
  end subroutine axpby_
 
- subroutine blob_(blob)
+ subroutine blobs_(blob)
 
-! set a blob on each subdomain
+! set a blob in each subdomain
 
  type(gsi_bundle) blob
 
@@ -821,14 +921,14 @@ subroutine advect_cv(mype,mydate,tau,cvector)
     ptr2d(imid:imid+imany,jmid:jmid+imany) = one
  endif
 
- end subroutine blob_
+ end subroutine blobs_
 
- subroutine handle_poles_(xx,mype)
+ subroutine handle_poles_(xx)
  use constants, only: zero
  use gridmod, only: lat2,istart,nlat
  implicit none
  real(r_kind), pointer :: xx(:,:,:)
- integer(i_kind) mp1,ix,mype
+ integer(i_kind) mp1,ix
 
 !mp1=mype+1
 !if(nlat+1-istart(mp1)+2==lat2) then
@@ -849,7 +949,7 @@ subroutine advect_cv(mype,mydate,tau,cvector)
     end do  !end do k
  end subroutine handle_poles_
  
- subroutine hdiff_(time_step,q_t,q_x,q_y,mype)
+ subroutine hdiff_(time_step,q_t,q_x,q_y)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    hdiff           calculate horiziontal diffusion
@@ -873,7 +973,6 @@ subroutine advect_cv(mype,mydate,tau,cvector)
   implicit none
 
 ! Declare passed variables
-  integer(i_kind)                       ,intent(in   ) :: mype
   real(r_kind)                          ,intent(in   ) :: time_step
   real(r_kind),dimension(lat2,lon2,nsig),intent(in   ) :: q_x,q_y
   real(r_kind),dimension(lat2,lon2,nsig),intent(inout) :: q_t
@@ -918,14 +1017,13 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 
  end subroutine hdiff_
 
- subroutine hdiff_ad_(time_step,q_t,q_x,q_y,mype)
+ subroutine hdiff_ad_(time_step,q_t,q_x,q_y)
   use kinds,only: r_kind,i_kind  
   use constants, only: zero,half,one,two
   use gridmod, only: lat2,lon2,nsig
   implicit none
 
 ! Declare passed variables
-  integer(i_kind)                       ,intent(in   ) :: mype
   real(r_kind)                          ,intent(in   ) :: time_step
   real(r_kind),dimension(lat2,lon2,nsig),intent(  out) :: q_x,q_y
   real(r_kind),dimension(lat2,lon2,nsig),intent(inout) :: q_t
@@ -970,7 +1068,6 @@ subroutine advect_cv(mype,mydate,tau,cvector)
 
  subroutine check_cfl(deltat,fcstlen,u,v) ! rough CFL estimate
  use constants, only: ten,rearth
- use mpimod, only: mpi_comm_world,mpi_rtype,mpi_max
  use guess_grids, only: get_ref_gesprs
  use gridmod, only: nlon,nlat
  implicit none
@@ -1027,4 +1124,16 @@ subroutine advect_cv(mype,mydate,tau,cvector)
  deallocate(ple)
  end subroutine check_cfl
 
+ subroutine view_(vector,fname)
+ use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_set
+ use gsi_4dcouplermod, only: gsi_4dcoupler_putpert
+ use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_final
+ implicit none
+ integer :: ier
+ type(gsi_bundle) :: vector
+ character(len=*), intent(in) :: fname
+ call gsi_4dcoupler_putpert_set (17760704,120000,ier)
+ call gsi_4dcoupler_putpert(vector,17760704,120000,'tlm',fname)
+ call gsi_4dcoupler_putpert_final (ier)
+ end subroutine view_
 end subroutine advect_cv
