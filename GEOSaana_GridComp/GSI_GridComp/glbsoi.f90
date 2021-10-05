@@ -334,6 +334,9 @@ subroutine glbsoi
         return
      end if
 
+! test advecting perturbation
+     call test_advpert
+
      if (jiter<=miter) then
 
 !       Set up right hand side of adjoint of analysis equation
