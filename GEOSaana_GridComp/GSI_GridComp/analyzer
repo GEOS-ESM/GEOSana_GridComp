@@ -696,7 +696,7 @@ sub init {
                cp( "$fvwork/gmao_global_anavinfo_l${nsig}.rc",    "anavinfo");
        }
        Assignfn( "$fvwork/gmao_global_pcpinfo.rc",                 "pcpinfo");
-       Assignfn( "$fvwork/gmao_global_coinfo.rc",                   "coinfo");
+       Assignfn( "$fvwork/gmao_global_tgasinfo.rc",               "tgasinfo");
        Assignfn( "$fvwork/gmao_global_blacklist.rc",             "blacklist");
        Assignfn( "$fvwork/gmao_global_insituinfo.rc",           "insituinfo");
        Assignfn( "$fvwork/gmao_global_scaninfo.rc",               "scaninfo");
