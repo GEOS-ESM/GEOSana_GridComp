@@ -44,6 +44,8 @@ module mpimod
   use mpeu_mpif, only : mpi_mode_wronly
   use mpeu_mpif, only : mpi_mode_rdwr
   use mpeu_mpif, only : mpi_byte
+  use mpeu_mpif, only : mpi_logical
+  use mpeu_mpif, only : mpi_character
 #ifndef HAVE_ESMF
   use mpeu_mpif, only : mpi_comm_world
 #endif /* HAVE_ESMF */
