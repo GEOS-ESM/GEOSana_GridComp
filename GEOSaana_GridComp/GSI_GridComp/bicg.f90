@@ -17,6 +17,7 @@ subroutine bicg()
 !   2016-03-25  todling - beta-mult param now within cov (following Dave Parrish corrections)
 !   2016-05-13  parrish - remove call to beta12mult -- replaced by sqrt_beta_s_mult in
 !                          bkerror, and sqrt_beta_e_mult inside bkerror_a_en.
+!   2021-10-07  todling - add program to test bkerror
 !
 !   input argument list:
 !
@@ -90,6 +91,7 @@ call allocate_cv(grady)
 call allocate_cv(gradf)
 call allocate_cv(grads)
 
+call test_bkerror()
 
 ! Get initial cost function and gradient
 nprt=2

@@ -105,6 +105,8 @@
 #  30Jul2021 Sienkiewicz - MetOp-C IASI instrument problem 27-29 July 2021
 #  20Sep2021 Sienkiewicz - MetOp-A IASI technology tests starting 12z 8 Sept 2021 - outage followed by change in swath, data not usable.
 #                          data distribution ends after end of technology test in October, so turn off instrument at 8 Sept.
+#  07Oct2021 Todling    - Consistent w/ IASI, turn off all of the remaining Metop-A insruments on 20210908 12z
+#                         Turn on NOAA-19 AVHRR 20210908 12z
 #=================
 #  For reference: http://www.emc.ncep.noaa.gov/mmb/data_processing/Satellite_Historical_Documentation.htm
 #                 http://geos5.org/wiki/index.php?title=Talk:GEOS-5_ADAS_Radiance_Monitoring
@@ -400,7 +402,8 @@ n19  20140129 000000  21001231 240000  amsua  9        4 5 6     9 10 11 12 13 1
 n19  20090414 120000  21001231 240000  mhs    0                                                        
 
 #n19  20090414 180000  21001231 240000  avhrr3 2        4 5
-n19  20090414 180000  21001231 240000  avhrr3 0        
+n19  20090414 180000  20210908 060000  avhrr3 0        
+n19  20210908 120000  21001231 240000  avhrr3 2         4 5       
 
 # METOP-A
 #=========
@@ -411,12 +414,12 @@ metop-a 20151117 000000  21001231 240000  hirs4  0                              
 
 metop-a 20070521 000000  20090115 060000  amsua 11        4 5 6 7 8 9 10 11 12 13 14            #
 metop-a 20090115 120000  20140829 240000  amsua 10        4 5 6   8 9 10 11 12 13 14            # ch7 noisy
-metop-a 20140830 000000  21001231 240000  amsua  9        4 5 6     9 10 11 12 13 14            # ch7,8 noisy
+metop-a 20140830 000000  20210908 060000  amsua  9        4 5 6     9 10 11 12 13 14            # ch7,8 noisy
 
 metop-a 20070521 000000  20190414 240000  mhs    5  1 2 3 4 5              #
 metop-a 20190415 000000  21001231 240000  mhs    0                         # ch 2 noisy
 
-metop-a 20080801 000000  21001231 240000  avhrr3 2        4 5           #
+metop-a 20080801 000000  20210908 060000  avhrr3 2        4 5           #
 
 # METOP-B
 #=========
@@ -427,7 +430,8 @@ metop-b 20160925 000000  21001231 240000  amsua  8              7 8 9 10 11 12 1
 
 metop-b 20130213 000000  21001231 240000  mhs    5  1 2 3 4 5                                  # active for e512a_rt-parallel testing
  
-metop-b 20130213 000000  21001231 240000  avhrr3 0                   #
+metop-b 20130213 000000  20210908 060000  avhrr3 0                   #
+metop-b 20210908 120000  21001231 240000  avhrr3 2        4 5        #
 
 # METOP-C     # using start data of data in regular data files - can modify this to reflect additional data availability
 #=========
