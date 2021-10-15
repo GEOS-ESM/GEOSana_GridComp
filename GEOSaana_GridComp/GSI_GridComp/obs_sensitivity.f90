@@ -260,6 +260,10 @@ if (lobsensfc) then
             call allocate_preds(zbias)
             zbias=zero
             call gsi_4dcoupler_getpert(fcgrad,nsubwin,'adm',fname)
+            if (tau_fcst>0) then ! .and. miter/=jiterend) then ! note: when jiterend=miter forecast ens already loaded
+               mydate(1)=1776;mydate(2)=7;mydate(3)=4;mydate(4)=12;mydate(5)=0
+               call advect_cv(mype,mydate,tau_fcst,fcgrad)
+            endif
             if (lsqrtb) then
                call control2model_ad(fcgrad,zbias,fcsens)
             else
@@ -283,15 +287,16 @@ if (lobsensfc) then
                      call deallocate_state(eval(ii))
                   end do
                   if (tau_fcst>0) then
-                     mydate(1)=1776;mydate(2)=7;mydate(3)=4;mydate(4)=12;mydate(5)=0
-                     call advect_cv(mype,mydate,tau_fcst,fcsens)
+!                    mydate(1)=1776;mydate(2)=7;mydate(3)=4;mydate(4)=12;mydate(5)=0
+!                    call advect_cv(mype,mydate,tau_fcst,fcsens)
                      call destroy_hybens_localization_parameters
                      call destroy_ensemble
                      call create_ensemble
                      ! now restore actual ens of backgrounds
                      evfsoi_afcst=.false.
                      orig_tau_fcst=tau_fcst
-                     call load_ensemble(-1)
+                     tau_fcst=-1
+                     call load_ensemble(tau_fcst)
                      call hybens_localization_setup
                   endif
                else
@@ -303,9 +308,6 @@ if (lobsensfc) then
             end do
             call deallocate_preds(zbias)
             deallocate(fname)
-! >>>> DEBUG ONLY 
-!                    mydate(1)=1776;mydate(2)=7;mydate(3)=4;mydate(4)=12;mydate(5)=0
-!                    call advect_cv(mype,mydate,tau_fcst,fcsens)
          endif
       else
 !        read gradient from outer loop jiter+1
