@@ -58,6 +58,7 @@ subroutine gsisub(init_pass,last_pass)
 !   2012-06-12  parrish - remove init_commvars (replaced in gsimod.F90 with general_commvars).
 !   2013-05-19  zhu     - add aircraft temperature bias correction
 !   2014-02-27  sienkiewicz - add additional aircraft bias option (external table)
+!   2014-04-21  weir    - replaced co settings with trace gas settings
 !   2015-07-20  zhu     - centralize radiance info for the usages of clouds & aerosols
 !                       - add radiance_obstype_init,radiance_parameter_cloudy_init,radiance_parameter_aerosol_init 
 !   2016-07-28  lippi   - add oneobmakerwsupob if 'rw' single ob test and skips radar_bufr_read_all.
@@ -87,7 +88,7 @@ subroutine gsisub(init_pass,last_pass)
   use aeroinfo, only: aeroinfo_read
   use convinfo, only: convinfo_read
   use ozinfo, only: ozinfo_read
-  use coinfo, only: coinfo_read
+  use tgasinfo, only: tgasinfo_read
   use lightinfo, only: lightinfo_read
   use read_l2bufr_mod, only: radar_bufr_read_all
   use oneobmod, only: oneobtest,oneobmakebufr,oneobmakerwsupob,oneob_type
@@ -157,7 +158,7 @@ subroutine gsisub(init_pass,last_pass)
         call radiance_obstype_init
         call radiance_parameter_cloudy_init
         call ozinfo_read
-        call coinfo_read
+        call tgasinfo_read
         call pcpinfo_read
         call aeroinfo_read
         call radiance_parameter_aerosol_init

@@ -103,6 +103,11 @@ subroutine setupbend(obsLL,odiagLL, &
 !   2020-04-13  Shao    - update the statistis QC for COSMIC-2
 !   2020-04-15  Shao    - revise profile integration (Todling: implemente as option)
 !   2021-03-13  mccarty - QC updates for commercial RO from NOAA Comm. Data Purchase
+!   2020-05-21  Shao    - add comments to include commercial data ID information
+!   2020-08-26  Shao/Bathmann - add Jacobian QC
+!   2021-07-29  cucurull - remove Jacobian QC
+!   2021-07-29  cucurull - revert gross error check to default values
+!   2021-07-29  cucurull - fix forward operator issues identified with L127 
 !
 !   input argument list:
 !     lunin    - unit from which to read observations
@@ -121,7 +126,7 @@ subroutine setupbend(obsLL,odiagLL, &
   use mpeu_util, only: die,perr,tell,getindex
   use kinds, only: r_kind,i_kind
   use m_gpsStats, only: gps_allhead,gps_alltail
-  use obsmod , only: nprof_gps,grids_dim,lobsdiag_allocated,&
+  use obsmod , only: nprof_gps,lobsdiag_allocated,&
       lobsdiagsave,nobskeep,&
       time_offset,lobsdiag_forenkf
   use m_obsNode, only: obsNode
@@ -146,7 +151,7 @@ subroutine setupbend(obsLL,odiagLL, &
   use guess_grids, only: ges_lnprsl,geop_hgtl 
   use gridmod, only: nsig
   use gridmod, only: get_ij,latlon11
-  use constants, only: fv,n_a,n_b,n_c,deg2rad,tiny_r_kind,r0_01
+  use constants, only: fv,n_a,n_b,n_c,deg2rad,tiny_r_kind,r0_01,r18,r61,r63,r10000
   use constants, only: zero,half,one,two,eccentricity,semi_major_axis,&
       grav_equator,somigliana,flattening,grav_ratio,grav,rd,eps,three,four,five
   use lagmod, only: setq, setq_TL
@@ -177,8 +182,8 @@ subroutine setupbend(obsLL,odiagLL, &
   implicit none
 
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
   integer(i_kind)                         ,intent(in   ) :: lunin,mype,nele,nobs
   real(r_kind),dimension(100+7*nsig)      ,intent(inout) :: awork
   real(r_kind),dimension(max(1,nprof_gps)),intent(inout) :: toss_gps_sub
@@ -190,16 +195,13 @@ subroutine setupbend(obsLL,odiagLL, &
 
 ! Declare local parameters
   real(r_kind),parameter::  r240 = 240.0_r_kind
-  !mxc
   !real(r_kind),parameter:: five = 5.0_r_kind
   real(r_kind),parameter:: six = 6.0_r_kind
   real(r_kind),parameter:: ten = 10.0_r_kind
   real(r_kind),parameter:: eight = 8.0_r_kind
   real(r_kind),parameter:: nine = 9.0_r_kind
   real(r_kind),parameter:: eleven = 11.0_r_kind
-  real(r_kind),parameter:: ds=10000.0_r_kind
   real(r_kind),parameter:: r12=12.0_r_kind
-  real(r_kind),parameter:: r18=18.0_r_kind
   real(r_kind),parameter:: r20=20.0_r_kind
   real(r_kind),parameter:: r40=40.0_r_kind
   real(r_kind),parameter:: r1em3 = 1.0e-3_r_kind
@@ -208,15 +210,15 @@ subroutine setupbend(obsLL,odiagLL, &
   real(r_kind),parameter:: crit_grad = 157.0_r_kind
 
 ! Declare local variables
-
+  integer(i_kind):: grids_dim
   real(r_kind) cutoff,cutoff1,cutoff2,cutoff3,cutoff4,cutoff12,cutoff23,cutoff34
-  real(r_kind) sin2,zsges
-  real(r_kind),dimension(grids_dim):: ddnj,grid_s,ref_rad_s
+  real(r_kind) sin2,zsges,ds,ns
+  real(r_kind),dimension(:),allocatable:: ddnj,grid_s,ref_rad_s
 
   real(r_kind) rsig,rsig_up,ddbend,tmean,qmean
   real(r_kind) termg,termr,termrg,hob,dbend,grad_mod
   real(r_kind) fact,pw,nrefges1,nrefges2,nrefges3,k4,delz
-  real(r_kind) ratio,residual,obserror,obserrlm
+  real(r_kind) ratio,residual,obserror,obserrlm,cermaxuse,cerminuse,cgrossuse
   real(r_kind) errinv_input,errinv_adjst,errinv_final,err_final,repe_gps
 
   real(r_kind),dimension(nele,nobs):: data
@@ -254,6 +256,8 @@ subroutine setupbend(obsLL,odiagLL, &
   logical,dimension(nobs):: luse
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical proceed
+  logical geooptics
+  logical planetiq
 
   logical:: in_curbin, in_anybin, obs_check,qc_layer_SR, save_jacobian
   type(gpsNode),pointer:: my_head
@@ -293,9 +297,12 @@ subroutine setupbend(obsLL,odiagLL, &
 !750-755 => COSMIC-2 Equatorial
 !724-729 => COSMIC-2 Polar
 !825 => KOMPSAT-5
-!265 => GeoOptics
-!269 => Spire
 !5   => MetOpC
+!265 => GeoOptics CICERO OP1
+!266 => GeoOptics CICERO OP2
+!267 => PlanetiQ GNOMES-A
+!268 => PlanetiQ GNOMES-B
+!269 => Spire Lemur 3U CubeSat
 
 ! Check to see if required guess fields are available
   call check_vars_(proceed)
@@ -334,8 +341,12 @@ subroutine setupbend(obsLL,odiagLL, &
   nobs_out=0
   hob_s_top=one
   mm1=mype+1
-  nsigstart=min(23,nsig) 
-
+  ns=nsig/two
+  nsigstart=nint(ns)
+  ns=(r61/r63)*nsig+r18
+  grids_dim=nint(ns)  ! grid points for integration of GPS bend
+  ds=r10000
+  allocate(ddnj(grids_dim),grid_s(grids_dim),ref_rad_s(grids_dim)) 
 
 ! Allocate arrays for output to diagnostic file
   mreal=22
@@ -346,6 +357,29 @@ subroutine setupbend(obsLL,odiagLL, &
     nind   = 3             ! number of dense subarrays 
     call new(dhx_dx, nnz, nind)
     nreal = nreal + size(dhx_dx)
+    ! jacobian sparse array indices are the same for all obs and can be filled
+    ! in once here:
+    t_ind = getindex(svars3d, 'tv')
+    if (t_ind < 0) then
+      print *, 'Error: no variable tv in state vector. Exiting.'
+      call stop2(1300)
+    endif
+    q_ind = getindex(svars3d, 'q')
+    if (q_ind < 0) then
+      print *, 'Error: no variable q in state vector. Exiting.'
+      call stop2(1300)
+    endif
+    p_ind = getindex(svars3d, 'prse')
+    if (p_ind < 0) then
+      print *, 'Error: no variable prse in state vector. Exiting.'
+      call stop2(1300)
+    endif
+    dhx_dx%st_ind(1)  = sum(levels(1:t_ind-1)) + 1
+    dhx_dx%end_ind(1) = sum(levels(1:t_ind-1)) + nsig
+    dhx_dx%st_ind(2)  = sum(levels(1:q_ind-1)) + 1
+    dhx_dx%end_ind(2) = sum(levels(1:q_ind-1)) + nsig
+    dhx_dx%st_ind(3)  = sum(levels(1:p_ind-1)) + 1
+    dhx_dx%end_ind(3) = sum(levels(1:p_ind-1)) + nsig
   endif
   if(init_pass) call gpsrhs_alloc(is,'bend',nobs,nsig,nreal,grids_dim,nsig_ext)
   call gpsrhs_aliases(is)
@@ -569,6 +603,8 @@ subroutine setupbend(obsLL,odiagLL, &
      rdiagbuf(19,i)        = hob                ! model vertical grid (interface) if monotone grid
      rdiagbuf(22,i)        = 1.e+10_r_kind      ! spread (filled in by EnKF)
 
+     geooptics = data(isatid,i)==265 .or. data(isatid,i)==266
+     planetiq  = data(isatid,i)==267 .or. data(isatid,i)==268
      if(ratio_errors(i) > tiny_r_kind)  then ! obs inside model grid
 
        if (alt <= six) then
@@ -578,13 +614,21 @@ subroutine setupbend(obsLL,odiagLL, &
              elseif (tpdpres(i) < ref_rad(top_layer_SR+1)) then !obs below model close-to-SR layer
                 qcfail(i)=.true.
              elseif (tpdpres(i) >= ref_rad(top_layer_SR+1) .and. tpdpres(i) <= ref_rad(top_layer_SR+2)) then !source too close
-                    qcfail(i)=.true.
+                qcfail(i)=.true.
              else !above
+                qcfail(i)=.false.
+                if(hob < top_layer_SR+1) then !correct if obs location is below non-monotonic section                                          
+                     hob = tpdpres(i)
+                     call grdcrd1(hob,ref_rad(top_layer_SR+1),nsig-top_layer_SR-1,1)
+                     data(ihgt,i) = hob+top_layer_SR
+                     hob = hob+top_layer_SR
+                     rdiagbuf(19,i) = hob
+                 endif
              endif
           endif
 
 !         check for SR in obs, will be updated in genstats. 
-          if ( data(igps,i) >= 0.03 .and. qc_layer_SR) then
+          if ( data(igps,i) >= 0.03_r_kind .and. qc_layer_SR) then
              kprof = data(iprof,i)
              toss_gps_sub(kprof) = max (toss_gps_sub(kprof),data(igps,i))
           endif
@@ -640,17 +684,17 @@ subroutine setupbend(obsLL,odiagLL, &
 !        CDAAC-type processing
            if ((data(isatid,i) > 749).and.(data(isatid,i) < 756)) then
               if ((data(ilate,i)> r40).or.(data(ilate,i)< -r40)) then
-                if (alt.le.8.0_r_kind) then
+                if (alt <= 8.0_r_kind) then
                   repe_gps=-1.0304261_r_kind+0.3203316_r_kind*alt+0.0141337_r_kind*alt**2
-                elseif (alt.gt.8.0_r_kind.and.alt.le.r12) then
+                elseif (alt > 8.0_r_kind.and.alt <= r12) then
                   repe_gps=2.1750271_r_kind+0.0431177_r_kind*alt-0.0008567_r_kind*alt**2
                 else
                   repe_gps=-0.3447429_r_kind+0.2829981_r_kind*alt-0.0028545_r_kind*alt**2
                 endif
               else
-                if (alt.le.4.0_r_kind) then
+                if (alt <= 4.0_r_kind) then
                   repe_gps=0.7285212_r_kind-1.1138755_r_kind*alt+0.2311123_r_kind*alt**2
-                elseif (alt.le.r18.and.alt.gt.4.0_r_kind) then
+                elseif (alt <= r18.and.alt > 4.0_r_kind) then
                   repe_gps=-3.3878629_r_kind+0.8691249_r_kind*alt-0.0297196_r_kind*alt**2
                 else
                   repe_gps=-2.3875749_r_kind+0.3667211_r_kind*alt-0.0037542_r_kind*alt**2
@@ -661,7 +705,7 @@ subroutine setupbend(obsLL,odiagLL, &
                  if(alt>r12) then
                     repe_gps=-0.685627_r_kind+0.377174_r_kind*alt-0.00421934_r_kind*alt**2
                  else
-                 repe_gps=-3.27737_r_kind+1.20003_r_kind*alt-0.0558024_r_kind*alt**2
+                    repe_gps=-3.27737_r_kind+1.20003_r_kind*alt-0.0558024_r_kind*alt**2
                  endif
               else
                  if(alt>r18) then
@@ -669,7 +713,7 @@ subroutine setupbend(obsLL,odiagLL, &
                  else
                     repe_gps=-3.45303_r_kind+0.908216_r_kind*alt-0.0293331_r_kind*alt**2
                  endif
-               endif
+              endif
            endif
 
          endif
@@ -704,6 +748,11 @@ subroutine setupbend(obsLL,odiagLL, &
            xj(j,i)=ref_rad_s(j)
            hob_s=ref_rad_s(j)
            call grdcrd1(hob_s,ref_rad(1),nsig_up,1)
+           if(hob_s < top_layer_SR+1) then !correct if wrong location                                                                    
+              hob_s = ref_rad_s(j)
+              call grdcrd1(hob_s,ref_rad(top_layer_SR+1),nsig_up-top_layer_SR-1,1)
+              hob_s = hob_s+top_layer_SR
+           endif
            dbend_loc(j,i)=hob_s  !location of x_j with respect to extended x_i
  
 
@@ -865,12 +914,12 @@ subroutine setupbend(obsLL,odiagLL, &
            muse(i)=.false.
         endif
 ! GMAO GeoOptics - Remove data below 5 km for GPS (iclass = 401); 8 km for other
-        if((alt <= 5_r_kind) .and. (data(isatid,i)==265) .and. (data(iclass,i)==401)) then
+        if((alt <= 5_r_kind) .and. geooptics .and. (data(iclass,i)==401)) then
            qcfail(i)=.true.
            data(ier,i) = zero
            ratio_errors(i) = zero
            muse(i)=.false.
-        elseif ((alt <= eight) .and. (data(isatid,i)==265) .and. (data(iclass,i)>=402)) then
+        elseif ((alt <= eight) .and. geooptics .and. (data(iclass,i)>=402)) then
            qcfail(i)=.true.
            data(ier,i) = zero
            ratio_errors(i) = zero
@@ -1035,40 +1084,43 @@ subroutine setupbend(obsLL,odiagLL, &
         
 !       Fill obs diagnostics structure
         if (luse_obsdiag) then
-          call obsdiagNode_set(my_diag,wgtjo=(data(ier,i)*ratio_errors(i))**2, &
+           call obsdiagNode_set(my_diag,wgtjo=(data(ier,i)*ratio_errors(i))**2, &
                 jiter=jiter,muse=muse(i),nldepart=data(igps,i) )
         endif
 
 !       Load additional obs diagnostic structure
         ioff = mreal
         if (lobsdiagsave) then
-         associate(odiag => my_diag )
-           do jj=1,miter
-              ioff=ioff+1
-              if (odiag%muse(jj)) then
-                 rdiagbuf(ioff,i) = one
-              else
-                 rdiagbuf(ioff,i) = -one
-              endif
-           enddo
-           do jj=1,miter+1
-              ioff=ioff+1
-              rdiagbuf(ioff,i) = odiag%nldepart(jj)
-           enddo
-           do jj=1,miter
-              ioff=ioff+1
-              rdiagbuf(ioff,i) = odiag%tldepart(jj)
-           enddo
-           do jj=1,miter
-              ioff=ioff+1
-              rdiagbuf(ioff,i) = odiag%obssen(jj)
-           enddo
-         end associate  ! odiag
-       endif
- 
-        do j=1,nreal
-           gps_alltail(ibin)%head%rdiag(j)= rdiagbuf(j,i)
-        end do
+           associate(odiag => my_diag )
+             do jj=1,miter
+                ioff=ioff+1
+                if (odiag%muse(jj)) then
+                   rdiagbuf(ioff,i) = one
+                else
+                   rdiagbuf(ioff,i) = -one
+                endif
+             enddo
+             do jj=1,miter+1
+                ioff=ioff+1
+                rdiagbuf(ioff,i) = odiag%nldepart(jj)
+             enddo
+             do jj=1,miter
+                ioff=ioff+1
+                rdiagbuf(ioff,i) = odiag%tldepart(jj)
+             enddo
+             do jj=1,miter
+                ioff=ioff+1
+                rdiagbuf(ioff,i) = odiag%obssen(jj)
+             enddo
+           end associate  ! odiag
+        endif
+
+        ! if obs is not "acceptable" and jacobian is not computed, fill jacobian
+        ! with zeros
+        if (save_jacobian) then
+           dhx_dx%val = 0._r_kind
+           call writearray(dhx_dx, rdiagbuf(ioff+1:nreal,i))
+        endif
 
 ! If obs is "acceptable", load array with obs info for use
 ! in inner loop minimization (int* and stp* routines)
@@ -1077,7 +1129,7 @@ subroutine setupbend(obsLL,odiagLL, &
 
            allocate(my_head)
            call gpsNode_appendto(my_head,gpshead(ibin))
-
+           
            my_head%idv = is
            my_head%iob = ioid(i)
            my_head%elat= data(ilate,i)
@@ -1210,31 +1262,9 @@ subroutine setupbend(obsLL,odiagLL, &
            end do
 
            my_head%jac_p(nsig+1) = zero
-
+   
            if (save_jacobian) then
-              t_ind = getindex(svars3d, 'tv')
-              if (t_ind < 0) then
-                 print *, 'Error: no variable tv in state vector. Exiting.'
-                 call stop2(1300)
-              endif
-              q_ind = getindex(svars3d, 'q')
-              if (q_ind < 0) then
-                 print *, 'Error: no variable q in state vector. Exiting.'
-                 call stop2(1300)
-              endif
-              p_ind = getindex(svars3d, 'prse')
-              if (p_ind < 0) then
-                 print *, 'Error: no variable prse in state vector. Exiting.'
-                 call stop2(1300)
-              endif
-
-              dhx_dx%st_ind(1)  = sum(levels(1:t_ind-1)) + 1
-              dhx_dx%end_ind(1) = sum(levels(1:t_ind-1)) + nsig
-              dhx_dx%st_ind(2)  = sum(levels(1:q_ind-1)) + 1
-              dhx_dx%end_ind(2) = sum(levels(1:q_ind-1)) + nsig
-              dhx_dx%st_ind(3)  = sum(levels(1:p_ind-1)) + 1
-              dhx_dx%end_ind(3) = sum(levels(1:p_ind-1)) + nsig
-
+              ! fill in the jacobian
               do iz = 1, nsig
                  dhx_dx%val(iz)        = my_head%jac_t(iz)
                  dhx_dx%val(iz+nsig)   = my_head%jac_q(iz)
@@ -1245,11 +1275,6 @@ subroutine setupbend(obsLL,odiagLL, &
               ioff = ioff + size(dhx_dx)
            endif
 
-           do j=1,nreal
-              gps_alltail(ibin)%head%rdiag(j)= rdiagbuf(j,i)
-           end do
-
-           my_head%jac_p(nsig+1) = zero
            my_head%raterr2= ratio_errors(i)**2     
            my_head%res    = data(igps,i)
            my_head%err2   = data(ier,i)**2
@@ -1265,9 +1290,16 @@ subroutine setupbend(obsLL,odiagLL, &
 
            my_head => null()
         end if ! (in_curbin .and. muse=1)
+        do j=1,nreal
+           gps_alltail(ibin)%head%rdiag(j)= rdiagbuf(j,i)
+        end do
+        gps_alltail(ibin)%head%ratio_err= ratio_errors(i)
+        gps_alltail(ibin)%head%obserr   = data(ier,i)
+        gps_alltail(ibin)%head%dataerr  = data(ier,i)*data(igps,i)
+        gps_alltail(ibin)%head%muse     = muse(i) ! logical
      endif ! (last_pass)
   end do ! i=1,nobs
-
+  deallocate(ddnj,grid_s,ref_rad_s)
   ! Release memory of local guess arrays
   call final_vars_
 

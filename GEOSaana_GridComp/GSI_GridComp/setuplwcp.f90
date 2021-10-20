@@ -90,8 +90,8 @@ subroutine setuplwcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   implicit none
 
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   logical                                          ,intent(in   ) :: conv_diagsave
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
@@ -761,7 +761,7 @@ subroutine setuplwcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
         endif
      end if
 
-     call nc_diag_init(diag_conv_file)
+     call nc_diag_init(diag_conv_file,append=append_diag)
 
      if (.not. append_diag) then ! don't write headers on append - the module will break?
         call nc_diag_header("date_time",ianldate )

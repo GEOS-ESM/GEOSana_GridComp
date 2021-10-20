@@ -117,8 +117,8 @@ subroutine setuppm2_5(obsLL,odiagLL,lunin,mype,nreal,nobs,isis,is,conv_diagsave)
   implicit none
   
 ! !input parameters:
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   character(len=3) :: cvar='pm2'
   integer(i_kind)                  , intent(in) :: lunin  ! unit from which to read observations

@@ -90,8 +90,8 @@ subroutine setuppcp(obsLL,odiagLL,lunin,mype,aivals,nele,nobs,&
   implicit none    ! Turn off implicit typing
 
 ! !INPUT PARAMETERS:
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   integer(i_kind)                , intent(in   ) :: lunin          ! unit from which to read 
                                                                    !   precpitation observations

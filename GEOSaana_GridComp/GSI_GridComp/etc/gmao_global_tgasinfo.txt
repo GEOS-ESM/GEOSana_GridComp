@@ -1,0 +1,15 @@
+! sens/instr/sat chan use pressure  gross  obs     b_oz     pg_oz  chem
+!                                   error  error   variational qc
+ mopitt_terra     1    1    1000.0  100.0  0.0500  10.000  0.0000  co 
+ mopitt_terra     2    1     900.0  100.0  0.0500  10.000  0.0000  co
+ mopitt_terra     3    1     800.0  100.0  0.0500  10.000  0.0000  co
+ mopitt_terra     4    1     700.0  100.0  0.0500  10.000  0.0000  co
+ mopitt_terra     5    1     600.0  100.0  0.0500  10.000  0.0000  co
+ mopitt_terra     6    1     500.0  100.0  0.0500  10.000  0.0000  co
+ mopitt_terra     7    1     400.0  100.0  0.0500  10.000  0.0000  co
+ mopitt_terra     8    1     300.0  100.0  0.0500  10.000  0.0000  co
+ mopitt_terra     9    1     200.0  100.0  0.0500  10.000  0.0000  co
+ mopitt_terra    10    1     100.0  100.0  0.0500  10.000  0.0000  co
+ acos_gosat       1    1       0.0  100.0  0.5000  10.000  0.0000  co2
+ flask_noaa       1    1       0.0  100.0  0.5000  10.000  0.0000  co
+ flask_noaa       2    1       0.0  100.0  0.5000  10.000  0.0000  co2

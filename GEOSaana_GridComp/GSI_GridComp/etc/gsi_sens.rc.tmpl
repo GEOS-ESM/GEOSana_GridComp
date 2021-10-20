@@ -83,6 +83,7 @@ OBS_INPUT::
    prepbufr       spd         null        spd                   0.0     0      0        ncep_prep_bufr
    radarbufr      rw          null        rw                    0.0     0      0        ncep_radar_bufr
    prepbufr       dw          null        dw                    0.0     0      0        ncep_prep_bufr
+!  mlstbufr       t           aura        t                     1.0     0      0        gmao_mlst_bufr
 !! prepbufr       sst         null        sst                   0.0     0      0        ncep_prep_bufr
    modsbufr       sst         mods        sst                   0.0     0      0        to_be_done
    prepbufr       pw          null        pw                    0.0     0      0        ncep_prep_bufr
@@ -238,4 +239,11 @@ OBS_INPUT::
  /
  &NST
  nst_gsi=3,
+ /
+ &PADVECT
+ advpert=.false.,
+ dt=180.,cfl=.false.,
+ cnstwind_test=.false.,
+ advrate=0.75,
+ backward=.true.,
  /
