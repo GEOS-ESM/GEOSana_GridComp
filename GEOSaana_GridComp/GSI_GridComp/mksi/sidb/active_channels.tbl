@@ -105,6 +105,8 @@
 #  30Jul2021 Sienkiewicz - MetOp-C IASI instrument problem 27-29 July 2021
 #  20Sep2021 Sienkiewicz - MetOp-A IASI technology tests starting 12z 8 Sept 2021 - outage followed by change in swath, data not usable.
 #                          data distribution ends after end of technology test in October, so turn off instrument at 8 Sept.
+#  20Oct2021 Sienkiewicz - Setting cutoff date for MetOp-A and AVHRR, and turn on MetOp-B and N19 AVHRR on 20210918 12z to match
+#                            the implementation date as tested in f5721_metop
 #=================
 #  For reference: http://www.emc.ncep.noaa.gov/mmb/data_processing/Satellite_Historical_Documentation.htm
 #                 http://geos5.org/wiki/index.php?title=Talk:GEOS-5_ADAS_Radiance_Monitoring
@@ -379,6 +381,7 @@ n18  20051101 000000  21001231 240000  mhs    5  1 2 3 4 5 					#
 
 n18  20050520 180000  21001231 240000  avhrr3 2        4 5
 
+
 # NOAA-19 (nn')
 #==============
 n19  20090414 000000  20091215 060000  hirs4 10    2 3 4 5 6 7 8   10 11 12                     # M2: redundant entry intentional.  Observations
@@ -400,7 +403,8 @@ n19  20140129 000000  21001231 240000  amsua  9        4 5 6     9 10 11 12 13 1
 n19  20090414 120000  21001231 240000  mhs    0                                                        
 
 #n19  20090414 180000  21001231 240000  avhrr3 2        4 5
-n19  20090414 180000  21001231 240000  avhrr3 0        
+n19  20090414 180000  20210918 060000  avhrr3 0        
+n19  20210918 120000  21001231 240000  avhrr3 2        4 5                                      # n18 off n19 on
 
 # METOP-A
 #=========
@@ -411,23 +415,27 @@ metop-a 20151117 000000  21001231 240000  hirs4  0                              
 
 metop-a 20070521 000000  20090115 060000  amsua 11        4 5 6 7 8 9 10 11 12 13 14            #
 metop-a 20090115 120000  20140829 240000  amsua 10        4 5 6   8 9 10 11 12 13 14            # ch7 noisy
-metop-a 20140830 000000  21001231 240000  amsua  9        4 5 6     9 10 11 12 13 14            # ch7,8 noisy
+metop-a 20140830 000000  20210918 060000  amsua  9        4 5 6     9 10 11 12 13 14            # ch7,8 noisy
+metop-a 20210918 120000  21001231 240000  amsua  0                                              #
 
 metop-a 20070521 000000  20190414 240000  mhs    5  1 2 3 4 5              #
 metop-a 20190415 000000  21001231 240000  mhs    0                         # ch 2 noisy
 
-metop-a 20080801 000000  21001231 240000  avhrr3 2        4 5           #
+metop-a 20080801 000000  20210918 060000  avhrr3 2        4 5           #
+metop-a 20210918 120000  21001231 240000  avhrr3 0                      #  MetOp-A off MetOp-B on
 
 # METOP-B
 #=========
-metop-b 20130213 000000  21001231 240000  hirs4  0                                              # not currently assimilated @ NCEP (20 Nov 13)
+metop-b 20130213 000000    hirs4  0                                              # not currently assimilated @ NCEP (20 Nov 13)
 
 metop-b 20130213 000000  20160924 240000  amsua 11        4 5 6 7 8 9 10 11 12 13 14           # active for e512a_rt-parallel testing
 metop-b 20160925 000000  21001231 240000  amsua  8              7 8 9 10 11 12 13 14           # ch 15 failure, only assimilate upper channels
 
 metop-b 20130213 000000  21001231 240000  mhs    5  1 2 3 4 5                                  # active for e512a_rt-parallel testing
  
-metop-b 20130213 000000  21001231 240000  avhrr3 0                   #
+metop-b 20130213 000000  20210918 060000  avhrr3 0                   #
+metop-b 20210918 120000  21001231 240000  avhrr3 2        4 5        #  MetOp-A off MetOp-B on
+
 
 # METOP-C     # using start data of data in regular data files - can modify this to reflect additional data availability
 #=========
