@@ -44,6 +44,7 @@ my $scriptname = basename($0);
 	       "suffix=s",  => \$suffix,
 	       "ods",
 	       "catonly",
+	       "subdirs",
                "h");
 
   usage() if $opt_h;
@@ -135,6 +136,11 @@ sub init {
       }
   }
   
+  $lsubdirs = 0;
+  if ($opt_subdirs) {
+    $lsubdirs = 1;
+  }
+
   $binary_diag = 1;
   $binary_diag = $ENV{GSI_BINARY_DIAG} if(defined $ENV{'GSI_BINARY_DIAG'});
   $netcdf_diag = 0;
@@ -296,7 +302,11 @@ sub oneobs_binary {
         my($this_diag_file);
         my($files);
 
-        $files_tmp = `ls pe*.${sat}_$loop`;
+        if ($lsubdirs) {
+          $files_tmp = `ls dir.*/${sat}_$loop`;
+        } else {
+          $files_tmp = `ls pe*.${sat}_$loop`;
+        }
         chomp($files_tmp);
         @files = split(/\n/,$files_tmp);
         $files=@files;  # how many files are there
@@ -338,7 +348,11 @@ sub oneobs_netcdf {
         my($this_diag_file);
         my($files);
 
-        $files_tmp = `ls pe*.${sat}_$loop.nc4`;
+        if ($lsubdirs) {
+          $files_tmp = `ls dir.*/${sat}_$loop.nc4`;
+        } else {
+          $files_tmp = `ls pe*.${sat}_$loop.nc4`;
+        }
         chomp($files_tmp);
         @files = split(/\n/,$files_tmp);
         $files=@files;  # how many files are there

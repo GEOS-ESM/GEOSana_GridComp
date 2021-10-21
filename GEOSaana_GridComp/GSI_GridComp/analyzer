@@ -655,7 +655,12 @@ sub init {
 # NOTE: for a while, when using GSI, will need both because of spectral transforms
 # --------------------------------------------------------------------------------
     if ( $doTRANSF ) {
-       Assignfn( "$fvInput/$myetc/newncepsfc.${jcap}", "ncepsfc");
+       if (-e "$fvInput/$myetc/newncepsfc.${jcap}" ) {
+          Assignfn( "$fvInput/$myetc/newncepsfc.${jcap}", "ncepsfc");
+       } else {
+          print "WARNING, analyzer: jcap inconsistent with available NCEP SFC file, reset to 254\n";
+          Assignfn( "$fvInput/$myetc/newncepsfc.254", "ncepsfc");
+       }
     }
 
     if ( $doGSI ) {
@@ -1950,12 +1955,18 @@ sub lndiag {
    $miterp1 = $miter + 1;
    $jiteradm = $miterp1 - $jiter + 1;
 
+   $ldirs = `nmlread.py $rcname SETUP lrun_subdirs`; chomp($ldirs);
+   $lsubdirs = "";
+   if($ldirs eq "True") {
+      $lsubdirs = "-subdirs";
+   }
+
    $myncpus = $npes / 4;
    if ( $doasens ) {
         my $nametag = "ans_${gnorm}${jiteradm}";
         $cmd = "gsidiags -ncpus $myncpus -jiter $jiteradm -tag $nametag $nymd $nhms $expid $opt";
    } else {
-        $cmd = "gsidiags -ncpus $myncpus $nymd $nhms $expid $opt";
+        $cmd = "gsidiags -ncpus $lsubdirs $myncpus $nymd $nhms $expid $opt";
    }
    print " $cmd\n";
    $rc = System($cmd, "$log_ana","gsidiag");

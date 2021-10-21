@@ -30,6 +30,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
   use obsmod, only: sfcmodel,perturb_obs,oberror_tune,lobsdiag_forenkf,ianldate,&
        lobsdiagsave,nobskeep,lobsdiag_allocated,time_offset
+  use obsmod, only: dplat
   use m_obsNode, only: obsNode
   use m_tNode, only: tNode
   use m_tNode, only: tNode_appendto
@@ -41,7 +42,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
   use obsmod, only: netcdf_diag, binary_diag, dirname
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
-       nc_diag_write, nc_diag_data2d
+       nc_diag_write, nc_diag_data2d, nc_diag_write_refresh
   use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
 
   use qcmod, only: npres_print,dfact,dfact1,ptop,pbot,buddycheck_t
@@ -436,7 +437,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
      if(l_pbl_pseudo_surfobst) allocate(cdiagbufp(nobs*3),rdiagbufp(nreal,nobs*3))
      rdiagbuf=zero
-     if(netcdf_diag) call init_netcdf_diag_
+     if(netcdf_diag.and.nobs>0) call init_netcdf_diag_
   end if
   scale=one
   rsig=float(nsig)
@@ -1199,7 +1200,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Write information to diagnostic file
   if(conv_diagsave)then
-    if(netcdf_diag) call nc_diag_write
+    if(netcdf_diag.and.nobs>0) call nc_diag_write
     if(binary_diag .and. ii>0)then
        write(7)'  t',nchar,nreal,ii+iip,mype,idia0
        if(l_pbl_pseudo_surfobst .and. iip>0) then
@@ -1409,8 +1410,13 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   logical,parameter::verbose=.false.
 
 ! open netcdf diag file
-     write(string,900) jiter
+     if (dplat(is)(1:1) == ' ') then
+       write(string,900) jiter
+     else
+       write(string,901) trim(dplat(is)), jiter
+     endif
 900  format('conv_t_',i2.2,'.nc4')
+901  format('conv_',a,'_t_',i2.2,'.nc4')
      diag_conv_file=trim(dirname) // trim(string)
 
      inquire(file=diag_conv_file, exist=append_diag)
@@ -1426,6 +1432,8 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            if(verbose) print *,'file ' // trim(diag_conv_file) // ' exists but contains no obs.  Not appending. nobs,mype=',ncd_nobs,mype
            append_diag = .false. ! if there are no obs in existing file, then do not try to append
         endif
+     else
+!       call nc_diag_write_refresh
      end if
 
      call nc_diag_init(diag_conv_file, append=append_diag)

@@ -364,7 +364,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      endif
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
      if(l_pbl_pseudo_surfobsq) allocate(cdiagbufp(nobs*3),rdiagbufp(nreal,nobs*3))
-     if(netcdf_diag) call init_netcdf_diag_
+     if(netcdf_diag.and.nobs>0) call init_netcdf_diag_
   end if
   rsig=nsig
 
@@ -909,7 +909,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Write information to diagnostic file
   if(conv_diagsave) then
-    if(netcdf_diag) call nc_diag_write
+    if(netcdf_diag.and.nobs>0) call nc_diag_write
     if(binary_diag .and. ii>0)then
        write(7)'  q',nchar,nreal,ii+iip,mype,ioff0
        if(l_pbl_pseudo_surfobsq .and. iip>0) then
