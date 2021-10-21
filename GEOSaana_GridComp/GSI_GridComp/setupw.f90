@@ -43,7 +43,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use obsmod, only: luse_obsdiag
   use obsmod, only: netcdf_diag, binary_diag, dirname
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
-       nc_diag_write, nc_diag_data2d, nc_diag_write_refresh
+       nc_diag_write, nc_diag_data2d
   use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
   use gsi_4dvar, only: nobs_bins,mn_obsbin,min_offset
   use qcmod, only: npres_print,ptop,pbot,dfact,dfact1,qc_satwnds,njqc,vqc
@@ -1609,8 +1609,6 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            if(verbose) print *,'file ' // trim(diag_conv_file) // ' exists but contains no obs.  Not appending. nobs,mype=',ncd_nobs,mype
            append_diag = .false. ! if there are no obs in existing file, then do not try to append
         endif
-     else
-!       call nc_diag_write_refresh
      end if
 
      call nc_diag_init(diag_conv_file, append=append_diag)
