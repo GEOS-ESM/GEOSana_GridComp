@@ -10,6 +10,7 @@
 !   2010-08-19 derber combine retrieval_mi,ret_ssmis,retrieval_amsre and part of setuprad
 !   2011-07-02 todling use general interface for intrisic FORTRAN math functions
 !   2020-01-13 mkim added mhs_si to assign scattering index for all-sky mhs DA
+!   2021-03-09 mkim added atms_si to assign scattering index for all-sky atms DA
 !
 ! subroutines included:
 !   sub calc_clw        - calculates cloud liquid water (clw) for microwave channels over ocean (public)
@@ -39,7 +40,7 @@ implicit none
 ! set default to private
   private
 ! set routines used externally to public
-  public :: calc_clw, ret_amsua, gmi_37pol_diff,mhs_si
+  public :: calc_clw, ret_amsua, gmi_37pol_diff,mhs_si,atms_si
   public :: retrieval_amsr2
 
 contains
@@ -2075,5 +2076,42 @@ subroutine mhs_si(tb89v,tb166v,tsimclr89v,tsimclr166v,clw,ierrret)
 !     endif
 
 end subroutine mhs_si
+
+subroutine atms_si(tb89,tb166,tsimclr89,tsimclr166,clw,ierrret)
+!$$$  subprogram documentation block
+!                .      .    .                                       .    
+! subprogram: atms_si 
+!
+!  prgmmr: Min-Jeong Kim
+!
+! abstract: calculates cloud amount index over ocean using scattering index
+!
+!   output argument list:
+!     clw  
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+!
+  use kinds, only: r_kind, i_kind
+  use constants, only: r1000, zero, half
+  implicit none
+
+  real(r_kind)                      ,intent(in   ) :: tb89,tb166
+  real(r_kind)                      ,intent(in   ) :: tsimclr89,tsimclr166
+  real(r_kind)                      ,intent(  out) :: clw
+  integer(i_kind)                   ,intent(  out) :: ierrret
+
+! Declare local variables
+  real(r_kind) :: si
+
+     ierrret = 0
+     si = (tb89 - tb166) - (tsimclr89-tsimclr166)
+     clw=max(zero,si)
+
+end subroutine atms_si
+
 
 end module clw_mod
