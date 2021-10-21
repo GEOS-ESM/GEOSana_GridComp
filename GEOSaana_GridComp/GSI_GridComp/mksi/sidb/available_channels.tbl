@@ -32,6 +32,7 @@
 #  04Jun2021 Meta    - modify start date of MetOp-C IASI to match start of clear-FOV data in our archive 2020/05/19 12z.
 #                      (all-FOV starts 20210104 18z)
 #  15Oct2021 Meta    - set end date for MetOp-A IASI at point where data is turned off in the DAS. 
+#  20Oct2021 Meta    - set end date for other MetOp-A instruments to 15 Nov 2021 (decommission MetOp-A)
 #
 # Information in this list tells the avaibility of given channels at a given
 # time, to be used (at least) in the passive mode for the GSI.
