@@ -32,6 +32,7 @@
 #  04Jun2021 Meta    - modify start date of MetOp-C IASI to match start of clear-FOV data in our archive 2020/05/19 12z.
 #                      (all-FOV starts 20210104 18z)
 #  15Oct2021 Meta    - set end date for MetOp-A IASI at point where data is turned off in the DAS. 
+#  20Oct2021 Meta    - set end date for other MetOp-A instruments to 15 Nov 2021 (decommission MetOp-A)
 #
 # Information in this list tells the avaibility of given channels at a given
 # time, to be used (at least) in the passive mode for the GSI.
@@ -147,12 +148,12 @@ n19  20090414 000000  29991231 240000 amsua  15   1 2 3 4 5 6 7 8 9 10 11 12 13 
 n19  20090414 000000  29991231 240000 mhs     5   1 2 3 4 5
 n19  20090414 000000  29991231 240000 avhrr3  3   3 4 5
 
-# METOP-A  AM  2006-10-19               2007-05-21
+# METOP-A  AM  2006-10-19               2007-05-21  2021-11-15
 # SATID: 004
-metop-a 20070521 000000  21001231 240000  hirs4 19  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19     
-metop-a 20070521 000000  21001231 240000  amsua 15  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15               
-metop-a 20070521 000000  21001231 240000  mhs 5  1 2 3 4 5             
-metop-a 20080801 000000  21001231 240000  avhrr3 3      3 4 5         
+metop-a 20070521 000000  20211115 240000  hirs4 19  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19     
+metop-a 20070521 000000  20211115 240000  amsua 15  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15               
+metop-a 20070521 000000  20211115 240000  mhs 5  1 2 3 4 5             
+metop-a 20080801 000000  20211115 240000  avhrr3 3      3 4 5         
 
 # METOP-B  AM  2012-09-17               2013-01-15
 # SATID: 003
