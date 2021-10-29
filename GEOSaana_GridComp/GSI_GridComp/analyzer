@@ -189,6 +189,7 @@ use File::Copy "cp";     # for cp()
 use Getopt::Long;        # load module with GetOptions function
 use Time::Local;         # time functions
 use FindBin;             # so we can find where this script resides
+use POSIX;
 
 # look for perl packages in the following locations
 #--------------------------------------------------
@@ -295,12 +296,13 @@ my $scriptname = basename($0);
 # Run ana5sfc
 
 if ( (! $do4dvar) && ($doANA && $doSFCANA) ) {
-    ($npes = $ENV{NCPUS});
+    $npes = $ENV{NCPUS_GSI}; if(! $npes) { $npes = $ENV{NCPUS}; }
     @flags = qw( 1 2 3 );
 
     # run sub sfc_ana() in parallel unless PAROFF
     #--------------------------------------------
-    $num_parallel_cpus = $npes/4;
+    $num_parallel_cpus = floor($npes/4);
+    $num_parallel_cpus = $num_parallel_cpus  - $num_parallel_cpus % 2;
     $parallel_off = $ENV{"PAROFF"};
     if ($parallel_off) { $num_parallel_cpus = 1 };
 
@@ -1961,12 +1963,14 @@ sub lndiag {
       $lsubdirs = "-subdirs";
    }
 
-   $myncpus = $npes / 4;
+   $npe_factor = 4;
+   $myncpus = floor($npes/$npe_factor);
+   $myncpus = $myncpus  - $myncpus % 2;
    if ( $doasens ) {
         my $nametag = "ans_${gnorm}${jiteradm}";
         $cmd = "gsidiags -ncpus $myncpus -jiter $jiteradm -tag $nametag $nymd $nhms $expid $opt";
    } else {
-        $cmd = "gsidiags -ncpus $lsubdirs $myncpus $nymd $nhms $expid $opt";
+        $cmd = "gsidiags $lsubdirs -ncpus $myncpus $nymd $nhms $expid $opt";
    }
    print " $cmd\n";
    $rc = System($cmd, "$log_ana","gsidiag");

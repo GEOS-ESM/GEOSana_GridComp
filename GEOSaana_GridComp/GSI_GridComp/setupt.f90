@@ -4,6 +4,7 @@ module t_setup
   public:: setup
         interface setup; module procedure setupt; end interface
 
+  logical :: do_nc_diag = .true.
 contains
 !-------------------------------------------------------------------------
 !    NOAA/NCEP, National Centers for Environmental Prediction GSI        !
@@ -1200,7 +1201,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Write information to diagnostic file
   if(conv_diagsave)then
-    if(netcdf_diag.and.nobs>0) call nc_diag_write
+    if(netcdf_diag.and.nobs>0.and.do_nc_diag) call nc_diag_write
     if(binary_diag .and. ii>0)then
        write(7)'  t',nchar,nreal,ii+iip,mype,idia0
        if(l_pbl_pseudo_surfobst .and. iip>0) then
@@ -1409,6 +1410,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   logical append_diag
   logical,parameter::verbose=.false.
 
+  if(.not.do_nc_diag) return
 ! open netcdf diag file
      if (dplat(is)(1:1) == ' ') then
        write(string,900) jiter
@@ -1580,6 +1582,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
   real(r_kind),dimension(miter) :: obsdiag_iuse
 
+  if(.not.do_nc_diag) return
     call nc_diag_metadata("Station_ID",              station_id             )
     call nc_diag_metadata("Observation_Class",       obsclass               )
     call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
@@ -1679,6 +1682,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   character(7),parameter     :: obsclass = '      t'
   real(r_single),parameter::     missing = -9.99e9_r_single
 
+  if(.not.do_nc_diag) return
     call nc_diag_metadata("Station_ID",              station_id             )
     call nc_diag_metadata("Observation_Class",       obsclass               )
     call nc_diag_metadata("Observation_Type",        ictype(ikx)            )

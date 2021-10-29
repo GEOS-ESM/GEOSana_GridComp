@@ -26,7 +26,7 @@
 @4DHYB l4densvar=.true.,nmn_obsbin=@VAROBSBIN,iwrtinc=@IWRTINC,thin4d=.true.,
    iorthomax=10,
    ens_nstarthr=3,
-   netcdf_diag=.true.,
+   netcdf_diag=.false.,
 @RADBC   newpc4pred=.true.,adp_anglebc=.true.,angord=4,
 @RADBC   passive_bc=.true.,use_edges=.false.,
 @RADBC   diag_precon=.true.,step_start=1.e-3,emiss_bc=.true.,
@@ -71,10 +71,10 @@ OBS_INPUT::
 !  dfile          dtype       dplat       dsis                  dval    dthin  dsfcalc  obsclass
    prepbufr       ps          null        ps                    0.0     0      0        ncep_prep_bufr 
    prepbufr       t           null        t                     0.0     0      0        ncep_prep_bufr
-   prepbufr_profl t           null        t                     0.0     0      0        ncep_acftpfl_bufr
+   prepbufr_profl t           prof        t                     0.0     0      0        ncep_acftpfl_bufr
    prepbufr       q           null        q                     0.0     0      0        ncep_prep_bufr
    prepbufr       uv          null        uv                    0.0     0      0        ncep_prep_bufr
-   prepbufr_profl uv          null        uv                    0.0     0      0        ncep_acftpfl_bufr
+   prepbufr_profl uv          prof        uv                    0.0     0      0        ncep_acftpfl_bufr
    prepbufr       spd         null        spd                   0.0     0      0        ncep_prep_bufr
    radarbufr      rw          null        rw                    0.0     0      0        ncep_radar_bufr
    prepbufr       dw          null        dw                    0.0     0      0        ncep_prep_bufr
