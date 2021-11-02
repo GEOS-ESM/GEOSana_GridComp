@@ -12,7 +12,6 @@ module radiance_mod
 !   2015-07-20 Yanqiu Zhu
 !   2016-10-27 Yanqiu - add ATMS
 !   2020-01-13 mkim - add allsky MHS
-!   2021-03-15 mkim - add allsky ATMS
 !
 ! subroutines included:
 !   sub radiance_mode_init           -  guess init
@@ -50,11 +49,9 @@ module radiance_mod
   public :: radiance_ex_obserr
   public :: radiance_ex_obserr_gmi 
   public :: radiance_ex_obserr_mhs
-  public :: radiance_ex_obserr_atms
   public :: radiance_ex_biascor
   public :: radiance_ex_biascor_gmi
   public :: radiance_ex_biascor_mhs
-  public :: radiance_ex_biascor_atms
 
   public :: icloud_fwd,icloud_cv,iallsky,cw_cv,ql_cv
   public :: n_actual_clouds,n_clouds_fwd,n_clouds_jac
@@ -75,11 +72,13 @@ module radiance_mod
   interface radiance_ex_obserr
      module procedure radiance_ex_obserr_1
      module procedure radiance_ex_obserr_2
+!     module procedure radiance_ex_obserr_3 !for GMI
   end interface 
  
   interface radiance_ex_biascor
      module procedure radiance_ex_biascor_1
      module procedure radiance_ex_biascor_2
+!     module procedure radiance_ex_biascor_3 ! for GMI
   end interface
 
   character(len=20),save,allocatable,dimension(:) :: cloud_names
@@ -1243,7 +1242,7 @@ contains
   subroutine radiance_ex_obserr_gmi(radmod,nchanl,clw_obs,clw_guess_retrieval,tnoise,tnoise_cld,error0)
 !$$$  subprogram documentation block
 !                .      .    .
-! subprogram:    radiance_ex_obserr_gmi
+! subprogram:    radiance_ex_obserr_3
 !
 !   prgrmmr:    min-jeong kim      org: nasa/gmao                date: 2018-08-10
 !
@@ -1296,9 +1295,10 @@ contains
     end do
     return
 
+!  end subroutine radiance_ex_obserr_3
   end subroutine radiance_ex_obserr_gmi
 
- subroutine radiance_ex_obserr_mhs(radmod,nchanl,si_obs,si_guess_retrieval, &
+ subroutine radiance_ex_obserr_mhs(radmod,nchanl,clwp_amsua,clw_guess_retrieval, &
                                 tnoise,tnoise_cld,sea,error0)
 !$$$  subprogram documentation block
 !                .      .    .
@@ -1324,14 +1324,14 @@ contains
     implicit none
 
     integer(i_kind),intent(in) :: nchanl
-    real(r_kind),intent(in) :: si_obs,si_guess_retrieval
+    real(r_kind),intent(in) :: clwp_amsua,clw_guess_retrieval
     real(r_kind),dimension(nchanl),intent(in):: tnoise,tnoise_cld
     real(r_kind),dimension(nchanl),intent(inout) :: error0
     type(rad_obs_type),intent(in) :: radmod
     logical,         intent(in   ) :: sea
 
     integer(i_kind) :: i
-    real(r_kind) :: si_avg
+    real(r_kind) :: clwtmp
     real(r_kind),dimension(nchanl) :: cclr,ccld,tnoise_cldx
 
     do i=1,nchanl
@@ -1342,11 +1342,11 @@ contains
   if(.not. sea) then
     do i=1,nchanl
        if (radmod%lcloud4crtm(i)<0) cycle
-       si_avg=half*(si_obs+si_guess_retrieval)
-       if(si_avg <= cclr(i)) then
+       clwtmp=half*(clwp_amsua+clw_guess_retrieval)
+       if(clwtmp <= cclr(i)) then
           error0(i) = tnoise(i)
-       else if(si_avg > cclr(i) .and. si_avg < ccld(i)) then
-          error0(i) = tnoise(i) + (si_avg-cclr(i))* &
+       else if(clwtmp > cclr(i) .and. clwtmp < ccld(i)) then
+          error0(i) = tnoise(i) + (clwtmp-cclr(i))* &
                       (tnoise_cld(i)-tnoise(i))/(ccld(i)-cclr(i))
        else
           error0(i) = tnoise_cld(i)
@@ -1355,12 +1355,12 @@ contains
   else
     do i=1,nchanl
        if (radmod%lcloud4crtm(i)<0) cycle
-       si_avg=half*(si_obs+si_guess_retrieval)
+       clwtmp=half*(clwp_amsua+clw_guess_retrieval)
        tnoise_cldx(i)=tnoise_cld(i)*0.5
-       if(si_avg <= cclr(i)) then
+       if(clwtmp <= cclr(i)) then
           error0(i) = tnoise(i)
-       else if(si_avg > cclr(i) .and. si_avg < ccld(i)) then
-          error0(i) = tnoise(i) + (si_avg-cclr(i))* &
+       else if(clwtmp > cclr(i) .and. clwtmp < ccld(i)) then
+          error0(i) = tnoise(i) + (clwtmp-cclr(i))* &
                       (tnoise_cldx(i)-tnoise(i))/(ccld(i)-cclr(i))
        else
           error0(i) = tnoise_cldx(i)
@@ -1373,96 +1373,7 @@ contains
   end subroutine radiance_ex_obserr_mhs
 
 
- subroutine radiance_ex_obserr_atms(radmod,nchanl,si_obs,si_guess_retrieval, &
-                                tnoise,tnoise_cld,sea,error0)
-!$$$  subprogram documentation block
-!                .      .    .
-! subprogram:    radiance_ex_obserr_atms
-!
-!   prgrmmr:    min-jeong kim      org: nasa/gmao                date: 2021-03-13
-!
-! abstract:  This routine includes extra observation error assignment routines.
-!
-! program history log:
-!   2021-03-13  mkim1
-!
-!   input argument list:
-!
-!   output argument list:
-!
-! attributes:
-!   language: f90
-!   machine:  ibm rs/6000 sp; SGI Origin 2000; Compaq/HP
-!
-!$$$ end documentation block
-    use kinds, only: i_kind,r_kind
-    implicit none
-
-
-    integer(i_kind),intent(in) :: nchanl
-    real(r_kind),intent(in) :: si_obs,si_guess_retrieval
-    real(r_kind),dimension(nchanl),intent(in):: tnoise,tnoise_cld
-    real(r_kind),dimension(nchanl),intent(inout) :: error0
-    type(rad_obs_type),intent(in) :: radmod
-
-    integer(i_kind) :: i
-    real(r_kind) :: si_avg
-    real(r_kind),dimension(nchanl) :: cclr,ccld,tnoise_cldval1
-    logical,         intent(in   ) :: sea
-    real(r_kind),dimension(nchanl) :: tnoise_land, ccld_land 
-   
-    tnoise_land = tnoise
-    ccld_land = ccld
-    tnoise_land(16) = 16.0_r_kind 
-    tnoise_land(17) = 10.0_r_kind 
-    ccld_land(16)= 50.0
-    ccld_land(17)= 25.0
-    ccld_land(18)= 30.0
-    ccld_land(19)= 35.0
-    ccld_land(20)= 35.0
-    ccld_land(21)= 35.0
-    ccld_land(22)= 35.0
-
-    do i=1,nchanl
-       cclr(i)=radmod%cclr(i)
-       ccld(i)=radmod%ccld(i)
-       tnoise_cldval1(i)=radmod%cldval1(i)
-    end do
-
-  if(.not. sea) then
-    do i=1,nchanl
-       if (radmod%lcloud4crtm(i)<0) cycle
-       si_avg=half*(si_obs+si_guess_retrieval)
-       if(si_avg <= cclr(i)) then
-          error0(i) = tnoise_land(i)
-       else if(si_avg > cclr(i) .and. si_avg < ccld_land(i)) then
-          error0(i) = tnoise_land(i) + (si_avg-cclr(i))* &
-                      (tnoise_cld(i)-tnoise_land(i))/(ccld_land(i)-cclr(i))
-       else
-          error0(i) = tnoise_cld(i)
-       endif
-    end do
-  else
-    do i=1,nchanl
-       if (radmod%lcloud4crtm(i)<0) cycle
-       si_avg=half*(si_obs+si_guess_retrieval)
-       if(si_avg < cclr(i)) then
-          error0(i) = tnoise(i)
-       else if(si_avg >= cclr(i) .and. si_avg < ccld(i)) then
-          error0(i) = tnoise_cldval1(i) + (tnoise(i) - tnoise_cldval1(i))*(ccld(i)-si_avg)/(ccld(i)-cclr(i))
-       else if(si_avg >= ccld(i) .and. si_avg < 80.0_r_kind) then
-          error0(i) = tnoise_cld(i) + (tnoise_cldval1(i)-tnoise_cld(i)) * (80.0_r_kind-si_avg)/(80.0_r_kind-ccld(i))
-       else
-          error0(i) = tnoise_cld(i)
-       endif
-    enddo
-  endif
-
-    return
-
-  end subroutine radiance_ex_obserr_atms
-
-
+!  subroutine radiance_ex_biascor_3(radmod,nchanl,tsim_bc,tsavg5,zasat, &
   subroutine radiance_ex_biascor_gmi(radmod,clw_obs,clw_guess_retrieval,nchanl,cld_rbc_idx)
 !$$$  subprogram documentation block
 !                .      .    .
@@ -1512,6 +1423,7 @@ contains
     end do
     return
 
+!  end subroutine radiance_ex_biascor_3
   end subroutine radiance_ex_biascor_gmi
 
   subroutine radiance_ex_biascor_mhs(radmod,tbc,nchanl,cld_rbc_idx)
@@ -1561,53 +1473,6 @@ contains
 
   end subroutine radiance_ex_biascor_mhs
 
-  subroutine radiance_ex_biascor_atms(radmod,tbc,nchanl,cld_rbc_idx)
-!$$$  subprogram documentation block
-!                .      .    .
-! subprogram:    radiance_ex_biascor_atms
-!
-!   prgrmmr:    min-jeong kim      org: np23                date: 2020-01-13
-!
-! abstract:  This routine include extra radiance bias correction routines.
-!
-! program history log:
-!   2020-01-13  mkim
-!
-!   input argument list:
-!
-!   output argument list:
-!
-! attributes:
-!   language: f90
-!   machine:  ibm rs/6000 sp; SGI Origin 2000; Compaq/HP
-!
-!$$$ end documentation block
-    use kinds, only: i_kind,r_kind
-   use constants, only: zero,one
-
-    implicit none
-
-    integer(i_kind)                   ,intent(in   ) :: nchanl
-    real(r_kind),dimension(nchanl)    ,intent(inout) :: cld_rbc_idx
-    real(r_kind),dimension(nchanl)    ,intent(in)    :: tbc  !omgbc
-    type(rad_obs_type)                ,intent(in)    :: radmod
-    integer(i_kind) :: i
-
-
-    do i=1,nchanl
-       if (radmod%lcloud4crtm(i)<0) cycle
-       if ( i .le. 17 .and. abs(tbc(i)) .le. 5.0_r_kind ) then
-            cld_rbc_idx(i)=one   ! data near o-f=zero 
-       else if ( i .gt. 17 .and. abs(tbc(i)) .le. 2.0_r_kind ) then
-            cld_rbc_idx(i)=one   ! data near o-f=zero
-       else
-           cld_rbc_idx(i) = zero ! don't use data in BC coef. update
-       endif
-    end do
-
-    return
-
-  end subroutine radiance_ex_biascor_atms
 
 end module radiance_mod
 
