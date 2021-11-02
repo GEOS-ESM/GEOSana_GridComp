@@ -382,7 +382,6 @@ n18  20051101 000000  21001231 240000  mhs    5  1 2 3 4 5 					#
 
 n18  20050520 180000  21001231 240000  avhrr3 2        4 5
 
-
 # NOAA-19 (nn')
 #==============
 n19  20090414 000000  20091215 060000  hirs4 10    2 3 4 5 6 7 8   10 11 12                     # M2: redundant entry intentional.  Observations
@@ -426,7 +425,7 @@ metop-a 20210918 120000  21001231 240000  avhrr3 0                      #  MetOp
 
 # METOP-B
 #=========
-metop-b 20130213 000000    hirs4  0                                              # not currently assimilated @ NCEP (20 Nov 13)
+metop-b 20130213 000000  21001231 240000  hirs4  0                                              # not currently assimilated @ NCEP (20 Nov 13)
 
 metop-b 20130213 000000  20160924 240000  amsua 11        4 5 6 7 8 9 10 11 12 13 14           # active for e512a_rt-parallel testing
 metop-b 20160925 000000  21001231 240000  amsua  8              7 8 9 10 11 12 13 14           # ch 15 failure, only assimilate upper channels
