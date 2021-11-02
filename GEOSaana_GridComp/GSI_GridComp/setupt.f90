@@ -4,6 +4,7 @@ module t_setup
   public:: setup
         interface setup; module procedure setupt; end interface
 
+  logical :: do_nc_diag = .true.
 contains
 !-------------------------------------------------------------------------
 !    NOAA/NCEP, National Centers for Environmental Prediction GSI        !
@@ -30,6 +31,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
   use obsmod, only: sfcmodel,perturb_obs,oberror_tune,lobsdiag_forenkf,ianldate,&
        lobsdiagsave,nobskeep,lobsdiag_allocated,time_offset
+  use obsmod, only: dplat
   use m_obsNode, only: obsNode
   use m_tNode, only: tNode
   use m_tNode, only: tNode_appendto
@@ -436,7 +438,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
      if(l_pbl_pseudo_surfobst) allocate(cdiagbufp(nobs*3),rdiagbufp(nreal,nobs*3))
      rdiagbuf=zero
-     if(netcdf_diag) call init_netcdf_diag_
+     if(netcdf_diag.and.nobs>0) call init_netcdf_diag_
   end if
   scale=one
   rsig=float(nsig)
@@ -1199,7 +1201,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Write information to diagnostic file
   if(conv_diagsave)then
-    if(netcdf_diag) call nc_diag_write
+    if(netcdf_diag.and.nobs>0.and.do_nc_diag) call nc_diag_write
     if(binary_diag .and. ii>0)then
        write(7)'  t',nchar,nreal,ii+iip,mype,idia0
        if(l_pbl_pseudo_surfobst .and. iip>0) then
@@ -1408,9 +1410,15 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   logical append_diag
   logical,parameter::verbose=.false.
 
+  if(.not.do_nc_diag) return
 ! open netcdf diag file
-     write(string,900) jiter
+     if (dplat(is)(1:1) == ' ') then
+       write(string,900) jiter
+     else
+       write(string,901) trim(dplat(is)), jiter
+     endif
 900  format('conv_t_',i2.2,'.nc4')
+901  format('conv_',a,'_t_',i2.2,'.nc4')
      diag_conv_file=trim(dirname) // trim(string)
 
      inquire(file=diag_conv_file, exist=append_diag)
@@ -1574,6 +1582,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
   real(r_kind),dimension(miter) :: obsdiag_iuse
 
+  if(.not.do_nc_diag) return
     call nc_diag_metadata("Station_ID",              station_id             )
     call nc_diag_metadata("Observation_Class",       obsclass               )
     call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
@@ -1673,6 +1682,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   character(7),parameter     :: obsclass = '      t'
   real(r_single),parameter::     missing = -9.99e9_r_single
 
+  if(.not.do_nc_diag) return
     call nc_diag_metadata("Station_ID",              station_id             )
     call nc_diag_metadata("Observation_Class",       obsclass               )
     call nc_diag_metadata("Observation_Type",        ictype(ikx)            )

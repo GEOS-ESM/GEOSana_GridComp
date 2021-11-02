@@ -2544,6 +2544,7 @@ _ENTRY_(trim(Iam))
    subroutine GSI_GridCompGetNCEPsfcFromFile_(lit)
 
    use sfcio_module
+   use mpeu_util, only: die
    implicit none
 
    integer, intent(in) :: lit ! logical index of first guess time level to copy
@@ -2575,10 +2576,11 @@ _ENTRY_(trim(Iam))
    character(len=*), parameter    :: &
             IAm='GSI_GridCompGetNCEPsfcFromFile_'
 
+   character(len=ESMF_MAXSTR) :: opt
    integer(i_kind) :: it,nn,iret
    integer(i_kind) :: iset_veg_type
-   logical,parameter :: wrt_ncep_sfc_grd=.false.
-   logical,parameter :: use_sfcio=.true.
+   logical :: wrt_ncep_sfc_grd
+   logical :: use_sfcio
 
 ! start
 
@@ -2586,6 +2588,22 @@ _ENTRY_(trim(Iam))
 
    call ESMF_ConfigGetAttribute( CF, iset_veg_type, label ='THIS_VEG_TYPE:', default=-1, rc = STATUS )
    VERIFY_(STATUS)
+   call ESMF_ConfigGetAttribute( CF, opt, label ='WRTOUT_NCEP_SFC:', default="NO", rc = STATUS )
+   VERIFY_(STATUS)
+   wrt_ncep_sfc_grd=.false.
+   if ( trim(opt) /= "NO" ) then
+      wrt_ncep_sfc_grd=.true.
+      if(IamRoot) print *,trim(Iam),': will write NCEP surface fields to grads-like file'
+   endif
+   call ESMF_ConfigGetAttribute( CF, opt, label ='USE_SFCIO4NCEP_SFC:', default="YES", rc = STATUS )
+   VERIFY_(STATUS)
+   use_sfcio=.true.
+   if ( trim(opt) == "YES" ) then
+      if(IamRoot) print *,trim(Iam),': using SFCIO to read NCEP surface fields'
+   else
+      use_sfcio=.false.
+      if(IamRoot) print *,trim(Iam),': NOT using SFCIO to read NCEP surface fields'
+   endif
 
    if(lit > nfldsfc) then
      do nn=1,nfldsfc-1
@@ -2645,7 +2663,11 @@ _ENTRY_(trim(Iam))
                              STATUS, jrec=12, fld=sfcbuf)
          VERIFY_(STATUS)
       else
-         sfcbuf=data%vfrac
+         if (associated(data%vfrac)) then
+            sfcbuf=data%vfrac
+         else
+            call die(Iam,' vfrac not found in NCEP input file', 99)
+         endif
       endif
       call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
       call GSI_GridCompFlipLons_(sfcbufpp)
@@ -2668,7 +2690,11 @@ _ENTRY_(trim(Iam))
                              STATUS, jrec=15, fld=sfcbuf)
          VERIFY_(STATUS)
       else
-         sfcbuf=data%vtype
+         if (associated(data%vtype)) then
+            sfcbuf=data%vtype
+         else
+            call die(Iam,' vtype not found in NCEP input file', 99)
+         endif
       endif
       call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
       call GSI_GridCompFlipLons_(sfcbufpp)
@@ -2688,7 +2714,11 @@ _ENTRY_(trim(Iam))
                              STATUS, jrec=16, fld=sfcbuf)
          VERIFY_(STATUS)
       else
-         sfcbuf=data%stype
+         if (associated(data%stype)) then
+            sfcbuf=data%stype
+         else
+            call die(Iam,' stype not found in NCEP input file', 99)
+         endif
       endif
       call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
       call GSI_GridCompFlipLons_(sfcbufpp)
@@ -2705,6 +2735,14 @@ _ENTRY_(trim(Iam))
       endif
 
       deallocate(sfcbuf, sfcbufpp, stat=STATUS)
+      VERIFY_(STATUS)
+
+   else ! (not) root
+
+      allocate(vtybuf(0,0), &
+               stybuf(0,0), &
+               vfrbuf(0,0), & 
+               stat=STATUS)
       VERIFY_(STATUS)
 
    end if

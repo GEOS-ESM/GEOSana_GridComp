@@ -189,6 +189,9 @@ conv_tcp
 conv_pw
 conv_spd
 conv_sst
+conv_aura_t
+conv_prof_t
+conv_prof_uv
 ::
 
 tgaslist::

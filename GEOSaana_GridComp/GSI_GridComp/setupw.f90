@@ -32,6 +32,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use obsmod, only: rmiss_single,perturb_obs,oberror_tune,lobsdiag_forenkf,&
        lobsdiagsave,nobskeep,lobsdiag_allocated,&
        time_offset,bmiss,ianldate
+  use obsmod, only: dplat
   use m_obsNode, only: obsNode
   use m_wNode, only: wNode
   use m_wNode, only: wNode_appendto
@@ -388,7 +389,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      endif
 
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
-     if (netcdf_diag) call init_netcdf_diag_
+     if (netcdf_diag.and.nobs>0) call init_netcdf_diag_
   end if
 
   do i=1,nobs
@@ -1420,7 +1421,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Write information to diagnostic file
   if(conv_diagsave)then
-    if(netcdf_diag) call nc_diag_write
+    if(netcdf_diag.and.nobs>0) call nc_diag_write
     if(binary_diag .and. ii>0)then
        write(7)' uv',nchar,nreal,ii,mype,ioff0
        write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
@@ -1586,8 +1587,13 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   logical append_diag
   logical,parameter::verbose=.false.
 
-     write(string,900) jiter
+     if (dplat(is)(1:1) == ' ') then
+       write(string,900) jiter
+     else
+       write(string,901) trim(dplat(is)), jiter
+     endif
 900  format('conv_uv_',i2.2,'.nc4')
+901  format('conv_',a,'_uv_',i2.2,'.nc4')
      diag_conv_file=trim(dirname) // trim(string)
 
      inquire(file=diag_conv_file, exist=append_diag)

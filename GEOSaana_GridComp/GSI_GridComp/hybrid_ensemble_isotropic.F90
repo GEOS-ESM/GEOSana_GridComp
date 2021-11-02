@@ -126,6 +126,7 @@ module hybrid_ensemble_isotropic
   public :: sqrt_beta_s_mult
   public :: sqrt_beta_e_mult
   public :: init_sf_xy
+  public :: destroy_sf_xy
   public :: sf_xy
   public :: sqrt_sf_xy
   public :: sqrt_sf_xy_ad
@@ -2852,6 +2853,11 @@ subroutine sqrt_beta_e_mult_bundle(aens)
   return
 end subroutine sqrt_beta_e_mult_bundle
 
+subroutine destroy_sf_xy
+    deallocate(nsend_sd2h,ndsend_sd2h,nrecv_sd2h,ndrecv_sd2h)
+    deallocate(i_recv,k_recv)
+end subroutine destroy_sf_xy
+
 subroutine init_sf_xy(jcap_in)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -4162,6 +4168,11 @@ subroutine hybens_localization_setup
 
 end subroutine hybens_localization_setup
 
+subroutine hybens_localization_unsetup
+implicit none
+call destroy_sf_xy
+end subroutine hybens_localization_unsetup
+
 subroutine convert_km_to_grid_units(s_ens_h_gu_x,s_ens_h_gu_y,nz)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -5171,6 +5182,7 @@ subroutine ens_iterate_update(jiter)
 
 ! unload ensemble
   call destroy_hybens_localization_parameters
+  call hybens_localization_unsetup
   call destroy_ensemble
 
 ! set recentering of ensemble around analysis

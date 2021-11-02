@@ -19,6 +19,7 @@
 #  09Dec2016 McCarty  Add support for nc4 diag concatenation
 #  13Feb2017 Todling  Set default for GSI binary output; revised env var names
 #  02Aug2018 McCarty  Integrated bin2txt processing for pyradmon usage
+#  27Oct2021 Todling  Removed redundancy in handling obs types; Revised parallelization. 
 #-----------------------------------------------------------------------------------------------------
 
 use Env;                 # make env vars readily available
@@ -27,6 +28,7 @@ use File::Copy "cp";     # for cp()
 use Getopt::Long;        # load module with GetOptions function
 use Time::Local;         # time functions
 use FindBin;             # so we can find where this script resides
+use List::MoreUtils qw(uniq);
 
 # look for perl packages in the following locations
 #--------------------------------------------------
@@ -42,8 +44,12 @@ my $scriptname = basename($0);
                "ncpus=i" => \$ncpus,
 	       "tag=s",  => \$tag,
 	       "suffix=s",  => \$suffix,
+	       "rc=s",   => \$thisrc,
 	       "ods",
+	       "debug",
 	       "catonly",
+	       "verbose",
+	       "subdirs",
                "h");
 
   usage() if $opt_h;
@@ -135,6 +141,11 @@ sub init {
       }
   }
   
+  $lsubdirs = 0;
+  if ($opt_subdirs) {
+    $lsubdirs = 1;
+  }
+
   $binary_diag = 1;
   $binary_diag = $ENV{GSI_BINARY_DIAG} if(defined $ENV{'GSI_BINARY_DIAG'});
   $netcdf_diag = 0;
@@ -192,8 +203,12 @@ sub lndiag_files {
       ($loops{"01"},$loops{"$totiter"}) = ("ges","anl");
   }
 
-  $echorc_x    = "$FVROOT/bin/echorc.x";
-  $gsidiags_rc = "$FVROOT/etc/gsidiags.rc";
+  $echorc_x = "$FVROOT/bin/echorc.x";
+  if ($thisrc) {
+     $gsidiags_rc = chomp($thisrc);
+  } else {
+     $gsidiags_rc = "$FVROOT/etc/gsidiags.rc";
+  }
 
   @satlist = (split /\s+/, `$echorc_x -rc $gsidiags_rc satlist`);
   shift @satlist until $satlist[0];
@@ -211,38 +226,56 @@ sub lndiag_files {
   shift @tgaslist until $tgaslist[0];
   pop   @tgaslist until $tgaslist[-1];
 
+# The following assumes the list of file types does not change for initial and final loops
+# This seems to be a good assumption, that might only break in extremely rare cases
+  my @keys = keys %loops;
+  my $loop = $keys[-1];
+  my @instrs = instruments($loop);
+  if ($opt_verbose ) {print "@instrs \n";}
+
+  @these = actual_instruments($loop,\@instrs,\@satlist);
+  @satlist = @these;
+  $ntypes = scalar @satlist;
+
+  @these = actual_instruments($loop,\@instrs,\@ozlist);
+  @ozlist = @these;
+  $ntypes = $ntypes + scalar @ozlist;
+
+  @these = actual_instruments($loop,\@instrs,\@convlist);
+  @convlist = @these;
+  $ntypes = $ntypes + scalar @convlist;
+
+  @these = actual_instruments($loop,\@instrs,\@tgaslist);
+  @tgaslist = @these;
+  $ntypes = $ntypes + scalar @tgaslist;
+
+
+  if ($ntypes < $MAX) {
+      $MAX = 2*$ntypes;  # 2 given that we have to 2 out loops (needs care)
+      print "gsidiag: reset MAX PEs to number of obs types: $MAX \n";
+  }
+
   if ( $todo eq "set" ) {
     print " lndiag_files: Collecting diag files ... \n";
-
-# Cat satellite diagnostic files for each processor into single file
-# ------------------------------------------------------------------
-  while ( ($loop,$diagtag) = each(%loops) ) {
-    print "gsidiag: inside sat loop for case: $loop $diagtag \n";
-    handle_obs($loop,$diagtag,1,@satlist);
-    handle_obs($loop,$diagtag,0,@convlist);
-    handle_obs($loop,$diagtag,0,@ozlist);
-    handle_obs($loop,$diagtag,0,@tgaslist);
-  } # <while>
-
+    handle_obs(\%loops,$diagtag,\@satlist,\@convlist,\@ozlist,\@tgaslist);
 
   } else { # clean up diag files
-    print " lndiag_files: Cleaning diag files ... \n";
+      print " lndiag_files: Cleaning diag files ... \n";
 
-    my(@newlist);
-    @newlist = @satlist;
-    push(@newlist,@convlist);
-    push(@newlist,@ozlist);
-    push(@newlist,@tgaslist);
-    foreach $sat (@newlist) {
-          $files_tmp = `sh -c "ls diag_${sat}.* 2>/dev/null"`;
-          chomp($files_tmp);
-          @files = split(/\n/,$files_tmp);
-          $filecnt=@files;  # how many files are there
-          if ($filecnt > 0 ) {
-             if ( -e "diag_${sat}.${nymd}${hh}" ) { unlink("diag_${sat}.${nymd}${hh}") };
-          }
-    }
-
+       my(@newlist);
+       @newlist = @satlist;
+       push(@newlist,@convlist);
+       push(@newlist,@ozlist);
+       push(@newlist,@tgaslist);
+       foreach $sat (@newlist) {
+             $files_tmp = `sh -c "ls diag_${sat}.* 2>/dev/null"`;
+             chomp($files_tmp);
+             @files = split(/\n/,$files_tmp);
+             $filecnt=@files;  # how many files are there
+             if ($filecnt > 0 ) {
+                if ( -e "diag_${sat}.${nymd}${hh}" ) { unlink("diag_${sat}.${nymd}${hh}") };
+             }
+       }
 
   }
 
@@ -250,41 +283,67 @@ sub lndiag_files {
 }
 #....................................................................................
 sub handle_obs {
-  my ($loop,$diagtag,$do2txt,@satlist) = @_;
+  my ($loops,$diagtag,$satlist,$convlist,$ozlist,$tgaslist) = @_;
 
   my ($files_tmp);
   my ($newpid, $pid, @pidARR);
 
-    print "Load Balance MAX Processors: $MAX \n";
-    foreach $sat (@satlist) {
+  print "handle_obs(sat)  $_\n" for @$satlist;
+  print "handle_obs(conv) $_\n" for @$convlist;
+  print "handle_obs(oz)   $_\n" for @$ozlist;
+  print "handle_obs(tgas) $_\n" for @$tgaslist;
 
-        @pidARR = load_balance($MAX, @pidARR); # do not fork more than $MAX jobs
-        defined($newpid=fork) or die ">> ERROR << Cannot fork: $!";
-        if ($newpid > 0) { print "ObsCat: Forking $sat at $newpid \n"; } ;
-        unless ($newpid) {
+  my @types = ();
+  if($binary_diag) {push @types, 'bin'};
+  if($netcdf_diag) {push @types, 'nc4'};
+
+  $nsats = scalar @$satlist;
+
+  print "Load Balance MAX Processors: $MAX \n";
+  while ( ($loop,$diagtag) = each(%loops) ) {
+    print "gsidiag: inside sat loop for case: $loop $diagtag \n";
+
+     $ncount = 0;
+     foreach $sat (@$satlist,@$convlist,@$ozlist,@$tgaslist) {
+        $ncount = $ncount + 1;
+
+        print "$ncount $nsats\n";
+        $do2txt = 1;
+        if ($ncount > $nsats) {$do2txt=0;}
+
+        foreach $ext (@types) {
+
+           @pidARR = load_balance($MAX, @pidARR); # do not fork more than $MAX jobs
+           defined($newpid=fork) or die ">> ERROR << Cannot fork: $!";
+           if ($newpid > 0) { print "ObsCat: Forking $sat at $newpid \n"; } ;
+           unless ($newpid) {
+
+              #---------------#
+              # child process #
+              #---------------#
+              if ($ext eq "bin" ) { oneobs_binary($sat,$loop,$diagtag,$do2txt);};
+              if ($ext eq "nc4" ) { oneobs_netcdf($sat,$loop,$diagtag,$do2txt);};
+              exit;
+
+           } # unless
 
            #---------------#
-           # child process #
+           # adult process #
            #---------------#
-           if ($binary_diag) { oneobs_binary($sat,$loop,$diagtag,$do2txt);};
-           if ($netcdf_diag) { oneobs_netcdf($sat,$loop,$diagtag,$do2txt);};
-           exit;
+           push @pidARR, $newpid;
 
-        } # unless
+       } # <ext-type>
 
-        #---------------#
-        # adult process #
-        #---------------#
-        push @pidARR, $newpid;
+     } # <sat-type>
 
-    } # <sat-type>
+  } # while
 
-    # wait for forked jobs to complete
-    #---------------------------------
-    while (@pidARR) {
-       $pid = shift @pidARR;
-       waitpid($pid,0);
-    }
+  # wait for forked jobs to complete
+  #---------------------------------
+  while (@pidARR) {
+     $pid = shift @pidARR;
+     waitpid($pid,0);
+  }
 
 } # <handle_sat>
 
@@ -296,7 +355,18 @@ sub oneobs_binary {
         my($this_diag_file);
         my($files);
 
-        $files_tmp = `ls pe*.${sat}_$loop`;
+        if ($opt_debug) { 
+          print "bin: $loop $sat $do2txt \n"; 
+          return(0);
+        }
+
+        $rc1 = system( "zeit_ci.x -r .gsidiag_zeit ${sat}.bin");
+
+        if ($lsubdirs) {
+          $files_tmp = `ls dir.*/${sat}_$loop`;
+        } else {
+          $files_tmp = `ls pe*.${sat}_$loop`;
+        }
         chomp($files_tmp);
         @files = split(/\n/,$files_tmp);
         $files=@files;  # how many files are there
@@ -307,7 +377,7 @@ sub oneobs_binary {
                 $this_diag_file = "diag_${sat}_$loop.${nymd}${hh}";
            }
            $cmd = "cat @files > $this_diag_file";
-           print " $cmd\n";
+#          if ($opt_verbose) { print " $cmd\n" };
            $rc_ignore = system($cmd);
            if ( -z "${this_diag_file}" ) {
                 unlink("${this_diag_file}");
@@ -319,15 +389,17 @@ sub oneobs_binary {
                       Assignfn( "$fvwork/$expid.diag_${sat}_${diagtag}.${nymd}_${hh}z.bin","diag_${sat}.${nymd}${hh}");
                    }
                    $cmd = "/bin/rm @files";
-                   print " $cmd\n";
+#                  if ($opt_verbose) { print " $cmd\n" };
                    if ($do2txt and $diag2txt and not $netcdf_diag) {
                       $cmd = "$diag2txt $fvwork/$expid.diag_${sat}_${diagtag}.${nymd}_${hh}z.bin";
-                      print " $cmd\n";
+#                     if ($opt_verbose) { print " $cmd\n" };
                       $rc_ignore = system($cmd);
                    } 
                 }
            }
-       } # <files>
+        } # <files>
+
+        $rc1 = system( "zeit_co.x -r .gsidiag_zeit ${sat}.bin");
 
 } # <oneobs_binary>
 
@@ -338,7 +410,17 @@ sub oneobs_netcdf {
         my($this_diag_file);
         my($files);
 
-        $files_tmp = `ls pe*.${sat}_$loop.nc4`;
+        if ($opt_debug) {
+           print "nc4 $loop $sat  $do2txt\n";
+           return(0);
+        }
+
+        $rc1 = system( "zeit_ci.x -r .gsidiag_zeit ${sat}.nc4");
+        if ($lsubdirs) {
+          $files_tmp = `ls dir.*/${sat}_$loop.nc4`;
+        } else {
+          $files_tmp = `ls pe*.${sat}_$loop.nc4`;
+        }
         chomp($files_tmp);
         @files = split(/\n/,$files_tmp);
         $files=@files;  # how many files are there
@@ -350,11 +432,11 @@ sub oneobs_netcdf {
            }
 	   if ($files > 1) {
 	       $cmd = "$FVROOT/bin/nc_diag_cat.x -o $this_diag_file @files";
-	       print " $cmd\n";
+#              if ($opt_verbose) { print " $cmd\n" };
 	       $rc_ignore = system($cmd);
 	   } else {
 	       $cmd = "/bin/cp @files $this_diag_file";
-	       print " $cmd\n";
+#              if ($opt_verbose) { print " $cmd\n" };
 	       $rc_ignore = system($cmd);	       
 	   }
            if ( -z "${this_diag_file}" ) {
@@ -367,15 +449,16 @@ sub oneobs_netcdf {
                       Assignfn( "$fvwork/$expid.diag_${sat}_${diagtag}.${nymd}_${hh}z.bin","diag_${sat}.${nymd}${hh}");
                    }
                    $cmd = "/bin/rm @files";
-                   print " $cmd\n";
+#                  if ($opt_verbose) { print " $cmd\n" };
                    if ($do2txt and $diag2txt) {
                       $cmd = "$diag2txt -nc4 $fvwork/$expid.diag_${sat}_${diagtag}.${nymd}_${hh}z.nc4";
-                      print " $cmd\n";
+#                     if ($opt_verbose) { print " $cmd\n" };
                       $rc_ignore = system($cmd);
                    }   
                 }
            }
-       } # <files>
+        } # <files>
+        $rc1 = system( "zeit_co.x -r .gsidiag_zeit ${sat}.nc4");
 
 } # <oneobs_netcdf>
 
@@ -466,6 +549,67 @@ sub load_balance {
     return @pidARR if @pidARR;
 }
 
+#....................................................................................
+sub instruments {
+  my ($loop) = @_; 
+
+  if ($opt_verbose) {
+     print "instruments: $loop\n";
+  }  
+  my @allinstr = qw();
+  $ic = 0;
+
+  if ($lsubdirs) {
+     my @files = glob("dir.*/*_${loop} dir.*/*_${loop}.nc4"); # must include both since lists differ
+     foreach $this (@files) {
+         chomp($this);
+         ($pfx,$sfx) = split(/\//,$this);
+         $first = $sfx;
+         ($pfx,$sfx) = split(/_${loop}/,$first);
+         push @allinstr, $pfx;
+         $ic = $ic + 1;
+     }
+  } else {
+     my @files = glob("pe*_${loop} pe*_${loop}.nc4"); # must include both since lists differ
+     foreach $this (@files) {
+         chomp($this);
+         ($pfx,$sfx) = split(/\./,$this);
+         $first = $sfx;
+         ($pfx,$sfx) = split(/_${loop}/,$first);
+         push @allinstr, $pfx;
+         $ic = $ic + 1;
+     }
+  }
+  @instr = uniq @allinstr;
+# if ($opt_verbose) {
+#    print  "@instr \n";
+# }
+}
+
+#....................................................................................
+sub actual_instruments {
+  my ($loop,$only,$instruments) = @_; 
+ 
+# if ($opt_verbose) {
+#   print "actual_instruments: $_\n" for @$only;
+#   print "actual_instruments: $_\n" for @$instruments;
+#   print "actual_instruments: $loop\n";
+# }
+
+  @keep = ();
+  foreach $itype ( @$instruments ) { 
+    chomp($itype);
+    foreach $ob (@$only) { # there has to be a more intelligent way to do this
+       if ($ob eq $itype ) {
+          push @keep, $itype;
+          break;
+       }
+    }
+  }
+# print "keep @keep \n";
+
+  return(@keep);
+}
 #....................................................................................
 sub System {
 
@@ -576,6 +720,8 @@ OPTIONS
      -suffix name  adds a suffix to end of diag file names (as before link)
      -catonly      only cat pe-files into diag files (no-link)
      -log logfile  name of log file for this procedure 
+     -subdirs      set when gsi writes individual PE files into specific dirs
+     -verbose      echo extra info
 
 NECESSARY ENVIRONMENT
 
@@ -594,7 +740,7 @@ OPTIONAL ENVIRONMENT
 AUTHOR
 
      Ricardo Todling (Ricardo.Todling\@nasa.gov), NASA/GSFC/GMAO
-     Last modified: 13Feb2017      by: R. Todling
+     Last modified: 24Oct2021      by: R. Todling
 
 
 EOF

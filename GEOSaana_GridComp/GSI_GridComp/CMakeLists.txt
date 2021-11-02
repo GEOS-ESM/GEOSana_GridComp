@@ -607,6 +607,7 @@ set (SRCS_SOLVER
   sub2fslab_mod.f90
   support_2dvar.f90
   test_advpert.f90
+  test_bkerror.f90
   test_obsens.f90
   tcv_mod.f90
   tpause.f90

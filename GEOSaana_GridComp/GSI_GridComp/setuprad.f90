@@ -395,7 +395,6 @@ contains
   real(r_kind),dimension(npred+2,nchanl):: predbias
   real(r_kind),dimension(npred,nchanl):: pred,predchan
   real(r_kind),dimension(nchanl):: err2,tbc0,raterr2,wgtjo
-  real(r_kind),dimension(nchanl):: varinv0
   real(r_kind),dimension(nchanl):: varinv,varinv_use,error0,errf,errf0
   real(r_kind),dimension(nchanl):: tb_obs,tbc,tbcnob,tlapchn,tb_obs_sdv
   real(r_kind),dimension(nchanl):: tnoise,tnoise_cld
@@ -1806,7 +1805,6 @@ contains
         enddo
 
         tbc0=tbc
-        varinv0 = varinv
         raterr2 = zero
         err2 = one/error0**2
         wgtjo= varinv     ! weight used in Jo term
@@ -2422,7 +2420,7 @@ contains
               diagbufchan(1,i)=tb_obs(ich_diag(i))       ! observed brightness temperature (K)
               diagbufchan(2,i)=tbc0(ich_diag(i))         ! observed - simulated Tb with bias corrrection (K)
               diagbufchan(3,i)=tbcnob(ich_diag(i))       ! observed - simulated Tb with no bias correction (K)
-              errinv = sqrt(varinv0(ich_diag(i)))
+              errinv = sqrt(varinv(ich_diag(i)))
               diagbufchan(4,i)=errinv                    ! inverse observation error
               useflag=one
               if (iuse_rad(ich(ich_diag(i))) < 1) useflag=-one

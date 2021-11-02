@@ -105,11 +105,12 @@
 #  30Jul2021 Sienkiewicz - MetOp-C IASI instrument problem 27-29 July 2021
 #  20Sep2021 Sienkiewicz - MetOp-A IASI technology tests starting 12z 8 Sept 2021 - outage followed by change in swath, data not usable.
 #                          data distribution ends after end of technology test in October, so turn off instrument at 8 Sept.
+#  07Oct2021 Todling    - Consistent w/ IASI, turn off all of the remaining Metop-A insruments on 20210908 12z
+#                         Turn on NOAA-19 AVHRR 20210908 12z
 #  20Oct2021 Sienkiewicz - Setting cutoff date for MetOp-A and AVHRR, and turn on MetOp-B and N19 AVHRR on 20210918 12z to match
 #                            the implementation date as tested in f5721_metop
-#=================
-#  For reference: http://www.emc.ncep.noaa.gov/mmb/data_processing/Satellite_Historical_Documentation.htm
-#                 http://geos5.org/wiki/index.php?title=Talk:GEOS-5_ADAS_Radiance_Monitoring
+#  === For reference: http://www.emc.ncep.noaa.gov/mmb/data_processing/Satellite_Historical_Documentation.htm
+#                     http://geos5.org/wiki/index.php?title=Talk:GEOS-5_ADAS_Radiance_Monitoring
 #=================
 # Active Channels  
 #=================
@@ -402,7 +403,6 @@ n19  20140129 000000  21001231 240000  amsua  9        4 5 6     9 10 11 12 13 1
 
 n19  20090414 120000  21001231 240000  mhs    0                                                        
 
-#n19  20090414 180000  21001231 240000  avhrr3 2        4 5
 n19  20090414 180000  20210918 060000  avhrr3 0        
 n19  20210918 120000  21001231 240000  avhrr3 2        4 5                                      # n18 off n19 on
 
@@ -435,7 +435,6 @@ metop-b 20130213 000000  21001231 240000  mhs    5  1 2 3 4 5                   
  
 metop-b 20130213 000000  20210918 060000  avhrr3 0                   #
 metop-b 20210918 120000  21001231 240000  avhrr3 2        4 5        #  MetOp-A off MetOp-B on
-
 
 # METOP-C     # using start data of data in regular data files - can modify this to reflect additional data availability
 #=========

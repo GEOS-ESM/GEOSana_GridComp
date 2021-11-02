@@ -288,7 +288,7 @@ subroutine get_gefs_ensperts_dualres (tau)
 
 !_$omp parallel do schedule(dynamic,1) private(i,j,ic2,ipic)
        do ic2=1,nc2d
-
+ 
           call gsi_bundlegetpointer(en_read(n),trim(cvars2d(ic2)),p2,istatus)
           if(istatus/=0) then
              write(6,*)' error retrieving pointer to ',trim(cvars2d(ic2)),' from read in member ',m
@@ -639,6 +639,7 @@ subroutine write_spread_dualres(ibin,bundle)
 !   2018-04-01  eliu - add hydrometeors 
 !   2019-07-10  todling - generalize to write out all variables in the ensemble
 !                       - also allows for print out of different time bins
+!   2021-10-08  todling - name wind vars correctly in file when ens uses wind vectors
 !
 !   input argument list:
 !     bundle -  spread bundle
@@ -656,7 +657,7 @@ subroutine write_spread_dualres(ibin,bundle)
   use kinds, only: r_kind,i_kind,r_single
   use guess_grids, only: get_ref_gesprs 
   use gridmod, only: rlats
-  use hybrid_ensemble_parameters, only: grd_anl
+  use hybrid_ensemble_parameters, only: grd_anl,uv_hyb_ens
   use gsi_bundlemod, only: gsi_grid
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -670,7 +671,7 @@ subroutine write_spread_dualres(ibin,bundle)
   type(gsi_bundle):: bundle
 
 ! local variables
-  character(255):: grdfile,grdctl
+  character(255):: grdfile,grdctl,var
 
   real(r_kind),allocatable,dimension(:,:,:):: work8_3d
   real(r_kind),allocatable,dimension(:,:):: work8_2d
@@ -781,10 +782,13 @@ subroutine write_spread_dualres(ibin,bundle)
      write(lu,'(a,2x,i4,2x,a)')   'TDEF', 1, 'LINEAR 12:00Z04JUL1776 6hr' ! any date suffices
      write(lu,'(a,2x,i4)')        'VARS',nc3d+nc2d
      do n=1,nc3d
-        write(lu,'(a,1x,2(i4,1x),a)') trim(cvars3d(n)),grd_anl%nsig,0,trim(cvars3d(n))
+        var = trim(cvars3d(n))
+        if (uv_hyb_ens .and. trim(var)=='sf') var='u'
+        if (uv_hyb_ens .and. trim(var)=='vp') var='v'
+        write(lu,'(a,1x,2(i4,1x),a)') trim(var),grd_anl%nsig,0,trim(var)
      enddo
      do n=1,nc2d
-        write(lu,'(a,1x,2(i4,1x),a)') trim(cvars2d(n)),           1,0,trim(cvars2d(n))
+        write(lu,'(a,1x,2(i4,1x),a)') trim(cvars2d(n)),    1,0,trim(cvars2d(n))
      enddo
      write(lu,'(a)') 'ENDVARS'
      close(lu)
