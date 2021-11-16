@@ -113,6 +113,17 @@ install(
    DESTINATION etc/gsi/MERRA2
    )
 
+# Handle GEOSIT settings in a similar way as MERRA2
+set (GEOSIT_files
+   GEOSIT/gmao_global_cloudy_radiance_info.rc
+   GEOSIT/gmao_global_satinfo.rc
+   GEOSIT/gsi.rc.tmpl
+   )
+install(
+   FILES ${GEOSIT_files}
+   DESTINATION etc/gsi/GEOSIT
+   )
+
 file(GLOB etc_py *.py)
 install (
    PROGRAMS ${etc_py}
