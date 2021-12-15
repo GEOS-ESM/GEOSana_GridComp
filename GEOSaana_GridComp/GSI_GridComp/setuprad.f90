@@ -294,7 +294,7 @@ contains
       izz,idomsfc,isfcr,iff10,ilone,ilate, &
       isst_hires,isst_navy,idata_type,iclr_sky,itref,idtw,idtc,itz_tr,&
       n_clouds_fwd_wk,n_actual_aerosols_wk,n_absorbers
-  use crtm_interface, only: ilzen_ang2,iscan_ang2,iszen_ang2,isazi_ang2
+  use crtm_interface, only: ilzen_ang2,iscan_ang2,iszen_ang2,isazi_ang2, ilazi_ang2
   use clw_mod, only: calc_clw, ret_amsua, gmi_37pol_diff,mhs_si
   use qcmod, only: qc_ssmi,qc_seviri,qc_abi,qc_ssu,qc_avhrr,qc_goesimg,qc_msu,qc_irsnd,qc_amsua,qc_mhs,qc_atms
   use qcmod, only: igood_qc,ifail_gross_qc,ifail_interchan_qc,ifail_crtm_qc,ifail_satinfo_qc,qc_noirjaco3,ifail_cloud_qc
@@ -2547,13 +2547,14 @@ contains
                     call nc_diag_metadata("Sol_Zenith_Angle",   sngl(data_s(iszen_ang2,n))          ) ! solar zenith angle (degrees)
                     call nc_diag_metadata("Sol_Azimuth_Angle",  sngl(data_s(isazi_ang2,n))          ) ! solar azimuth angle (degrees)
                     call nc_diag_metadata("Scan_Angle",         sngl(data_s(iscan_ang2,n)*rad2deg)  ) ! scan angle
+                    call nc_diag_metadata("Sat_Azimuth_Angle",  sngl(data_s(ilazi_ang2,n))           ) ! satellite azimuth angle (degrees)
                  else
                     call nc_diag_metadata("Sat_Zenith_Angle",      sngl(zasat*rad2deg)                 ) ! satellite zenith angle (degrees)
                     call nc_diag_metadata("Sol_Zenith_Angle",      sngl(pangs)                         ) ! solar zenith angle (degrees)
                     call nc_diag_metadata("Sol_Azimuth_Angle",     sngl(data_s(isazi_ang,n))           ) ! solar azimuth angle (degrees)
                     call nc_diag_metadata("Scan_Angle",         sngl(data_s(iscan_ang,n)*rad2deg)   ) ! scan angle
+                    call nc_diag_metadata("Sat_Azimuth_Angle",     sngl(data_s(ilazi_ang,n))           ) ! satellite azimuth angle (degrees)
                  endif
-                 call nc_diag_metadata("Sat_Azimuth_Angle",     sngl(data_s(ilazi_ang,n))           ) ! satellite azimuth angle (degrees)
                  call nc_diag_metadata("Sun_Glint_Angle",       sngl(sgagl)                         ) ! sun glint angle (degrees) (sgagl)
 
 
