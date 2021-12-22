@@ -19,7 +19,7 @@
    biascor=-0.10,bcoption=0,diurnalbc=1.0,
    crtm_coeffs_path="CRTM_Coeffs/",
    print_diag_pcg=.false.,
-   use_compress=.true.,nsig_ext=13,gpstop=60.,lgpsbnd_revint=.true.,
+   use_compress=.true.,nsig_ext=15,gpstop=60.,lgpsbnd_revint=.true.,
    use_sp_eqspace=.true.,
    lbicg=.true.,lcongrad=.false.,ltlint=.true.,
 !  lsqrtb=.true.,lcongrad=.false.,ltlint=.true.,
@@ -60,6 +60,7 @@
  &OBSQC
    dfact=0.75,dfact1=3.0,noiqc=.false.,oberrflg=.true.,c_varqc=0.02,blacklst=.true.,
    use_poq7=.true.,qc_noirjaco3=.false.,qc_satwnds=.false.,cld_det_dec2bin=.true.,
+   half_goesr_err=.false.,
 !  tcp_ermin=0.75,tcp_ermax=0.75,
    >>>AIRCFT_BIAS<<<
  /
@@ -70,13 +71,14 @@ OBS_INPUT::
 !  dfile          dtype       dplat       dsis                  dval    dthin  dsfcalc  obsclass
    prepbufr       ps          null        ps                    0.0     0      0        ncep_prep_bufr 
    prepbufr       t           null        t                     0.0     0      0        ncep_prep_bufr
-   prepbufr_profl t           null        t                     0.0     0      0        ncep_acftpfl_bufr
+   prepbufr_profl t           prof        t                     0.0     0      0        ncep_acftpfl_bufr
    prepbufr       q           null        q                     0.0     0      0        ncep_prep_bufr
    prepbufr       uv          null        uv                    0.0     0      0        ncep_prep_bufr
-   prepbufr_profl uv          null        uv                    0.0     0      0        ncep_acftpfl_bufr
+   prepbufr_profl uv          prof        uv                    0.0     0      0        ncep_acftpfl_bufr
    prepbufr       spd         null        spd                   0.0     0      0        ncep_prep_bufr
    radarbufr      rw          null        rw                    0.0     0      0        ncep_radar_bufr
    prepbufr       dw          null        dw                    0.0     0      0        ncep_prep_bufr
+   mlstbufr       t           aura        t                     1.0     0      0        gmao_mlst_bufr
 !! prepbufr       sst         null        sst                   0.0     0      0        ncep_prep_bufr
    modsbufr       sst         mods        sst                   0.0     0      0        to_be_done
    prepbufr       pw          null        pw                    0.0     0      0        ncep_prep_bufr
@@ -88,9 +90,8 @@ OBS_INPUT::
    sbuvbufr       sbuv2       n17         sbuv8_n17             0.0     0      0        ncep_osbuv_bufr
    sbuvbufr       sbuv2       n18         sbuv8_n18             0.0     0      0        ncep_osbuv_bufr
    omibufr        omi         aura        omi_aura              0.0     2      0        ncep_aura_omi_bufr
-!   ompsnmbufr     ompsnm      npp         ompsnm_npp            0.0     2      0        npp_ompsnm_bufr
-!   ompsnpbufr     ompsnp      npp         ompsnp_npp            0.0     0      0        npp_ompsnp_bufr
-   ompsnmeffnc    ompsnmeff   npp         ompsnmeff_npp         0.0     2      0        npp_ompsnmeff_nc
+!  ompsnmbufr     ompsnm      npp         ompsnm_npp            0.0     2      0        npp_ompsnm_bufr
+!  ompsnpbufr     ompsnp      npp         ompsnp_npp            0.0     0      0        npp_ompsnp_bufr
    ompsnpnc       ompsnpnc    npp         ompsnpnc_npp          0.0     0      0        npp_ompsnp_nc
 !  NOomibufr      omi         aura        omi_aura              0.0     2      0        test
    hirs2bufr      hirs2       n14         hirs2_n14             0.0     1      0        ncep_1bhrs2_bufr
@@ -164,6 +165,7 @@ OBS_INPUT::
 !  gomebufr       gome        metop-b     gome_metop-b          0.0     2      0        test
    amsuabufr      amsua       metop-c     amsua_metop-c         0.0     1      0        ncep_1bamua_bufr
    mhsbufr        mhs         metop-c     mhs_metop-c           0.0     1      0        ncep_mhs_bufr
+   iasibufr       iasi        metop-c     iasi_metop-c          0.0     3      0        ncep_mtiasi_bufr
    atmsbufr       atms        npp         atms_npp              0.0     1      0        ncep_atms_bufr
    atmsbufr       atms        n20         atms_n20              0.0     1      0        ncep_atms_bufr
    crisfsrbufr    cris-fsr    npp         cris-fsr_npp          0.0     3      0        ncep_crisfsr_bufr
@@ -175,7 +177,7 @@ OBS_INPUT::
    avcsambufr     avhrr       metop-b     avhrr3_metop-b        0.0     1      0        ncep_avcsam_bufr
 !  omieffbufr     omieff      aura        omieff_aura           0.0     2      0        test
    omieffnc       omieff      aura        omieff_aura           0.0     2      0        aura_omieff_nc
-!  mlstbufr       t           aura        t                     0.0     0      0        test
+   ompsnmeffnc    ompsnmeff   npp         ompsnmeff_npp         0.0     2      0        npp_ompsnmeff_nc
    gsnd1bufr      sndrd1      g15         sndrD1_g15            0.0     1      0        ncep_goesfv_bufr
    gsnd1bufr      sndrd2      g15         sndrD2_g15            0.0     1      0        ncep_goesfv_bufr
    gsnd1bufr      sndrd3      g15         sndrD3_g15            0.0     1      0        ncep_goesfv_bufr
@@ -186,8 +188,8 @@ OBS_INPUT::
    mlsnc          mls55       aura        mls55_aura            0.0     0      0        mls_nrt_nc
    oscatbufr      uv          null        uv                    0.0     0      0        ncep_oscat_bufr
 !  tmibufr        tmi         trmm        tmi_trmm              0.0     1      0        gmao_tmi_bufr
-!  gmibufr        gmi         gpm         gmi_gpm               0.0     1      0        gmao_gmi_bufr
-!  amsr2bufr      amsr2       gcom-w1     amsr2_gcom-w1         0.0     1      0        gmao_amsr2_bufr
+   gmibufr        gmi         gpm         gmi_gpm               0.0     1      0        gmao_gmi_bufr
+   amsr2bufr      amsr2       gcom-w1     amsr2_gcom-w1         0.0     1      0        gmao_amsr2_bufr
 ! The following needs to be set for oneob-test:
 !  prepqc         dummy       dummy       dummy                 1.0     1      0        test
 ::
