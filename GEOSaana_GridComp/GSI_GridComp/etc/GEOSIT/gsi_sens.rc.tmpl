@@ -1,7 +1,8 @@
  &SETUP
-   miter=2,niter(1)=100,niter(2)=100,
+   miter=>>>MITER<<<,niter(1)=100,niter(2)=100,
    niter_no_qc(1)=999,niter_no_qc(2)=999,
-   write_diag(1)=.true.,write_diag(2)=.false.,write_diag(3)=.true.,
+   write_diag(1)=>>>GSIWRTDIAG1<<<,write_diag(2)=>>>GSIWRTDIAG2<<<,write_diag(3)=>>>GSIWRTDIAG3<<<,
+   jiterstart=>>>JITERSTART<<<,jiterend=>>>JITEREND<<<,
    gencode=82,qoption=2,
    factqmin=0.005,factqmax=0.005,deltim=300,
 !--gencode=82,qoption=1,
@@ -21,12 +22,18 @@
    print_diag_pcg=.false.,
    use_compress=.true.,nsig_ext=15,gpstop=60.,lgpsbnd_revint=.true.,
    use_sp_eqspace=.true.,
+!  l4dvar=.false.,nhr_assimilation=6,
+! l4densvar=.true.,thin4d=.true.,
+   nmn_obsbin=360,
+   idmodel=.true.,
+!--iwrtinc=1,
    lbicg=.true.,lcongrad=.false.,ltlint=.true.,
-!  lsqrtb=.true.,lcongrad=.false.,ltlint=.true.,
-! l4densvar=.true.,nmn_obsbin=360,iwrtinc=1,thin4d=.true.,
    iorthomax=10,
+   lobsensmin=.true.,lobsensadj=.false.,iobsconv=0,lsensrecompute=.true.,
+   lobsensincr=.false.,lobsensjb=.false.,lobsensfc=.true.,
+   lobsdiagsave=.true.,
    ens_nstarthr=3,
-   netcdf_diag=.false.,
+   tau_fcst=-1,
    newpc4pred=.true.,adp_anglebc=.true.,angord=4,
    passive_bc=.true.,use_edges=.false.,
    diag_precon=.true.,step_start=1.e-3,emiss_bc=.true.,
@@ -45,13 +52,12 @@
    bkgv_flowdep=.true.,bkgv_rewgtfct=1.5,
    fpsproj=.true.,
    adjustozvar=.true.,
-   bkgv_write=.false.,
  /
  &ANBKGERR
    anisotropic=.false.,
  /
  &JCOPTS
-   ljcpdry=.true.,bamp_jcpdry=2.5e7,
+   ljcpdry=.false.,bamp_jcpdry=2.5e7,
  /
  &STRONGOPTS
    tlnmc_option=1,nstrong=1,nvmodes_keep=24,period_max=6.,period_width=1.5,
@@ -232,4 +238,11 @@ OBS_INPUT::
  /
  &NST
  nst_gsi=3,
+ /
+ &PADVECT
+ advpert=.false.,
+ dt=180.,cfl=.false.,
+ cnstwind_test=.false.,
+ advrate=0.75,
+ backward=.true.,
  /
