@@ -10,7 +10,7 @@ subroutine read_tgas(nread, ndata, nodata, jsatid, infile, gstime, lunout,     &
 !
 ! program history log: 
 !   2010-03-30   weir  - initial code
-!   2022-01-06   weir  - whew. been awhile. touching again to change timestamp
+!   2022-01-06   weir  - whew. been awhile. touching to change timestamp
 !
 !   input argument list:
 !     jsatid  - satellite id to read
