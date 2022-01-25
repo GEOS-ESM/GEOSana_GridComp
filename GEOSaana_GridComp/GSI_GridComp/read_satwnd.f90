@@ -70,7 +70,8 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 !   2018-06-13  Genkova - Goes-16 AMVs use ECMWF QC till new HAM late 2018
 !                         and OE/2 
 !   2021-06-21  Todling - Allow code to bypass hack to half-GOES-R errors
-! 
+!   2021-11-15  Eunhee    add QC for MSG IR winds and modified QC for IR winds over land and top air winds removal 
+!   2022-01-21  Eunhee    assign SAZA, SWCM(ich) for monitoring
 !   
 !
 !   input argument list:
@@ -139,6 +140,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   real(r_kind),parameter:: r105= 105.0_r_kind
   real(r_kind),parameter:: r110= 110.0_r_kind
   real(r_kind),parameter:: r125=125.0_r_kind
+  real(r_kind),parameter:: r150=150.0_r_kind
   real(r_kind),parameter:: r200=200.0_r_kind
   real(r_kind),parameter:: r250=250.0_r_kind
   real(r_kind),parameter:: r360 = 360.0_r_kind
@@ -174,7 +176,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   integer(i_kind) nmind,lunin,idate,ilat,ilon,iret,k
   integer(i_kind) nreal,ithin,iout,ntmp,icount,iiout,ii
   integer(i_kind) itype,iosub,ixsub,isubsub,iobsub,itypey,ierr
-  integer(i_kind) qm
+  integer(i_kind) qm, ich, hamd
   integer(i_kind) nlevp         ! vertical level for thinning
   integer(i_kind) pflag
   integer(i_kind) ntest,nvtest
@@ -195,7 +197,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   real(r_kind) rmesh,ediff,usage,tdiff
   real(r_kind) u0,v0,uob,vob,dx,dy,dx1,dy1,w00,w10,w01,w11
   real(r_kind) dlnpob,ppb,ppb2,qifn,qify,ee,ree,pct1,experr_norm
-  real(r_kind) woe,dlat,dlon,dlat_earth,dlon_earth
+  real(r_kind) woe,dlat,dlon,dlat_earth,dlon_earth,saza
   real(r_kind) dlat_earth_deg,dlon_earth_deg
   real(r_kind) cdist,disterr,disterrmax,rlon00,rlat00
   real(r_kind) vdisterrmax,u00,v00,uob1,vob1
@@ -264,7 +266,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 ! Set lower limits for observation errors
   werrmin=one
   nsattype=0
-  nreal=25
+  nreal=28
   if(perturb_obs ) nreal=nreal+2
   ntread=1
   ntmatch=0
@@ -599,6 +601,8 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
            ee=r110
            qifn=r110
            qify=r110
+           ich=-1
+           hamd=-1
 
 !          Test for BUFR version using lat/lon mnemonics
            call ufbint(lunin,hdrdat_test,2,1,iret, 'CLAT CLON')
@@ -615,7 +619,8 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
                hdrdat(3) >100000000.0_r_kind .or. &
                obsdat(4) > 100000000.0_r_kind) cycle loop_readsb
            if(ppb >r10000) ppb=ppb/r100
-           if (ppb <r125) cycle loop_readsb    !  reject data above 125mb
+!           if (ppb <r125) cycle loop_readsb    !  reject data above 125mb
+           if (ppb <r150) cycle loop_readsb    !  reject data above 150mb based on monitoring, eunhee
            if(hdrdat(13) == 12.0_r_kind .or. hdrdat(13) == 14.0_r_kind) cycle loop_readsb
            if (twodvar_regional .and. ppb <r850) cycle loop_readsb
 !   reject the data with bad quality mark from SDM
@@ -645,6 +650,8 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
            qm=2
            iobsub=int(hdrdat(1))
            write(stationid,'(i3)') iobsub
+           ich=hdrdat(9)
+           saza=hdrdat(10)
 
            ! assign types and get quality info : start
            if(trim(subset) == 'NC005064' .or. trim(subset) == 'NC005065' .or. &  
@@ -1155,9 +1162,20 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
                  if(hdrdat(2) >20.0_r_kind) then 
                     call deter_sfc_type(dlat_earth,dlon_earth,t4dv,isflg,tsavg)
                     if(isflg /= 0) cycle loop_readsb 
+                 else
+                    call deter_sfc_type(dlat_earth,dlon_earth,t4dv,isflg,tsavg)
+                    if (isflg /= 0 .and. ppb > 700.0_r_kind) cycle loop_readsb  ! low over land
+              !!    if (obsdat(1) > 700.0_r_kind) then
                  endif
               endif
-           endif
+
+              if(itype ==253) then
+                 if(hdrdat(2) >5.0_r_kind) then
+                    call deter_sfc_type(dlat_earth,dlon_earth,t4dv,isflg,tsavg)
+                    if(isflg /= 0 ) cycle loop_readsb
+                 endif
+              endif
+          endif
        
 !!    convert from wind direction and speed to u,v component
            uob=-obsdat(4)*sin(obsdat(3)*deg2rad)
@@ -1453,10 +1471,13 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
            cdata_all(22,iout)=r_prvstg(1,1)       ! provider name
            cdata_all(23,iout)=r_sprvstg(1,1)      ! subprovider name
            cdata_all(25,iout)=var_jb              ! non linear qc parameter
+           cdata_all(26,iout)=ich                 ! spectral type(channel) of wind
+           cdata_all(27,iout)=saza                ! sat zenith angle
+           cdata_all(28,iout)=hamd                ! height assignment method
 
            if(perturb_obs)then
-              cdata_all(26,iout)=ran01dom()*perturb_fact ! u perturbation
-              cdata_all(27,iout)=ran01dom()*perturb_fact ! v perturbation
+              cdata_all(29,iout)=ran01dom()*perturb_fact ! u perturbation
+              cdata_all(30,iout)=ran01dom()*perturb_fact ! v perturbation
            endif
 
         enddo  loop_readsb

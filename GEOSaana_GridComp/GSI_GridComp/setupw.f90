@@ -191,6 +191,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !   2018-04-09  pondeca -  introduce duplogic to correctly handle the characterization of
 !                          duplicate obs in twodvar_regional applications
 !   2020-02-26  todling - reset obsbin from hr to min
+!   2021-11-15  Eunhee  - Remove the QC for ir winds in the mid atmospheric layer if qc_satwnds=true
 !
 !
 ! REMARKS:
@@ -263,7 +264,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   integer(i_kind) idomsfc,isfcr,iskint,iff10
   integer(i_kind) msges
 
-  integer(i_kind) iswcm,isaza, isccf, qify, qifn
+  integer(i_kind) iswcm,isaza, ihamd, isccf, qify, qifn
   real(r_kind)    sccf_wavelen
   real(r_kind),parameter:: rsol=300000000.0_r_kind !speed of light
   real(r_kind),parameter:: rtomic=1000000.0_r_kind !conv to micron
@@ -357,7 +358,8 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
   iswcm=26    ! spectral type of wind
   isaza=27    ! saza satellite zen angle
-  isccf=28    ! spec chan freq (hertz)
+  ihamd=28    ! height assignment method
+!  isccf=28    ! spec chan freq (hertz)
 
   iptrbu=29   ! index of u perturbation
   iptrbv=30   ! index of v perturbation
@@ -889,20 +891,20 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         if(itype ==242 .or. itype ==243 ) then  !  visible winds from JMA and EUMETSAT
            if(presw <700.0_r_kind) error=zero    !  no visible winds above 700mb
         endif
-        if(itype ==245 ) then
-           if( presw >399.0_r_kind .and. presw <801.0_r_kind) then  !GOES IR  winds
-              error=zero                          !  no data between 400-800mb
-           endif
-        endif
-        if(itype == 252 .and. presw >499.0_r_kind .and. presw <801.0_r_kind) then  ! JMA IR winds
-           error=zero
-        endif
-        if(itype == 253 )  then
-           if(presw >401.0_r_kind .and. presw <801.0_r_kind) then  ! EUMET IR winds
-              error=zero
-           endif
-        endif
-        if( itype == 246 .or. itype == 250 .or. itype == 254 )   then     ! water vapor cloud top
+!        if(itype ==245 ) then
+!           if( presw >399.0_r_kind .and. presw <801.0_r_kind) then  !GOES IR  winds
+!              error=zero                          !  no data between 400-800mb
+!           endif
+!        endif
+!        if(itype == 252 .and. presw >499.0_r_kind .and. presw <801.0_r_kind) then  ! JMA IR winds
+!           error=zero
+!        endif
+!        if(itype == 253 )  then
+!           if(presw >401.0_r_kind .and. presw <801.0_r_kind) then  ! EUMET IR winds
+!              error=zero
+!           endif
+!        endif
+        if( itype == 246 .or. itype ==247 .or. itype == 250 .or. itype == 254 )   then     ! water vapor cloud top
            if(presw >399.0_r_kind) error=zero
         endif
         if(itype ==257 .and. presw <249.0_r_kind) error=zero
@@ -1764,8 +1766,9 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 ! Write out in nc diag the extra vars from cdata_all (see read_satwnd.f90)        
              call nc_diag_metadata("SWCM_spec_type",          sngl(data(iswcm,i)))
              call nc_diag_metadata("SAZA_sat_zen_angle",      sngl(data(isaza,i)))
-             sccf_wavelen=(rsol/data(isccf,i))*rtomic  !spec chan wavelen(microns)
-             call nc_diag_metadata("SCCF_chan_wavelen",       sngl(sccf_wavelen))
+             call nc_diag_metadata("Height_assignment",       sngl(data(ihamd,i)))
+!             sccf_wavelen=(rsol/data(isccf,i))*rtomic  !spec chan wavelen(microns)
+!             call nc_diag_metadata("SCCF_chan_wavelen",       sngl(sccf_wavelen))
              qify= int(data(ielev,i)/1000.0);
              qifn= mod(data(ielev,i),1000.0);
              call nc_diag_metadata("QI_with_FC",    sngl(qify))
@@ -1774,7 +1777,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 ! Write out missing values)        
              call nc_diag_metadata("SWCM_spec_type",          sngl(bmiss))
              call nc_diag_metadata("SAZA_sat_zen_angle",      sngl(bmiss))
-             call nc_diag_metadata("SCCF_chan_wavelen",       sngl(bmiss))
+             call nc_diag_metadata("Height_assignment",       sngl(bmiss))
              call nc_diag_metadata("QI_with_FC",              sngl(bmiss))
              call nc_diag_metadata("QI_without_FC",           sngl(bmiss)) 
            endif
