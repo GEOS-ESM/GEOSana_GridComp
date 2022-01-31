@@ -59,7 +59,8 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 !   2015-02-23  Rancic/Thomas - add l4densvar to time window logical
 !   2015-10-01  guo     - consolidate use of ob location (in deg)
 !   2017-11-16  dutta   - addition of profile quality flags for KOMPSAT5 GPSRO.
-!
+!   2021-05-13 mccarty  - code updates to handle commercial RO sources from NOAA Comm. Data Purchase
+
 !   input argument list:
 !     infile   - unit from which to read BUFR data
 !     lunout   - unit to which to write data for further processing
@@ -258,8 +259,10 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
         endif
  
 ! Check profile quality flags
-        if ( ((said > 739).and.(said < 746)).or.(said == 820).or.(said == 786).or.&
-             ((said > 749).and.(said < 756)).or.(said == 825).or.(said == 44) ) then  !CDAAC processing
+        if ( ((said > 739).and.(said < 746)).or.(said == 820).or.(said == 786).or. &
+             ((said > 749).and.(said < 756)).or.(said == 825).or.(said == 44) .or. &
+              (said == 265).or.(said == 266).or.(said == 267).or.(said == 268).or. & 
+              (said == 269)) then  !CDAAC processing
            if(pcc==zero) then
 !             write(6,*)'READ_GPS:  bad profile said=',said,'ptid=',ptid,&
 !                 ' SKIP this report'

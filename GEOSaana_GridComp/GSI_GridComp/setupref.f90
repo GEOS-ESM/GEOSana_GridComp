@@ -195,8 +195,8 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
   real(r_kind),parameter:: crit_grad = 157.0_r_kind
 
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   integer(i_kind)                            ,intent(in   ) :: lunin,mype,nele,nobs
   real(r_kind),dimension(100+7*nsig)  ,intent(inout) :: awork
@@ -278,6 +278,7 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
 !44  => PAZ
 !750-755 => COSMIC-2 Equatorial
 !724-729 => COSMIC-2 Polar
+!5   => MetOpC
 
 ! Read and reformat observations in work arrays.
   read(lunin)data,luse,ioid
@@ -579,8 +580,9 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
                     cutoff2=r1em3*trefges**2-r0_455*trefges+r52_075
                  endif
                  if((ictype(ikx)==41).or.(ictype(ikx)==722).or.(ictype(ikx)==723).or.&
-                      (ictype(ikx)==4).or.(ictype(ikx)==786).or.(ictype(ikx)==3).or.&
-                      (ictype(ikx)==5)) then !CL
+                    (ictype(ikx)==4).or.(ictype(ikx)==42).or.(ictype(ikx)==3).or.&
+                    (ictype(ikx)==821).or.(ictype(ikx)==421).or.(ictype(ikx)==440).or.&
+                    (ictype(ikx)==43).or.(ictype(ikx)==786).or.(ictype(ikx)==5)) then !CL
                     cutoff3=(half+two*cos(data(ilate,i)*deg2rad))/three
                  else
                     cutoff3=(one+r2_5*cos(data(ilate,i)*deg2rad))/three

@@ -179,6 +179,8 @@
 #  21Nov2018 RT/WM/WG/Guo - update CRTM coeffs to REL-2.2.3-r60152_local-rev_3; add RERROR Covs
 #  10Feb2020 Karpowicz/RT - update Rcov to 13jan2020: add O3 sensitive IR chans for hyperspectral obs
 #  20May2020 Todling/JG - update CRTM coeffs to point to fix_ncep20200513 (to allow for CrIS FSR)
+#  30Nov2020 Guo/MC/MS - add program to rescale values in satbias_pc file for specified date/sis/channels
+#  28May2021 JG/MJK/RT - update CRTM coeffs to point to fix_ncep20210525 (to allow for IASI Metop-C)
 #-----------------------------------------------------------------------------------------------------
 
 use Env;                 # make env vars readily available
@@ -187,6 +189,7 @@ use File::Copy "cp";     # for cp()
 use Getopt::Long;        # load module with GetOptions function
 use Time::Local;         # time functions
 use FindBin;             # so we can find where this script resides
+use POSIX;
 
 # look for perl packages in the following locations
 #--------------------------------------------------
@@ -293,12 +296,13 @@ my $scriptname = basename($0);
 # Run ana5sfc
 
 if ( (! $do4dvar) && ($doANA && $doSFCANA) ) {
-    ($npes = $ENV{NCPUS});
+    $npes = $ENV{NCPUS_GSI}; if(! $npes) { $npes = $ENV{NCPUS}; }
     @flags = qw( 1 2 3 );
 
     # run sub sfc_ana() in parallel unless PAROFF
     #--------------------------------------------
-    $num_parallel_cpus = $npes/4;
+    $num_parallel_cpus = floor($npes/4);
+    $num_parallel_cpus = $num_parallel_cpus  - $num_parallel_cpus % 2;
     $parallel_off = $ENV{"PAROFF"};
     if ($parallel_off) { $num_parallel_cpus = 1 };
 
@@ -550,7 +554,7 @@ sub init {
                $tau_fcst = `nmlread.py $rcname SETUP tau_fcst`; chomp($tau_fcst);
                if ( $tau_fcst > 0 ) {
                   if ( -e "$fvwork/atmens_eprg.acq" ) {
-                     my ($nymd_fcst, $nhms_fcst) = ( tick($nymd,$nhms,($tau_fcst-6)*3600) ); # tick time tau-6 (since Xfb are stored 6-hr earlier)
+                     my ($nymd_fcst, $nhms_fcst) = ( tick($nymd,$nhms,-6*3600) ); # tick time tau-6 (since Xfb are stored 6-hr earlier)
                      $cmd = "acquire_atmens.csh $expid $nymd_fcst $nhms_fcst $fvwork/atmens_eprg.acq";
                      print " $cmd\n";
                      $rc = System($cmd, "$log_ana","acquire_atmens.csh");
@@ -645,7 +649,7 @@ sub init {
    if ( $ENV{CRTM_COEFFS} ) {
       Assignfn( "$CRTM_COEFFS","CRTM_Coeffs");
    } else {
-      Assignfn( "$fvInput/$myetc/fix_ncep20200513/REL-2.2.3-r60152_local-rev_4/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
+      Assignfn( "$fvInput/$myetc/fix_ncep20210525/REL-2.2.3-r60152_local-rev_5/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
    }
    Assignfn( "$fvhome/run/prepobs_errtable.global","errtable");
 
@@ -653,7 +657,12 @@ sub init {
 # NOTE: for a while, when using GSI, will need both because of spectral transforms
 # --------------------------------------------------------------------------------
     if ( $doTRANSF ) {
-       Assignfn( "$fvInput/$myetc/newncepsfc.${jcap}", "ncepsfc");
+       if (-e "$fvInput/$myetc/newncepsfc.${jcap}" ) {
+          Assignfn( "$fvInput/$myetc/newncepsfc.${jcap}", "ncepsfc");
+       } else {
+          print "WARNING, analyzer: jcap inconsistent with available NCEP SFC file, reset to 254\n";
+          Assignfn( "$fvInput/$myetc/newncepsfc.254", "ncepsfc");
+       }
     }
 
     if ( $doGSI ) {
@@ -694,7 +703,7 @@ sub init {
                cp( "$fvwork/gmao_global_anavinfo_l${nsig}.rc",    "anavinfo");
        }
        Assignfn( "$fvwork/gmao_global_pcpinfo.rc",                 "pcpinfo");
-       Assignfn( "$fvwork/gmao_global_coinfo.rc",                   "coinfo");
+       Assignfn( "$fvwork/gmao_global_tgasinfo.rc",               "tgasinfo");
        Assignfn( "$fvwork/gmao_global_blacklist.rc",             "blacklist");
        Assignfn( "$fvwork/gmao_global_insituinfo.rc",           "insituinfo");
        Assignfn( "$fvwork/gmao_global_scaninfo.rc",               "scaninfo");
@@ -828,7 +837,23 @@ sub init {
 	       print " $cmd\n";
 	       $rc_ignore = system($cmd);
 	   }
-		
+	   # Scaling varx of satbias_pc
+	   my ($pc_dbname) = "$fvroot/etc/gmao_pcscaling.db";
+	   if ( $ENV{PCSCALING_DB} ) { $pc_dbname = $ENV{PCSCALING_DB} }
+	   if ( -d $pc_dbname ) {
+              $cmd = "echo '&setup nymd = $nymd nhms = $nhms npred = 12
+	   		pcinp  = \"./satbias_pc\"
+	   		pcout  = \"./satbias_pc.scaled\"
+	   		dbname = \"$pc_dbname\"
+			/' | $fvroot/bin/make_pcscaling.x";
+	      print " $cmd\n";
+  	      $rc = System($cmd, "$log_ana","make_pcscaling.x");
+  	      die "analyzer: >>> ERROR <<< running make_pcscaling.x, \$rc = $rc\n" if ( $rc );
+	      if ( -e "./satbias_pc.scaled" ) {
+                 print "analyzer: relinking ./satbias_pc to ./satbias_pc.scaled";
+	         Assignfn ( "./satbias_pc.scaled", "satbias_pc"   );
+	      }
+	   }
        }
        if ( -e "$fvwork/satbang" ) {
             if ($doDSB) { # overwrite satbias when taking care of diurnal cycle
@@ -1932,12 +1957,20 @@ sub lndiag {
    $miterp1 = $miter + 1;
    $jiteradm = $miterp1 - $jiter + 1;
 
-   $myncpus = $npes / 4;
+   $ldirs = `nmlread.py $rcname SETUP lrun_subdirs`; chomp($ldirs);
+   $lsubdirs = "";
+   if($ldirs eq "True") {
+      $lsubdirs = "-subdirs";
+   }
+
+   $npe_factor = 4;
+   $myncpus = floor($npes/$npe_factor);
+   $myncpus = $myncpus  - $myncpus % 2;
    if ( $doasens ) {
         my $nametag = "ans_${gnorm}${jiteradm}";
         $cmd = "gsidiags -ncpus $myncpus -jiter $jiteradm -tag $nametag $nymd $nhms $expid $opt";
    } else {
-        $cmd = "gsidiags -ncpus $myncpus $nymd $nhms $expid $opt";
+        $cmd = "gsidiags $lsubdirs -ncpus $myncpus $nymd $nhms $expid $opt";
    }
    print " $cmd\n";
    $rc = System($cmd, "$log_ana","gsidiag");

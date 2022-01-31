@@ -62,7 +62,7 @@ subroutine setuppm2_5(obsLL,odiagLL,lunin,mype,nreal,nobs,isis,is,conv_diagsave)
   
   use constants, only : zero,half,one,two,tiny_r_kind
   use constants, only : cg_term,wgtlim
-  use constants, only: huge_single,r10
+  use constants, only: huge_single,r10,r100
   use constants, only: r1000,rd,max_varname_length
 
   use m_obsdiagNode, only : obs_diag
@@ -117,8 +117,8 @@ subroutine setuppm2_5(obsLL,odiagLL,lunin,mype,nreal,nobs,isis,is,conv_diagsave)
   implicit none
   
 ! !input parameters:
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   character(len=3) :: cvar='pm2'
   integer(i_kind)                  , intent(in) :: lunin  ! unit from which to read observations
@@ -869,7 +869,7 @@ subroutine setuppm2_5(obsLL,odiagLL,lunin,mype,nreal,nobs,isis,is,conv_diagsave)
            call nc_diag_metadata("Latitude",                data(ilate,i)          )
            call nc_diag_metadata("Longitude",               data(ilone,i)          )
            call nc_diag_metadata("Station_Elevation",       data(ielev,i)          )
-           call nc_diag_metadata("Pressure",                ps_ges                 )
+           call nc_diag_metadata("Pressure",                ps_ges*r100            )
            call nc_diag_metadata("Height",                  data(ielev,i)          )
            call nc_diag_metadata("Time",                    dtime-time_offset      )
            call nc_diag_metadata("Prep_QC_Mark",            zero                   )

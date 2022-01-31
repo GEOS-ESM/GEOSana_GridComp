@@ -170,6 +170,7 @@ module qcmod
   public :: qc_noirjaco3
   public :: qc_noirjaco3_pole
   public :: qc_satwnds
+  public :: half_goesr_err
   public :: qc_gmi
   public :: qc_amsr2
   public :: qc_saphir
@@ -196,6 +197,7 @@ module qcmod
   logical newvad
   logical tdrerr_inflate
   logical qc_satwnds
+  logical half_goesr_err
   logical buddycheck_t
   logical buddydiag_save
   logical vadwnd_l2rw_qc
@@ -386,6 +388,7 @@ contains
 !   2012-07-19  todling - add qc_satwnds to allow bypass of satwind qc
 !   2013-10-27  todling - move alloc space to create_qcvars
 !   2014-10-06  carley - add logicals for buddy check
+!   2021-06-21  todling - add half_goesr_err to bypass hack halving GEOS-R errors
 !
 !   input argument list:
 !
@@ -422,6 +425,7 @@ contains
     qc_noirjaco3_pole = .false. ! true=do not use O3 Jac from IR instruments near poles
 
     qc_satwnds=.true. ! default: remove lots of SatWind at mid-tropospheric levels
+    half_goesr_err=.true.  ! default: consistent w/ NCEP''s choice - ie, use hack
 
     buddycheck_t=.false.   ! When true, run buddy check algorithm on temperature observations
     buddydiag_save=.false. ! When true, output files containing buddy check QC info for all

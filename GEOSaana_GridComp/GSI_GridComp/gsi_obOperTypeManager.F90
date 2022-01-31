@@ -29,7 +29,7 @@ module gsi_obOperTypeManager
 
   use gsi_aeroOper    , only: aeroOper
   use gsi_cldchOper   , only: cldchOper
-  use gsi_colvkOper   , only: colvkOper
+  use gsi_tgasOper    , only: tgasOper
   use gsi_dwOper      , only: dwOper
   use gsi_gpsbendOper , only: gpsbendOper
   use gsi_gpsrefOper  , only: gpsrefOper
@@ -113,7 +113,7 @@ module gsi_obOperTypeManager
   public:: iobOper_rad
   public:: iobOper_tcp
  !public:: iobOper_lag
-  public:: iobOper_colvk
+  public:: iobOper_tgas
   public:: iobOper_aero
  !public:: iobOper_aerol
   public:: iobOper_pm2_5
@@ -158,7 +158,7 @@ module gsi_obOperTypeManager
     enumerator:: iobOper_rad
     enumerator:: iobOper_tcp
    !enumerator:: iobOper_lag
-    enumerator:: iobOper_colvk
+    enumerator:: iobOper_tgas
     enumerator:: iobOper_aero
    !enumerator:: iobOper_aerol
     enumerator:: iobOper_pm2_5
@@ -219,7 +219,7 @@ module gsi_obOperTypeManager
   type(    radOper), target, save::      radOper_mold
   type(    tcpOper), target, save::      tcpOper_mold
  !type(    lagOper), target, save::      lagOper_mold
-  type(  colvkOper), target, save::    colvkOper_mold
+  type(   tgasOper), target, save::     tgasOper_mold
   type(   aeroOper), target, save::     aeroOper_mold
  !type(  aerolOper), target, save::    aerolOper_mold
   type(  pm2_5Oper), target, save::    pm2_5Oper_mold
@@ -276,6 +276,10 @@ function dtype2index_(dtype) result(index_)
     case("ompstc8"); index_= iobOper_oz
     case("ompsnp" ); index_= iobOper_oz
     case("ompsnm" ); index_= iobOper_oz
+    case("omieff"   ); index_= iobOper_oz
+    case("tomseff"  ); index_= iobOper_oz
+    case("ompsnmeff"); index_= iobOper_oz
+    case("ompsnpnc" ); index_= iobOper_oz
 
   case("o3l"    ,"[o3loper]"    ); index_= iobOper_o3l
     case("o3lev"    ); index_= iobOper_o3l
@@ -283,8 +287,6 @@ function dtype2index_(dtype) result(index_)
     case("mls22"    ); index_= iobOper_o3l
     case("mls30"    ); index_= iobOper_o3l
     case("mls55"    ); index_= iobOper_o3l
-    case("omieff"   ); index_= iobOper_o3l
-    case("tomseff"  ); index_= iobOper_o3l
     case("ompslpuv" ); index_= iobOper_o3l
     case("ompslpvis"); index_= iobOper_o3l
 
@@ -349,8 +351,10 @@ function dtype2index_(dtype) result(index_)
 
  !case("lag"    ,"[lagoper]"    ); index_= iobOper_lag
 
-  case("colvk"  ,"[colvkoper]"  ); index_= iobOper_colvk
-    case("mopitt" ); index_= iobOper_colvk
+  case("tgas"   ,"[tgasoper]"   ); index_= iobOper_tgas
+    case("mopitt" ); index_= iobOper_tgas
+    case("acos"   ); index_= iobOper_tgas
+    case("flask"  ); index_= iobOper_tgas
 
   case("aero"   ,"[aerooper]"   ); index_= iobOper_aero
     case("aod"      ); index_= iobOper_aero
@@ -459,7 +463,7 @@ function index2vmold_(iobOper) result(vmold_)
   case(iobOper_rad      ); vmold_ =>     radOper_mold
   case(iobOper_tcp      ); vmold_ =>     tcpOper_mold
  !case(iobOper_lag      ); vmold_ =>     lagOper_mold
-  case(iobOper_colvk    ); vmold_ =>   colvkOper_mold
+  case(iobOper_tgas     ); vmold_ =>    tgasOper_mold
   case(iobOper_aero     ); vmold_ =>    aeroOper_mold
  !case(iobOper_aerol    ); vmold_ =>   aerolOper_mold
   case(iobOper_pm2_5    ); vmold_ =>   pm2_5Oper_mold
@@ -574,7 +578,7 @@ subroutine cobstype_config_()
     cobstype(iobOper_rad        )  ="radiance            " ! rad_ob_type
     cobstype(iobOper_tcp        )  ="tcp (tropic cyclone)" ! tcp_ob_type
     !cobstype(iobOper_lag        )  ="lagrangian tracer   " ! lag_ob_type
-    cobstype(iobOper_colvk      )  ="carbon monoxide     " ! colvk_ob_type
+    cobstype(iobOper_tgas       )  ="trace gas           " ! tgas_ob_type
     cobstype(iobOper_aero       )  ="aerosol aod         " ! aero_ob_type
     !cobstype(iobOper_aerol      )  ="level aero aod      " ! aerol_ob_type
     cobstype(iobOper_pm2_5      )  ="in-situ pm2_5 obs   " ! pm2_5_ob_type

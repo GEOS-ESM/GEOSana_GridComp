@@ -84,7 +84,7 @@ subroutine setupgust(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   use gridmod, only: nsig
   use gridmod, only: get_ij,twodvar_regional
   use constants, only: zero,tiny_r_kind,one,one_tenth,half,wgtlim,rd,grav,&
-            two,cg_term,three,four,huge_single,r1000,r3600,&
+            two,cg_term,three,four,huge_single,r1000,r3600,r100,&
             grav_ratio,flattening,grav,deg2rad,grav_equator,somigliana, &
             semi_major_axis,eccentricity
   use jfunc, only: jiter,last,miter
@@ -98,8 +98,8 @@ subroutine setupgust(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
 
   implicit none
 
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
 ! Declare passed variables
   logical                                          ,intent(in   ) :: conv_diagsave
@@ -810,7 +810,7 @@ subroutine setupgust(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
            call nc_diag_metadata("Latitude",                data(ilate,i)          )
            call nc_diag_metadata("Longitude",               data(ilone,i)          )
            call nc_diag_metadata("Station_Elevation",       data(istnelv,i)        )
-           call nc_diag_metadata("Pressure",                presw                  )
+           call nc_diag_metadata("Pressure",                presw*r100             )
            call nc_diag_metadata("Height",                  data(ihgt,i)           )
            call nc_diag_metadata("Time",                    dtime-time_offset      )
            call nc_diag_metadata("Prep_QC_Mark",            data(iqc,i)            )

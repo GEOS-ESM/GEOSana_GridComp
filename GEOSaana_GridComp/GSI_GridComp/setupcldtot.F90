@@ -68,7 +68,7 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
   use jfunc, only: jiter
   use convinfo, only: nconvtype
   use convinfo, only: icsubtype
-  use m_dtime, only: dtime_setup, dtime_check, dtime_show
+  use m_dtime, only: dtime_setup, dtime_check
   use rapidrefresh_cldsurf_mod, only: i_cloud_q_innovation, &
                                       cld_bld_hgt,i_ens_mean
   use gsi_bundlemod, only : gsi_bundlegetpointer
@@ -85,8 +85,8 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
   implicit none
 
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
   real(r_kind),dimension(100+7*nsig)               ,intent(inout) :: awork
@@ -923,7 +923,7 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
         endif
      end if
 
-     call nc_diag_init(diag_conv_file)
+     call nc_diag_init(diag_conv_file,append=append_diag)
 
      if (.not. append_diag) then ! don't write headers on append - the module will break?
         call nc_diag_header("date_time",ianldate )
@@ -987,7 +987,7 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
     call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
     call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
     call nc_diag_metadata("Station_Elevation",       sngl(data(istnelv,i))  )
-    call nc_diag_metadata("Pressure",                sngl(pressure)         )
+    call nc_diag_metadata("Pressure",                sngl(pressure*r100)    )
     call nc_diag_metadata("Height",                  sngl(data(iobshgt,i))  )
     call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
     call nc_diag_metadata("Prep_QC_Mark",            sngl(1._r_single)      )
@@ -1017,7 +1017,7 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
     call nc_diag_metadata("Latitude",                sngl(all_qv_obs(3,iip)) )
     call nc_diag_metadata("Longitude",               sngl(all_qv_obs(4,iip)) )
     call nc_diag_metadata("Station_Elevation",       sngl(all_qv_obs(5,iip)) )
-    call nc_diag_metadata("Pressure",                sngl(all_qv_obs(6,iip)) )
+    call nc_diag_metadata("Pressure",                sngl(all_qv_obs(6,iip)*r100) )
     call nc_diag_metadata("Height",                  sngl(all_qv_obs(7,iip)) )
     call nc_diag_metadata("Time",                    sngl(all_qv_obs(8,iip)) )
     call nc_diag_metadata("Prep_QC_Mark",            sngl(all_qv_obs(9,iip)) )

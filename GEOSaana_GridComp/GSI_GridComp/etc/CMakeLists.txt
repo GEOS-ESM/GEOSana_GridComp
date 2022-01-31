@@ -8,11 +8,13 @@ install(
 set (etc_txt_files
    gmao_global_aeroinfo.txt
    gmao_global_anavinfo.txt
+   gmao_global_anavinfo_l91.txt
    gmao_global_anavinfo_l132.txt
+   gmao_global_anavinfo_l181.txt
    gmao_global_anavinfo_rcov.txt
    gmao_global_blacklist.txt
    gmao_global_cloudy_radiance_info.txt
-   gmao_global_coinfo.txt
+   gmao_global_tgasinfo.txt
    gmao_global_convinfo.txt
    gmao_global_insituinfo.txt
    gmao_global_ozinfo.txt
@@ -49,6 +51,17 @@ install(
    )
 
 install(
+   FILES gmao_global_hybens_info.x288y181l91.txt
+   DESTINATION etc
+   RENAME gmao_global_hybens_info.x288y181l91.rc
+   )
+install(
+   FILES gmao_global_hybens_info.x576y361l91.txt
+   DESTINATION etc
+   RENAME gmao_global_hybens_info.x576y361l91.rc
+   )
+
+install(
    FILES gmao_global_hybens_info.x288y181l132.txt
    DESTINATION etc
    RENAME gmao_global_hybens_info.x288y181l132.rc
@@ -57,6 +70,17 @@ install(
    FILES gmao_global_hybens_info.x576y361l132.txt
    DESTINATION etc
    RENAME gmao_global_hybens_info.x576y361l132.rc
+   )
+
+install(
+   FILES gmao_global_hybens_info.x288y181l181.txt
+   DESTINATION etc
+   RENAME gmao_global_hybens_info.x288y181l181.rc
+   )
+install(
+   FILES gmao_global_hybens_info.x576y361l181.txt
+   DESTINATION etc
+   RENAME gmao_global_hybens_info.x576y361l181.rc
    )
 
 set (etc_other_files
@@ -87,6 +111,17 @@ set (MERRA2_files
 install(
    FILES ${MERRA2_files}
    DESTINATION etc/gsi/MERRA2
+   )
+
+# Handle GEOSIT settings in a similar way as MERRA2
+set (GEOSIT_files
+   GEOSIT/gmao_global_cloudy_radiance_info.rc
+   GEOSIT/gmao_global_satinfo.rc
+   GEOSIT/gsi.rc.tmpl
+   )
+install(
+   FILES ${GEOSIT_files}
+   DESTINATION etc/gsi/GEOSIT
    )
 
 file(GLOB etc_py *.py)

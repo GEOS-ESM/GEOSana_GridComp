@@ -130,7 +130,7 @@ subroutine setuprw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
        ges_lnprsl,sfcmod_gfs,sfcmod_mm5,comp_fact10, ges_tsen, ges_rho
   use gridmod, only: nsig,get_ijk
   use constants, only: flattening,semi_major_axis,grav_ratio,zero,grav,wgtlim,&
-       half,one,two,grav_equator,eccentricity,somigliana,rad2deg,deg2rad
+       half,one,two,grav_equator,eccentricity,somigliana,rad2deg,deg2rad,r100
   use constants, only: tiny_r_kind,cg_term,huge_single,r2000,three,one
   use jfunc, only: jiter,last,miter,jiterstart
   use convinfo, only: nconvtype,cermin,cermax,cgross,cvar_b,cvar_pg,ictype
@@ -144,8 +144,8 @@ subroutine setuprw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   implicit none
 
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   logical                                          ,intent(in   ) :: conv_diagsave
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
@@ -296,7 +296,7 @@ subroutine setuprw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
         nreal = nreal + size(dhx_dx)
      endif
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
-     if(netcdf_diag) call init_netcdf_diag_
+     if(netcdf_diag.and.nobs>0) call init_netcdf_diag_
   end if
 
   mm1=mype+1
@@ -801,7 +801,7 @@ subroutine setuprw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
 
 ! Write information to diagnostic file
   if(conv_diagsave)then
-     if(netcdf_diag) call nc_diag_write
+     if(netcdf_diag.and.nobs>0) call nc_diag_write
      if(binary_diag .and. ii>0)then
         write(7)' rw',nchar,nreal,ii,mype,ioff0
         write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
@@ -1153,7 +1153,7 @@ subroutine setuprw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
            call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
            call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
            call nc_diag_metadata("Station_Elevation",       sngl(data(ielev,i))    )
-           call nc_diag_metadata("Pressure",                sngl(presw)            )
+           call nc_diag_metadata("Pressure",                sngl(presw*r100)       )
            call nc_diag_metadata("Height",                  sngl(data(ihgt,i))     )
            call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
            call nc_diag_metadata("Prep_QC_Mark",            sngl(zero)             )

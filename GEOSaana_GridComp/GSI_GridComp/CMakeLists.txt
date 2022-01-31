@@ -106,6 +106,7 @@ set (SRCS_UTIL
   mod_strong.f90
   mod_wrfmass_to_a.f90
   mp_compact_diffs_mod1.f90
+  mp_compact_diffs_mod2.f90
   mp_compact_diffs_support.f90
   mpimod.F90
   mpl_allreduce.F90
@@ -199,7 +200,7 @@ set (SRCS_OBSNODES
   gsi_aeroOper.F90
   gsi_cldchOper.F90
   gsi_cldtotOper.F90
-  gsi_colvkOper.F90
+  gsi_tgasOper.F90
   gsi_dbzOper.F90
   gsi_dwOper.F90
   gsi_gpsbendOper.F90
@@ -240,7 +241,7 @@ set (SRCS_OBSNODES
   m_aerolNode.F90
   m_aeroNode.F90
   m_cldchNode.F90
-  m_colvkNode.F90
+  m_tgasNode.F90
   m_dbzNode.F90
   m_dwNode.F90
   m_gpsNode.F90
@@ -283,6 +284,7 @@ set (SRCS_SOLVER
   adjtest.f90
   adjtest_obs.f90
   adjust_cloudobs_mod.f90
+  advect_cv.f90
   aeroinfo.f90
   anberror.f90
   anbkerror.f90
@@ -312,8 +314,7 @@ set (SRCS_SOLVER
   chemmod.f90
   clw_mod.f90
   cmaq_routines.f90
-  co_mop_ak.f90
-  coinfo.f90
+  tgasinfo.f90
   combine_radobs.f90
   compute_derived.f90
   compute_qvar3d.f90
@@ -360,7 +361,7 @@ set (SRCS_SOLVER
   intall.f90
   intaod.f90
   intcldch.f90
-  intco.f90
+  inttgas.f90
   intdbz.f90
   intdw.f90
   intgps.f90
@@ -409,6 +410,7 @@ set (SRCS_SOLVER
   loglcbas_to_lcbas.f90
   logcldch_to_cldch.f90
   logvis_to_vis.f90
+  m_nc_berror.f90
   m_berror_stats.f90
   m_berror_stats_reg.f90
   m_cvgridLookup.F90
@@ -463,7 +465,7 @@ set (SRCS_SOLVER
   read_avhrr.f90
   read_avhrr_navy.f90
   read_bufrtovs.f90
-  read_co.f90
+  read_tgas.f90
   read_dbz_nc.f90
   read_dbz_netcdf.f90
   read_files.f90
@@ -510,7 +512,7 @@ set (SRCS_SOLVER
   setupbend.f90
   setupcldch.f90
   setupcldtot.F90
-  setupco.f90
+  setuptgas.f90
   setupdbz.f90
   setupdbz_lib.f90
   setupdw.f90
@@ -554,7 +556,7 @@ set (SRCS_SOLVER
   sqrtmin.f90
   ssmis_spatial_average_mod.f90
   sst_retrieval.f90
-  statsco.f90
+  statstgas.f90
   statsconv.f90
   statsoz.f90
   statslight.f90
@@ -563,7 +565,7 @@ set (SRCS_SOLVER
   stpaod.f90
   stpcalc.f90
   stpcldch.f90
-  stpco.f90
+  stptgas.f90
   stpdbz.f90
   stpdw.f90
   stpgps.f90
@@ -604,6 +606,8 @@ set (SRCS_SOLVER
   strong_fast_global_mod.f90
   sub2fslab_mod.f90
   support_2dvar.f90
+  test_advpert.f90
+  test_bkerror.f90
   test_obsens.f90
   tcv_mod.f90
   tpause.f90
@@ -639,6 +643,7 @@ set (OBJS_OPENBUFR
    getcount_bufr.f90
    m_extOzone.F90
    read_aerosol.f90
+   read_abi.f90
    read_ahi.f90
    read_airs.f90
    read_amsre.f90
@@ -732,11 +737,11 @@ install(
   
 esma_add_library (GSI_GridComp
    SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
-  DEPENDENCIES MAPL_Base NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
+  DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 esma_add_library (GSI_GridComp_with_stubs
    SRCS ${SRCS_STUBS} ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
-   DEPENDENCIES MAPL_Base NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
+   DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 foreach (item HAVE_ESMF _SKIP_READ_OBS_CHECK_ _TIMER_ON_ _REAL8_)
    target_compile_definitions (GSI_GridComp PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${item}>)
@@ -755,19 +760,19 @@ endforeach()
 
 #esma_add_library (GSI_Util
 #  SRCS ${SRCS_UTIL}
-#  DEPENDENCIES GSI_Observer MAPL_Base NCEP_crtm NCEP_nemsio nc_diag_read GMAO_stoch)  
+#  DEPENDENCIES GSI_Observer MAPL NCEP_crtm NCEP_nemsio nc_diag_read GMAO_stoch)  
 #
 #esma_add_library (GSI_Observer
 #  SRCS ${SRCS_OBSVR}
-#  DEPENDENCIES MAPL_Base GSI_Util nc_diag_write)
+#  DEPENDENCIES MAPL GSI_Util nc_diag_write)
 #
 #esma_add_library (GSI_Other
 #  SRCS ${SRCS_OTHER}
-#  DEPENDENCIES MAPL_Base GSI_Util nc_diag_write)
+#  DEPENDENCIES MAPL GSI_Util nc_diag_write)
 #
 #esma_add_library (GSI_Solver
 #  SRCS ${SRCS_SOLVER}
-#  DEPENDENCIES MAPL_Base)
+#  DEPENDENCIES MAPL)
 #
 #foreach (t GSI_Util GSI_Observer GSI_Other GSI_Solver)
 #  target_compile_definitions (${t} PUBLIC _REAL8_ _SKIP_READ_OBS_CHECK_ LINUX funder FortranByte=char FortranInt=int FortranLlong=long\ long)

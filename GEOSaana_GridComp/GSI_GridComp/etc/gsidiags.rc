@@ -151,7 +151,9 @@ o3lev_aura
 ompslpuv_npp
 ompslpvis_npp
 ompsnm_npp
+ompsnmeff_npp
 ompsnp_npp
+ompsnpnc_npp
 omi_aura
 omieff_aura
 sbuv2_n07
@@ -187,4 +189,14 @@ conv_tcp
 conv_pw
 conv_spd
 conv_sst
+conv_aura_t
+conv_prof_t
+conv_prof_uv
+::
+
+tgaslist::
+mopitt_terra
+acos_gosat
+acos_oco2
+flask_noaa
 ::

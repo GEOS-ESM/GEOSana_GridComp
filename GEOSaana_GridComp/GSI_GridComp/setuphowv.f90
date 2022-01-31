@@ -88,8 +88,8 @@ subroutine setuphowv(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   implicit none
 
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   logical                                          ,intent(in   ) :: conv_diagsave
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
@@ -645,7 +645,7 @@ subroutine setuphowv(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
            call nc_diag_metadata("Latitude",                data(ilate,i)          )
            call nc_diag_metadata("Longitude",               data(ilone,i)          )
            call nc_diag_metadata("Station_Elevation",       data(istnelv,i)        )
-           call nc_diag_metadata("Pressure",                r10*data(ipres,i)      )
+           call nc_diag_metadata("Pressure",                r1000*data(ipres,i)    )
            call nc_diag_metadata("Height",                  data(iobshgt,i)        )
            call nc_diag_metadata("Time",                    dtime-time_offset      )
            call nc_diag_metadata("Prep_QC_Mark",            data(iqc,i)            )

@@ -23,8 +23,8 @@ module obs_sensitivity
 !   2016-05-05 pondeca  - add reference to uwnd10m, vwnd10m
 !   2017-05-12 Y. Wang and X. Wang - add reflectivity (dBZ), POC: xuguang.wang@ou.edu
 !   2017-01-16 Apodaca  - add reference to lightning
-!   2017-05-06 todling  - reload ensemble when FSOI calc doing EFSOI-like
-!   2017-05-21 todling  - implement ability to do 2nd EFSOI-like calc
+!   2017-05-06 todling  - reload ensemble when FSOI calc doing EnVarFSOI-like
+!   2017-05-21 todling  - implement ability to do 2nd EnVarFSOI-like calc
 !
 ! Subroutines Included:
 !   init_fc_sens  - Initialize computations
@@ -41,8 +41,8 @@ module obs_sensitivity
 use kinds, only: r_kind,i_kind,r_quad
 use constants, only: zero, zero_quad, two
 use gsi_4dvar, only: nobs_bins, l4dvar, lsqrtb, nsubwin
-use gsi_4dvar, only: tau_fcst,efsoi_order,efsoi_afcst,efsoi_ana
-use jfunc, only: jiter, miter, niter, iter
+use gsi_4dvar, only: tau_fcst,evfsoi_order,evfsoi_afcst,evfsoi_ana
+use jfunc, only: jiter, miter, niter, iter, jiterend
 
 use gsi_obOperTypeManager, only: nobs_type => obOper_count
 use gsi_obOperTypeManager, only: obOper_typeinfo
@@ -69,7 +69,7 @@ public lobsensfc,lobsensjb,lobsensincr,lobsensadj,&
        lobsensmin,iobsconv,llancdone,lsensrecompute, &
        fcsens, sensincr, &
        init_obsens, init_fc_sens, save_fc_sens, dot_prod_obs
-public efsoi_o2_update
+public evfsoi_o2_update
 
 public:: obsensCounts_realloc
 public:: obsensCounts_set
@@ -200,6 +200,7 @@ type(control_vector) :: xwork
 real(r_kind) :: zjx
 integer(i_kind) :: ii
 character(len=80),allocatable,dimension(:)::fname
+integer :: mydate(5)
 
 if (mype==0) then
    write(6,*)'init_fc_sens: lobsensincr,lobsensfc,lobsensjb=', &
@@ -259,10 +260,22 @@ if (lobsensfc) then
             call allocate_preds(zbias)
             zbias=zero
             call gsi_4dcoupler_getpert(fcgrad,nsubwin,'adm',fname)
+            if (tau_fcst>0) then ! .and. miter/=jiterend) then ! note: when jiterend=miter forecast ens already loaded
+               mydate(1)=1776;mydate(2)=7;mydate(3)=4;mydate(4)=12;mydate(5)=0
+               call advect_cv(mype,mydate,tau_fcst,fcgrad)
+            endif
             if (lsqrtb) then
                call control2model_ad(fcgrad,zbias,fcsens)
             else
                if (l_hyb_ens) then
+                  if (tau_fcst>0) then ! .and. miter/=jiterend) then ! note: when jiterend=miter forecast ens already loaded
+                     call destroy_hybens_localization_parameters
+                     call destroy_ensemble
+                     call create_ensemble
+                     ! now restore actual ens of backgrounds
+                     call load_ensemble(tau_fcst)
+                     call hybens_localization_setup
+                  endif
                   do ii=1,ntlevs_ens
                      call allocate_state(eval(ii))
                   end do
@@ -274,14 +287,16 @@ if (lobsensfc) then
                      call deallocate_state(eval(ii))
                   end do
                   if (tau_fcst>0) then
+!                    mydate(1)=1776;mydate(2)=7;mydate(3)=4;mydate(4)=12;mydate(5)=0
+!                    call advect_cv(mype,mydate,tau_fcst,fcsens)
                      call destroy_hybens_localization_parameters
                      call destroy_ensemble
                      call create_ensemble
-                     ! now load actual ens background
-                     efsoi_afcst=.false.
+                     ! now restore actual ens of backgrounds
+                     evfsoi_afcst=.false.
                      orig_tau_fcst=tau_fcst
                      tau_fcst=-1
-                     call load_ensemble
+                     call load_ensemble(tau_fcst)
                      call hybens_localization_setup
                   endif
                else
@@ -309,7 +324,7 @@ endif
 return
 end subroutine init_fc_sens
 ! ------------------------------------------------------------------------------
-subroutine efsoi_o2_update(sval)
+subroutine evfsoi_o2_update(sval)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    order2_fc_sens
@@ -347,7 +362,7 @@ integer(i_kind) :: ii
 
 tau_fcst=orig_tau_fcst
 if (tau_fcst<=0) return
-if (efsoi_order/=2) return
+if (evfsoi_order/=2) return
 if (.not.l_hyb_ens) return
 
 if (mype==0) then
@@ -379,10 +394,10 @@ end if
  call gsi_4dcoupler_getpert(fcgrad,nsubwin,'adm',fname)
 ! Wipe out loaded ensemble members to allow reloading ensemble of analysis
  call destroy_ensemble
-! Read in ens forecasts issues from "analysis" 
- efsoi_afcst=.true.
+! Read in ens forecasts issued from "analysis" 
+ evfsoi_afcst=.true.
  call create_ensemble
- call load_ensemble
+ call load_ensemble(tau_fcst)
  do ii=1,ntlevs_ens
     call allocate_state(eval(ii))
  end do
@@ -398,8 +413,12 @@ end if
  end do
  call deallocate_preds(zbias)
  deallocate(fname)
-! Wipe  outensemble from memory
+! Wipeout ensemble from memory
  call destroy_ensemble
+
+! RT: I think somewhere around here is where we should advect the resulting
+! sensitivities ... TBD (similar to advecting localization scales, is it?)
+! could also be a few lines above ... not sure yet
 
 ! Report magnitude of input vector
  zjx=dot_product(fcsens,fcsens)
@@ -407,10 +426,9 @@ end if
 888 format(A,3(1X,ES25.18))
 
 ! Read in ensemble of analysis (these are EnKF, not GSI, analyses obviously)
- efsoi_ana=.true.
- tau_fcst=-1
+ evfsoi_ana=.true.
  call create_ensemble
- call load_ensemble
+ call load_ensemble(-1)
 
 ! Allocate local variables
  do ii=1,nsubwin
@@ -440,7 +458,7 @@ do ii=1,nsubwin
 end do
 
 return
-end subroutine efsoi_o2_update
+end subroutine evfsoi_o2_update
 subroutine save_fc_sens
 !$$$  subprogram documentation block
 !                .      .    .                                       .

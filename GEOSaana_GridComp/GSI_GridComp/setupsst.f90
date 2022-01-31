@@ -115,8 +115,8 @@ subroutine setupsst(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
 
   integer(i_kind),parameter:: istyp=0,nprep=1
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   logical                                          ,intent(in   ) :: conv_diagsave
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
@@ -301,7 +301,7 @@ subroutine setupsst(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
                   elon = data(ilone,i)  ,&
                   luse = luse(i)        ,&
                  miter = miter          )
-
+    
         if(.not.associated(my_diag)) call die(myname, &
                 'obsdiagLList_nextNode(), create =', .not.lobsdiag_allocated)
      endif
@@ -606,6 +606,10 @@ contains
            call nc_diag_metadata("Observation",                   sngl(data(isst,i)) )
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(ddiff)      )
            call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(data(isst,i)-sstges) )
+           call nc_diag_metadata("Forecast_unadjusted", sngl(sstges))
+           call nc_diag_metadata("Forecast_adjusted", sngl(data(isst,i)-ddiff))
+           !GeoVaLs
+           call nc_diag_metadata("sea_surface_temperature", sngl(sstges) )
  
            if (lobsdiagsave) then
               do jj=1,miter

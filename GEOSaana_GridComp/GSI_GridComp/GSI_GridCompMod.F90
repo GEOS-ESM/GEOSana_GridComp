@@ -36,7 +36,8 @@
 ! !USES:
 
    use ESMF                  ! ESMF
-   use MAPL_Mod              ! MAPL Generic
+   use MAPL              ! MAPL Generic
+   use MAPL_Profiler, only: BaseProfiler, TimeProfiler, get_global_time_profiler
    use gsimod                ! GSI original interface
    use mpeu_util, only: StrTemplate         ! grads style templates
    use m_chars,   only: lowercase
@@ -48,8 +49,6 @@
    use gsi_bundlemod, only : GSI_BundleGetPointer
    use gsi_bundlemod, only : GSI_Bundle
    use gsi_bundlemod, only : GSI_BundlePrint
-   use MAPL_LatLonGridFactoryMod
-   use MAPL_GridManagerMod
 
 ! Access to GSI's global data segments
 
@@ -235,6 +234,8 @@
 !                      - Remove reference to vars not used here
 !   18Sep2012 Akella   - Add SwapJI2i_ to GSI_GridCompSwapJI_ for use in writing out TSKIN when doing NST analysis
 !   19Oct2013 Todling - metguess now holds background
+!   24Mar2014 Weir    - Changed carbon monoxide to be stored as its log
+!   10Aug2014 Weir    - Added methane
 !
 !EOP
 !-------------------------------------------------------------------------
@@ -250,8 +251,11 @@
    real, parameter     :: UNDEF_SNOW_DEP  = 1.E+12
    real, parameter     :: PPMV2GpG        = 1.6571E-6         ! ((47.9982 g/mol)/((28.9644 g/mol))*1e-6(mol/mol)-> g/g
    real, parameter     :: KGpKG2PPBV      = (28./28.97)*1.E+9 ! mol/mol to ppbv
+                                                              ! mol/mol to Kg/Kg as well
    real, parameter     :: KGpKG2PPBVaero  = 1.E+9             ! kg/kg to ppbv (mol/mol to ppbv)
    real, parameter     :: KGpKG2ppmvCO2   = 1.E+6             ! kg/kg to ppmv (mol/mol to ppmv)
+   real, parameter     :: PPMV2DU         = 1.657E-6
+   real, parameter     :: PPMV            = 1.E6
    real, parameter     :: kPa_per_Pa      = 0.001
    real, parameter     :: Pa_per_kPa      = 1000.
    logical, parameter  :: verbose         = .false.
@@ -369,6 +373,8 @@
    integer                               :: STATUS
    logical                               :: IamRoot    
    character(len=*), parameter :: IAm='GSI_GridComp.SetServices'
+   type(MAPL_MetaComp), pointer :: child_maplobj
+   type(ESMF_VM) :: vm
 
 ! start
 _ENTRY_(trim(Iam))
@@ -403,8 +409,24 @@ _ENTRY_(trim(Iam))
 
 ! Generic SetServices
 
+   call ESMF_VMGetCurrent(vm=vm, rc=STATUS)
+   VERIFY_(STATUS)
+   call ESMF_VMGet(vm, mpiCommunicator=mpi_comm_world, &
+        rc=STATUS)
+   VERIFY_(STATUS)
+   call MAPL_InternalStateRetrieve(gc, CHILD_MAPLOBJ, RC=status)
+   VERIFY_(status)
+   !CHILD_MAPLOBJ%t_profiler = TimeProfiler('GSI_GridComp', comm_world = MPI_COMM_WORLD)
+  !call CHILD_MAPLOBJ%t_profiler%start(rc=status)
+   !VERIFY_(status)
+  !call CHILD_MAPLOBJ%t_profiler%start('SetService',rc=status)
+   !VERIFY_(status)
    call MAPL_GenericSetServices ( gc, RC=STATUS)
    VERIFY_(STATUS)
+  !call CHILD_MAPLOBJ%t_profiler%stop('SetService',rc=status)
+   !VERIFY_(status)
+  !call CHILD_MAPLOBJ%t_profiler%stop(rc=status)
+   !VERIFY_(status)
 
 ! A non-standard serServices() call for non-standard pertmod component
    call gsi_4dCoupler_setServices (RC=STATUS)
@@ -549,7 +571,7 @@ _ENTRY_(trim(Iam))
    
    call MAPL_GenericInitialize(gc, import, export, clock, rc=STATUS)
    VERIFY_(STATUS)
-
+     
 !                       --------------
 !                       Set GSI alarms
 !                       --------------
@@ -647,7 +669,6 @@ _ENTRY_(trim(Iam))
 
 !-------------------------------------------------------------------------
    subroutine GSI_GridCompGridCreate_ ( grid, agcmPertGrid )
-
 !-------------------------------------------------------------------------
 ! !REVISION HISTORY:
 !
@@ -1806,7 +1827,10 @@ _ENTRY_(trim(Iam))
       endif
       if(associated(cop)) then
          where ( cop /= MAPL_UNDEF )
-                 cop = cop * KGpKG2PPBV  ! convert carbon monoxide unit (need gen. way of handling chemistry)
+!                Carbon monox is now stored as a log; this makes the obs operator for mopitt linear and
+!                prevents us from having to use an ad hoc lower bound; update_guess also needs to reflect
+!                this by not applying the lower bound; also inverse in dcop needs to reflect change (weir)
+                 cop = log10(cop * KGpKG2PPBV)  ! convert carbon monoxide unit (need gen. way of handling chemistry)
          endwhere
       endif
       if(associated(co2p)) then
@@ -1945,7 +1969,6 @@ _ENTRY_(trim(Iam))
    integer(i_kind) :: irank, ipnt, ier,istatus
    character(len=ESMF_MAXSTR) :: cvar
    real(r_kind),pointer,dimension(:,:,:):: ptr_cwmr,ptr_qimr,ptr_qlmr
-
 
 ! start   
 
@@ -2521,6 +2544,7 @@ _ENTRY_(trim(Iam))
    subroutine GSI_GridCompGetNCEPsfcFromFile_(lit)
 
    use sfcio_module
+   use mpeu_util, only: die
    implicit none
 
    integer, intent(in) :: lit ! logical index of first guess time level to copy
@@ -2552,10 +2576,11 @@ _ENTRY_(trim(Iam))
    character(len=*), parameter    :: &
             IAm='GSI_GridCompGetNCEPsfcFromFile_'
 
+   character(len=ESMF_MAXSTR) :: opt
    integer(i_kind) :: it,nn,iret
    integer(i_kind) :: iset_veg_type
-   logical,parameter :: wrt_ncep_sfc_grd=.false.
-   logical,parameter :: use_sfcio=.true.
+   logical :: wrt_ncep_sfc_grd
+   logical :: use_sfcio
 
 ! start
 
@@ -2563,6 +2588,22 @@ _ENTRY_(trim(Iam))
 
    call ESMF_ConfigGetAttribute( CF, iset_veg_type, label ='THIS_VEG_TYPE:', default=-1, rc = STATUS )
    VERIFY_(STATUS)
+   call ESMF_ConfigGetAttribute( CF, opt, label ='WRTOUT_NCEP_SFC:', default="NO", rc = STATUS )
+   VERIFY_(STATUS)
+   wrt_ncep_sfc_grd=.false.
+   if ( trim(opt) /= "NO" ) then
+      wrt_ncep_sfc_grd=.true.
+      if(IamRoot) print *,trim(Iam),': will write NCEP surface fields to grads-like file'
+   endif
+   call ESMF_ConfigGetAttribute( CF, opt, label ='USE_SFCIO4NCEP_SFC:', default="YES", rc = STATUS )
+   VERIFY_(STATUS)
+   use_sfcio=.true.
+   if ( trim(opt) == "YES" ) then
+      if(IamRoot) print *,trim(Iam),': using SFCIO to read NCEP surface fields'
+   else
+      use_sfcio=.false.
+      if(IamRoot) print *,trim(Iam),': NOT using SFCIO to read NCEP surface fields'
+   endif
 
    if(lit > nfldsfc) then
      do nn=1,nfldsfc-1
@@ -2622,7 +2663,11 @@ _ENTRY_(trim(Iam))
                              STATUS, jrec=12, fld=sfcbuf)
          VERIFY_(STATUS)
       else
-         sfcbuf=data%vfrac
+         if (associated(data%vfrac)) then
+            sfcbuf=data%vfrac
+         else
+            call die(Iam,' vfrac not found in NCEP input file', 99)
+         endif
       endif
       call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
       call GSI_GridCompFlipLons_(sfcbufpp)
@@ -2645,7 +2690,11 @@ _ENTRY_(trim(Iam))
                              STATUS, jrec=15, fld=sfcbuf)
          VERIFY_(STATUS)
       else
-         sfcbuf=data%vtype
+         if (associated(data%vtype)) then
+            sfcbuf=data%vtype
+         else
+            call die(Iam,' vtype not found in NCEP input file', 99)
+         endif
       endif
       call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
       call GSI_GridCompFlipLons_(sfcbufpp)
@@ -2665,7 +2714,11 @@ _ENTRY_(trim(Iam))
                              STATUS, jrec=16, fld=sfcbuf)
          VERIFY_(STATUS)
       else
-         sfcbuf=data%stype
+         if (associated(data%stype)) then
+            sfcbuf=data%stype
+         else
+            call die(Iam,' stype not found in NCEP input file', 99)
+         endif
       endif
       call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
       call GSI_GridCompFlipLons_(sfcbufpp)
@@ -2682,6 +2735,14 @@ _ENTRY_(trim(Iam))
       endif
 
       deallocate(sfcbuf, sfcbufpp, stat=STATUS)
+      VERIFY_(STATUS)
+
+   else ! (not) root
+
+      allocate(vtybuf(0,0), &
+               stybuf(0,0), &
+               vfrbuf(0,0), & 
+               stat=STATUS)
       VERIFY_(STATUS)
 
    end if
@@ -2970,8 +3031,10 @@ _ENTRY_(trim(Iam))
       if(associated(dhs)) dhs = grav * dhs
       if(associated(doz)) doz = doz  / PPMV2GpG
       if(idco.and.associated(dcop)) then
-         dcop = dcop  / KGpKG2PPBV
+!        changed this because forward transform has changed (weir)
+         dcop = 10._r_kind**(dcop) / KGpKG2PPBV
       endif
+      if(associated(dco2p)) dco2p = dco2p / PPMV
    endif
    end subroutine UnScale_Export_
 
@@ -3597,19 +3660,17 @@ _ENTRY_(trim(Iam))
    call destroy_metguess_grids(mype,status)
    VERIFY_(STATUS)
 
-   deallocate( isli     ,&
-               fact10   ,&
-               sfct     ,&
-               dsfct    ,&
-               sno      ,&
-               veg_type ,&
-               veg_frac ,&
-               soil_type,&
-               soil_temp,&
-               soil_moi ,&
-               sfc_rough,&
-               stat=STATUS)
-   VERIFY_(STATUS)
+   if(allocated(isli)) deallocate(isli)
+   if(allocated(fact10)) deallocate(fact10)
+   if(allocated(sfct)) deallocate(sfct)
+   if(allocated(dsfct)) deallocate(dsfct)
+   if(allocated(sno)) deallocate(sno)
+   if(allocated(veg_type)) deallocate(veg_type)
+   if(allocated(veg_frac)) deallocate(veg_frac)
+   if(allocated(soil_type)) deallocate(soil_type)
+   if(allocated(soil_temp)) deallocate(soil_temp)
+   if(allocated(soil_moi)) deallocate(soil_moi)
+   if(allocated(sfc_rough)) deallocate(sfc_rough)
 
    call destroy_grid_vars
 
@@ -3852,8 +3913,8 @@ _ENTRY_(trim(Iam))
                       'dry organic carbon              ',  &
                       'wet organic carbon              '/)
    character(len=16), parameter :: inunits3dg(nin3dg) = (/ &
-                                   'g/g             ',     &
-                                   'g/g             ',     &
+                                   'mol/mol         ',     &
+                                   'mol/mol         ',     &
                                    'g/g             ',     &
                                    'g/g             ',     &
                                    'g/g             ',     &
@@ -3971,8 +4032,8 @@ _ENTRY_(trim(Iam))
                       'carbon monoxide inc             ',  &
                       'carbon dioxide inc              '/)
    character(len=16), parameter :: exunits3dg(nex3dg) = (/ &
-                                   'g/g             ',     &
-                                   'g/g             '     /)
+                                   'mol/mol         ',     &
+                                   'mol/mol         '     /)
 
 
 ! Begin

@@ -29,7 +29,9 @@ use gsi_4dvar, only: ibdate,lsqrtb,jsiga
 use jfunc, only: jiter
 use lanczos, only : congrad_siga
 use state_vectors, only: allocate_state,deallocate_state
+use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_set
 use gsi_4dcouplermod, only: gsi_4dcoupler_putpert
+use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_final
 use gsi_bundlemod, only: gsi_bundle
 implicit none
 ! declare local variables
@@ -60,9 +62,11 @@ call congrad_siga(siga,nvecs,ier)
 
 ! write out analysis errors
 if(ier==0) then
+   call gsi_4dcoupler_putpert_set (nymd,nhms,ier)
    call gsi_4dcoupler_putpert (siga,nymd,nhms,'tlm','siga')
    if(mype==0) write(6,'(2a,i5,a)')trim(myname_),': complete calculating analysis errors using ',&
                                    nvecs, ' eigenvectors'
+   call gsi_4dcoupler_putpert_final(ier)
 else
    if(mype==0) write(6,'(2a,i6)')trim(myname_),': failed to calculate analysis errors, ier= ', ier
 endif
@@ -100,7 +104,9 @@ use mpimod, only: mype
 use constants, only: zero,one
 use gsi_4dvar, only: nsubwin,lsqrtb
 use state_vectors, only: allocate_state,deallocate_state
+use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_set
 use gsi_4dcouplermod, only: gsi_4dcoupler_putpert
+use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_final
 use gsi_bundlemod, only: gsi_bundle
 use control_vectors, only: control_vector,write_cv
 use state_vectors, only: allocate_state,deallocate_state,prt_state_norms
@@ -115,7 +121,7 @@ logical,         intent(in) :: writecv   ! when .t., simply write out CV directl
 character(len=*),parameter:: myname_ = "view_cv"
 integer(i_kind)      :: nymd                      ! date as in YYYYMMDD
 integer(i_kind)      :: nhms                      ! time as in HHMMSS
-integer(i_kind)      :: ii
+integer(i_kind)      :: ii,ier
 type(gsi_bundle) :: mval(nsubwin)
 type(predictors) :: sbias
 
@@ -124,8 +130,8 @@ if (writecv) then
    call write_cv(xhat,filename)
    return
 else
-   if(mype==0) write(6,*) trim(myname_),': not writing CV to disk for now'
-   return
+!  if(mype==0) write(6,*) trim(myname_),': not writing CV to disk for now'
+!  return
 endif
 
 ! otherwise, transform CV to state-space and write out ...
@@ -147,10 +153,12 @@ else
 endif
 
 ! write out analysis errors
+call gsi_4dcoupler_putpert_set (nymd,nhms,ier)
 do ii=1,nsubwin
    call gsi_4dcoupler_putpert (mval(ii),nymd,nhms,'tlm',filename) ! will need to be smart for nsubwin>1
    call prt_state_norms(mval(ii),'output-state')
 enddo
+call gsi_4dcoupler_putpert_final (ier)
 call write_preds(sbias,'preds_'//trim(filename),mype)
 
 ! Allocate local variables

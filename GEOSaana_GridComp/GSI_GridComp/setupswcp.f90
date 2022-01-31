@@ -72,7 +72,7 @@ subroutine setupswcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   use nc_diag_read_mod, only: nc_diag_read_init,nc_diag_read_get_dim,nc_diag_read_close
   use state_vectors, only: svars3d, levels, nsdim
 
-  use constants, only: zero,one,tpwcon,r1000,r10, &
+  use constants, only: zero,one,tpwcon,r1000,r10,r100,&
        tiny_r_kind,three,half,two,cg_term,huge_single,&
        wgtlim, ttp, tmix, psatk, xa, xai, xb, xbi
   use jfunc, only: jiter,last,jiterstart,miter
@@ -89,8 +89,8 @@ subroutine setupswcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   implicit none
 
 ! Declare passed variables
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   logical                                          ,intent(in   ) :: conv_diagsave
   integer(i_kind)                                  ,intent(in   ) :: lunin,mype,nele,nobs
@@ -806,7 +806,7 @@ subroutine setupswcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
         endif
      end if
 
-     call nc_diag_init(diag_conv_file)
+     call nc_diag_init(diag_conv_file,append=append_diag)
 
      if (.not. append_diag) then ! don't write headers on append - the module will break?
         call nc_diag_header("date_time",ianldate )
@@ -895,7 +895,7 @@ subroutine setupswcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
     call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
     call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
     call nc_diag_metadata("Station_Elevation",       sngl(data(istnelv,i))  )
-    call nc_diag_metadata("Pressure",                sngl(data(iobsprs,i))  )
+    call nc_diag_metadata("Pressure",                sngl(data(iobsprs,i)*r100)  )
     call nc_diag_metadata("Height",                  sngl(data(iobshgt,i))  )
     call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
     call nc_diag_metadata("Prep_QC_Mark",            sngl(data(iqc,i))      )

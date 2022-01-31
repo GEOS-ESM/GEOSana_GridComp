@@ -126,6 +126,7 @@ module hybrid_ensemble_isotropic
   public :: sqrt_beta_s_mult
   public :: sqrt_beta_e_mult
   public :: init_sf_xy
+  public :: destroy_sf_xy
   public :: sf_xy
   public :: sqrt_sf_xy
   public :: sqrt_sf_xy_ad
@@ -1134,7 +1135,7 @@ end subroutine normal_new_factorization_rf_y
 
   end subroutine create_ensemble
 
-  subroutine load_ensemble
+  subroutine load_ensemble (tau)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    load_ensemble    read/generate ensemble perturbations
@@ -1182,9 +1183,11 @@ end subroutine normal_new_factorization_rf_y
 
     implicit none
 
-   type(get_pseudo_ensperts_class) :: pseudo_enspert
-   type(get_wrf_mass_ensperts_class) :: wrf_mass_enspert
-   type(get_wrf_nmm_ensperts_class) :: wrf_nmm_enspert
+    integer,intent(in) :: tau
+
+    type(get_pseudo_ensperts_class) :: pseudo_enspert
+    type(get_wrf_mass_ensperts_class) :: wrf_mass_enspert
+    type(get_wrf_nmm_ensperts_class) :: wrf_nmm_enspert
     type(gsi_bundle),allocatable:: en_bar(:)
     type(gsi_bundle):: bundle_anl,bundle_ens
     type(gsi_grid)  :: grid_anl,grid_ens
@@ -1300,7 +1303,7 @@ end subroutine normal_new_factorization_rf_y
 !            read in ensembles
        if (.not.regional) then
 
-          call get_gefs_ensperts_dualres
+          call get_gefs_ensperts_dualres(tau)
 
        else
 
@@ -2850,6 +2853,11 @@ subroutine sqrt_beta_e_mult_bundle(aens)
   return
 end subroutine sqrt_beta_e_mult_bundle
 
+subroutine destroy_sf_xy
+    deallocate(nsend_sd2h,ndsend_sd2h,nrecv_sd2h,ndrecv_sd2h)
+    deallocate(i_recv,k_recv)
+end subroutine destroy_sf_xy
+
 subroutine init_sf_xy(jcap_in)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -2902,7 +2910,7 @@ subroutine init_sf_xy(jcap_in)
   real(r_kind) s_ens_h_min
   real(r_kind) rlats_ens_local(grd_ens%nlat)
   real(r_kind) rlons_ens_local(grd_ens%nlon)
-  character(5) mapname
+  character(8) mapname
   logical make_test_maps
   logical,allocatable,dimension(:)::ksame
   integer(i_kind) nord_sploc2ens
@@ -3167,7 +3175,7 @@ subroutine init_sf_xy(jcap_in)
            out1(j,i)=ftest(i,j,grd_loc%kbegin_loc)
         enddo
      enddo
-     write(mapname,'("out_",i2.2)')1+mod(grd_loc%kbegin_loc-1,grd_ens%nsig)
+     write(mapname,'("out_",i4.4)')1+mod(grd_loc%kbegin_loc-1,grd_ens%nsig)
      call outgrads1(out1,grd_ens%nlon,grd_ens%nlat,mapname)
    end if
   end if
@@ -4000,7 +4008,7 @@ subroutine hybens_localization_setup
 !
 !$$$
    use kinds, only: r_kind,i_kind
-   use constants, only: one,zero
+   use constants, only: one,zero,half
    use mpimod, only: mype
    use gridmod,only: regional
    use gfs_stratosphere, only: use_gfs_stratosphere,blend_rm
@@ -4011,6 +4019,7 @@ subroutine hybens_localization_setup
                                          vvlocal,s_ens_h,s_ens_hv,s_ens_v,s_ens_vv
    use gsi_io, only: verbose
    use m_revBens, only: revBens_ensloc_refactor
+   use guess_grids, only: get_ref_gesprs
 
    implicit none
 
@@ -4019,6 +4028,7 @@ subroutine hybens_localization_setup
    integer(i_kind) :: k,msig,istat,nz,kl
    logical         :: lexist,print_verbose
    real(r_kind),allocatable:: s_ens_h_gu_x(:),s_ens_h_gu_y(:)
+   real(r_kind),allocatable:: prs(:)
    print_verbose=.false. .and. mype == 0
    if(verbose .and. mype == 0)print_verbose=.true.
 
@@ -4043,6 +4053,8 @@ subroutine hybens_localization_setup
             close(lunin)
             call stop2(123)
          endif
+         allocate(prs(grd_ens%nsig+1))
+         call get_ref_gesprs(prs)
          do k = 1,grd_ens%nsig
             read(lunin,101) s_ens_hv(k), s_ens_vv(k), beta_s(k), beta_e(k)
          enddo
@@ -4052,8 +4064,9 @@ subroutine hybens_localization_setup
 
          if(mype==0) write(6,'(" LOCALIZATION, BETA_S, BETA_E VERTICAL PROFILES FOLLOW")')
          do k = 1,grd_ens%nsig
-            if(mype==0) write(6,101) s_ens_hv(k), s_ens_vv(k), beta_s(k), beta_e(k)
+            if(mype==0) write(6,102) s_ens_hv(k), s_ens_vv(k), beta_s(k), beta_e(k), half*(prs(k)+prs(k+1))
          enddo
+         deallocate(prs)
 
       else
 
@@ -4075,6 +4088,7 @@ subroutine hybens_localization_setup
 100 format(I4)
 !101 format(F8.1,3x,F5.1,2(3x,F8.4))
 101 format(F8.1,3x,F8.3,F8.4,3x,F8.4)
+102 format(F8.1,3x,F8.3,F8.4,3x,F8.4,F10.4)
 
    if ( .not. readin_beta ) then ! assign all levels to same value, sum = 1.0
       beta_s = beta_s0
@@ -4140,16 +4154,24 @@ subroutine hybens_localization_setup
 
    ! write out final values for s_ens_hv, s_ens_vv, beta_s, beta_e
 !_RT_DEBUG   if ( print_verbose ) then
+   allocate(prs(grd_ens%nsig+1))
+   call get_ref_gesprs(prs)
    if ( mype==0 ) then
       write(6,*) 'HYBENS_LOCALIZATION_SETUP(FINAL): s_ens_hv,s_ens_vv,beta_s,beta_e'
       do k=1,grd_ens%nsig
-         write(6,101) s_ens_hv(k), s_ens_vv(k), beta_s(k), beta_e(k)
+         write(6,102) s_ens_hv(k), s_ens_vv(k), beta_s(k), beta_e(k), half*(prs(k)+prs(k+1))
       enddo
    endif
+   deallocate(prs)
 
    return
 
 end subroutine hybens_localization_setup
+
+subroutine hybens_localization_unsetup
+implicit none
+call destroy_sf_xy
+end subroutine hybens_localization_unsetup
 
 subroutine convert_km_to_grid_units(s_ens_h_gu_x,s_ens_h_gu_y,nz)
 !$$$  subprogram documentation block
@@ -5160,6 +5182,7 @@ subroutine ens_iterate_update(jiter)
 
 ! unload ensemble
   call destroy_hybens_localization_parameters
+  call hybens_localization_unsetup
   call destroy_ensemble
 
 ! set recentering of ensemble around analysis
@@ -5168,7 +5191,7 @@ subroutine ens_iterate_update(jiter)
 
 ! reload ensemble but this time use analysis for recentering
   call create_ensemble
-  call load_ensemble
+  call load_ensemble(-1)
   call hybens_localization_setup
 
 end subroutine ens_iterate_update
