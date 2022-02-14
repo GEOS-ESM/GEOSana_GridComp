@@ -39,7 +39,7 @@ module m_icld
 !       endif
 !       call icld_clean()
 
-  integer,parameter:: MSIZE_=500
+  integer,parameter:: MSIZE_=50000
   !logical,parameter:: ICLD_TRUE_=.false.    ! a convinient way to turn off this feature.
   logical,parameter:: ICLD_TRUE_=.true.     ! a convinient way to turn off this feature.
   !logical,parameter:: ICLD_DEBUG=.true.     ! a convinient way to turn off this feature.
