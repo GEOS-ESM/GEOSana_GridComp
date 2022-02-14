@@ -712,6 +712,10 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
    endif ()
 endif ()
 
+if (EXTENDED_SOURCE)
+  set_source_files_properties(prepbykx.f PROPERTIES COMPILE_OPTIONS ${EXTENDED_SOURCE})
+endif ()
+
 set (SRCS_STUBS
   stub_get_wrf_mass_ensperts.f90
   stub_nstmod.f90

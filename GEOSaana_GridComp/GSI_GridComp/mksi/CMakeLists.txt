@@ -12,7 +12,7 @@ ecbuild_add_executable(TARGET make_convinfo.x SOURCES make_convinfo.F90 m_convtm
 set_target_properties(make_convinfo.x PROPERTIES Fortran_MODULE_DIRECTORY ${esma_include}/${this})
 ecbuild_add_executable(TARGET make_ozinfo.x SOURCES make_ozinfo.F90 m_oztmpl.F90 LIBS ${this})
 set_target_properties(make_ozinfo.x PROPERTIES Fortran_MODULE_DIRECTORY ${esma_include}/${this})
-ecbuild_add_executable(TARGET make_satinfo.x SOURCES main.F90 m_sitmpl.F90 LIBS ${this})
+ecbuild_add_executable(TARGET make_satinfo.x SOURCES main.F90 m_sitmpl.F90 m_sirest.F90 m_icld.F90 LIBS ${this})
 set_target_properties(make_satinfo.x PROPERTIES Fortran_MODULE_DIRECTORY ${esma_include}/${this})
 ecbuild_add_executable(TARGET make_pcscaling.x SOURCES pcscaling_main.F90 m_pcscaling.F90 LIBS ${this})
 set_target_properties(make_pcscaling.x PROPERTIES Fortran_MODULE_DIRECTORY ${esma_include}/${this})

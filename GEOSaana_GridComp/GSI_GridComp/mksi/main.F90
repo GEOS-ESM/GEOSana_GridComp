@@ -15,6 +15,8 @@
       use m_sitmpl    , only : sitmpl_get,sitmpl_put,sitmpl_clean
       use satinfo_util, only : tell,warn,perr,die,stdin,stdout
       use satinfo_util, only : alloc,realloc,dealloc
+      use m_icld      , only : icld_init,icld_clean
+      use m_sirest    , only : sirest_update
       implicit none
 
 ! !REVISION HISTORY:
@@ -66,6 +68,7 @@
   integer,pointer,dimension(:) :: tmpl_nuchn => null()
   integer,pointer,dimension(:) :: tmpl_inuse => null()
   character(len=BUFRSIZE),pointer,dimension(:) :: tmpl_rest => null()
+  integer,pointer,dimension(:) :: tmpl_icld  => null()
   integer :: ntmpl=-1
 
     ! key parameters.  Must be defined explicitly.
@@ -237,6 +240,13 @@
 
 !!$ write out the satinfo table.
   if(.not.samever) iver=max(3,iver) ! use the later version by the default
+
+  call icld_init(trim(dbname)//"/icldtable.nml")
+
+  call sirest_update(ntmpl,&    ! update additional sitmpl fields (icld, ..)
+    tmpl_nusis,tmpl_nuchn,tmpl_inuse,tmpl_rest, &
+    vern=iver,nymd=nymd,nhms=nhms)
+  call icld_clean()
 
   call sitmpl_put(satinfo_outf,ntmpl, &
     tmpl_nusis,tmpl_nusat,tmpl_nuchn,tmpl_inuse,tmpl_rest, &
