@@ -2,8 +2,11 @@ radiance_mod_instr_input::
 !obsname    obsloc    ex_obserr  ex_biascor  cld_effect 
  gmi       sea        ex_obserr3   .true.      .false.   
  mhs       global     ex_obserr3   .true.      .false.   
- amsr2      sea       ex_obserr1   .true.      .false.
-::
+ amsr2     sea        ex_obserr1   .true.      .false.
+ amsre     sea        ex_obserr1   .true.      .false.   
+ tmi       sea        ex_obserr1   .true.      .false.   
+ ssmi      sea        ex_obserr1   .true.      .false.   
+:: 
   
 obs_gmi::
 !  Parameters for the observation error model

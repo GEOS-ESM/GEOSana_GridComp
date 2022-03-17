@@ -165,7 +165,7 @@ function is_extOzone_(dfile,dtype,dplat,class)
       ifile_==iNC   .and. dtype == 'mipas'     .or. &
       ifile_==iNC   .and. dtype == 'omieff'    .or. &
       ifile_==iNC   .and. dtype == 'ompsnmeff' .or. &
-      ifile_==iNC   .and. dtype == 'ompsnpnc' .or. &
+      ifile_==iNC   .and. dtype == 'ompsnpnc'  .or. &
       ifile_==iNC   .and. dtype == 'tomseff'
 
   case(iLEVEL)

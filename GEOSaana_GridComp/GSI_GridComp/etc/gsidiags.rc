@@ -5,6 +5,7 @@ amsr2_gcom-w1
 amsre_hig_aqua
 amsre_low_aqua
 amsre_mid_aqua
+amsre_aqua
 amsua_aqua
 amsua_metop-a
 amsua_metop-b
@@ -22,6 +23,8 @@ atms_n20
 avhrr_metop-a
 avhrr_metop-b
 avhrr_metop-c
+avhrr_n15
+avhrr_n16
 avhrr_n17
 avhrr_n18
 avhrr_n19
@@ -29,7 +32,6 @@ cris_npp
 cris-fsr_npp
 cris-fsr_n20
 gmi_gpm
-gmicld_gpm
 goes_n08
 goes_n10
 goes_n12
