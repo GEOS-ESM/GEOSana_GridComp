@@ -675,6 +675,7 @@ subroutine read_obs(ndata,mype)
 !   2018-07-09 Todlng   - move gsi_nstcoupler_final to destroy_sfc (consistency)
 !   2019-01-15  Li      - add to handle mbuoyb
 !   2019-03-27  h. liu   - add abi
+!   2021-04-16  j.jin    - read tmi and amsre bufr (made at gmao) data.
 !   
 !
 !   input argument list:
@@ -888,7 +889,7 @@ subroutine read_obs(ndata,mype)
                amsre  .or. ssmis      .or. obstype == 'ssmi'      .or.  &
                obstype == 'ssu'       .or. obstype == 'atms'      .or.  &
                obstype == 'cris'      .or. obstype == 'cris-fsr'  .or.  &
-               obstype == 'amsr2'     .or.  &
+               obstype == 'amsr2'     .or. obstype == 'tmi'       .or.  &
                obstype == 'gmi'       .or. obstype == 'saphir'   ) then
           ditype(i) = 'rad'
        else if (is_extOzone(dfile(i),obstype,dplat(i))) then
@@ -1677,6 +1678,14 @@ subroutine read_obs(ndata,mype)
                      nobs_sub1(1,i),read_rec(i),dval_use)
                 string='READ_SSMI'
 
+!            Process tmi data
+             else if (obstype == 'tmi') then
+                call read_tmi(mype,val_dat,ithin,rmesh,platid,gstime,&
+                     infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),&
+                     nobs_sub1(1,i))
+                string='READ_TMI'
+
 !            Process amsre data
              else if ( obstype == 'amsre_low' .or. obstype == 'amsre_mid' .or. &
                        obstype == 'amsre_hig' ) then
@@ -1686,6 +1695,14 @@ subroutine read_obs(ndata,mype)
                      nobs_sub1(1,i),read_rec(i),dval_use)
                 string='READ_AMSRE'
                 
+!            Process gmao_amsre_aqua bufr data.
+             else if(obstype=='amsre')then
+                call read_amsre_gmao(mype,val_dat,ithin,rmesh,platid,gstime,&
+                     infile,lunout,obstype,nread,npuse,nouse,twind,sis,&
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),  &
+                     nobs_sub1(1,i))
+                string='READ_AMSRE_GMAO'
+
 !            Process ssmis data
              else if (obstype == 'ssmis'     .or. &
                       obstype == 'ssmis_las' .or. obstype == 'ssmis_uas' .or. &
