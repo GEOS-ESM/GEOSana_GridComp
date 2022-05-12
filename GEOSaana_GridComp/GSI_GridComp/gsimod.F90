@@ -107,6 +107,7 @@
      jcap_gfs,nlat_gfs,nlon_gfs,jcap_cut,wrf_mass_hybridcord,&
      use_fv3_aero
   use guess_grids, only: ifact10,sfcmod_gfs,sfcmod_mm5,use_compress,nsig_ext,gpstop
+  use guess_grids, only: commgpstop,spiregpserrinf
   use gsi_io, only: init_io,lendian_in,verbose,print_obs_para
   use regional_io_mod, only: regional_io_class
   use wrf_params_mod, only: update_pint, preserve_restart_date
@@ -612,7 +613,7 @@
        diag_tgas, &
        write_diag,reduce_diag, &
        oneobtest,sfcmodel,dtbduv_on,ifact10,offtime_data,&
-       use_pbl,use_compress,nsig_ext,gpstop,&
+       use_pbl,use_compress,nsig_ext,gpstop,commgpstop,spiregpserrinf,&
        perturb_obs,perturb_fact,oberror_tune,preserve_restart_date, &
        crtm_coeffs_path,berror_stats, &
        newpc4pred,adp_anglebc,angord,passive_bc,use_edges,emiss_bc,upd_pred,reset_bad_radbc,&
