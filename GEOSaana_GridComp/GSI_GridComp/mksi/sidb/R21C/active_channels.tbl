@@ -113,7 +113,6 @@
 #  === For reference: https://emc.ncep.noaa.gov/emc/pages/infrastructure/obs-data/Satellite_Historical_Documentation.php
 #                     http://geos5.org/wiki/index.php?title=Talk:GEOS-5_ADAS_Radiance_Monitoring
 #  03Feb2022 Todling  - revised changed above (for chn 305 of AIRS) to be a single line change instead of a wholesome change
-#  22Apr2022 ELAkkraoui - Removed AIRS channels 321 and 375 to accommodate the use of correlated observation error matrix #                         in reanalysis. 
 #=================
 # Active Channels  
 #=================
@@ -448,15 +447,15 @@ metop-c 20190917 000000  21001231 240000  mhs    5  1 2 3 4 5                   
 #======
 # f08 85V channel (7) getting very bad mid 1988, unusable after 1/1989
 # f08 85H channel (6) going bad Mar-Nov 1990, unusable after 1/1991
-f08  19870710 000000  19880207 240000  ssmi 7  1 2 3 4 5 6 7
-f08  19880208 000000  19901231 240000  ssmi 6  1 2 3 4 5 7    # 85V bad
-f08  19910101 000000  19911204 240000  ssmi 5  1 2 3 4 5      # 85V,H bad
-f10  19901209 000000  19971113 240000  ssmi 7  1 2 3 4 5 6 7
-f11  19911205 000000  19991218 240000  ssmi 7  1 2 3 4 5 6 7
-f13  19950503 000000  20081231 240000  ssmi 7  1 2 3 4 5 6 7
+f08  19870710 000000  19880207 240000  ssmi 2   3 4 
+f08  19880208 000000  19901231 240000  ssmi 2   3 4 
+f08  19910101 000000  19911204 240000  ssmi 2   3 4 
+f10  19901209 000000  19971113 240000  ssmi 2   3 4 
+f11  19911205 000000  19991218 240000  ssmi 2   3 4 
+f13  19950503 000000  20081231 240000  ssmi 2   3 4 
 f13  20090101 000000  21000531 240000  ssmi 0                 # all off per NCEP 
-f14  19970508 000000  20080823 240000  ssmi 7  1 2 3 4 5 6 7
-f15  19991218 000000  20060814 240000  ssmi 7  1 2 3 4 5 6 7
+f14  19970508 000000  20080823 240000  ssmi 2   3 4  
+f15  19991218 000000  20060814 240000  ssmi 2   3 4
 
 #=======
 # SSMIS
@@ -530,7 +529,9 @@ aqua  20021012 000000  20160925 000000  airs    7       168  169       172  173 
 aqua  20021012 000000  20160925 000000  airs    9  180       185  186  190  192  198  201  204  207 #    80
 aqua  20021012 000000  20160925 000000  airs    9  210  215  216       226  227  232  252  253  256 #    90
 aqua  20021012 000000  20160925 000000  airs    9  257  261  262  267  272  295  299       305  310 #   100
-aqua  20021012 000000  20160925 000000  airs    5            333  338  355  362            475      #   110 - ch 321 became noisy
+aqua  20021012 000000  20130131 240000  airs    7  321       333  338  355  362  375       475      #   110
+aqua  20130201 000000  20130917 240000  airs    6  321       333  338  355  362            475      #   110 - ch 375 is consistent in time
+aqua  20130918 000000  20160925 000000  airs    5            333  338  355  362            475      #   110 - ch 321 became noisy
 aqua  20021012 000000  20160925 000000  airs    9  497  528  587  672  787  791       870  914  950 #   120
 aqua  20021012 000000  20160925 000000  airs    0                                                   #   130
 aqua  20021012 000000  20160925 000000  airs    0                                                   #   140
@@ -1076,19 +1077,16 @@ metop-c  20210729 180000  21001231 240000  iasi    0                            
 metop-c  20210729 180000  21001231 240000  iasi    0                                                   #   600
 metop-c  20210729 180000  21001231 240000  iasi    0                                                   #   610-616
 
+# TRMM/TMI
+trmm     19980101 000000  20140930 180000  tmi     2  5 6
 
-# GPM/TRMM
+# Aqua/AMSRE
+aqua     20020901 000000  20111004 060000  amsre   2  7 9
 
-# The following are potential channels once the instrument is blessed for active use
-# At the moment, though, they are disabled so that the observations aren't accidentally
-# assimilated
-#
-#trmm     19971208 000000  29991231 240000  tmi        7   3 4 5 6 7 8 9
-#gpm      20140320 000000  29991231 240000  gmi       11   3 4 5 6 7 8 9 10 11 12 13
+# GPM/GMI
+gpm      20140401 000000  29991231 240000  gmi     6    5 6 7  10  12 13
 
-trmm     19971208 000000  29991231 240000  tmi        0   
-gpm      20140320 000000  29991231 240000  gmi        0
-gcom-w1  20190101 000000  29991231 240000  amsr2      0
-
+#GCOM-w1/AMSR2
+gcom-w1  20120901 000000  29991231 240000  amsr2   2    9 11
 
 #:: # end active_channels 
