@@ -60,7 +60,7 @@
  /
  &OBSQC
    dfact=0.75,dfact1=3.0,noiqc=.false.,oberrflg=.true.,c_varqc=0.02,blacklst=.true.,
-   use_poq7=.true.,qc_noirjaco3=.false.,qc_satwnds=.false.,cld_det_dec2bin=.true.,
+   use_poq7=.true.,qc_noirjaco3=.false.,qc_satwnds=.true.,cld_det_dec2bin=.true.,
    half_goesr_err=.false.,
 !  tcp_ermin=0.75,tcp_ermax=0.75,
    >>>AIRCFT_BIAS<<<
@@ -181,7 +181,7 @@ OBS_INPUT::
    avcsambufr     avhrr       metop-b     avhrr3_metop-b        0.0     1      0        ncep_avcsam_bufr
 !  omieffbufr     omieff      aura        omieff_aura           0.0     2      0        test
    omieffnc       omieff      aura        omieff_aura           0.0     2      0        aura_omieff_nc
-   ompsnmeffnc    ompsnmeff   npp         ompsnmeff_npp         0.0     2      0        npp_ompsnmeff_nc
+   ompsnmeffnc    ompsnmeff   npp         ompsnmeff_npp         1.0     2      0        npp_ompsnmeff_nc
    gsnd1bufr      sndrd1      g15         sndrD1_g15            0.0     1      0        ncep_goesfv_bufr
    gsnd1bufr      sndrd2      g15         sndrD2_g15            0.0     1      0        ncep_goesfv_bufr
    gsnd1bufr      sndrd3      g15         sndrD3_g15            0.0     1      0        ncep_goesfv_bufr
