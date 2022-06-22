@@ -54,7 +54,7 @@ sub info_run {
        $db_def   = "gmao_convinfo.db";
        $tmpl_def = "gmao_global_convinfo.rc";
        $gsiname  = "convinfo";
-       $iuse_flags = "notused_flag = -2";
+       $iuse_flags = "notused_flag = -1";
    }
    if ( $this eq "oz" ) {
        $exec_def = "make_ozinfo.x";
