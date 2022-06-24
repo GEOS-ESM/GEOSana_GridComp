@@ -687,7 +687,7 @@ subroutine setupbend(obsLL,odiagLL, &
            endif
          else 
 !        CDAAC-type processing
-           if ((data(isatid,i) > 749).and.(data(isatid,i) < 756)) then
+           if ((data(isatid,i) > 749).and.(data(isatid,i) < 756).or.commdat) then
               if ((data(ilate,i)> r40).or.(data(ilate,i)< -r40)) then
                 if (alt <= 8.0_r_kind) then
                   repe_gps=-1.0304261_r_kind+0.3203316_r_kind*alt+0.0141337_r_kind*alt**2
