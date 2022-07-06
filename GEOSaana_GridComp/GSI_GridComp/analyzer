@@ -645,8 +645,7 @@ sub init {
    if ( $ENV{CRTM_COEFFS} ) {
       Assignfn( "$CRTM_COEFFS","CRTM_Coeffs");
    } else {
-#     Assignfn( "$fvInput/$myetc/fix_ncep20200513/REL-2.2.3-r60152_local-rev_4/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
-      Assignfn( "$fvInput/$myetc/fix_ncep20210525/REL-2.2.3-r60152_local-rev_5/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
+      Assignfn( "$fvInput/$myetc/fix_ncep20200513/REL-2.2.3-r60152_local-rev_4/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
    }
    Assignfn( "$fvhome/run/prepobs_errtable.global","errtable");
 

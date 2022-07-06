@@ -76,8 +76,7 @@ contains
 !   Set unit numbers reserved for little endian input and output
     lendian_in  = 15
     lendian_out = 66
-!    verbose = .false.
-    verbose = .true.   !jjj, 04/18/2022
+    verbose = .false.
     print_obs_para = .false.
 
     if (mype==0) write(6,*)'INIT_IO:  reserve units lendian_in=',lendian_in,&
