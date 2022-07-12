@@ -196,6 +196,8 @@ character(len=MAXSTR),allocatable :: idnames(:)
 
 integer :: ninstr=-1   ! single instrument for now
 logical :: iamroot_
+integer(i_kind), parameter :: final_cond_check_pe_ = -99999 ! use for test only: calc cond(R) of final
+                                                            ! R applied to each profile; set to PE number
 
 ! !PRIVATE TYPES:
 type ObsErrorCov
@@ -713,7 +715,7 @@ end subroutine solver_
 !
 ! !INTERFACE:
 !
-subroutine decompose_(instrument,Evals,Evecs,ndim,lprt)
+subroutine decompose_(instrument,Evals,Evecs,ndim,lprt,jobz,thispe)
 ! !USES:
   use constants, only: tiny_r_kind
   implicit none
@@ -721,6 +723,8 @@ subroutine decompose_(instrument,Evals,Evecs,ndim,lprt)
   character(len=*),intent(in):: instrument
   integer(i_kind),intent(in) :: ndim
   logical,intent(in)         :: lprt
+  character(len=1),optional,intent(in) :: jobz
+  integer(i_kind),optional,intent(in) :: thispe
 ! !INPUT/OUTPUT PARAMETERS:
   real(r_kind),intent(inout) :: Evals(:)
   real(r_kind),intent(inout) :: Evecs(:,:) ! on entry: matrix to decompose
@@ -747,17 +751,33 @@ subroutine decompose_(instrument,Evals,Evecs,ndim,lprt)
 !-------------------------------------------------------------------------
 !BOC
   character(len=*),parameter :: myname_=myname//'decompose_'
-  character*1 jobz
+  character(len=1) jobz_
   integer(i_kind) lwork,info
   real(r_kind) lambda_max,lambda_min,cond
   real(r_kind),allocatable, dimension(:) :: work
-  jobz = 'V' ! evals & evecs
+  logical prtpe_
+  prtpe_ = iamroot_
+  if(present(thispe)) then
+     if (thispe<0) then
+        prtpe_ = .false.
+     else
+       if (thispe==99999) then
+          prtpe_ = .true.
+       else
+          prtpe_ = thispe==mype
+       endif
+     endif
+  endif
+  jobz_ = 'V' ! evals & evecs
+  if(present(jobz)) then
+    jobz_ = jobz
+  endif
   lwork = max(1,3*ndim-1)
   allocate(work(lwork))
   if(r_kind==r_single) then ! this trick only works because this uses the f77 lapack interfaces
-     call SSYEV( jobz, 'U', ndim, Evecs, ndim, Evals, WORK, lwork, info )
+     call SSYEV( jobz_, 'U', ndim, Evecs, ndim, Evals, WORK, lwork, info )
   else if(r_kind==r_double) then
-     call DSYEV( jobz, 'U', ndim, Evecs, ndim, Evals, WORK, lwork, info )
+     call DSYEV( jobz_, 'U', ndim, Evecs, ndim, Evals, WORK, lwork, info )
   else
      call die(myname_,'no corresponding LAPACK call for solving eigenproblem')
   endif
@@ -767,7 +787,7 @@ subroutine decompose_(instrument,Evals,Evecs,ndim,lprt)
         lambda_max=maxval(Evals)
         lambda_min=minval(abs(Evals))
         if(lambda_min>tiny_r_kind) cond=abs(lambda_max/lambda_min) ! formal definition (lambda>0 for SPD matrix)
-        if (iamroot_) then
+        if (prtpe_) then
            write(6,'(2a,1x,a,1x,es20.10)') 'Rcov(Evals) for Instrument: ', trim(instrument), ' cond= ', cond
            write(6,'(9(es13.6))') Evals
         endif
@@ -1256,8 +1276,8 @@ logical function scale_jac_(depart,err2,raterr2,jacobian,nchanl,varinv,wgtjo, &
      !  case=1 is default; uses corr(Re) only
      !  case=2: uses full Re;
 
-! decompose the sub-matrix - returning the result in the 
-!                            structure holding the full covariance
+     ! decompose the sub-matrix - returning the result in the 
+     !                            structure holding the full covariance
        nsigjac=size(jacobian,1)
        allocate(row(nsigjac,ncp))
        allocate(col(ncp))
@@ -1276,7 +1296,7 @@ logical function scale_jac_(depart,err2,raterr2,jacobian,nchanl,varinv,wgtjo, &
            enddo
            subset = choleskydecom_inv_ (IRsubset,ErrorCov,UT,qcaj)
          else
-         subset = choleskydecom_inv_ (IRsubset,ErrorCov,UT) 
+           subset = choleskydecom_inv_ (IRsubset,ErrorCov,UT) 
          endif
        else if( ErrorCov%method==1 ) then
          do jj=1,ncp
@@ -1318,8 +1338,8 @@ logical function scale_jac_(depart,err2,raterr2,jacobian,nchanl,varinv,wgtjo, &
          depart(mm)=col(jj)
          jacobian(:,mm)=row(:,jj)
          raterr2(mm) = one
-         err2(mm) = one
-         wgtjo(mm)    = one
+         err2(mm)    = one
+         wgtjo(mm)   = one
        enddo
 
        deallocate(col)
@@ -1332,8 +1352,8 @@ logical function scale_jac_(depart,err2,raterr2,jacobian,nchanl,varinv,wgtjo, &
        do jj=1,ncp
           mm=IJsubset(jj)
           raterr2(mm) = raterr2(mm)/ErrorCov%Revals(IRsubset(jj))
-          err2(mm) = err2(mm)
-          wgtjo(mm)    = varinv(mm)/ErrorCov%Revals(IRsubset(jj))
+          err2(mm)    = err2(mm)
+          wgtjo(mm)   = varinv(mm) /ErrorCov%Revals(IRsubset(jj))
        enddo
        
        
@@ -1358,7 +1378,7 @@ end function scale_jac_
 !BOP
 !
 ! !IROUTINE:  choleskydecom_inv_ ---  compute Choleskyi factorization of cov(R), i.e.,
-!                                    R = U^T * U, then invert U
+!                                     R = U^T * U, then invert U
 !
 ! !INTERFACE:
 !
@@ -1389,6 +1409,8 @@ logical function choleskydecom_inv_(Isubset,ErrorCov,UT,qcaj)
   character(len=*),parameter :: myname_=myname//'choleskydecom_inv_'
   integer(i_kind) ii,jj,ncp
   integer(i_kind) info,info1
+  real(r_kind), allocatable :: Utemp(:,:)
+  real(r_kind), allocatable :: Dtemp(:)
 
   choleskydecom_inv_=.false. 
   ncp=size(Isubset) ! number of channels actually used in this profile
@@ -1406,6 +1428,12 @@ logical function choleskydecom_inv_(Isubset,ErrorCov,UT,qcaj)
         UT(ii,jj) = ErrorCov%R(Isubset(ii),Isubset(jj))
       enddo
     enddo
+  endif
+  if (final_cond_check_pe_>=0) then
+     allocate(Utemp(ncp,ncp),Dtemp(ncp))
+     Utemp = UT 
+     call decompose_(trim(ErrorCov%name),Dtemp,Utemp,ncp,.true.,'N',final_cond_check_pe_)
+     deallocate(Utemp,Dtemp)
   endif
   if(r_kind==r_single) then ! this trick only works because this uses the f77 lapack interfaces
      call SPOTRF('U', ncp, UT, ncp, info )
