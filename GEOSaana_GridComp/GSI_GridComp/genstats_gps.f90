@@ -53,6 +53,13 @@ module m_gpsStats
       real(r_kind)    :: b                      
       real(r_kind)    :: loc                    
       real(r_kind)    :: type               
+      real(r_kind),dimension(:),pointer :: tsenges
+      real(r_kind),dimension(:),pointer :: tvirges
+      real(r_kind),dimension(:),pointer :: sphmges
+      real(r_kind),dimension(:),pointer :: hgtlges
+      real(r_kind),dimension(:),pointer :: hgtiges
+      real(r_kind),dimension(:),pointer :: prsiges
+      real(r_kind),dimension(:),pointer :: prslges
 
       real(r_kind),dimension(:),pointer :: rdiag => NULL()
       real(r_kind),dimension(10)        :: rdiag_extra_val
@@ -746,6 +753,12 @@ subroutine init_netcdf_diag_
      if (.not. append_diag) then ! don't write headers on append - the module will break?
         call nc_diag_header("date_time",ianldate )
         call nc_diag_header("Number_of_state_vars", nsdim          )
+        if (save_jacobian) then
+          nnz   = 3*nsig
+          nind  = 3
+          call nc_diag_header("jac_nnz", nnz)
+          call nc_diag_header("jac_nind", nind)
+        endif
      endif
 end subroutine init_netcdf_diag_
 
@@ -753,6 +766,8 @@ subroutine contents_binary_diag_
 end subroutine contents_binary_diag_
 
 subroutine contents_netcdf_diag_
+! 2021-03-26 H. Zhang  - output metadata 2d geovals for JEDI
+
   use sparsearr, only: sparr2, readarray, fullarray
   integer(i_kind),dimension(miter) :: obsdiag_iuse
   integer(i_kind)                  :: obstype, obssubtype
@@ -761,6 +776,17 @@ subroutine contents_netcdf_diag_
 ! Observation class
   character(7),parameter     :: obsclass = '    gps'
 
+!          geovals
+!!         call nc_diag_metadata("surface_pressure",sngl(psges*r1000))
+           call nc_diag_metadata("surface_geopotential_height",sngl(gps_allptr%rdiag(9)) )
+           call nc_diag_data2d("air_temperature",             sngl(gps_allptr%tsenges) )
+           call nc_diag_data2d("virtual_temperature",         sngl(gps_allptr%tvirges) )
+           call nc_diag_data2d("specific_humidity",           sngl(gps_allptr%sphmges) )
+           call nc_diag_data2d("geopotential_height",         sngl(gps_allptr%hgtlges) )
+           call nc_diag_data2d("geopotential_height_levels",  sngl(gps_allptr%hgtiges) )
+           call nc_diag_data2d("atmosphere_pressure_coordinate_interface",  sngl(gps_allptr%prsiges) )
+           call nc_diag_data2d("atmosphere_pressure_coordinate",            sngl(gps_allptr%prslges) )
+!
            call nc_diag_metadata("Station_ID",                            gps_allptr%cdiag             )
            call nc_diag_metadata("Observation_Class",                     obsclass                     )
            obstype    = gps_allptr%rdiag(1) 
@@ -785,6 +811,8 @@ subroutine contents_netcdf_diag_
            call nc_diag_metadata("Observation",                           sngl(gps_allptr%rdiag(17))   )
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",           sngl(gps_allptr%rdiag(17))*sngl(gps_allptr%rdiag(5)) )
            call nc_diag_metadata("Obs_Minus_Forecast_unadjusted",         sngl(gps_allptr%rdiag(17))*sngl(gps_allptr%rdiag(5)) )
+           call nc_diag_metadata("Forecast_adjusted", sngl(gps_allptr%rdiag(17)-(gps_allptr%rdiag(17)*gps_allptr%rdiag(5))))
+           call nc_diag_metadata("Forecast_unadjusted", sngl(gps_allptr%rdiag(17)-(gps_allptr%rdiag(17)*gps_allptr%rdiag(5))))
            call nc_diag_metadata("GPS_Type",                              sngl(gps_allptr%rdiag(20))   )
            call nc_diag_metadata("Vertical_Grid_Location",                sngl(gps_allptr%rdiag(19))   )
            call nc_diag_metadata("Temperature_at_Obs_Location",           sngl(gps_allptr%rdiag(18))   )
@@ -794,6 +822,9 @@ subroutine contents_netcdf_diag_
               call readarray(dhx_dx, gps_allptr%rdiag(ioff+1:nreal))
               call fullarray(dhx_dx, dhx_dx_array)
               call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
+              call nc_diag_data2d("Observation_Operator_Jacobian_stind", dhx_dx%st_ind(1:dhx_dx%nind))
+              call nc_diag_data2d("Observation_Operator_Jacobian_endind", dhx_dx%end_ind(1:dhx_dx%nind))
+              call nc_diag_data2d("Observation_Operator_Jacobian_val", real(dhx_dx%val(1:dhx_dx%nnz),r_single))
            endif
 
            do i=1, gps_allptr%n_rdiag_extra
