@@ -610,6 +610,7 @@ subroutine setupbend(obsLL,odiagLL, &
      geooptics = data(isatid,i)==265 .or. data(isatid,i)==266
      planetiq  = data(isatid,i)==267 .or. data(isatid,i)==268
      spire     = data(isatid,i)==269
+     commdat   = spire.or.geooptics.or.planetiq
      if(ratio_errors(i) > tiny_r_kind)  then ! obs inside model grid
 
        if (alt <= six) then
@@ -725,11 +726,9 @@ subroutine setupbend(obsLL,odiagLL, &
 
          repe_gps=exp(repe_gps) ! one/modified error in (rad-1*1E3)
          repe_gps= r1em3*(one/abs(repe_gps)) ! modified error in rad
-         commdat=.false.
          if (spire) then
              repe_gps=spiregpserrinf*repe_gps ! Inflate error for SPIRE data
          endif
-         commdat = spire.or.geooptics.or.planetiq
          ratio_errors(i) = data(ier,i)/abs(repe_gps)
   
          error(i)=one/data(ier,i) ! one/original error
@@ -855,7 +854,7 @@ subroutine setupbend(obsLL,odiagLL, &
               else   
 !                 Statistics QC check if obs passed gross error check
                   cutoff=zero
-                  if ((data(isatid,i) > 749).and.(data(isatid,i) < 756)) then
+                  if ((data(isatid,i) > 749).and.(data(isatid,i) < 756).or.commdat) then
                      cutoff1=(-4.725_r_kind+0.045_r_kind*alt+0.005_r_kind*alt**2)*one/two
                   else
                      cutoff1=(-4.725_r_kind+0.045_r_kind*alt+0.005_r_kind*alt**2)*two/three
@@ -866,12 +865,12 @@ subroutine setupbend(obsLL,odiagLL, &
                   else
                      cutoff3=0.005_r_kind*trefges**2-2.3_r_kind*trefges+266_r_kind
                   endif
-                  if ((data(isatid,i) > 749).and.(data(isatid,i) < 756)) then
+                  if ((data(isatid,i) > 749).and.(data(isatid,i) < 756).or.commdat) then
                      cutoff3=cutoff3*one/two
                   else
                      cutoff3=cutoff3*two/three
                   end if
-                  if ((data(isatid,i) > 749).and.(data(isatid,i) < 756)) then
+                  if ((data(isatid,i) > 749).and.(data(isatid,i) < 756).or.commdat) then
                      cutoff4=(four+eight*cos(data(ilate,i)*deg2rad))*one/two
                   else
                      cutoff4=(four+eight*cos(data(ilate,i)*deg2rad))*two/three
@@ -890,7 +889,7 @@ subroutine setupbend(obsLL,odiagLL, &
                   if((alt<=six).and.(alt>four)) cutoff=cutoff34
                   if(alt<=four) cutoff=cutoff4
   
-                  if ((data(isatid,i) > 749).and.(data(isatid,i) < 756)) then
+                  if ((data(isatid,i) > 749).and.(data(isatid,i) < 756).or.commdat) then
                      cutoff=two*cutoff*r0_01
                   else
                      cutoff=three*cutoff*r0_01
