@@ -420,7 +420,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
           nsig,mype,nfldsig)
 
         ! need call to get pressures for pressure level output in ncdiags
-        call tintrp2a1(ges_prs,prsitmp,dlat,dlon,dtime,hrdifsig,&
+        call tintrp2a1(ges_prsi,prsitmp,dlat,dlon,dtime,hrdifsig,&
           nsig+1,mype,nfldsig)
 
 
@@ -1680,9 +1680,9 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
            call nc_diag_metadata("Obs_Minus_Forecast_unadjusted",sngl(ozone_inv)                )
            call nc_diag_metadata("Reference_Pressure",           sngl(preso3l*r100)             ) ! Pa
            if(luse(i)) then
-             call nc_diag_metadata("Analysis_Use_Flag",             one
+             call nc_diag_metadata("Analysis_Use_Flag",          one                            )
            else
-             call nc_diag_metadata("Analysis_Use_Flag",            -one)
+             call nc_diag_metadata("Analysis_Use_Flag",          -one                           )
            endif
            call nc_diag_metadata("Input_Observation_Error",      sngl(obserror)                 ) 
            if(obstype =="ompslp")then
