@@ -43,6 +43,7 @@ module crtm_interface
 !   2020-01-12  guo     - added if(present(tcwv)), if(present(hwp_radtio)), and
 !                         if(stability)) to avoid accessing non-present()
 !                         optional arguments.
+!   2022-03-04  Jin J./Akkraoui	- Added amsre
 !   
 !
 ! subroutines included:
@@ -525,7 +526,7 @@ subroutine init_crtm(init_pass,mype_diaghdr,mype,nchanl,nreal,isis,obstype,radmo
    isazi_ang2= 37  ! index of solar azimuth angle (degrees)
    icount = isazi_ang2
    if(dval_use) icount=icount+2
- else if  ( obstype == 'amsr2' ) then
+ else if  ( obstype == 'amsr2' .or. obstype == 'amsre' ) then
    icount=ilate+2
  endif
 

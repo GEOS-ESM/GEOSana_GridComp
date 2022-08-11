@@ -84,6 +84,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 !                       . Remove my_node with corrected typecast().
 !   2017-10-27  todling - revised netcdf output for lay case; obs-sens needs attention
 !   2020-02-26  todling - reset obsbin from hr to min
+!   2022-08-10  karpowicz - fixes to ncdiag air_pressure_levels, change mass output to
+!                           ppmv/mole fraction, fix ompsnm scan positoin and solar zenith angle.
 !
 !   input argument list:
 !     lunin          - unit from which to read observations
@@ -114,7 +116,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   use state_vectors, only: svars3d, levels, nsdim
 
   use constants, only : zero,half,one,two,tiny_r_kind
-  use constants, only : rozcon,cg_term,wgtlim,h300,r10,r100,r1000
+  use constants, only : constoz,rozcon,cg_term,wgtlim,h300,r10,r100,r1000
 
   use m_obsdiagNode, only : obs_diag
   use m_obsdiagNode, only : obs_diags
@@ -417,6 +419,10 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
         call tintrp2a1(ges_oz,ozgestmp,dlat,dlon,dtime,hrdifsig,&
           nsig,mype,nfldsig)
 
+        ! need call to get pressures for pressure level output in ncdiags
+        call tintrp2a1(ges_prsi,prsitmp,dlat,dlon,dtime,hrdifsig,&
+          nsig+1,mype,nfldsig)
+
 
         if (obstype /= 'omieff' .and. obstype /= 'tomseff' .and. &
             obstype /= 'ompsnmeff' ) then
@@ -539,7 +545,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
               rdiagbuf(3,k,ii) = errorinv               ! inverse observation error
               if (obstype == 'gome' .or. obstype == 'omieff'  .or. &
                   obstype == 'omi'  .or. obstype == 'tomseff' .or. &
-                  obstype == 'ompsnmeff' .or. obstype == 'ompstc8') then
+                  obstype == 'ompsnmeff' .or. obstype == 'ompstc8' .or. &
+                  obstype == 'ompsnm') then
                  rdiagbuf(4,k,ii) = data(isolz,i)       ! solar zenith angle
                  rdiagbuf(5,k,ii) = data(ifovn,i)       ! field of view number
               else
@@ -603,7 +610,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
                  call nc_diag_metadata("Forecast_adjusted",sngl(ozges(k)))
                  if (obstype == 'gome' .or. obstype == 'omieff'  .or. &
                      obstype == 'omi'  .or. obstype == 'tomseff' .or. &
-                     obstype == 'ompsnmeff') then
+                     obstype == 'ompsnmeff' .or. obstype == 'ompsnm') then
                     call nc_diag_metadata("Solar_Zenith_Angle", sngl(data(isolz,i)) )
                     call nc_diag_metadata("Scan_Position",      sngl(data(ifovn,i)) )
                  else
@@ -619,7 +626,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
                     call fullarray(dhx_dx, dhx_dx_array)
                     call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
                  endif
-                call nc_diag_data2d("mass_concentration_of_ozone_in_air", sngl(ozgestmp)) 
+                call nc_diag_data2d("mole_fraction_of_ozone_in_air", sngl(constoz*ozgestmp)) 
                 call nc_diag_data2d("air_pressure_levels",sngl(prsitmp*r1000))
               endif
            endif
@@ -1011,7 +1018,8 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 !   2017-02-09  guo     - Remove m_alloc, n_alloc.
 !                       . Remove my_node with corrected typecast().
 !   2020-02-26  todling - reset obsbin from hr to min
-!
+!   2022-08-10  karpowicz/todling - replace ncdiag analysis use flag with +/-1 instead of zero
+!                           
 !   input argument list:
 !     lunin          - unit from which to read observations
 !     mype           - mpi task id
@@ -1671,7 +1679,11 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",  sngl(ozone_inv)                )
            call nc_diag_metadata("Obs_Minus_Forecast_unadjusted",sngl(ozone_inv)                )
            call nc_diag_metadata("Reference_Pressure",           sngl(preso3l*r100)             ) ! Pa
-           call nc_diag_metadata("Analysis_Use_Flag",      zero           )
+           if(luse(i)) then
+             call nc_diag_metadata("Analysis_Use_Flag",          one                            )
+           else
+             call nc_diag_metadata("Analysis_Use_Flag",          -one                           )
+           endif
            call nc_diag_metadata("Input_Observation_Error",      sngl(obserror)                 ) 
            if(obstype =="ompslp")then
              call nc_diag_metadata("Log10 Air Number Density",   sngl(airnd))
