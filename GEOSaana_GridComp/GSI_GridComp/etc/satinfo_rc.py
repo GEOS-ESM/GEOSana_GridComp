@@ -145,7 +145,7 @@ class SatInfoRc(object):
         input parameter:
         => key: (instrument, channel) tuple of string values
         """
-        return dict(self._data).has_key(key)
+        return dict(self._data).__contains__(key)
 
     #.......................................................................
     def keys(self):
