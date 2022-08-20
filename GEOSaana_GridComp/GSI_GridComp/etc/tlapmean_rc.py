@@ -41,7 +41,7 @@ class TLapMeanRc(object):
 
     #.......................................................................
     def key_exists(self, key):
-        return dict(self._data).has_key(key)
+        return dict(self._data).__contains__(key)
 
     #.......................................................................
     def value(self, key):
