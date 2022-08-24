@@ -417,6 +417,7 @@ contains
   real(r_kind) :: tnoise_save
   real(r_kind),dimension(:), allocatable :: rsqrtinv
   real(r_kind),dimension(:), allocatable :: rinvdiag
+  real(r_kind) :: ice_temperature_0
 
 !for GMI (dual scan angles)
   real(r_kind),dimension(nchanl):: emissivity2,ts2, emissivity_k2,tsim2
@@ -911,7 +912,8 @@ contains
                 trop5,tzbgr,dtsavg,sfc_speed, &
                 tsim,emissivity,ptau5,ts,emissivity_k, &
                 temp,wmix,jacobian,error_status,tsim_clr=tsim_clr,tcc=tcc, & 
-                tcwv=tcwv,hwp_ratio=hwp_ratio,stability=stability, tpwc_guess=tpwc_guess)         
+                tcwv=tcwv,hwp_ratio=hwp_ratio,stability=stability, tpwc_guess=tpwc_guess,&
+                ice_temperature_0=ice_temperature_0)         
           if(gmi) then
              gmi_low_angles(1:3)=data_s(ilzen_ang:iscan_ang,n)
              gmi_low_angles(4:5)=data_s(iszen_ang:isazi_ang,n)
@@ -941,9 +943,9 @@ contains
         else
            call call_crtm(obstype,dtime,data_s(:,n),nchanl,nreal,ich, &
              tvp,qvp,clw_guess,ciw_guess,rain_guess,snow_guess,prsltmp,prsitmp, &
-             trop5,tzbgr,dtsavg,sfc_speed, &
-             tsim,emissivity,ptau5,ts,emissivity_k, &
-             temp,wmix,jacobian,error_status, tpwc_guess=tpwc_guess)
+                trop5,tzbgr,dtsavg,sfc_speed, &
+                tsim,emissivity,ptau5,ts,emissivity_k, &
+                temp,wmix,jacobian,error_status,ice_temperature_0=ice_temperature_0)
           if(gmi) then
              gmi_low_angles(1:3)=data_s(ilzen_ang:iscan_ang,n)
              gmi_low_angles(4:5)=data_s(iszen_ang:isazi_ang,n)
@@ -2421,7 +2423,7 @@ contains
               diagbufchan(1,i)=tb_obs(ich_diag(i))       ! observed brightness temperature (K)
               diagbufchan(2,i)=tbc0(ich_diag(i))         ! observed - simulated Tb with bias corrrection (K)
               diagbufchan(3,i)=tbcnob(ich_diag(i))       ! observed - simulated Tb with no bias correction (K)
-              errinv = sqrt(varinv(ich_diag(i)))
+              errinv = sqrt(varinv0(ich_diag(i)))
               diagbufchan(4,i)=errinv                    ! inverse observation error
               useflag=one
               if (iuse_rad(ich(ich_diag(i))) < 1) useflag=-one
@@ -2600,7 +2602,8 @@ contains
                  if(.not. retrieval)then
                     call nc_diag_metadata("Water_Temperature",     sngl(surface(1)%water_temperature) ) ! surface temperature over water (K)
                     call nc_diag_metadata("Land_Temperature",      sngl(surface(1)%land_temperature)  ) ! surface temperature over land (K)
-                    call nc_diag_metadata("Ice_Temperature",       sngl(surface(1)%ice_temperature)   ) ! surface temperature over ice (K)
+!                   call nc_diag_metadata("Ice_Temperature",       sngl(surface(1)%ice_temperature)   ) ! surface temperature over ice (K) 
+                    call nc_diag_metadata("Ice_Temperature",       sngl(ice_temperature_0)            ) ! surface temperature over ice (K)  (input to CRTM)
                     call nc_diag_metadata("Snow_Temperature",      sngl(surface(1)%snow_temperature)  ) ! surface temperature over snow (K)
                     call nc_diag_metadata("Soil_Temperature",      sngl(surface(1)%soil_temperature)  ) ! soil temperature (K)
                     call nc_diag_metadata("Soil_Moisture",         sngl(surface(1)%soil_moisture_content) ) ! soil moisture
@@ -2652,6 +2655,7 @@ contains
                      call nc_diag_metadata("tsim_clr_bc",       sngl(tsim_clr_bc(i))                ) ! simulated tsim in  after BC
                      call nc_diag_metadata("cld_rbc_idx",       sngl(cld_rbc_idx(i))                ) ! BC id in all-sky DA
                  endif
+                 call nc_diag_metadata("tropopause_pressure",   sngl(trop5*1000)                    )  ! Pa  (kPa*1000)
 
                  if (nstinfo==0) then
                     data_s(itref,n)  = missing
@@ -2669,14 +2673,15 @@ contains
                  call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(tbc0(ich_diag(i)  ))  )     ! observed - simulated Tb with bias corrrection (K)
                  call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(tbcnob(ich_diag(i)))  )     ! observed - simulated Tb with no bias correction (K)
                  call nc_diag_metadata("Forecast_unadjusted_clear",     sngl(tsim_clr(ich_diag(i))))     ! simulated Tb under clear-sky condition
+                 call nc_diag_metadata("Forecast_adjusted_clear",       sngl(tsim_clr_bc(ich_diag(i))))     ! simulated Tb under clear-sky condition
                  call nc_diag_metadata("Forecast_unadjusted",           sngl(tb_obs(ich_diag(i))-tbcnob(ich_diag(i)))) ! simulated Tb with no bias correction
                  call nc_diag_metadata("Forecast_adjusted",             sngl(tb_obs(ich_diag(i))-tbc(ich_diag(i)))     ) ! simulated Tb with bias correction
            !     call nc_diag_metadata("Bias_Correction", sngl(tbc(ich_diag(i))-tbcnob(ich_diag(i)))       ) ! bias correction
                  call nc_diag_metadata("Bias_Correction", sngl(tbcnob(ich_diag(i))-tbc(ich_diag(i)))       ) ! bias correction
                  call nc_diag_metadata("Bias_Correction_Constant", sngl(predbias(1,ich_diag(i)))           ) ! constant bias correction
                  call nc_diag_metadata("Bias_Correction_ScanAngle", sngl(predbias(npred+1,ich_diag(i)))    ) ! scan angle bias correction
-
-                 errinv = sqrt(varinv(ich_diag(i)))
+                 ! Write out obs error in physical space for CrIS, IASI, and AIRS. varinv0 = varinv for other radiance data (Wei Gu).
+                 errinv = sqrt(varinv0(ich_diag(i))) 
                  call nc_diag_metadata("Inverse_Observation_Error", sngl(errinv)                           ) ! inverse of observaton error
                  call nc_diag_metadata("Input_Observation_Error", sngl(error0(ich_diag(i)))                ) ! input observation error
 
