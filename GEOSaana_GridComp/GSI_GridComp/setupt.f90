@@ -1371,24 +1371,6 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
          write(6,*) trim(myname),': ', trim(varname), ' not found in met bundle, ier= ',istatus
          call stop2(999)
      endif
-!    get z ...
-     varname='z'
-     call gsi_bundlegetpointer(gsi_metguess_bundle(1),trim(varname),rank2,istatus)
-     if (istatus==0) then
-         if(allocated(ges_z))then
-            write(6,*) trim(myname), ': ', trim(varname), ' already incorrectly alloc '
-            call stop2(999)
-         endif
-         allocate(ges_z(size(rank2,1),size(rank2,2),nfldsig))
-         ges_z(:,:,1)=rank2
-         do ifld=2,nfldsig
-            call gsi_bundlegetpointer(gsi_metguess_bundle(ifld),trim(varname),rank2,istatus)
-            ges_z(:,:,ifld)=rank2
-         enddo
-     else
-         write(6,*) trim(myname),': ', trim(varname), ' not found in met bundle, ier= ',istatus
-         call stop2(999)
-     endif
 !    get tv ...
      varname='tv'
      call gsi_bundlegetpointer(gsi_metguess_bundle(1),trim(varname),rank3,istatus)
