@@ -335,8 +335,7 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
 
 !       Load local work variables
         kprof        = gps_allptr%kprof
-        !dtype        = gps_allptr%rdiag(20)
-        dtype        = one   ! jjin 08/13/2022
+        dtype        = gps_allptr%rdiag(20)
         dobs         = gps_allptr%rdiag(17)
 
         if (dtype == one .and. toss_gps(kprof) > zero .and. dobs == toss_gps(kprof)) then
@@ -369,8 +368,7 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
         data_ier     = gps_allptr%obserr
         luse         = gps_allptr%luse
         kprof        = gps_allptr%kprof
-        !dtype        = gps_allptr%rdiag(20)
-        dtype        = one  ! jjin 08/13/2022
+        dtype        = gps_allptr%rdiag(20)
 
 !       Accumulate superobs factors and get highest good gps obs within a profile
 
@@ -470,8 +468,7 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
         muse         = gps_allptr%muse
         khgt         = gps_allptr%loc
         kprof        = gps_allptr%kprof
-        !dtype        = gps_allptr%rdiag(20)
-        dtype        = one   ! jjin 08/13/2022
+        dtype        = gps_allptr%rdiag(20)
         gpsptr       => gps_allptr%mmpoint
         if(muse .and. associated(gpsptr) .and. luse_obsdiag)then
            obsptr       => gpsptr%diags
@@ -805,7 +802,7 @@ subroutine contents_netcdf_diag_
            call nc_diag_metadata("impact_parameter",            sngl(gps_allptr%rdiag(7)) + sngl(gps_allptr%rdiag(24)) )
            call nc_diag_metadata("geoid_height_above_reference_ellipsoid", sngl(gps_allptr%rdiag(23)) )
            call nc_diag_metadata("earth_radius_of_curvature",              sngl(gps_allptr%rdiag(24)) )
-           call nc_diag_metadata("Sat_Azimuth_Angle",           sngl(gps_allptr%rdiag(20)) )
+           call nc_diag_metadata("Sat_Azimuth_Angle",           sngl(gps_allptr%rdiag(30)) )
 
 
 !          geovals
@@ -846,7 +843,7 @@ subroutine contents_netcdf_diag_
            call nc_diag_metadata("Obs_Minus_Forecast_unadjusted",         sngl(gps_allptr%rdiag(17))*sngl(gps_allptr%rdiag(5)) )
            call nc_diag_metadata("Forecast_adjusted", sngl(gps_allptr%rdiag(17)-(gps_allptr%rdiag(17)*gps_allptr%rdiag(5))))
            call nc_diag_metadata("Forecast_unadjusted", sngl(gps_allptr%rdiag(17)-(gps_allptr%rdiag(17)*gps_allptr%rdiag(5))))
-           call nc_diag_metadata("GPS_Type",                              sngl(one)   )
+           call nc_diag_metadata("GPS_Type",                              sngl(gps_allptr%rdiag(20))   )
            call nc_diag_metadata("Vertical_Grid_Location",                sngl(gps_allptr%rdiag(19))   )
            call nc_diag_metadata("Temperature_at_Obs_Location",           sngl(gps_allptr%rdiag(18))   )
            call nc_diag_metadata("Specific_Humidity_at_Obs_Location",     sngl(gps_allptr%rdiag(21))   )

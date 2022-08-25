@@ -361,7 +361,7 @@ subroutine setupbend(obsLL,odiagLL, &
   allocate(ddnj(grids_dim),grid_s(grids_dim),ref_rad_s(grids_dim)) 
 
 ! Allocate arrays for output to diagnostic file
-  mreal=29
+  mreal=30
   nreal=mreal
   if (lobsdiagsave) nreal=nreal+4*miter+1
   if (save_jacobian) then
@@ -611,7 +611,7 @@ subroutine setupbend(obsLL,odiagLL, &
      rdiagbuf(:,i)         = zero
 
      rdiagbuf(1,i)         = ictype(ikx)        ! observation type
-!    rdiagbuf(20,i)        = one                ! uses gps_ref (one = use of bending angle)
+     rdiagbuf(20,i)        = one                ! uses gps_ref (one = use of bending angle)
      rdiagbuf(2,i)         = data(iprof,i)      ! profile identifier
      rdiagbuf(3,i)         = data(ilate,i)      ! lat in degrees
      rdiagbuf(4,i)         = data(ilone,i)      ! lon in degrees
@@ -633,7 +633,7 @@ subroutine setupbend(obsLL,odiagLL, &
      rdiagbuf(27,i)        = data(iascd,i)
      rdiagbuf(28,i)        = data(iogce,i)
      rdiagbuf(29,i)        = data(isiid,i)
-     rdiagbuf(20,i)        = data(iazim,i)
+     rdiagbuf(30,i)        = data(iazim,i)
 
      geooptics = data(isatid,i)==265 .or. data(isatid,i)==266
      planetiq  = data(isatid,i)==267 .or. data(isatid,i)==268
