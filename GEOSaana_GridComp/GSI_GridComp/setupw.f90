@@ -1862,7 +1862,6 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("v_Observation_Operator_Jacobian_val", real(dhx_dx_v%val,r_single))
            endif
            call nc_diag_metadata("surface_pressure",sngl(psges*r1000))
-           call nc_diag_metadata("surface_height",sngl(zsges))
            call nc_diag_metadata("surface_geopotential_height",sngl(zsges))
            call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp2*r1000))
            call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
