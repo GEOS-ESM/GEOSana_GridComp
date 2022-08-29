@@ -260,6 +260,7 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
   use obsmod, only: nprof_gps,lobsdiag_forenkf
   use obsmod, only: lobsdiagsave,luse_obsdiag
   use obsmod, only: binary_diag,netcdf_diag,dirname,ianldate
+  use obsmod, only: wrtgeovals
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
                           nc_diag_write, nc_diag_data2d
   use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
@@ -808,13 +809,15 @@ subroutine contents_netcdf_diag_
 !          geovals
            call nc_diag_metadata("surface_altitude",           sngl(gps_allptr%rdiag(9)) )
            call nc_diag_metadata("surface_geopotential_height",sngl(gps_allptr%rdiag(9)) )
-           call nc_diag_data2d("air_temperature",             sngl(gps_allptr%tsenges) )
-           call nc_diag_data2d("virtual_temperature",         sngl(gps_allptr%tvirges) )
-           call nc_diag_data2d("specific_humidity",           sngl(gps_allptr%sphmges) )
-           call nc_diag_data2d("geopotential_height",         sngl(gps_allptr%hgtlges) )
-           call nc_diag_data2d("geopotential_height_levels",  sngl(gps_allptr%hgtiges) )
-           call nc_diag_data2d("atmosphere_pressure_coordinate_interface",  sngl(gps_allptr%prsiges) )
-           call nc_diag_data2d("atmosphere_pressure_coordinate",            sngl(gps_allptr%prslges) )
+           if (wrtgeovals) then
+              call nc_diag_data2d("air_temperature",              sngl(gps_allptr%tsenges) )
+              call nc_diag_data2d("virtual_temperature",          sngl(gps_allptr%tvirges) )
+              call nc_diag_data2d("specific_humidity",            sngl(gps_allptr%sphmges) )
+              call nc_diag_data2d("geopotential_height",          sngl(gps_allptr%hgtlges) )
+              call nc_diag_data2d("geopotential_height_levels",   sngl(gps_allptr%hgtiges) )
+              call nc_diag_data2d("atmosphere_pressure_coordinate_interface",  sngl(gps_allptr%prsiges) )
+              call nc_diag_data2d("atmosphere_pressure_coordinate",            sngl(gps_allptr%prslges) )
+           endif
 !----------------
 ! The following is taken from GEOS-5.29
            call nc_diag_metadata("Station_ID",                            gps_allptr%cdiag             )

@@ -56,6 +56,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
              nobskeep,lobsdiag_allocated,oberror_tune,perturb_obs, &
              time_offset,rmiss_single,lobsdiagsave,lobsdiag_forenkf,ianldate
   use obsmod, only: netcdf_diag, binary_diag, dirname
+  use obsmod, only: wrtgeovals
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
        nc_diag_write, nc_diag_data2d
   use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
@@ -705,17 +706,18 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
            endif
 
           if (save_jacobian) then
-              call fullarray(dhx_dx, dhx_dx_array)
-              call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
-            call nc_diag_data2d("Observation_Operator_Jacobian_stind", dhx_dx%st_ind)
-            call nc_diag_data2d("Observation_Operator_Jacobian_endind", dhx_dx%end_ind)
-            call nc_diag_data2d("Observation_Operator_Jacobian_val", real(dhx_dx%val,r_single))
+             call fullarray(dhx_dx, dhx_dx_array)
+             call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
+             call nc_diag_data2d("Observation_Operator_Jacobian_stind", dhx_dx%st_ind)
+             call nc_diag_data2d("Observation_Operator_Jacobian_endind", dhx_dx%end_ind)
+             call nc_diag_data2d("Observation_Operator_Jacobian_val", real(dhx_dx%val,r_single))
           endif
 
-           call nc_diag_data2d("virtual_temperature", tvges)
-
-           call nc_diag_metadata("surface_air_pressure", psges )
-           call nc_diag_metadata("surface_geopotential_height", zsges )
+           if (wrtgeovals) then
+             call nc_diag_data2d("virtual_temperature", tvges)
+             call nc_diag_metadata("surface_air_pressure", psges )
+             call nc_diag_metadata("surface_geopotential_height", zsges )
+           endif
 
   end subroutine contents_netcdf_diag_
 
