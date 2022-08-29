@@ -2,9 +2,8 @@
  =====================
  check_satbang summary
  =====================
- current dir: /gpfsm/dswdev/jstassi/GEOSadas/g5294/src/Components/@GEOSana_GridComp/GEOSaana_GridComp/GSI_GridComp/etc/unittests
 
- satbang_rst: outdir/satbang_default_rst
+ satbang_rst: outdir/satbang_alpha_rst
  satinfo.rc:  input/gmao_global_satinfo.rc
  tlapmean.rc: input/gmao_global_tlapmean.rc
 
@@ -37,8 +36,8 @@
   2877 satbang recs before update
   2855 satbang recs after update
 
- new satbang file has been written: outdir/satbang_default_rst.new
- sortflag = "default"
+ new satbang file has been written: outdir/satbang_alpha_rst.new
+ sortflag = "alpha"
 
 
 The following details are listed below:

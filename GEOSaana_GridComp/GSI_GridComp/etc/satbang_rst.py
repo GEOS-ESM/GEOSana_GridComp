@@ -67,12 +67,14 @@ class SatBangRst(object):
 
                 if n != int(recnum):
                     if self._debug:
-                        print "satbang[{0}] = {1}".format(n, self._data[n])
+                        print("satbang[{}] = {}".format(n, self._data[n]))
                     raise Exception("inconsistent recnum (%d): %s" % (n, recnum))
 
     #.......................................................................
-    def _append_record(self, (key, values)):
+    def _append_record(self, args):
         "Append record to self._data"
+
+        (key, values) = args
 
         # check for duplicate keys
         #-------------------------
@@ -256,7 +258,7 @@ class SatBangRst(object):
         input parameter:
         => key: (instrument, channel) tuple of string values
         """
-        return dict(self._data).has_key(key)
+        return dict(self._data).__contains__(key)
 
     #.......................................................................
     def key_and_values(self, index):
@@ -412,11 +414,11 @@ def dir_and_file_names(pathname, pattern=False):
         elif len(filelist) > 1:
             filename = None
             while filename == None:
-                print "\nSelect file to check"
+                print("\nSelect file to check")
                 nnn = 1
 
                 for sb in filelist:
-                    print "{0}: {1}".format(nnn, sb)
+                    print("{0}: {1}".format(nnn, sb))
                     nnn += 1
 
                 sys.stdout.write("Make selection: ")
