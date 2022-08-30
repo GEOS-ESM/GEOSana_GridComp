@@ -610,6 +610,13 @@ contains
            call nc_diag_metadata("Forecast_adjusted", sngl(data(isst,i)-ddiff))
            !GeoVaLs
            call nc_diag_metadata("sea_surface_temperature", sngl(sstges) )
+
+           if (nst_gsi>0) then
+              call nc_diag_metadata("FoundationTempBG",        sngl(data(itref,i)) )
+              call nc_diag_metadata("DiurnalWarming_at_zob",   sngl(data(idtw,i)) )
+              call nc_diag_metadata("SkinLayerCooling_at_zob", sngl(data(idtw,i)) )
+              call nc_diag_metadata("Sensitivity_Tzob_Tr",     sngl(data(itz_tr,i)) )
+           endif
  
            if (lobsdiagsave) then
               do jj=1,miter

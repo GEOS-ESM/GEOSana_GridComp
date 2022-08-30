@@ -61,6 +61,7 @@ subroutine setupaod(obsLL,odiagLL,lunin,mype,nchanl,nreal,nobs,&
   use obsmod, only: ianldate,mype_diaghdr,nchan_total, &
            dplat,lobsdiagsave,lobsdiag_allocated,&
            dirname,time_offset,luse_obsdiag
+  use obsmod, only: wrtgeovals
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
        nc_diag_write, nc_diag_data2d, nc_diag_chaninfo_dim_set, nc_diag_chaninfo
   use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
@@ -841,38 +842,40 @@ contains
          tmp(1)=get_zsfc()
          call nc_diag_metadata("sfc_height",tmp(1)) ! height in meters
   
-         do k=1,nsig
-            tmp(k)=tvp(nsig-k+1)
-         end do
-         call nc_diag_data2d("air_temperature", tmp(1:nsig))  ! K 
-  
-         do k=1,nsig
-            tmp(k)=qvp(nsig-k+1)/(1_r_kind-qvp(nsig-k+1))
-         end do
-         call nc_diag_data2d("humidity_mixing_ratio", tmp(1:nsig))  ! kg/kg  
-  
-         do k=1,nsig
-            tmp(k)=rh(nsig-k+1)
-         end do
-         call nc_diag_data2d("relative_humidity", tmp(1:nsig))  ! 0-1
-  
-         do k=1,nsig
-            tmp(k)=1000_r_single*prsltmp(nsig-k+1)
-         end do
-         call nc_diag_data2d("air_pressure", tmp(1:nsig))  ! Pa
-  
-         do k=1,nsig+1
-            tmp(k)=1000_r_single*prsitmp(nsig-k+2)
-         end do
-         call nc_diag_data2d("air_pressure_levels", tmp(1:nsig+1))  ! Pa
-  
-         do iaero = 1, n_aerosols_fwd
-            write (fieldname, "(A,I0.2)") aerosol_names(iaero)
+         if (wrtgeovals) then
             do k=1,nsig
-               tmp(k)=aerosols(nsig-k+1,iaero)
+               tmp(k)=tvp(nsig-k+1)
             end do
-            call nc_diag_data2d(trim(fieldname), tmp(1:nsig)) !mixing ratios in ug/kg
-         end do
+            call nc_diag_data2d("air_temperature", tmp(1:nsig))  ! K 
+     
+            do k=1,nsig
+               tmp(k)=qvp(nsig-k+1)/(1_r_kind-qvp(nsig-k+1))
+            end do
+            call nc_diag_data2d("humidity_mixing_ratio", tmp(1:nsig))  ! kg/kg  
+     
+            do k=1,nsig
+               tmp(k)=rh(nsig-k+1)
+            end do
+            call nc_diag_data2d("relative_humidity", tmp(1:nsig))  ! 0-1
+     
+            do k=1,nsig
+               tmp(k)=1000_r_single*prsltmp(nsig-k+1)
+            end do
+            call nc_diag_data2d("air_pressure", tmp(1:nsig))  ! Pa
+     
+            do k=1,nsig+1
+               tmp(k)=1000_r_single*prsitmp(nsig-k+2)
+            end do
+            call nc_diag_data2d("air_pressure_levels", tmp(1:nsig+1))  ! Pa
+     
+            do iaero = 1, n_aerosols_fwd
+               write (fieldname, "(A,I0.2)") aerosol_names(iaero)
+               do k=1,nsig
+                  tmp(k)=aerosols(nsig-k+1,iaero)
+               end do
+               call nc_diag_data2d(trim(fieldname), tmp(1:nsig)) !mixing ratios in ug/kg
+            end do
+         endif ! wrtgeovals
   
       end do
 

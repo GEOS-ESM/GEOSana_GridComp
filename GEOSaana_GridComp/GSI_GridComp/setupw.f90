@@ -33,6 +33,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
        lobsdiagsave,nobskeep,lobsdiag_allocated,&
        time_offset,bmiss,ianldate
   use obsmod, only: dplat
+  use obsmod, only: wrtgeovals
   use m_obsNode, only: obsNode
   use m_wNode, only: wNode
   use m_wNode, only: wNode_appendto
@@ -49,10 +50,10 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use qcmod, only: npres_print,ptop,pbot,dfact,dfact1,qc_satwnds,njqc,vqc
   use oneobmod, only: oneobtest,oneob_type,magoberr,maginnov 
   use gridmod, only: get_ijk,nsig,twodvar_regional,regional,wrf_nmm_regional,&
-      rotate_wind_xy2ll,pt_ll
+      rotate_wind_xy2ll,pt_ll,fv3_regional
   use guess_grids, only: nfldsig,hrdifsig,geop_hgtl,sfcmod_gfs
   use guess_grids, only: tropprs,sfcmod_mm5
-  use guess_grids, only: ges_lnprsl,comp_fact10,pbl_height,ges_prsl,ges_tsen,ges_prsi
+  use guess_grids, only: ges_lnprsl,ges_prsi,ges_tsen,comp_fact10,pbl_height
   use constants, only: zero,half,one,tiny_r_kind,two,cg_term, &
            three,rd,grav,four,five,huge_single,r1000,wgtlim,r10,r400,r100
   use constants, only: grav_ratio,flattening,deg2rad, &
@@ -227,9 +228,10 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_double) rstation_id
   real(r_kind) qcu,qcv,trop5,tfact,fact
   real(r_kind) scale,ratio,obserror,obserrlm
-  real(r_kind) residual,ressw,ress,val,val2,valqc2,dudiff,dvdiff
+  real(r_kind) residual,ressw,ress,val,vals,val2,valqc2,dudiff,dvdiff
   real(r_kind) valqc,valu,valv,dx10,rlow,rhgh,drpx,prsfc,var_jb
-  real(r_kind) cg_w,wgross,wnotgross,wgt,arg,exp_arg,term,rat_err2,qcgross
+  real(r_kind) cg_w,wgross,wnotgross,arg,exp_arg
+  real(r_kind) cg_t,cvar,wgt,term,rat_err2,qcgross
   real(r_kind) presw,factw,dpres,ugesin,vgesin,rwgt,dpressave
   real(r_kind) sfcchk,prsln2,error,dtime,dlon,dlat,r0_001,rsig,thirty,rsigp
   real(r_kind) ratio_errors,goverrd,spdges,spdob,ten,psges,zsges
@@ -237,13 +239,16 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind) uob_reg,vob_reg,uob_e,vob_e,dlon_e,uges_e,vges_e,dudiff_e,dvdiff_e
   real(r_kind) dz,zob,z1,z2,p1,p2,dz21,dlnp21,spdb,dstn
   real(r_kind) errinv_input,errinv_adjst,errinv_final
-  real(r_kind) err_input,err_adjst,err_final,skint,sfcr
+  real(r_kind) err_input,err_adjst,err_final,skint,sfcr,landfrac
   real(r_kind) dudiff_opp, dvdiff_opp, vecdiff, vecdiff_opp
   real(r_kind) dudiff_opp_rs, dvdiff_opp_rs, vecdiff_rs, vecdiff_opp_rs
   real(r_kind) oscat_vec,ascat_vec,rapidscat_vec
+  real(r_kind) sfctges
   real(r_kind),dimension(nele,nobs):: data
   real(r_kind),dimension(nobs):: dup
-  real(r_kind),dimension(nsig)::prsltmp,tsentmp,qtmp,tges,zges,zges_read,uges,vges,prsltmp2,prsitmp2
+  real(r_kind),dimension(nsig+1)::prsitmp
+  real(r_kind),dimension(nsig)::prsltmp,tges,zges,qges,zges2
+  real(r_kind),dimension(nsig)::tsentmp,zges_read,uges,vges,prsltmp2
   real(r_kind) wdirob,wdirgesin,wdirdiffmax
   real(r_kind),dimension(34)::ptabluv
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
@@ -261,7 +266,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   integer(i_kind) ihgt,ier2,iuse,ilate,ilone
   integer(i_kind) izz,iprvd,isprvd
   integer(i_kind) idomsfc,isfcr,iskint,iff10
-  integer(i_kind) msges
+  integer(i_kind) ibb,ikk,ihil,idft
 
   integer(i_kind) iswcm,isaza, isccf, qify, qifn
   real(r_kind)    sccf_wavelen
@@ -285,6 +290,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   logical:: muse_u,muse_v
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical lowlevelsat,duplogic
+  logical msonetob
   logical proceed
 
   logical:: l_pbl_pseudo_itype
@@ -298,6 +304,8 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   type(obs_diags),pointer :: my_diagLL
   real(r_kind) :: thisPBL_height,ratio_PBL_height,prest,prestsfc,dudiffsfc,dvdiffsfc
   real(r_kind) :: hr_offset
+  real(r_kind) :: magomb
+
 
   equivalence(rstation_id,station_id)
   equivalence(r_prvstg,c_prvstg)
@@ -354,13 +362,14 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   isprvd=23   ! index of observation subprovider
   icat=24     ! index of data level category
   ijb=25      ! index of non linear qc parameter
+  ihil=26     ! index of  hilbert curve weight
+  idft=27     ! index of sonde profile launch time
+  iswcm=28    ! spectral type of wind
+  isaza=29    ! saza satellite zen angle
+  isccf=30    ! spec chan freq (hertz)
 
-  iswcm=26    ! spectral type of wind
-  isaza=27    ! saza satellite zen angle
-  isccf=28    ! spec chan freq (hertz)
-
-  iptrbu=29   ! index of u perturbation
-  iptrbv=30   ! index of v perturbation
+  iptrbu=31   ! index of u perturbation
+  iptrbv=32   ! index of v perturbation
 
   mm1=mype+1
   scale=one
@@ -437,6 +446,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   num_bad_ikx=0
   loop_for_all_obs: &
   do i=1,nobs
+     isli = -1
      dtime=data(itime,i)
      call dtime_check(dtime, in_curbin, in_anybin)
      if(.not.in_anybin) cycle
@@ -476,7 +486,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      l_pbl_pseudo_itype = l_PBL_pseudo_SurfobsUV .and.        &
                           ( itype==281 .or. itype==283 .or.itype==287 )
 
-        if (luse_obsdiag) then
+     if (luse_obsdiag) then
         my_diagu => null()
         my_diagv => null()
         my_diagu_pbl => null()
@@ -501,7 +511,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
              call perr(myname,'                           ich0 =',ich0)
              call perr(myname,'                             jj =',jj)
              call  die(myname)
-        endif
+           endif
 
            select case(jj)
            case(1); my_diagu => jj_diag
@@ -509,7 +519,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            case(3); my_diagu_pbl => jj_diag
            case(4); my_diagv_pbl => jj_diag
            end select
-     enddo
+        enddo
      endif
 
      if(.not.in_curbin) cycle
@@ -523,11 +533,10 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
           mype,nfldsig)
      call tintrp2a1(ges_lnprsl,prsltmp,dlat,dlon,dtime,hrdifsig,&
           nsig,mype,nfldsig)
-     call tintrp2a1(ges_prsl,prsltmp2,dlat,dlon,dtime,hrdifsig,&
-          nsig,mype,nfldsig)
-     call tintrp2a1(ges_prsi,prsitmp2,dlat,dlon,dtime,hrdifsig,&
+     prsltmp2 = exp(prsltmp) ! pressure on model layers (in cb)
+     call tintrp2a1(ges_prsi,prsitmp,dlat,dlon,dtime,hrdifsig,&
           nsig+1,mype,nfldsig)
-     call tintrp2a1(ges_q,qtmp,dlat,dlon,dtime,hrdifsig,&
+     call tintrp2a1(ges_q,qges,dlat,dlon,dtime,hrdifsig,&
           nsig,mype,nfldsig)
 
      call tintrp2a11(ges_z,zsges,dlat,dlon,dtime,hrdifsig,&
@@ -538,11 +547,12 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               nsig,mype,nfldsig)
      call tintrp2a1(ges_tsen,tsentmp,dlat,dlon,dtime,hrdifsig,&
           nsig,mype,nfldsig)
-
      call tintrp2a1(ges_u,uges,dlat,dlon,dtime,hrdifsig,&
           nsig,mype,nfldsig)
      call tintrp2a1(ges_v,vges,dlat,dlon,dtime,hrdifsig,&
           nsig,mype,nfldsig)
+     call tintrp31(ges_tv,sfctges,dlat,dlon,log(psges),dtime, &
+          hrdifsig,mype,nfldsig)
 
      itype=ictype(ikx)
 
@@ -1616,6 +1626,10 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      if (.not. append_diag) then ! don't write headers on append - the module will break?
         call nc_diag_header("date_time",ianldate )
         call nc_diag_header("Number_of_state_vars", nsdim          )
+        if (save_jacobian) then
+          call nc_diag_header("jac_nnz", nnz)
+          call nc_diag_header("jac_nind", nind)
+        endif
      endif
   end subroutine init_netcdf_diag_
   subroutine contents_binary_diag_(udiag,vdiag)
@@ -1654,7 +1668,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         rdiagbuf(21,ii) = dvdiff             ! v obs-ges used in analysis (m/s)
         rdiagbuf(22,ii) = vob-vgesin         ! v obs-ges w/o bias correction (m/s) (future slot)
 
-        if(regional) then
+        if(regional .and. .not. fv3_regional) then
 
 !           replace positions 17-22 with earth relative wind component information
 
@@ -1742,9 +1756,11 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            call nc_diag_metadata("Pressure",                sngl(presw*r100)       )
            call nc_diag_metadata("Height",                  sngl(data(ihgt,i))     )
            call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
+           call nc_diag_metadata("LaunchTime",              sngl(data(idft,i))     )
            call nc_diag_metadata("Prep_QC_Mark",            sngl(data(iqc,i))      )
 !           call nc_diag_metadata("Setup_QC_Mark",           rmiss_single           )
            call nc_diag_metadata("Setup_QC_Mark",           sngl(bmiss)            )
+           call nc_diag_metadata("Nonlinear_QC_Var_Jb",     sngl(var_jb)           )
            call nc_diag_metadata("Prep_Use_Flag",           sngl(data(iuse,i))     )
            if(muse(i)) then
               call nc_diag_metadata("Analysis_Use_Flag",    sngl(one)              )
@@ -1779,18 +1795,17 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
              call nc_diag_metadata("QI_without_FC",           sngl(bmiss)) 
            endif
 
-           if (.not. regional) then
+           if (.not. regional .or. fv3_regional) then
               call nc_diag_metadata("u_Observation",                              sngl(data(iuob,i))    )
               call nc_diag_metadata("u_Obs_Minus_Forecast_adjusted",              sngl(dudiff)          )
               call nc_diag_metadata("u_Obs_Minus_Forecast_unadjusted",            sngl(uob-ugesin)      )
-              call nc_diag_metadata("u_Forecast_adjusted", sngl(data(iuob,i)-dudiff))
-              call nc_diag_metadata("u_Forecast_unadjusted",sngl(ugesin))
-
+              call nc_diag_metadata("u_Forecast_adjusted",                        sngl(data(iuob,i)-dudiff))
+              call nc_diag_metadata("u_Forecast_unadjusted",                      sngl(ugesin))
               call nc_diag_metadata("v_Observation",                              sngl(data(ivob,i))    )
               call nc_diag_metadata("v_Obs_Minus_Forecast_adjusted",              sngl(dvdiff)          )
               call nc_diag_metadata("v_Obs_Minus_Forecast_unadjusted",            sngl(vob-vgesin)      )
-              call nc_diag_metadata("v_Forecast_adjusted", sngl(data(ivob,i)-dvdiff))
-              call nc_diag_metadata("v_Forecast_unadjusted",sngl(vgesin))
+              call nc_diag_metadata("v_Forecast_adjusted",                        sngl(data(ivob,i)-dvdiff))
+              call nc_diag_metadata("v_Forecast_unadjusted",                      sngl(vgesin))
            else ! (if regional)
 !              replace positions 17-22 with earth relative wind component information
    
@@ -1810,8 +1825,8 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_metadata("v_Observation",                              sngl(vob_e)           )
               call nc_diag_metadata("v_Obs_Minus_Forecast_adjusted",              sngl(dvdiff_e)        )
               call nc_diag_metadata("v_Obs_Minus_Forecast_unadjusted",            sngl(vob_e-vges_e)    )
-              call nc_diag_metadata("v_Forecast_adjusted", sngl(vob_e-dvdiff_e))
-              call nc_diag_metadata("v_Forecast_unadjusted",sngl(vges_e))
+              call nc_diag_metadata("v_Forecast_adjusted",                        sngl(vob_e-dvdiff_e))
+              call nc_diag_metadata("v_Forecast_unadjusted",                      sngl(vges_e))
            endif
 
            if (lobsdiagsave) then
@@ -1833,7 +1848,6 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            endif
 
            if (twodvar_regional) then
-              call nc_diag_metadata("Dominant_Sfc_Type", data(idomsfc,i)              )
               call nc_diag_metadata("Model_Terrain",     data(izz,i)                  )
               r_prvstg            = data(iprvd,i)
               call nc_diag_metadata("Provider_Name",     c_prvstg                     )
@@ -1841,25 +1855,30 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_metadata("Subprovider_Name",  c_sprvstg                    )
            endif
            if (save_jacobian) then
-              call fullarray(dhx_dx_u, dhx_dx_array)
-              call nc_diag_data2d("u_Observation_Operator_Jacobian", dhx_dx_array)
-              call fullarray(dhx_dx_v, dhx_dx_array)
-              call nc_diag_data2d("v_Observation_Operator_Jacobian", dhx_dx_array)
+              call nc_diag_data2d("u_Observation_Operator_Jacobian_stind", dhx_dx_u%st_ind)
+              call nc_diag_data2d("u_Observation_Operator_Jacobian_endind", dhx_dx_u%end_ind)
+              call nc_diag_data2d("u_Observation_Operator_Jacobian_val", real(dhx_dx_u%val,r_single))
+              call nc_diag_data2d("v_Observation_Operator_Jacobian_stind", dhx_dx_v%st_ind)
+              call nc_diag_data2d("v_Observation_Operator_Jacobian_endind", dhx_dx_v%end_ind)
+              call nc_diag_data2d("v_Observation_Operator_Jacobian_val", real(dhx_dx_v%val,r_single))
            endif
-
-           call nc_diag_metadata("surface_pressure",psges*r1000)
-           call nc_diag_metadata("surface_height",zsges)
-           call nc_diag_data2d("atmosphere_pressure_coordinate", prsltmp2*r1000)
-           call nc_diag_data2d("atmosphere_pressure_coordinate_interface", prsitmp2*r1000)
-           call nc_diag_data2d("virtual_temperature", tges)
-           call nc_diag_data2d("geopotential_height", zges_read+zsges)
-           call nc_diag_data2d("eastward_wind", uges)
-           call nc_diag_data2d("northward_wind", vges)
-           call nc_diag_data2d("air_temperature", sngl(tsentmp))
-           call nc_diag_metadata("surface_temperature",sngl(skint))
+           if (wrtgeovals) then
+              call nc_diag_metadata("surface_pressure",sngl(psges*r1000))
+              call nc_diag_metadata("surface_height",sngl(zsges))
+              call nc_diag_metadata("surface_geopotential_height",sngl(zsges))
+              call nc_diag_metadata("surface_temperature", sngl(sfctges))
+              call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp2*r1000))
+              call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
+              call nc_diag_data2d("virtual_temperature", sngl(tges))
+              call nc_diag_data2d("geopotential_height", sngl(zges2+zsges))
+              call nc_diag_data2d("eastward_wind", sngl(uges))
+              call nc_diag_data2d("northward_wind", sngl(vges))
+              call nc_diag_data2d("air_temperature", sngl(tsentmp))
+              call nc_diag_data2d("specific_humidity", sngl(qges))
+           endif
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
-           call nc_diag_metadata("landmask",sngl(msges))
-           call nc_diag_data2d("specific_humidity", qtmp)
+           call nc_diag_metadata("surface_skin_temperature", sngl(skint))
+           call nc_diag_metadata("landmask", sngl(landfrac))
 
 
   end subroutine contents_netcdf_diag_
@@ -1869,6 +1888,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
     if(allocated(ges_v )) deallocate(ges_v )
     if(allocated(ges_u )) deallocate(ges_u )
     if(allocated(ges_z )) deallocate(ges_z )
+    if(allocated(ges_q )) deallocate(ges_q )
     if(allocated(ges_ps)) deallocate(ges_ps)
   end subroutine final_vars_
 
