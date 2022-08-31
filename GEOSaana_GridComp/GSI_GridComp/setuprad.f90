@@ -271,6 +271,7 @@ contains
       dplat,dtbduv_on,lobsdiag_forenkf,&
       lobsdiagsave,nobskeep,lobsdiag_allocated,&
       dirname,time_offset,lwrite_predterms,lwrite_peakwt,reduce_diag
+  use obsmod, only: wrtgeovals
   use m_obsNode, only: obsNode
   use m_radNode, only: radNode
   use m_radNode, only: radNode_appendto
@@ -2755,12 +2756,12 @@ contains
                     do j=1, angord
                         predbias_angord(j) = predbias(npred-angord+j, ich_diag(i) )
                     end do
-                    call nc_diag_data2d("BC_angord",   sngl(predbias_angord)                                       )
+                    if (wrtgeovals) call nc_diag_data2d("BC_angord",   sngl(predbias_angord)                                       )
                     if (lwrite_predterms) then
                        do j=1, angord
                            predbias_angord(j) = pred(npred-angord+j, ich_diag(i) )
                        end do
-                       call nc_diag_data2d("BCPred_angord",   sngl(predbias_angord)                                )
+                       if (wrtgeovals) call nc_diag_data2d("BCPred_angord",   sngl(predbias_angord)                                )
                     endif
                  end if
 
@@ -2769,21 +2770,23 @@ contains
                  call nc_diag_metadata("Soil_Type",  sngl(surface(1)%soil_type))
 
                  call nc_diag_metadata("Sfc_Wind_Direction", sngl(surface(1)%wind_direction)    )
-                 call nc_diag_metadata("Sfc_Height",    sngl(zsges    ) )
-                 call nc_diag_data2d("air_temperature", sngl(atmosphere(1)%temperature) )  ! K 
-                 call nc_diag_data2d("air_pressure", sngl(atmosphere(1)%pressure*r100))
-                 call nc_diag_data2d("air_pressure_levels", sngl(atmosphere(1)%level_pressure*r100) )
+                 if (wrtgeovals) then
+                    call nc_diag_metadata("Sfc_Height",    sngl(zsges    ) )
+                    call nc_diag_data2d("air_temperature", sngl(atmosphere(1)%temperature) )  ! K 
+                    call nc_diag_data2d("air_pressure", sngl(atmosphere(1)%pressure*r100))
+                    call nc_diag_data2d("air_pressure_levels", sngl(atmosphere(1)%level_pressure*r100) )
 
-                 do iabsorb = 1, n_absorbers
-                   write (fieldname, "(A,I0.2)") "atmosphere_absorber_", atmosphere(1)%absorber_id(iabsorb)
-                   call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
-                 enddo
-                 do icloud = 1, n_clouds_fwd_wk
-                   write (fieldname, "(A,I0.2)") "atmosphere_mass_content_of_cloud_", atmosphere(1)%Cloud(icloud)%Type
-                   call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%Cloud(icloud)%Water_Content))
-                   write (fieldname, "(A,I0.2)") "effective_radius_of_cloud_particle_", atmosphere(1)%Cloud(icloud)%Type
-                   call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%Cloud(icloud)%Effective_Radius))
-                 enddo
+                    do iabsorb = 1, n_absorbers
+                       write (fieldname, "(A,I0.2)") "atmosphere_absorber_", atmosphere(1)%absorber_id(iabsorb)
+                       call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
+                     enddo
+                     do icloud = 1, n_clouds_fwd_wk
+                       write (fieldname, "(A,I0.2)") "atmosphere_mass_content_of_cloud_", atmosphere(1)%Cloud(icloud)%Type
+                       call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%Cloud(icloud)%Water_Content))
+                       write (fieldname, "(A,I0.2)") "effective_radius_of_cloud_particle_", atmosphere(1)%Cloud(icloud)%Type
+                       call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%Cloud(icloud)%Effective_Radius))
+                     enddo
+                 endif ! wrtgeovals
               enddo
 !  if (adp_anglebc) then
     if(allocated(predbias_angord)) deallocate(predbias_angord)

@@ -32,6 +32,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use obsmod, only: sfcmodel,perturb_obs,oberror_tune,lobsdiag_forenkf,ianldate,&
        lobsdiagsave,nobskeep,lobsdiag_allocated,time_offset
   use obsmod, only: dplat
+  use obsmod, only: wrtgeovals
   use m_obsNode, only: obsNode
   use m_tNode, only: tNode
   use m_tNode, only: tNode_appendto
@@ -1719,17 +1720,19 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
        call nc_diag_data2d("Observation_Operator_Jacobian_val", real(dhx_dx%val,r_single))
     endif
     ! geovals for JEDI UFO
-    call nc_diag_metadata("surface_geopotential_height",sngl(zsges))
-    call nc_diag_metadata("surface_pressure",sngl(psges*r1000))
-    call nc_diag_data2d("geopotential_height", sngl(zges+zsges))
-    call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp3*r1000))
-    call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
-    call nc_diag_data2d("virtual_temperature", sngl(tvgestmp))
-    call nc_diag_data2d("air_temperature", sngl(tsentmp))
-    call nc_diag_data2d("specific_humidity", sngl(qgestmp))
-    call nc_diag_data2d("eastward_wind", sngl(ugestmp))
-    call nc_diag_data2d("northward_wind", sngl(vgestmp))
-    call nc_diag_metadata("surface_temperature", sngl(sfctges))
+    if (wrtgeovals) then
+       call nc_diag_metadata("surface_geopotential_height",sngl(zsges))
+       call nc_diag_metadata("surface_pressure",sngl(psges*r1000))
+       call nc_diag_metadata("surface_temperature", sngl(sfctges))
+       call nc_diag_data2d("geopotential_height", sngl(zges+zsges))
+       call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp3*r1000))
+       call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
+       call nc_diag_data2d("virtual_temperature", sngl(tvgestmp))
+       call nc_diag_data2d("air_temperature", sngl(tsentmp))
+       call nc_diag_data2d("specific_humidity", sngl(qgestmp))
+       call nc_diag_data2d("eastward_wind", sngl(ugestmp))
+       call nc_diag_data2d("northward_wind", sngl(vgestmp))
+    endif
     call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
     call nc_diag_metadata("landmask", sngl(landfrac))
     call nc_diag_metadata("Wind_Reduction_Factor_at_10m", sngl(factw))
