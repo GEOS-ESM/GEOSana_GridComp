@@ -168,6 +168,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   use constants, only: zero,one_tenth,one,deg2rad,fv,t0c,half,&
       three,four,rad2deg,tiny_r_kind,huge_r_kind,huge_i_kind,&
       r60inv,r10,r100,r2000
+  use constants,only: rearth,stndrd_atmos_ps,rd,grav
+  use mpeu_util, only: die
   use gridmod, only: diagnostic_reg,regional,nlon,nlat,nsig,&
       tll2xy,txy2ll,rotate_wind_ll2xy,rotate_wind_xy2ll,&
       rlats,rlons,twodvar_regional
@@ -178,7 +180,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   use convinfo, only: id_drifter,id_ship
 
   use obsmod, only: iadate,oberrflg,perturb_obs,perturb_fact,ran01dom,hilbert_curve
-  use obsmod, only: blacklst,offtime_data,bmiss,ext_sonde
+  use obsmod, only: blacklst,offtime_data,bmiss,ext_sonde,time_offset
   use aircraftinfo, only: aircraft_t_bc,aircraft_t_bc_pof,ntail,taillist,idx_tail,npredt,predt, &
       aircraft_t_bc_ext,ntail_update,max_tail,nsort,itail_sort,idx_sort,timelist
   use converr,only: etabl
@@ -227,6 +229,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   real(r_kind),dimension(nlat,nlon,nsig),intent(in   ) :: prsl_full
 
 ! Declare local parameters
+  character(len=*), parameter :: myname="read_prepbufr"
   real(r_kind),parameter:: r0_01 = 0.01_r_kind
   real(r_kind),parameter:: r0_75 = 0.75_r_kind
   real(r_kind),parameter:: r0_7 = 0.7_r_kind
@@ -285,6 +288,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   integer(i_kind) ihh,idd,idate,iret,im,iy,k,levs
   integer(i_kind) metarcldlevs,metarwthlevs,cldseqlevs,cld2seqlevs
   integer(i_kind) kx,kx0,nreal,nchanl,ilat,ilon,ithin
+  integer(i_kind) nreal_fixed,mreal
   integer(i_kind) cat,zqm,pwq,sstq,qm,lim_qm,lim_zqm,gustqm,visqm,tdqm,mxtmqm,mitmqm,howvqm,cldchqm
   integer(i_kind) lim_tqm,lim_qqm
   integer(i_kind) nlevp         ! vertical level for thinning
@@ -362,6 +366,9 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   real(r_double),dimension(255,20):: tpc
   real(r_double),dimension(2,255,20):: tobaux
   real(r_double),dimension(2,255):: aircraftwk
+
+
+  real(r_kind) time_launch
 
 !  equivalence to handle character names
   equivalence(r_prvstg(1,1),c_prvstg) 
@@ -451,15 +458,15 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
             tcamtob .or. lcbasob .or. cldchob
   aircraftobst=.false.
   if(tob)then
-     nreal=25
+     nreal=26
   else if(uvob) then 
-     nreal=25
+     nreal=27
   else if(spdob) then
      nreal=24
   else if(psob) then
-     nreal=20
+     nreal=21
   else if(qob) then
-     nreal=26
+     nreal=27
   else if(pwob) then
      nreal=20
   else if(sstob) then
@@ -510,6 +517,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
      if (tob)          lim_qqm=4
   endif
 
+  nreal_fixed=nreal
   if (tob .and. (aircraft_t_bc_pof .or. aircraft_t_bc .or.&
        aircraft_t_bc_ext )) nreal=nreal+3
   if(perturb_obs .and. (tob .or. psob .or. qob))nreal=nreal+1
@@ -1800,11 +1808,13 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  endif
               end if
 
+              time_launch=-99999.0_r_kind
+
 !             If needed, extract drift information.   
               if(driftl)then
                  if(drfdat(1,k) >= r360)drfdat(1,k)=drfdat(1,k)-r360
                  if(drfdat(1,k) <  zero)drfdat(1,k)=drfdat(1,k)+r360
-                 if(abs(real(drfdat(2,k),r_single)) > r90 .or. drfdat(1,k) > r360 .or. drfdat(1,k) < zero)then
+                 if(abs(drfdat(2,k)) > r90 .or. drfdat(1,k) > r360 .or. drfdat(1,k) < zero)then
                     drfdat(2,k)=hdr(3)
                     drfdat(1,k)=hdr(2)
                  end if
@@ -1821,6 +1831,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  time_drift = timeobs + time_correction
                  if (abs(time_drift-time)>four) time_drift = time
  
+                 time_launch=real(real(drfdat(3,1),r_single),r_double) + time_correction
+
 !                Check to see if the time is outside range
                  if (l4dvar.or.l4densvar) then
                     t4dv=toff+time_drift
@@ -1911,7 +1923,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  endif
               endif
               if (sfctype .and. i_gsdqc==2) then  ! filter bad 2-m dew point and  0 mesonet wind obs
-                 if (kx==288) then ! for mesonet wind
+                 if (kx==288.or.kx==295) then ! for mesonet wind
                     if(abs(obsdat(5,k))<0.01_r_kind .and. abs(obsdat(6,k))<0.01_r_kind) usage=115._r_kind
                  endif
                  if (qob .and. (kx >=180 .and. kx<=189) .and. obsdat(2,k) < 1.0e10_r_kind)  then ! for 2-m dew point
@@ -2068,14 +2080,23 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  cdata_all(23,iout)=r_sprvstg(1,1)         ! subprovider name
                  cdata_all(24,iout)=obsdat(10,k)           ! cat
                  cdata_all(25,iout)=var_jb(3,k)            ! non linear qc for T
+                 cdata_all(26,iout)=time_launch
+                 mreal=nreal_fixed
                  if (aircraft_t_bc_pof .or. aircraft_t_bc .or.aircraft_t_bc_ext) then
-                    cdata_all(26,iout)=aircraftwk(1,k)     ! phase of flight
-                    cdata_all(27,iout)=aircraftwk(2,k)     ! vertical velocity
-                    cdata_all(28,iout)=idx                 ! index of temperature bias
+                    mreal=mreal+1;cdata_all(mreal,iout)=aircraftwk(1,k)     ! phase of flight
+                    mreal=mreal+1;cdata_all(mreal,iout)=aircraftwk(2,k)     ! vertical velocity
+                    mreal=mreal+1;cdata_all(mreal,iout)=idx                 ! index of temperature bias
                  end if
-                 if(perturb_obs)cdata_all(nreal,iout)=ran01dom()*perturb_fact ! t perturbation
+                 if(perturb_obs) then
+                    mreal=mreal+1;cdata_all(mreal,iout)=ran01dom()*perturb_fact ! t perturbation
+                 endif
                  if (twodvar_regional) &
                     call adjust_error(cdata_all(17,iout),cdata_all(18,iout),cdata_all(11,iout),cdata_all(1,iout))
+
+                 ! No additions to cdata_all should be placed below this check
+                 if(mreal/=nreal) then
+                    call die(myname,': no match of mreal/nreal for t ',999)
+                 endif
 
 !             Winds 
               else if(uvob) then 
@@ -2196,9 +2217,18 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  cdata_all(23,iout)=r_sprvstg(1,1)         ! subprovider name
                  cdata_all(24,iout)=obsdat(10,k)           ! cat
                  cdata_all(25,iout)=var_jb(5,k)            ! non linear qc parameter
+                 cdata_all(26,iout)=one                    ! hilbert curve weight, modified later 
+                 cdata_all(27,iout)=time_launch            ! rawinsonde launch time
+
+                 mreal=nreal_fixed
                  if(perturb_obs)then
-                    cdata_all(26,iout)=ran01dom()*perturb_fact ! u perturbation
-                    cdata_all(27,iout)=ran01dom()*perturb_fact ! v perturbation
+                    mreal=mreal+1;cdata_all(mreal,iout)=ran01dom()*perturb_fact ! u perturbation
+                    mreal=mreal+1;cdata_all(mreal,iout)=ran01dom()*perturb_fact ! v perturbation
+                 endif
+
+                 ! No additions to cdata_all should be placed below this check
+                 if(mreal/=nreal) then
+                    call die(myname,': no match of mreal/nreal for u/v ',999)
                  endif
  
               else if(spdob) then 
@@ -2262,9 +2292,18 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  cdata_all(18,iout)=r_prvstg(1,1)          ! provider name
                  cdata_all(19,iout)=r_sprvstg(1,1)         ! subprovider name
                  cdata_all(20,iout)=var_jb(1,k)            ! non linear qc b parameter 
-                 if(perturb_obs)cdata_all(21,iout)=ran01dom()*perturb_fact ! ps perturbation
+                 cdata_all(21,iout)=time_launch            ! sonde type data baloon launch time 
+                 mreal=nreal_fixed
+                 if(perturb_obs) then
+                    mreal=mreal+1;cdata_all(mreal,iout)=ran01dom()*perturb_fact ! ps perturbation
+                 endif
                  if (twodvar_regional) &
                     call adjust_error(cdata_all(14,iout),cdata_all(15,iout),cdata_all(11,iout),cdata_all(1,iout))
+
+                 ! No additions to cdata_all should be placed below this check
+                 if(mreal/=nreal) then
+                    call die(myname,': no match of mreal/nreal for ps ',999)
+                 endif
 
 !             Specific humidity 
               else if(qob) then
@@ -2305,7 +2344,12 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  cdata_all(21,iout)=r_sprvstg(1,1)         ! subprovider name
                  cdata_all(22,iout)=obsdat(10,k)           ! cat
                  cdata_all(23,iout)=var_jb(2,k)            ! non linear qc b parameter
-                 if(perturb_obs)cdata_all(24,iout)=ran01dom()*perturb_fact ! q perturbation
+                 cdata_all(24,iout)=time_launch
+
+                 mreal=nreal_fixed
+                 if(perturb_obs) then
+                    mreal=mreal+1;cdata_all(mreal,iout)=ran01dom()*perturb_fact ! q perturbation
+                 endif
                  if (twodvar_regional) &
                     call adjust_error(cdata_all(15,iout),cdata_all(16,iout),cdata_all(12,iout),cdata_all(1,iout))
  

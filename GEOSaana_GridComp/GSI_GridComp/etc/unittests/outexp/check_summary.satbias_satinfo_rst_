@@ -1,0 +1,65 @@
+
+ =====================
+ check_satbias summary
+ =====================
+
+ satbias_rst: outdir/satbias_satinfo_rst
+ satinfo.rc:  input/gmao_global_satinfo.rc
+
+    22 recs removed because instrument/channel not in satinfo.rc
+     0 recs added from satinfo.rc
+
+     0 recs renamed airs281SUBSET to airs_aqua
+   281 recs renamed airs281_aqua to airs_aqua
+     0 recs renamed cris399_npp to cris_npp
+   616 recs renamed iasi616_metop-a to iasi_metop-a
+   616 recs renamed iasi616_metop-b to iasi_metop-b
+
+     8 recs where seviri_m08 channels were renumbered
+       - old: (1, 2, 3, 4, 5, 6, 7, 8)
+       - new: (4, 5, 6, 7, 8, 9, 10, 11)
+
+     8 recs where seviri_m09 channels were renumbered
+       - old: (1, 2, 3, 4, 5, 6, 7, 8)
+       - new: (4, 5, 6, 7, 8, 9, 10, 11)
+
+     8 recs where seviri_m10 channels were renumbered
+       - old: (1, 2, 3, 4, 5, 6, 7, 8)
+       - new: (4, 5, 6, 7, 8, 9, 10, 11)
+
+  2877 satbias recs before update
+  2855 satbias recs after update
+
+ new satbias file has been written: outdir/satbias_satinfo_rst.new
+ sortflag = "satinfo"
+
+
+The following details are listed below:
+=======================================
+* records removed; not found in satinfo.rc
+
+
+* records removed; not found in satinfo.rc
+------------------------------------------
+('gmi_gpm', '1')
+('gmi_gpm', '2')
+('gmi_gpm', '3')
+('gmi_gpm', '4')
+('gmi_gpm', '5')
+('gmi_gpm', '6')
+('gmi_gpm', '7')
+('gmi_gpm', '8')
+('gmi_gpm', '9')
+('gmi_gpm', '10')
+('gmi_gpm', '11')
+('gmi_gpm', '12')
+('gmi_gpm', '13')
+('tmi_trmm', '1')
+('tmi_trmm', '2')
+('tmi_trmm', '3')
+('tmi_trmm', '4')
+('tmi_trmm', '5')
+('tmi_trmm', '6')
+('tmi_trmm', '7')
+('tmi_trmm', '8')
+('tmi_trmm', '9')

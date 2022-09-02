@@ -801,7 +801,7 @@ end subroutine errormod
                    dist3=sin(rlatk)-sin(rlatl)
                    dist=min(one,sqrt(dist1*dist1+dist2*dist2+dist3*dist3))
                    dist=rearth_equator*two*asin(dist/two)
-                   if (dist>60000.0_r_kind) pdiffd=vmag
+                   if (dist>hdist_aircraft) pdiffd=vmag
                 end if
                 exit dwprof
              end if
