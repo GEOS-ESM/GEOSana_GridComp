@@ -287,7 +287,7 @@ function dtype2index_(dtype) result(index_)
     case("mls22"    ); index_= iobOper_o3l
     case("mls30"    ); index_= iobOper_o3l
     case("mls55"    ); index_= iobOper_o3l
-    case("ompslp_g" ); index_= iobOper_o3l
+    case("ompslpnc" ); index_= iobOper_o3l
     case("ompslpuv" ); index_= iobOper_o3l
     case("ompslpvis"); index_= iobOper_o3l
 
