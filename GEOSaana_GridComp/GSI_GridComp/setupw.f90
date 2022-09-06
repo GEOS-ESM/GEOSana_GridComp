@@ -1864,7 +1864,6 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            endif
            if (wrtgeovals) then
               call nc_diag_metadata("surface_pressure",sngl(psges*r1000))
-              call nc_diag_metadata("surface_height",sngl(zsges))
               call nc_diag_metadata("surface_geopotential_height",sngl(zsges))
               call nc_diag_metadata("surface_temperature", sngl(sfctges))
               call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp2*r1000))
