@@ -114,6 +114,7 @@
 #                     http://geos5.org/wiki/index.php?title=Talk:GEOS-5_ADAS_Radiance_Monitoring
 #  03Feb2022 Todling  - revised changed above (for chn 305 of AIRS) to be a single line change instead of a wholesome change
 #  22Apr2022 ELAkkraoui - Removed AIRS channels 321 and 375 to accommodate the use of correlated observation error matrix #                         in reanalysis. 
+#  01Sep2022 ELAkkraoui - Added AIRS ozone sensitive channels (1012, 1088, 1111, 1120) for the period 20021012-20160925 
 #=================
 # Active Channels  
 #=================
@@ -532,9 +533,9 @@ aqua  20021012 000000  20160925 000000  airs    9  210  215  216       226  227 
 aqua  20021012 000000  20160925 000000  airs    9  257  261  262  267  272  295  299       305  310 #   100
 aqua  20021012 000000  20160925 000000  airs    5            333  338  355  362            475      #   110 - ch 321 became noisy
 aqua  20021012 000000  20160925 000000  airs    9  497  528  587  672  787  791       870  914  950 #   120
-aqua  20021012 000000  20160925 000000  airs    0                                                   #   130
-aqua  20021012 000000  20160925 000000  airs    0                                                   #   140
-aqua  20021012 000000  20160925 000000  airs    0                                                   #   150
+aqua  20021012 000000  20160925 000000  airs    1       1012                                        #   130
+aqua  20021012 000000  20160925 000000  airs    2  1088                     1111                    #   140
+aqua  20021012 000000  20160925 000000  airs    1  1120                                             #   150
 aqua  20021012 000000  20160925 000000  airs    5                          1301 1304 1329 1371 1382 #   160
 aqua  20021012 000000  20160925 000000  airs    7 1415 1424 1449 1455      1477 1500 1519           #   170
 aqua  20021012 000000  20160925 000000  airs    4 1565 1574                1627                1669 #   180
