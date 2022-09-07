@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os, sys
 sys.path.append(os.pardir)
@@ -25,7 +25,8 @@ class SatinfoTest(unittest.TestCase):
         f2 = SatInfoRc(outfil)
         self.assertEquals(f1._data, f2._data)
 
-        os.remove(outfil)
+        if not self.debug:
+            os.remove(outfil)
 
     def test_change_list(self):
         "Test that self.change_list equals self.change_history"
@@ -35,4 +36,22 @@ class SatinfoTest(unittest.TestCase):
 
 #.......................................................................
 if __name__ == "__main__":
+
+    # -db flag will keep outfil from being deleted
+    #---------------------------------------------
+    SatinfoTest.debug = False
+    for arg in sys.argv[1:len(sys.argv)]:
+        if arg == "-v": continue
+        if arg.lower() in ["-db", "-debug"]:
+            SatinfoTest.debug = True
+        sys.argv.remove(arg)
+
+    # check for existence of outdir
+    #------------------------------
+    if not os.path.isdir("outdir"):
+        print("> making outdir directory")
+        os.mkdir("outdir")
+
+    # run test
+    #---------
     unittest.main()

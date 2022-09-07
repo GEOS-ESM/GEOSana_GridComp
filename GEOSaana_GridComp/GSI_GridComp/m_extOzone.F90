@@ -158,7 +158,7 @@ function is_extOzone_(dfile,dtype,dplat,class)
     is_extOzone_= &
       ifile_==iBUFR .and. dtype == 'o3lev'     .or. &
       ifile_==iNC   .and. dtype == 'mls55'     .or. &
-      ifile_==iNC   .and. dtype == 'ompslp_g'  .or. &
+      ifile_==iNC   .and. dtype == 'ompslpnc'  .or. &
       ifile_==iNC   .and. dtype == 'ompslpvis' .or. &
       ifile_==iNC   .and. dtype == 'ompslpuv'  .or. &
       ifile_==iNC   .and. dtype == 'lims'      .or. &
@@ -173,7 +173,7 @@ function is_extOzone_(dfile,dtype,dplat,class)
     is_extOzone_= &
       ifile_==iBUFR .and. dtype == 'o3lev'     .or. &
       ifile_==iNC   .and. dtype == 'mls55'     .or. &
-      ifile_==iNC   .and. dtype == 'ompslp_g' .or. &
+      ifile_==iNC   .and. dtype == 'ompslpnc' .or. &
       ifile_==iNC   .and. dtype == 'ompslpvis' .or. &
       ifile_==iNC   .and. dtype == 'ompslpuv'  .or. &
       ifile_==iNC   .and. dtype == 'lims'      .or. &
@@ -385,7 +385,7 @@ subroutine read_(dfile,dtype,dplat,dsis, &      ! intent(in), keys for type mana
                              jsatid, gstime,twind)
      end select
 
-  case('mls55','ompslp_g','ompslpvis','ompslpuv','lims','uarsmls','mipas')
+  case('mls55','ompslpnc','ompslpvis','ompslpuv','lims','uarsmls','mipas')
      select case(dfile_format(dfile))
      case('nc')
         call ozlev_ncInquire_( nreal,nchan,ilat,ilon,maxobs)

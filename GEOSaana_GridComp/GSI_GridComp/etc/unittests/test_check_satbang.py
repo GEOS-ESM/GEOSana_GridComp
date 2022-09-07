@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os, sys
 sys.path.append(os.pardir)
@@ -39,6 +39,8 @@ class CheckSatbangTest(unittest.TestCase):
 
             sumbangOUT_ = sumbangOUT+"_"
             sumbiasOUT_ = sumbiasOUT+"_"
+            sumbangEXP_ = sumbangEXP+"_"
+            sumbiasEXP_ = sumbiasEXP+"_"
 
             # remove leftover output and temporary input
             for file in (satbangIN, satbangOUT, sumbangOUT,
@@ -67,21 +69,22 @@ class CheckSatbangTest(unittest.TestCase):
             self.assertTrue(filecmp.cmp(satbangOUT, satbangEXP))
             self.assertTrue(filecmp.cmp(satbiasOUT, satbiasEXP))
 
-            self.assertTrue(filecmp.cmp(sumbangOUT_, sumbangEXP))
-            self.assertTrue(filecmp.cmp(sumbiasOUT_, sumbiasEXP))
+            self.assertTrue(filecmp.cmp(sumbangOUT_, sumbangEXP_))
+            self.assertTrue(filecmp.cmp(sumbiasOUT_, sumbiasEXP_))
 
             # remove output and temporary input
-            os.remove(satbangIN)
-            os.remove(satbiasIN)
+            if not self.debug:
+                os.remove(satbangIN)
+                os.remove(satbiasIN)
 
-            os.remove(satbangOUT)
-            os.remove(satbiasOUT)
+                os.remove(satbangOUT)
+                os.remove(satbiasOUT)
 
-            os.remove(sumbangOUT)
-            os.remove(sumbiasOUT)
+                os.remove(sumbangOUT)
+                os.remove(sumbiasOUT)
 
-            os.remove(sumbangOUT_)
-            os.remove(sumbiasOUT_)
+                os.remove(sumbangOUT_)
+                os.remove(sumbiasOUT_)
 
     def test_check_satbang_revert(self):
         """
@@ -110,6 +113,8 @@ class CheckSatbangTest(unittest.TestCase):
 
         sumbangOUT_ = sumbangOUT+"_"
         sumbiasOUT_ = sumbiasOUT+"_"
+        sumbangEXP_ = sumbangEXP+"_"
+        sumbiasEXP_ = sumbiasEXP+"_"
 
         # remove leftover output and temporary input
         for file in (satbangIN, satbangOUT, sumbangOUT,
@@ -138,22 +143,41 @@ class CheckSatbangTest(unittest.TestCase):
         self.assertTrue(filecmp.cmp(satbangOUT, satbangEXP))
         self.assertTrue(filecmp.cmp(satbiasOUT, satbiasEXP))
 
-        self.assertTrue(filecmp.cmp(sumbangOUT_, sumbangEXP))
-        self.assertTrue(filecmp.cmp(sumbiasOUT_, sumbiasEXP))
+        self.assertTrue(filecmp.cmp(sumbangOUT_, sumbangEXP_))
+        self.assertTrue(filecmp.cmp(sumbiasOUT_, sumbiasEXP_))
 
         # remove output and temporary input
-        os.remove(satbangIN)
-        os.remove(satbiasIN)
+        if not self.debug:
+            os.remove(satbangIN)
+            os.remove(satbiasIN)
 
-        os.remove(satbangOUT)
-        os.remove(satbiasOUT)
+            os.remove(satbangOUT)
+            os.remove(satbiasOUT)
 
-        os.remove(sumbangOUT)
-        os.remove(sumbiasOUT)
+            os.remove(sumbangOUT)
+            os.remove(sumbiasOUT)
 
-        os.remove(sumbangOUT_)
-        os.remove(sumbiasOUT_)
+            os.remove(sumbangOUT_)
+            os.remove(sumbiasOUT_)
 
 #.......................................................................
 if __name__ == "__main__":
+
+    # -db flag will keep outfils from being deleted
+    #----------------------------------------------
+    CheckSatbangTest.debug = False
+    for arg in sys.argv[1:len(sys.argv)]:
+        if arg == "-v": continue
+        if arg.lower() in ["-db", "-debug"]:
+            CheckSatbangTest.debug = True
+        sys.argv.remove(arg)
+
+    # check for existence of outdir
+    #------------------------------
+    if not os.path.isdir("outdir"):
+        print("> making outdir directory")
+        os.mkdir("outdir")
+
+    # run test
+    #---------
     unittest.main()

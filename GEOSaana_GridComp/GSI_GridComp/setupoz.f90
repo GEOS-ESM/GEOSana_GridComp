@@ -134,6 +134,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   use m_obsLList, only : obsLList
   use obsmod, only : nloz_omi
   use obsmod, only : luse_obsdiag
+  use obsmod, only : wrtgeovals
 
   use obsmod, only: netcdf_diag, binary_diag, dirname
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
@@ -626,8 +627,10 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
                     call fullarray(dhx_dx, dhx_dx_array)
                     call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
                  endif
-                call nc_diag_data2d("mole_fraction_of_ozone_in_air", sngl(constoz*ozgestmp)) 
-                call nc_diag_data2d("air_pressure_levels",sngl(prsitmp*r1000))
+                 if (wrtgeovals) then
+                    call nc_diag_data2d("mole_fraction_of_ozone_in_air", sngl(constoz*ozgestmp)) 
+                    call nc_diag_data2d("air_pressure_levels",sngl(prsitmp*r1000))
+                 endif
               endif
            endif
 
@@ -1060,6 +1063,7 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   use obsmod, only : mype_diaghdr,dirname,time_offset,ianldate
   use obsmod, only : lobsdiag_allocated,lobsdiagsave,lobsdiag_forenkf
   use obsmod, only: netcdf_diag, binary_diag, dirname
+  use obsmod, only: wrtgeovals
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
        nc_diag_write, nc_diag_data2d
   use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
@@ -1692,10 +1696,11 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
            endif
            call nc_diag_metadata("Forecast_adjusted", sngl(o3ppmv))
            call nc_diag_metadata("Forecast_unadjusted", sngl(o3ppmv))
-           ozgestmp = ozgestmp *constoz
-           call nc_diag_data2d("mole_fraction_of_ozone_in_air", &
-                             sngl(ozgestmp))
-           call nc_diag_data2d("air_pressure",sngl(exp(prsltmp)*r1000)) ! Pa
+           if (wrtgeovals) then
+              ozgestmp = ozgestmp *constoz
+              call nc_diag_data2d("mole_fraction_of_ozone_in_air",  sngl(ozgestmp))
+              call nc_diag_data2d("air_pressure",sngl(exp(prsltmp)*r1000)) ! Pa
+           endif
            k1 = k
            k2 = k - 1
            if(k2 == 0)k2 = 1
