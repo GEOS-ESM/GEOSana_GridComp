@@ -689,7 +689,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
         end if
 
         if (id_ship .and. (kx==180) .and. (nint(hdr(3))==522 .or. nint(hdr(3))==523 .or. &
-               nint(hdr(3))==524 .and. nint(hdr(3))==525) then
+               nint(hdr(3))==524 .and. nint(hdr(3))==525)) then
            rstation_id=hdr(4)
            kx = kx + 18
         end if
