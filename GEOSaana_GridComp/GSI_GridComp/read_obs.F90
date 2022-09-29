@@ -995,7 +995,7 @@ subroutine read_obs(ndata,mype)
              else if(avhrr)then
                 parallel_read(i)= .true.
              else if(amsre)then
-                parallel_read(i)= .true.
+!               parallel_read(i)= .true.  ! turn parallel read off 
              else if(obstype == 'goes_img' )then
                 parallel_read(i)= .true.
              else if(obstype == 'ahi' )then
