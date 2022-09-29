@@ -197,7 +197,7 @@ integer(i_kind),dimension(npe)  ,intent(inout) :: nobs
   do_noise_reduction = .true.
   if (amsr2_method == 0) do_noise_reduction = .false.
 ! Orbit altitude  (m)
-  sat_altitude = 7.05+5_r_kind
+  sat_altitude = 7.05e+5_r_kind
 
   ilon = 3
   ilat = 4
