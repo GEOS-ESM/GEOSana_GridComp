@@ -142,6 +142,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 !   2018-08-16  akella  - explicit KX definition for ships (formerly ID'd by subtype 522/523)
 !   2020-01-29  Sienkiewicz - allow obstypes marked as passive in convinfo to be thinned
 !   2020-10-27  sienkiewicz - update for BUFR drifting buoys, T29=564
+!   2022-09-21  Sienkiewicz - Add BUFR ship subtypes (524, 525) to ship definition
 !
 
 !   input argument list:
@@ -687,7 +688,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
            end if
         end if
 
-        if (id_ship .and. (kx==180) .and. (nint(hdr(3))==522 .or. nint(hdr(3))==523)) then
+        if (id_ship .and. (kx==180) .and. (nint(hdr(3))==522 .or. nint(hdr(3))==523 .or. &
+               nint(hdr(3))==524 .and. nint(hdr(3))==525)) then
            rstation_id=hdr(4)
            kx = kx + 18
         end if
