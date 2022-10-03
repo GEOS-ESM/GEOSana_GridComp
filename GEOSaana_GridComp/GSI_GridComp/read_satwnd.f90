@@ -1099,7 +1099,6 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 
                  ! winds rejected by qc dont get used
                  if (qm == 15) usage=r100
-                 if (qm == 3 .or. qm ==7) woe=woe*r1_2
                  ! set strings for diagnostic output
                  if(itype==240 )  then;  c_prvstg='GOESR' ; c_sprvstg='IRSW'  ; endif
                  if(itype==245 )  then;  c_prvstg='GOESR' ; c_sprvstg='IR'  ; endif
