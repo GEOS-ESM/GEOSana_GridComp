@@ -84,6 +84,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 !                       . Remove my_node with corrected typecast().
 !   2017-10-27  todling - revised netcdf output for lay case; obs-sens needs attention
 !   2020-02-26  todling - reset obsbin from hr to min
+!   2022-08-10  karpowicz - fixes to ncdiag air_pressure_levels, change mass output to
+!                           ppmv/mole fraction, fix ompsnm scan positoin and solar zenith angle.
 !
 !   input argument list:
 !     lunin          - unit from which to read observations
@@ -114,7 +116,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   use state_vectors, only: svars3d, levels, nsdim
 
   use constants, only : zero,half,one,two,tiny_r_kind
-  use constants, only : rozcon,cg_term,wgtlim,h300,r10
+  use constants, only : constoz,rozcon,cg_term,wgtlim,h300,r10,r100,r1000
 
   use m_obsdiagNode, only : obs_diag
   use m_obsdiagNode, only : obs_diags
@@ -156,8 +158,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   implicit none
   
 ! !INPUT PARAMETERS:
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   integer(i_kind)                  , intent(in   ) :: lunin  ! unit from which to read observations
   integer(i_kind)                  , intent(in   ) :: mype   ! mpi task id
@@ -202,6 +204,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   real(r_kind),dimension(nlevs):: pobs,gross,tnoise
   real(r_kind),dimension(nreal+nlevs,nobs):: data
   real(r_kind),dimension(nsig+1)::prsitmp
+  real(r_kind),dimension(nsig)::ozgestmp
   real(r_single),dimension(nlevs):: pob4,grs4,err4
   real(r_single),dimension(ireal,nobs):: diagbuf
   real(r_single),allocatable,dimension(:,:,:)::rdiagbuf
@@ -216,7 +219,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   real(r_single), dimension(nsdim) :: dhx_dx_array
 
   integer(i_kind) i,nlev,ii,jj,iextra,ibin, kk, nperobs
-  integer(i_kind) k,j,nz,jc,idia,irdim1,istatus,ioff0,ioff1
+  integer(i_kind) k1,k2,k,j,nz,jc,idia,irdim1,istatus,ioff0,ioff1
   integer(i_kind) ioff,itoss,ikeep,ierror_toq,ierror_poq
   integer(i_kind) isolz,ifovn,itoqf
   integer(i_kind) mm1,itime,ilat,ilon,ilate,ilone,itoq,ipoq
@@ -282,7 +285,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
         iouse(jc)=iuse_oz(j)
         tnoise(jc)=error_oz(j)
         gross(jc)=min(r10*gross_oz(j),h300)
-        if (obstype == 'sbuv2' .or. obstype == 'ompsnp') then
+        if (obstype == 'sbuv2' .or. obstype == 'ompsnp' .or. obstype == 'ompsnpnc') then
            pobs(jc)=pob_oz(j) * 1.01325_r_kind
         else
            pobs(jc)=pob_oz(j)
@@ -366,7 +369,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
         dlon=data(ilon,i)
         dtime=data(itime,i)
  
-        if (obstype == 'sbuv2' .or. obstype == 'ompsnp') then
+        if (obstype == 'sbuv2' .or. obstype == 'ompsnp' .or. obstype == 'ompsnpnc') then
            if (nobskeep>0) then
 !             write(6,*)'setupozlay: nobskeep',nobskeep
               call stop2(259)
@@ -391,7 +394,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
            enddo
         end if
        
-        if (obstype == 'omieff' .or. obstype == 'tomseff') then
+        if (obstype == 'omieff' .or. obstype == 'tomseff' .or. obstype == 'ompsnmeff') then
            pob_oz_omi(nloz_omi) = 1000.0_r_kind* 1.01325_r_kind
            do j=nloz_omi-1, 1, -1
               pob_oz_omi(j) = pob_oz_omi(j+1)/2.0
@@ -413,7 +416,16 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
            call grdcrd1(ozp_omi(nloz_omi),prsitmp,nsig+1,-1)
         end if
         
-        if (obstype /= 'omieff' .and. obstype /= 'tomseff') then
+        call tintrp2a1(ges_oz,ozgestmp,dlat,dlon,dtime,hrdifsig,&
+          nsig,mype,nfldsig)
+
+        ! need call to get pressures for pressure level output in ncdiags
+        call tintrp2a1(ges_prsi,prsitmp,dlat,dlon,dtime,hrdifsig,&
+          nsig+1,mype,nfldsig)
+
+
+        if (obstype /= 'omieff' .and. obstype /= 'tomseff' .and. &
+            obstype /= 'ompsnmeff' ) then
            call intrp3oz1(ges_oz,ozges,dlat,dlon,ozp,dtime,&
                 nlevs,mype,doz_dz)
         endif
@@ -435,7 +447,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 !       For OMI/GOME, nlev=1 
         do k=1,nlev
            j=ipos(k)
-           if (obstype == 'omieff' .or. obstype == 'tomseff' ) then
+           if (obstype == 'omieff' .or. obstype == 'tomseff' .or. obstype == 'ompsnmeff') then
               ioff=ifovn+1 !
            else
               ioff=nreal+k ! SBUV and OMI w/o efficiency factors
@@ -443,7 +455,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 
 !          Compute innovation and load obs error into local array
             ! KW  OMI and TOMS have averaging kernels
-           if (obstype == 'omieff' .or. obstype == 'tomseff' ) then
+           if (obstype == 'omieff' .or. obstype == 'tomseff' .or. obstype == 'ompsnmeff') then
               ! everything in data is from top to bottom
               nlayers = nloz_omi + 1
               apriori(1:nloz_omi) = data(ioff:ioff+nloz_omi -1, i)
@@ -533,7 +545,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
               rdiagbuf(3,k,ii) = errorinv               ! inverse observation error
               if (obstype == 'gome' .or. obstype == 'omieff'  .or. &
                   obstype == 'omi'  .or. obstype == 'tomseff' .or. &
-                  obstype == 'ompstc8') then
+                  obstype == 'ompsnmeff' .or. obstype == 'ompstc8' .or. &
+                  obstype == 'ompsnm') then
                  rdiagbuf(4,k,ii) = data(isolz,i)       ! solar zenith angle
                  rdiagbuf(5,k,ii) = data(ifovn,i)       ! field of view number
               else
@@ -565,18 +578,39 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
               endif
 
               if (netcdf_diag) then
+                 k1 = k
+                 k2 = k - 1
+                 if(k2 == 0)k2 = 1
+                 if(k == nlevs)then
+                   k1=nlevs-1
+                   k2=1
+                 endif
+                 if (obstype == 'sbuv2' .or. obstype == 'ompsnp' .or. obstype == 'ompsnpnc' ) then
+                 call nc_diag_metadata("TopLevelPressure",sngl(pobs(k2)*r100))
+                 call nc_diag_metadata("BottomLevelPressure", &
+                                                      sngl(pobs(k1)*r100))
+              else
+                 call &
+                     nc_diag_metadata("TopLevelPressure",sngl(prsitmp(nsig+1)*r1000) )
+                 call nc_diag_metadata("BottomLevelPressure", &
+                                     sngl(prsitmp(1)*r1000) )
+              endif
                  call nc_diag_metadata("MPI_Task_Number", mype                      )
                  call nc_diag_metadata("Latitude",        sngl(data(ilate,i))       )
                  call nc_diag_metadata("Longitude",       sngl(data(ilone,i))       )
                  call nc_diag_metadata("Time",            sngl(data(itime,i)-time_offset) )
-                 call nc_diag_metadata("Reference_Pressure",     sngl(pobs(k))      )
+                 call nc_diag_metadata("Reference_Pressure",sngl(pobs(k)*r100)            )
                  call nc_diag_metadata("Analysis_Use_Flag",      iouse(k)           )
                  call nc_diag_metadata("Observation",                  sngl(ozobs(k)))
                  call nc_diag_metadata("Inverse_Observation_Error",    sngl(errorinv))
+                 call nc_diag_metadata("Input_Observation_Error", sngl(error(k)))
                  call nc_diag_metadata("Obs_Minus_Forecast_adjusted",  sngl(ozone_inv(k)))
                  call nc_diag_metadata("Obs_Minus_Forecast_unadjusted",sngl(ozone_inv(k)))
+                 call nc_diag_metadata("Forecast_unadjusted", sngl(ozges(k)))
+                 call nc_diag_metadata("Forecast_adjusted",sngl(ozges(k)))
                  if (obstype == 'gome' .or. obstype == 'omieff'  .or. &
-                     obstype == 'omi'  .or. obstype == 'tomseff' ) then
+                     obstype == 'omi'  .or. obstype == 'tomseff' .or. &
+                     obstype == 'ompsnmeff' .or. obstype == 'ompsnm') then
                     call nc_diag_metadata("Solar_Zenith_Angle", sngl(data(isolz,i)) )
                     call nc_diag_metadata("Scan_Position",      sngl(data(ifovn,i)) )
                  else
@@ -592,6 +626,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
                     call fullarray(dhx_dx, dhx_dx_array)
                     call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
                  endif
+                call nc_diag_data2d("mole_fraction_of_ozone_in_air", sngl(constoz*ozgestmp)) 
+                call nc_diag_data2d("air_pressure_levels",sngl(prsitmp*r1000))
               endif
            endif
 
@@ -632,7 +668,8 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
               my_head%elon= data(ilone,i)
 
               nlevp=max(nlev-1,1)
-              if (obstype == 'omieff' .or. obstype == 'tomseff' ) nlevp = nloz_omi
+              if (obstype == 'omieff' .or. obstype == 'tomseff' .or. &
+                   obstype == 'ompsnmeff') nlevp = nloz_omi
               allocate(my_head%res(nlev), &
                        my_head%err2(nlev), &
                        my_head%raterr2(nlev), &
@@ -669,11 +706,12 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
               my_head%luse=luse(i)
               my_head%time=dtime
 
-              if (obstype == 'sbuv2'.or. obstype == 'ompsnp' ) then
+              if (obstype == 'sbuv2' .or. obstype == 'ompsnp' .or. obstype == 'ompsnpnc') then
                  do k=1,nlevs-1
                     my_head%prs(k) = ozp(k)
                  enddo
-              else if (obstype == 'omieff' .or. obstype == 'tomseff') then
+              else if (obstype == 'omieff' .or. obstype == 'tomseff' .or. &
+                   obstype == 'ompsnmeff') then
                  do k=1,nloz_omi
                     my_head%prs(k) = ozp_omi(k)
                  enddo
@@ -980,7 +1018,8 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 !   2017-02-09  guo     - Remove m_alloc, n_alloc.
 !                       . Remove my_node with corrected typecast().
 !   2020-02-26  todling - reset obsbin from hr to min
-!
+!   2022-08-10  karpowicz/todling - replace ncdiag analysis use flag with +/-1 instead of zero
+!                           
 !   input argument list:
 !     lunin          - unit from which to read observations
 !     mype           - mpi task id
@@ -1033,7 +1072,7 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   use guess_grids, only : nfldsig,ges_lnprsl,hrdifsig
 
   use constants, only : zero,half,one,two,tiny_r_kind,four
-  use constants, only : cg_term,wgtlim,r10,constoz
+  use constants, only : cg_term,wgtlim,r10,r100,r1000,constoz
 
   use gsi_4dvar, only: nobs_bins,mn_obsbin
 
@@ -1051,8 +1090,8 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   implicit none
   
 ! !INPUT PARAMETERS:
-  type(obsLList ),target,dimension(:),intent(in):: obsLL
-  type(obs_diags),target,dimension(:),intent(in):: odiagLL
+  type(obsLList ),target,dimension(:),intent(inout):: obsLL
+  type(obs_diags),target,dimension(:),intent(inout):: odiagLL
 
   integer(i_kind)                  , intent(in   ) :: lunin  ! unit from which to read observations
   integer(i_kind)                  , intent(in   ) :: mype   ! mpi task id
@@ -1094,7 +1133,7 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   real(r_kind) omg,rat_err2,dlat,dtime,dlon
   real(r_kind) cg_oz,wgross,wnotgross,wgt,arg,exp_arg,term
   real(r_kind) errorinv
-  real(r_kind) psges,ozlv
+  real(r_kind) psges,ozlv, airnd, uvnd, visnd
   
   real(r_kind) varinv3,ratio_errors
   real(r_kind) dpres,obserror,ozone_inv,preso3l
@@ -1102,11 +1141,14 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   real(r_kind),dimension(nsig):: prsltmp
   real(r_single),dimension(ireal,nobs):: diagbuf
   real(r_single),allocatable,dimension(:,:,:)::rdiagbuf
+  real(r_kind),dimension(nsig+1)::prsitmp
+  real(r_kind),dimension(nsig)::ozgestmp
 
   integer(i_kind) i,ii,jj,iextra,ibin
-  integer(i_kind) k,j,idia,irdim1,ioff0,ioff1
+  integer(i_kind) k1,k2,k,j,idia,irdim1,ioff0,ioff1
   integer(i_kind) isolz,iuse
   integer(i_kind) mm1,itime,ilat,ilon,ilate,ilone,iozmr,ilev,ipres,iprcs,imls_levs
+  integer(i_kind) iairnd, iuvnd, ivisnd
   integer(i_kind),dimension(iint,nobs):: idiagbuf
   real(r_kind) gross
 
@@ -1148,7 +1190,7 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 ! Initialize arrays
 
   if(ozone_diagsave)then
-     irdim1=7
+     irdim1=10
      ioff0 = irdim1
      if(lobsdiagsave) irdim1=irdim1+4*miter+1
      ioff1 = irdim1
@@ -1176,6 +1218,9 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
   ilev=11     ! index of obs level
   imls_levs=12 ! index of mls nrt vertical levels
   iozmr=13    ! index of ozone mixing ratio in ppmv
+  iairnd = 14   ! index of lg10 nunber density of air
+  iuvnd = 15  ! index of log10 number density ozone - uv
+  ivisnd = 16 ! index of log10 number density ozone - vis
 
 ! Read and transform ozone data
   read(lunin) data,luse,ioid
@@ -1258,6 +1303,15 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
      endif
 
      ozlv=data(iozmr,i)      ! ozone mixing ratio in ppmv at pressure level
+     if(obstype == "ompslp")then
+       airnd = data(iairnd,i)
+       uvnd = data(iuvnd,i)
+       visnd = data(ivisnd,i)
+     else
+       airnd = zero
+       uvnd = zero
+       visnd = zero
+     endif
 
 !    Pressure level of data (dpres) converted to grid coordinate
 !    (wrt mid-layer pressure)
@@ -1276,6 +1330,9 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
          ratio_errors=zero
          obserror=1.0e6_r_kind
      end if
+
+     call tintrp2a1(ges_oz,ozgestmp,dlat,dlon,dtime,hrdifsig,&
+            nsig,mype,nfldsig)
 
 !    Interpolate guess ozone to observation location and time
      call tintrp31(ges_oz,o3ges,dlat,dlon,dpres,dtime, &
@@ -1574,6 +1631,9 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
         rdiagbuf(5,1,ii) = rmiss               ! fovn
         rdiagbuf(6,1,ii) = obserror            ! ozone mixing ratio precision
         rdiagbuf(7,1,ii) = 1.e+10_r_single     ! spread (filled in by EnKF)
+        rdiagbuf(8,1,ii) = airnd          ! log10 air number density
+        rdiagbuf(9,1,ii) = uvnd           ! log10 ozone number density uv
+        rdiagbuf(10,1,ii) = visnd         ! log10 ozone number density vis
 
         if (lobsdiagsave) then
            idia=ioff0
@@ -1618,8 +1678,31 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
            call nc_diag_metadata("Observation",                  sngl(ozlv)                     ) 
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",  sngl(ozone_inv)                )
            call nc_diag_metadata("Obs_Minus_Forecast_unadjusted",sngl(ozone_inv)                )
-           call nc_diag_metadata("Reference_Pressure",           sngl(preso3l)                  )
+           call nc_diag_metadata("Reference_Pressure",           sngl(preso3l*r100)             ) ! Pa
+           if(luse(i)) then
+             call nc_diag_metadata("Analysis_Use_Flag",          one                            )
+           else
+             call nc_diag_metadata("Analysis_Use_Flag",          -one                           )
+           endif
            call nc_diag_metadata("Input_Observation_Error",      sngl(obserror)                 ) 
+           if(obstype =="ompslp")then
+             call nc_diag_metadata("Log10 Air Number Density",   sngl(airnd))
+             call nc_diag_metadata("Log10 Ozone Number Density UV",  sngl(uvnd))
+             call nc_diag_metadata("Log10 Ozone Number Density VIS",sngl(visnd))
+           endif
+           call nc_diag_metadata("Forecast_adjusted", sngl(o3ppmv))
+           call nc_diag_metadata("Forecast_unadjusted", sngl(o3ppmv))
+           ozgestmp = ozgestmp *constoz
+           call nc_diag_data2d("mole_fraction_of_ozone_in_air", &
+                             sngl(ozgestmp))
+           call nc_diag_data2d("air_pressure",sngl(exp(prsltmp)*r1000)) ! Pa
+           k1 = k
+           k2 = k - 1
+           if(k2 == 0)k2 = 1
+           if(k == nlevs)then
+             k1=nlevs-1
+             k2=1
+           endif
 
            if (lobsdiagsave) then
               do jj=1,miter
