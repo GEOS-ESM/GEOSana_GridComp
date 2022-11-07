@@ -1730,6 +1730,7 @@ contains
 
 !     See if diagnostic file exists
       inquire(file=fdiag_rad,exist=lexist)
+      write(6,*) 'INIT_PREDX: cannot find ', fdiag_rad
       if (.not.lexist) cycle loopf
 
 !     Open file and read header
