@@ -12,6 +12,7 @@
 #
 #   14Apr2012 Todling  Initial code
 #                      (based on Jing's satinfo analyzer code)
+#   16Jun2022 Todling  Activate Jing's ConvDB
 #
 #--------------------------------------------------
 use Env;                 # make env vars readily available
@@ -35,8 +36,7 @@ use lib ( "$FindBin::Bin", "$FVROOT/bin", "$ESMADIR/$ARCH/bin" );
 
 # Run program for each case
 # -------------------------
-# info_run("conv"); # convinfo: do link below until this is mature
-  Assignfn( "$fvwork/gmao_global_convinfo.rc", "convinfo");
+  info_run("conv");
   info_run("sat");
   info_run("oz");
  
@@ -54,7 +54,7 @@ sub info_run {
        $db_def   = "gmao_convinfo.db";
        $tmpl_def = "gmao_global_convinfo.rc";
        $gsiname  = "convinfo";
-       $iuse_flags = "notused_flag = -2";
+       $iuse_flags = "notused_flag = -1";
    }
    if ( $this eq "oz" ) {
        $exec_def = "make_ozinfo.x";

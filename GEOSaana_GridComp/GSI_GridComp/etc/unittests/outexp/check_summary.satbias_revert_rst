@@ -2,6 +2,7 @@
  =====================
  check_satbias summary
  =====================
+ current dir: /gpfsm/dswdev/jstassi/GEOSadas/g5294/src/Components/@GEOSana_GridComp/GEOSaana_GridComp/GSI_GridComp/etc/unittests
 
  satbias_rst: outdir/satbias_revert_rst
  satinfo.rc:  input/gmao_revert_satinfo.rc

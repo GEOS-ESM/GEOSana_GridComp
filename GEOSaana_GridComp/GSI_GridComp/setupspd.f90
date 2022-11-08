@@ -829,6 +829,10 @@ subroutine setupspd(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
      if (.not. append_diag) then ! don't write headers on append - the module will break?
         call nc_diag_header("date_time",ianldate )
         call nc_diag_header("Number_of_state_vars", nsdim          )
+        if (save_jacobian) then
+          call nc_diag_header("jac_nnz", nnz)
+          call nc_diag_header("jac_nind", nind)
+        endif
      endif
   end subroutine init_netcdf_diag_
   subroutine contents_binary_diag_(odiag)
@@ -967,6 +971,9 @@ subroutine setupspd(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
            if (save_jacobian) then
               call fullarray(dhx_dx, dhx_dx_array)
               call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
+             call nc_diag_data2d("Observation_Operator_Jacobian_stind", dhx_dx%st_ind)
+             call nc_diag_data2d("Observation_Operator_Jacobian_endind", dhx_dx%end_ind)
+             call nc_diag_data2d("Observation_Operator_Jacobian_val", real(dhx_dx%val,r_single))
            endif
 
 
