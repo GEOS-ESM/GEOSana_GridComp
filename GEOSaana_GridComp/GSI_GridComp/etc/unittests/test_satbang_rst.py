@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os, sys
 sys.path.append(os.pardir)
@@ -48,7 +48,8 @@ class SatbangTest(unittest.TestCase):
         # compare to expected output
         self.assertTrue(filecmp.cmp(outfil, outexp))
 
-        os.remove(outfil)
+        if not self.debug:
+            os.remove(outfil)
 
     def test_change(self):
         "Test the change() function for various variables"
@@ -96,8 +97,9 @@ class SatbangTest(unittest.TestCase):
         # compare to expected output
         self.assertTrue(filecmp.cmp(outfil, outexp))
 
-        os.remove(infile1)
-        os.remove(outfil)
+        if not self.debug:
+            os.remove(infile1)
+            os.remove(outfil)
 
     def test_data_and_records(self):
         "Test that records() agrees with self._data[] and key_and_values()"
@@ -142,7 +144,8 @@ class SatbangTest(unittest.TestCase):
 
         # attempt to load faulty output file
         self.assertRaises(Exception, SatBangRst, outfil)
-        os.remove(outfil)
+        if not self.debug:
+            os.remove(outfil)
 
         # attempt to replace coeffs with write file with faulty record
         values["coeffs"].pop();
@@ -179,7 +182,8 @@ class SatbangTest(unittest.TestCase):
         self.assertEqual(sb1._data, sb2._data)
         self.assertTrue(filecmp.cmp(infile, outfil))
 
-        os.remove(outfil)
+        if not self.debug:
+            os.remove(outfil)
 
     def test_remove_records(self):
         "Test the remove_records() function"
@@ -204,10 +208,29 @@ class SatbangTest(unittest.TestCase):
         # compare to expected output
         self.assertTrue(filecmp.cmp(outfil, outexp))
 
-        os.remove(outfil)
+        if not self.debug:
+            os.remove(outfil)
 
 #.......................................................................
 if __name__ == "__main__":
+
+    # -db flag will keep outfils from being deleted
+    #----------------------------------------------
+    SatbangTest.debug = False
+    for arg in sys.argv[1:len(sys.argv)]:
+        if arg == "-v": continue
+        if arg.lower() in ["-db", "-debug"]:
+            SatbangTest.debug = True
+        sys.argv.remove(arg)
+
+    # check for existence of outdir
+    #------------------------------
+    if not os.path.isdir("outdir"):
+        print("> making outdir directory")
+        os.mkdir("outdir")
+
+    # run test
+    #---------
     unittest.main()
 
 ## found below in documentation but unable to get it to work

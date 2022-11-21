@@ -237,7 +237,7 @@ def check_files(satbang_path=os.curdir,
             if sb == satbang and (dcTL["diff"] or dcTL["none"] or dcTL["what"]):
                 pass
             else:
-                print "No irregularites found in {0}".format(basename)
+                print("No irregularites found in {0}".format(basename))
                 continue
 
         # write summary

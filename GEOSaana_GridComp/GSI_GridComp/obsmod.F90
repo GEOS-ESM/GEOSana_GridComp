@@ -462,6 +462,8 @@ module obsmod
   public :: missing_to_nopcp
 
   public :: iout_dbz, mype_dbz
+  public :: wrtgeovals
+
   ! --- DBZ DA ---
   
   public :: obsmod_init_instr_table
@@ -582,6 +584,7 @@ module obsmod
   logical lgpsbnd_revint
 
   logical l_wcp_cwm
+  logical wrtgeovals
 
   character(len=*),parameter:: myname='obsmod'
 contains
@@ -812,6 +815,8 @@ contains
     l_wcp_cwm      = .false.  ! .true. = use operator that involves cwm
 
     lgpsbnd_revint = .false.  ! when .t., use revised bending angle integration 
+
+    wrtgeovals = .false.      ! when .t., will include geosvals in nc4 diags
 
     return
   end subroutine init_obsmod_dflts

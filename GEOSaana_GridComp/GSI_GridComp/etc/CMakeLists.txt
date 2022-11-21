@@ -118,12 +118,25 @@ set (GEOSIT_files
    GEOSIT/gmao_global_cloudy_radiance_info.rc
    GEOSIT/gmao_global_satinfo.rc
    GEOSIT/gsi.rc.tmpl
+   GEOSIT/gsi_sens.rc.tmpl
    )
 install(
    FILES ${GEOSIT_files}
    DESTINATION etc/gsi/GEOSIT
    )
 
+# Handle GEOS-R21C settings in a similar way as MERRA2
+set (R21C_files
+   R21C/gmao_global_cloudy_radiance_info.rc
+   R21C/gmao_global_satinfo.rc
+   R21C/gmao_global_tlapmean.rc
+   R21C/gsi.rc.tmpl
+   R21C/gsi_sens.rc.tmpl
+   )
+install(
+   FILES ${R21C_files}
+   DESTINATION etc/gsi/R21C
+   )
 file(GLOB etc_py *.py)
 install (
    PROGRAMS ${etc_py}

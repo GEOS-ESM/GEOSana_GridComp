@@ -459,6 +459,7 @@ set (SRCS_SOLVER
   read_ahi.f90
   read_airs.f90
   read_amsre.f90
+  read_amsre_gmao.f90
   read_amsr2.f90
   read_anowbufr.f90
   read_atms.f90
@@ -506,6 +507,7 @@ set (SRCS_SOLVER
   read_ssmi.f90
   read_ssmis.f90
   read_tcps.f90
+  read_tmi.f90
   read_wcpbufr.f90
   reorg_metar_cloud.f90
   setupaod.f90
@@ -647,6 +649,7 @@ set (OBJS_OPENBUFR
    read_ahi.f90
    read_airs.f90
    read_amsre.f90
+   read_amsre_gmao.f90
    read_amsr2.f90
    read_anowbufr.f90
    read_atms.f90
@@ -683,6 +686,7 @@ set (OBJS_OPENBUFR
    read_sfcwnd.f90
    read_ssmi.f90
    read_ssmis.f90
+   read_tmi.f90
    read_wcpbufr.f90
    oneobmod.F90
    )
@@ -710,6 +714,10 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
          endif ()
       endforeach ()
    endif ()
+endif ()
+
+if (EXTENDED_SOURCE)
+  set_source_files_properties(prepbykx.f PROPERTIES COMPILE_OPTIONS ${EXTENDED_SOURCE})
 endif ()
 
 set (SRCS_STUBS

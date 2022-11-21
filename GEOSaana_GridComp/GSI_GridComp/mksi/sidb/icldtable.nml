@@ -1,0 +1,73 @@
+!>  type:: icldtuple
+!>    integer          :: lymdh=-1   ! lower yyyymmddhh
+!>    integer          :: uymdh=-1   ! upper yyyymmddhh
+!>    character(len=20):: isis =".undef."
+!>    integer          :: ichan=-1   ! channel number
+!>    integer          :: icld =1    ! corresponding icld_det values
+!>  end type icldtuple
+!>
+!>  type(icldtuple),dimension(500):: icldtable
+!>  namelist/icldtable_NML/verbose,icldtable
+
+&icldtable_nml
+  verbose=.false.       ! .true. for additional run-time activity trackings
+
+! For cld_det of ALL channels of the same isis, let chan=0 in icldtable(:) below.
+!
+!   cld_det is encoded into decimal from its bit values, listed below from right most
+!   (the lowest from 0) bit toward left (higher) bits.
+!
+!      bit      meaning        d'31'=z'001f'
+!------------------------------------------------------
+!       0       icld_det                 1
+!       1       iland_det               1
+!       2       isnow_det              1
+!       3       imix_det              1
+!       4       iice_det             1
+!       5       iwater_det          0
+!       6       iomg_det           0
+!       7       itopo_det         0
+!       8       isst_det         0
+!       9       iwndspeed_det   0
+!------------------------------------------------------
+!      bit      meaning       b'0000011111' -> d'31'
+
+  icldtable(:) =
+    !     lower            upper
+    !   yyyymmddhh      yyyymmddhh       isis              chan  cld_det
+
+        2010010100      2100010100      iasi_metop-a       1427   31
+        2010010100      2100010100      iasi_metop-a       1479   31
+        2010010100      2100010100      iasi_metop-a       1536   31
+        2010010100      2100010100      iasi_metop-a       1579   31
+        2010010100      2100010100      iasi_metop-a       1585   31
+        2010010100      2100010100      iasi_metop-a       1626   31
+        2010010100      2100010100      iasi_metop-a       1643   31
+        2010010100      2100010100      iasi_metop-a       1671   31
+        2010010100      2022011112      airs_aqua           305    1
+        2022011118      2100010100      airs_aqua           305   -1
+        2010010100      2100010100      airs_aqua          1012   31
+        2010010100      2100010100      airs_aqua          1024   31
+        2010010100      2100010100      airs_aqua          1088   31
+        2010010100      2100010100      airs_aqua          1111   31
+        2010010100      2100010100      airs_aqua          1120   31
+        2010010100      2100010100      cris-fsr_npp        596   31
+        2010010100      2100010100      cris-fsr_npp        626   31
+        2010010100      2100010100      cris-fsr_npp        646   31
+        2010010100      2100010100      cris-fsr_npp        659   31
+        2010010100      2100010100      iasi_metop-b       1427   31
+        2010010100      2100010100      iasi_metop-b       1479   31
+        2010010100      2100010100      iasi_metop-b       1536   31
+        2010010100      2100010100      iasi_metop-b       1579   31
+        2010010100      2100010100      iasi_metop-b       1585   31
+        2010010100      2100010100      iasi_metop-b       1626   31
+        2010010100      2100010100      iasi_metop-b       1643   31
+        2010010100      2100010100      iasi_metop-b       1671   31
+        2010010100      2100010100      cris-fsr_n20        596   31
+        2010010100      2100010100      cris-fsr_n20        626   31
+        2010010100      2100010100      cris-fsr_n20        646   31
+        2010010100      2100010100      cris-fsr_n20        659   31
+
+    !     lower            upper
+    !   yyyymmddhh      yyyymmddhh       isis              chan  cld_det
+ /

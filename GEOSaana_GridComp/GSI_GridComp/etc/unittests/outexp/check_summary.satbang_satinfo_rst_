@@ -1,0 +1,483 @@
+
+ =====================
+ check_satbang summary
+ =====================
+
+ satbang_rst: outdir/satbang_satinfo_rst
+ satinfo.rc:  input/gmao_global_satinfo.rc
+ tlapmean.rc: input/gmao_global_tlapmean.rc
+
+   237 recs filled in missing tlapmean from tlapmean.rc
+    42 recs with tlapmean different than tlapmean.rc
+   116 recs with tlapmean equal zero
+     0 recs with tlapmean in satbang but not in tlapmean.rc
+
+    22 recs removed because instrument/channel not in satinfo.rc
+     0 recs added from satinfo.rc
+
+     0 recs renamed airs281SUBSET to airs_aqua
+   281 recs renamed airs281_aqua to airs_aqua
+   399 recs renamed cris399_npp to cris_npp
+   616 recs renamed iasi616_metop-a to iasi_metop-a
+   616 recs renamed iasi616_metop-b to iasi_metop-b
+
+     8 recs where seviri_m08 channels were renumbered
+       - old: (1, 2, 3, 4, 5, 6, 7, 8)
+       - new: (4, 5, 6, 7, 8, 9, 10, 11)
+
+     8 recs where seviri_m09 channels were renumbered
+       - old: (1, 2, 3, 4, 5, 6, 7, 8)
+       - new: (4, 5, 6, 7, 8, 9, 10, 11)
+
+     8 recs where seviri_m10 channels were renumbered
+       - old: (1, 2, 3, 4, 5, 6, 7, 8)
+       - new: (4, 5, 6, 7, 8, 9, 10, 11)
+
+  2877 satbang recs before update
+  2855 satbang recs after update
+
+ new satbang file has been written: outdir/satbang_satinfo_rst.new
+ sortflag = "satinfo"
+
+
+The following details are listed below:
+=======================================
+* records where zero-value replaced by value from tlapmean.rc
+* records where satbang tlapmean differs from tlapmean.rc
+* records where no value found in satbang or tlapmean.rc
+* records removed; not found in satinfo.rc
+
+
+* records where zero-value replaced by value from tlapmean.rc
+-------------------------------------------------------------
+('amsua_n15', '11')       tlapmean:   0.000000E+00 => -0.425550E-01
+('amsua_n15', '14')       tlapmean:   0.000000E+00 => -0.427156E-01
+('amsua_n17', '1')        tlapmean:   0.000000E+00 =>  0.585593E-02
+('amsua_n17', '2')        tlapmean:   0.000000E+00 =>  0.332780E-02
+('amsua_n17', '3')        tlapmean:   0.000000E+00 =>  0.205450E-01
+('amsua_n17', '4')        tlapmean:   0.000000E+00 =>  0.474002E-01
+('amsua_n17', '5')        tlapmean:   0.000000E+00 =>  0.632804E-01
+('amsua_n17', '6')        tlapmean:   0.000000E+00 =>  0.724448E-01
+('amsua_n17', '7')        tlapmean:   0.000000E+00 =>  0.545135E-01
+('amsua_n17', '8')        tlapmean:   0.000000E+00 =>  0.358954E-01
+('amsua_n17', '9')        tlapmean:   0.000000E+00 => -0.139553E-01
+('amsua_n17', '10')       tlapmean:   0.000000E+00 => -0.310597E-01
+('amsua_n17', '11')       tlapmean:   0.000000E+00 => -0.408847E-01
+('amsua_n17', '12')       tlapmean:   0.000000E+00 => -0.530664E-01
+('amsua_n17', '13')       tlapmean:   0.000000E+00 => -0.617087E-01
+('amsua_n17', '14')       tlapmean:   0.000000E+00 => -0.424152E-01
+('amsua_n17', '15')       tlapmean:   0.000000E+00 =>  0.955544E-02
+('sndr_g11', '1')         tlapmean:   0.000000E+00 => -0.266912E-01
+('sndr_g11', '2')         tlapmean:   0.000000E+00 =>  0.775615E-02
+('sndr_g11', '3')         tlapmean:   0.000000E+00 =>  0.452724E-01
+('sndr_g11', '4')         tlapmean:   0.000000E+00 =>  0.476637E-01
+('sndr_g11', '5')         tlapmean:   0.000000E+00 =>  0.405429E-01
+('sndr_g11', '6')         tlapmean:   0.000000E+00 =>  0.185283E-01
+('sndr_g11', '7')         tlapmean:   0.000000E+00 =>  0.111459E-01
+('sndr_g11', '8')         tlapmean:   0.000000E+00 =>  0.821840E-02
+('sndr_g11', '9')         tlapmean:   0.000000E+00 => -0.989516E-02
+('sndr_g11', '10')        tlapmean:   0.000000E+00 =>  0.525309E-01
+('sndr_g11', '11')        tlapmean:   0.000000E+00 =>  0.737190E-01
+('sndr_g11', '12')        tlapmean:   0.000000E+00 =>  0.755790E-01
+('sndr_g11', '13')        tlapmean:   0.000000E+00 =>  0.394725E-01
+('sndr_g11', '14')        tlapmean:   0.000000E+00 =>  0.461616E-01
+('sndr_g11', '15')        tlapmean:   0.000000E+00 =>  0.346644E-01
+('sndr_g11', '16')        tlapmean:   0.000000E+00 =>  0.228933E-01
+('sndr_g11', '17')        tlapmean:   0.000000E+00 =>  0.566331E-02
+('sndr_g11', '18')        tlapmean:   0.000000E+00 =>  0.529025E-02
+('sndrD1_g13', '1')       tlapmean:   0.000000E+00 => -0.352909E-01
+('sndrD1_g13', '2')       tlapmean:   0.000000E+00 =>  0.294279E-01
+('sndrD1_g13', '3')       tlapmean:   0.000000E+00 =>  0.726254E-01
+('sndrD1_g13', '4')       tlapmean:   0.000000E+00 =>  0.648032E-01
+('sndrD1_g13', '5')       tlapmean:   0.000000E+00 =>  0.517502E-01
+('sndrD1_g13', '6')       tlapmean:   0.000000E+00 =>  0.243728E-01
+('sndrD1_g13', '7')       tlapmean:   0.000000E+00 =>  0.158538E-01
+('sndrD1_g13', '8')       tlapmean:   0.000000E+00 =>  0.119060E-01
+('sndrD1_g13', '9')       tlapmean:   0.000000E+00 => -0.669605E-02
+('sndrD1_g13', '10')      tlapmean:   0.000000E+00 =>  0.730676E-01
+('sndrD1_g13', '11')      tlapmean:   0.000000E+00 =>  0.104909E+00
+('sndrD1_g13', '12')      tlapmean:   0.000000E+00 =>  0.120499E+00
+('sndrD1_g13', '13')      tlapmean:   0.000000E+00 =>  0.486928E-01
+('sndrD1_g13', '14')      tlapmean:   0.000000E+00 =>  0.621413E-01
+('sndrD1_g13', '15')      tlapmean:   0.000000E+00 =>  0.660173E-01
+('sndrD1_g13', '16')      tlapmean:   0.000000E+00 =>  0.288607E-01
+('sndrD1_g13', '17')      tlapmean:   0.000000E+00 =>  0.649822E-02
+('sndrD1_g13', '18')      tlapmean:   0.000000E+00 =>  0.712315E-02
+('sndrD2_g13', '1')       tlapmean:   0.000000E+00 => -0.353864E-01
+('sndrD2_g13', '2')       tlapmean:   0.000000E+00 =>  0.290071E-01
+('sndrD2_g13', '3')       tlapmean:   0.000000E+00 =>  0.725784E-01
+('sndrD2_g13', '4')       tlapmean:   0.000000E+00 =>  0.648045E-01
+('sndrD2_g13', '5')       tlapmean:   0.000000E+00 =>  0.517072E-01
+('sndrD2_g13', '6')       tlapmean:   0.000000E+00 =>  0.243435E-01
+('sndrD2_g13', '7')       tlapmean:   0.000000E+00 =>  0.158794E-01
+('sndrD2_g13', '8')       tlapmean:   0.000000E+00 =>  0.118954E-01
+('sndrD2_g13', '9')       tlapmean:   0.000000E+00 => -0.665108E-02
+('sndrD2_g13', '10')      tlapmean:   0.000000E+00 =>  0.731257E-01
+('sndrD2_g13', '11')      tlapmean:   0.000000E+00 =>  0.104822E+00
+('sndrD2_g13', '12')      tlapmean:   0.000000E+00 =>  0.120544E+00
+('sndrD2_g13', '13')      tlapmean:   0.000000E+00 =>  0.486859E-01
+('sndrD2_g13', '14')      tlapmean:   0.000000E+00 =>  0.621526E-01
+('sndrD2_g13', '15')      tlapmean:   0.000000E+00 =>  0.660883E-01
+('sndrD2_g13', '16')      tlapmean:   0.000000E+00 =>  0.288704E-01
+('sndrD2_g13', '17')      tlapmean:   0.000000E+00 =>  0.650035E-02
+('sndrD2_g13', '18')      tlapmean:   0.000000E+00 =>  0.711688E-02
+('sndrD3_g13', '1')       tlapmean:   0.000000E+00 => -0.353525E-01
+('sndrD3_g13', '2')       tlapmean:   0.000000E+00 =>  0.298636E-01
+('sndrD3_g13', '3')       tlapmean:   0.000000E+00 =>  0.729764E-01
+('sndrD3_g13', '4')       tlapmean:   0.000000E+00 =>  0.649485E-01
+('sndrD3_g13', '5')       tlapmean:   0.000000E+00 =>  0.520050E-01
+('sndrD3_g13', '6')       tlapmean:   0.000000E+00 =>  0.244425E-01
+('sndrD3_g13', '7')       tlapmean:   0.000000E+00 =>  0.159489E-01
+('sndrD3_g13', '8')       tlapmean:   0.000000E+00 =>  0.119718E-01
+('sndrD3_g13', '9')       tlapmean:   0.000000E+00 => -0.672272E-02
+('sndrD3_g13', '10')      tlapmean:   0.000000E+00 =>  0.732713E-01
+('sndrD3_g13', '11')      tlapmean:   0.000000E+00 =>  0.105192E+00
+('sndrD3_g13', '12')      tlapmean:   0.000000E+00 =>  0.121083E+00
+('sndrD3_g13', '13')      tlapmean:   0.000000E+00 =>  0.487409E-01
+('sndrD3_g13', '14')      tlapmean:   0.000000E+00 =>  0.621844E-01
+('sndrD3_g13', '15')      tlapmean:   0.000000E+00 =>  0.660544E-01
+('sndrD3_g13', '16')      tlapmean:   0.000000E+00 =>  0.287870E-01
+('sndrD3_g13', '17')      tlapmean:   0.000000E+00 =>  0.648998E-02
+('sndrD3_g13', '18')      tlapmean:   0.000000E+00 =>  0.713669E-02
+('sndrD4_g13', '1')       tlapmean:   0.000000E+00 => -0.359241E-01
+('sndrD4_g13', '2')       tlapmean:   0.000000E+00 =>  0.286392E-01
+('sndrD4_g13', '3')       tlapmean:   0.000000E+00 =>  0.730697E-01
+('sndrD4_g13', '4')       tlapmean:   0.000000E+00 =>  0.650029E-01
+('sndrD4_g13', '5')       tlapmean:   0.000000E+00 =>  0.517101E-01
+('sndrD4_g13', '6')       tlapmean:   0.000000E+00 =>  0.245002E-01
+('sndrD4_g13', '7')       tlapmean:   0.000000E+00 =>  0.159505E-01
+('sndrD4_g13', '8')       tlapmean:   0.000000E+00 =>  0.119785E-01
+('sndrD4_g13', '9')       tlapmean:   0.000000E+00 => -0.667713E-02
+('sndrD4_g13', '10')      tlapmean:   0.000000E+00 =>  0.732989E-01
+('sndrD4_g13', '11')      tlapmean:   0.000000E+00 =>  0.105213E+00
+('sndrD4_g13', '12')      tlapmean:   0.000000E+00 =>  0.121220E+00
+('sndrD4_g13', '13')      tlapmean:   0.000000E+00 =>  0.487880E-01
+('sndrD4_g13', '14')      tlapmean:   0.000000E+00 =>  0.623449E-01
+('sndrD4_g13', '15')      tlapmean:   0.000000E+00 =>  0.666042E-01
+('sndrD4_g13', '16')      tlapmean:   0.000000E+00 =>  0.287788E-01
+('sndrD4_g13', '17')      tlapmean:   0.000000E+00 =>  0.649001E-02
+('sndrD4_g13', '18')      tlapmean:   0.000000E+00 =>  0.715148E-02
+('hirs2_n14', '1')        tlapmean:   0.000000E+00 => -0.323218E-01
+('hirs2_n14', '2')        tlapmean:   0.000000E+00 => -0.273827E-01
+('hirs2_n14', '3')        tlapmean:   0.000000E+00 => -0.895387E-02
+('hirs2_n14', '4')        tlapmean:   0.000000E+00 =>  0.450375E-01
+('hirs2_n14', '5')        tlapmean:   0.000000E+00 =>  0.614829E-01
+('hirs2_n14', '6')        tlapmean:   0.000000E+00 =>  0.606588E-01
+('hirs2_n14', '7')        tlapmean:   0.000000E+00 =>  0.458810E-01
+('hirs2_n14', '8')        tlapmean:   0.000000E+00 =>  0.928404E-02
+('hirs2_n14', '9')        tlapmean:   0.000000E+00 => -0.478331E-02
+('hirs2_n14', '10')       tlapmean:   0.000000E+00 =>  0.210394E-01
+('hirs2_n14', '11')       tlapmean:   0.000000E+00 =>  0.758576E-01
+('hirs2_n14', '12')       tlapmean:   0.000000E+00 =>  0.100831E+00
+('hirs2_n14', '13')       tlapmean:   0.000000E+00 =>  0.462308E-01
+('hirs2_n14', '14')       tlapmean:   0.000000E+00 =>  0.571404E-01
+('hirs2_n14', '15')       tlapmean:   0.000000E+00 =>  0.618518E-01
+('hirs2_n14', '16')       tlapmean:   0.000000E+00 =>  0.233280E-01
+('hirs2_n14', '17')       tlapmean:   0.000000E+00 =>  0.265465E-01
+('hirs2_n14', '18')       tlapmean:   0.000000E+00 =>  0.602449E-02
+('hirs2_n14', '19')       tlapmean:   0.000000E+00 =>  0.581467E-02
+('msu_n14', '1')          tlapmean:   0.000000E+00 =>  0.182177E-01
+('msu_n14', '2')          tlapmean:   0.000000E+00 =>  0.635691E-01
+('msu_n14', '3')          tlapmean:   0.000000E+00 =>  0.640519E-01
+('msu_n14', '4')          tlapmean:   0.000000E+00 => -0.112952E-01
+('sndrD1_g14', '1')       tlapmean:   0.000000E+00 => -0.352909E-01
+('sndrD1_g14', '2')       tlapmean:   0.000000E+00 =>  0.294279E-01
+('sndrD1_g14', '3')       tlapmean:   0.000000E+00 =>  0.726254E-01
+('sndrD1_g14', '4')       tlapmean:   0.000000E+00 =>  0.648032E-01
+('sndrD1_g14', '5')       tlapmean:   0.000000E+00 =>  0.517502E-01
+('sndrD1_g14', '6')       tlapmean:   0.000000E+00 =>  0.243728E-01
+('sndrD1_g14', '7')       tlapmean:   0.000000E+00 =>  0.158538E-01
+('sndrD1_g14', '8')       tlapmean:   0.000000E+00 =>  0.119060E-01
+('sndrD1_g14', '9')       tlapmean:   0.000000E+00 => -0.669605E-02
+('sndrD1_g14', '10')      tlapmean:   0.000000E+00 =>  0.730676E-01
+('sndrD1_g14', '11')      tlapmean:   0.000000E+00 =>  0.104909E+00
+('sndrD1_g14', '12')      tlapmean:   0.000000E+00 =>  0.120499E+00
+('sndrD1_g14', '13')      tlapmean:   0.000000E+00 =>  0.486928E-01
+('sndrD1_g14', '14')      tlapmean:   0.000000E+00 =>  0.621413E-01
+('sndrD1_g14', '15')      tlapmean:   0.000000E+00 =>  0.660173E-01
+('sndrD1_g14', '16')      tlapmean:   0.000000E+00 =>  0.288607E-01
+('sndrD1_g14', '17')      tlapmean:   0.000000E+00 =>  0.649822E-02
+('sndrD1_g14', '18')      tlapmean:   0.000000E+00 =>  0.712315E-02
+('sndrD2_g14', '1')       tlapmean:   0.000000E+00 => -0.353864E-01
+('sndrD2_g14', '2')       tlapmean:   0.000000E+00 =>  0.290071E-01
+('sndrD2_g14', '3')       tlapmean:   0.000000E+00 =>  0.725784E-01
+('sndrD2_g14', '4')       tlapmean:   0.000000E+00 =>  0.648045E-01
+('sndrD2_g14', '5')       tlapmean:   0.000000E+00 =>  0.517072E-01
+('sndrD2_g14', '6')       tlapmean:   0.000000E+00 =>  0.243435E-01
+('sndrD2_g14', '7')       tlapmean:   0.000000E+00 =>  0.158794E-01
+('sndrD2_g14', '8')       tlapmean:   0.000000E+00 =>  0.118954E-01
+('sndrD2_g14', '9')       tlapmean:   0.000000E+00 => -0.665108E-02
+('sndrD2_g14', '10')      tlapmean:   0.000000E+00 =>  0.731257E-01
+('sndrD2_g14', '11')      tlapmean:   0.000000E+00 =>  0.104822E+00
+('sndrD2_g14', '12')      tlapmean:   0.000000E+00 =>  0.120544E+00
+('sndrD2_g14', '13')      tlapmean:   0.000000E+00 =>  0.486859E-01
+('sndrD2_g14', '14')      tlapmean:   0.000000E+00 =>  0.621526E-01
+('sndrD2_g14', '15')      tlapmean:   0.000000E+00 =>  0.660883E-01
+('sndrD2_g14', '16')      tlapmean:   0.000000E+00 =>  0.288704E-01
+('sndrD2_g14', '17')      tlapmean:   0.000000E+00 =>  0.650035E-02
+('sndrD2_g14', '18')      tlapmean:   0.000000E+00 =>  0.711688E-02
+('sndrD3_g14', '1')       tlapmean:   0.000000E+00 => -0.353525E-01
+('sndrD3_g14', '2')       tlapmean:   0.000000E+00 =>  0.298636E-01
+('sndrD3_g14', '3')       tlapmean:   0.000000E+00 =>  0.729764E-01
+('sndrD3_g14', '4')       tlapmean:   0.000000E+00 =>  0.649485E-01
+('sndrD3_g14', '5')       tlapmean:   0.000000E+00 =>  0.520050E-01
+('sndrD3_g14', '6')       tlapmean:   0.000000E+00 =>  0.244425E-01
+('sndrD3_g14', '7')       tlapmean:   0.000000E+00 =>  0.159489E-01
+('sndrD3_g14', '8')       tlapmean:   0.000000E+00 =>  0.119718E-01
+('sndrD3_g14', '9')       tlapmean:   0.000000E+00 => -0.672272E-02
+('sndrD3_g14', '10')      tlapmean:   0.000000E+00 =>  0.732713E-01
+('sndrD3_g14', '11')      tlapmean:   0.000000E+00 =>  0.105192E+00
+('sndrD3_g14', '12')      tlapmean:   0.000000E+00 =>  0.121083E+00
+('sndrD3_g14', '13')      tlapmean:   0.000000E+00 =>  0.487409E-01
+('sndrD3_g14', '14')      tlapmean:   0.000000E+00 =>  0.621844E-01
+('sndrD3_g14', '15')      tlapmean:   0.000000E+00 =>  0.660544E-01
+('sndrD3_g14', '16')      tlapmean:   0.000000E+00 =>  0.287870E-01
+('sndrD3_g14', '17')      tlapmean:   0.000000E+00 =>  0.648998E-02
+('sndrD3_g14', '18')      tlapmean:   0.000000E+00 =>  0.713669E-02
+('sndrD4_g14', '1')       tlapmean:   0.000000E+00 => -0.359241E-01
+('sndrD4_g14', '2')       tlapmean:   0.000000E+00 =>  0.286392E-01
+('sndrD4_g14', '3')       tlapmean:   0.000000E+00 =>  0.730697E-01
+('sndrD4_g14', '4')       tlapmean:   0.000000E+00 =>  0.650029E-01
+('sndrD4_g14', '5')       tlapmean:   0.000000E+00 =>  0.517101E-01
+('sndrD4_g14', '6')       tlapmean:   0.000000E+00 =>  0.245002E-01
+('sndrD4_g14', '7')       tlapmean:   0.000000E+00 =>  0.159505E-01
+('sndrD4_g14', '8')       tlapmean:   0.000000E+00 =>  0.119785E-01
+('sndrD4_g14', '9')       tlapmean:   0.000000E+00 => -0.667713E-02
+('sndrD4_g14', '10')      tlapmean:   0.000000E+00 =>  0.732989E-01
+('sndrD4_g14', '11')      tlapmean:   0.000000E+00 =>  0.105213E+00
+('sndrD4_g14', '12')      tlapmean:   0.000000E+00 =>  0.121220E+00
+('sndrD4_g14', '13')      tlapmean:   0.000000E+00 =>  0.487880E-01
+('sndrD4_g14', '14')      tlapmean:   0.000000E+00 =>  0.623449E-01
+('sndrD4_g14', '15')      tlapmean:   0.000000E+00 =>  0.666042E-01
+('sndrD4_g14', '16')      tlapmean:   0.000000E+00 =>  0.287788E-01
+('sndrD4_g14', '17')      tlapmean:   0.000000E+00 =>  0.649001E-02
+('sndrD4_g14', '18')      tlapmean:   0.000000E+00 =>  0.715148E-02
+('seviri_m08', '4')       tlapmean:   0.000000E+00 =>  0.107259E-01
+('seviri_m08', '5')       tlapmean:   0.000000E+00 =>  0.939451E-01
+('seviri_m08', '6')       tlapmean:   0.000000E+00 =>  0.667842E-01
+('seviri_m08', '7')       tlapmean:   0.000000E+00 =>  0.112716E-01
+('seviri_m08', '8')       tlapmean:   0.000000E+00 => -0.738610E-02
+('seviri_m08', '9')       tlapmean:   0.000000E+00 =>  0.101530E-01
+('seviri_m08', '10')      tlapmean:   0.000000E+00 =>  0.135218E-01
+('seviri_m08', '11')      tlapmean:   0.000000E+00 =>  0.387980E-01
+('seviri_m09', '4')       tlapmean:   0.000000E+00 =>  0.107259E-01
+('seviri_m09', '5')       tlapmean:   0.000000E+00 =>  0.939451E-01
+('seviri_m09', '6')       tlapmean:   0.000000E+00 =>  0.667842E-01
+('seviri_m09', '7')       tlapmean:   0.000000E+00 =>  0.112716E-01
+('seviri_m09', '8')       tlapmean:   0.000000E+00 => -0.738610E-02
+('seviri_m09', '9')       tlapmean:   0.000000E+00 =>  0.101530E-01
+('seviri_m09', '10')      tlapmean:   0.000000E+00 =>  0.135218E-01
+('seviri_m09', '11')      tlapmean:   0.000000E+00 =>  0.387980E-01
+('hirs4_metop-b', '1')    tlapmean:   0.000000E+00 => -0.363293E-01
+('hirs4_metop-b', '2')    tlapmean:   0.000000E+00 => -0.331565E-01
+('hirs4_metop-b', '3')    tlapmean:   0.000000E+00 => -0.141042E-01
+('hirs4_metop-b', '4')    tlapmean:   0.000000E+00 =>  0.266240E-01
+('hirs4_metop-b', '5')    tlapmean:   0.000000E+00 =>  0.351546E-01
+('hirs4_metop-b', '6')    tlapmean:   0.000000E+00 =>  0.452292E-01
+('hirs4_metop-b', '7')    tlapmean:   0.000000E+00 =>  0.405194E-01
+('hirs4_metop-b', '8')    tlapmean:   0.000000E+00 =>  0.116534E-01
+('hirs4_metop-b', '9')    tlapmean:   0.000000E+00 => -0.919221E-02
+('hirs4_metop-b', '10')   tlapmean:   0.000000E+00 =>  0.234485E-01
+('hirs4_metop-b', '11')   tlapmean:   0.000000E+00 =>  0.607579E-01
+('hirs4_metop-b', '12')   tlapmean:   0.000000E+00 =>  0.782379E-01
+('hirs4_metop-b', '13')   tlapmean:   0.000000E+00 =>  0.386500E-01
+('hirs4_metop-b', '14')   tlapmean:   0.000000E+00 =>  0.452633E-01
+('hirs4_metop-b', '15')   tlapmean:   0.000000E+00 =>  0.417087E-01
+('hirs4_metop-b', '16')   tlapmean:   0.000000E+00 =>  0.395908E-01
+('hirs4_metop-b', '17')   tlapmean:   0.000000E+00 =>  0.243839E-01
+('hirs4_metop-b', '18')   tlapmean:   0.000000E+00 =>  0.560669E-02
+('hirs4_metop-b', '19')   tlapmean:   0.000000E+00 =>  0.635901E-02
+
+
+* records where satbang tlapmean differs from tlapmean.rc
+---------------------------------------------------------
+instrument/channel          satbang_rst   tlapmean.rc    difference
+------------------          -----------   -----------    ----------
+('amsub_n15', '1')         0.830264E-02  0.894466E-02 -6.420200e-04
+('amsub_n15', '2')         0.157440E-01  0.159868E-01 -2.428000e-04
+('amsub_n15', '3')         0.774487E-01  0.997075E-01 -2.225880e-02
+('amsub_n15', '4')         0.565564E-01  0.656833E-01 -9.126900e-03
+('amsub_n15', '5')         0.370437E-01  0.393636E-01 -2.319900e-03
+('amsub_n16', '1')         0.835891E-02  0.880105E-02 -4.421400e-04
+('amsub_n16', '2')         0.156577E-01  0.157714E-01 -1.137000e-04
+('amsub_n16', '3')         0.773993E-01  0.968246E-01 -1.942530e-02
+('amsub_n16', '4')         0.566415E-01  0.640567E-01 -7.415200e-03
+('amsub_n16', '5')         0.366106E-01  0.383521E-01 -1.741500e-03
+('ssmi_f13', '1')          0.331569E-02  0.356279E-02 -2.471000e-04
+('ssmi_f13', '2')          0.321173E-02  0.344743E-02 -2.357000e-04
+('ssmi_f13', '3')          0.914554E-02  0.991000E-02 -7.644600e-04
+('ssmi_f13', '4')          0.498360E-02  0.551777E-02 -5.341700e-04
+('ssmi_f13', '5')          0.498351E-02  0.546954E-02 -4.860300e-04
+('ssmi_f13', '6')          0.124875E-01  0.136603E-01 -1.172800e-03
+('ssmi_f13', '7')          0.125508E-01  0.141136E-01 -1.562800e-03
+('ssmi_f14', '1')          0.331045E-02  0.357151E-02 -2.610600e-04
+('ssmi_f14', '2')          0.319389E-02  0.350095E-02 -3.070600e-04
+('ssmi_f14', '3')          0.907586E-02  0.985706E-02 -7.812000e-04
+('ssmi_f14', '4')          0.497869E-02  0.556717E-02 -5.884800e-04
+('ssmi_f14', '5')          0.497487E-02  0.556316E-02 -5.882900e-04
+('ssmi_f14', '6')          0.122653E-01  0.135086E-01 -1.243300e-03
+('ssmi_f14', '7')          0.123635E-01  0.139530E-01 -1.589500e-03
+('sndr_g12', '1')         -0.323051E-01 -0.306078E-01 -1.697300e-03
+('sndr_g12', '2')          0.954307E-02  0.127062E-01 -3.163130e-03
+('sndr_g12', '3')          0.524224E-01  0.500544E-01  2.368000e-03
+('sndr_g12', '4')          0.541001E-01  0.499611E-01  4.139000e-03
+('sndr_g12', '5')          0.448538E-01  0.400391E-01  4.814700e-03
+('sndr_g12', '6')          0.249006E-01  0.195868E-01  5.313800e-03
+('sndr_g12', '7')          0.169826E-01  0.122307E-01  4.751900e-03
+('sndr_g12', '8')          0.124965E-01  0.877006E-02  3.726440e-03
+('sndr_g12', '9')         -0.739462E-02 -0.105968E-01  3.202180e-03
+('sndr_g12', '10')         0.608882E-01  0.520971E-01  8.791100e-03
+('sndr_g12', '11')         0.815835E-01  0.698827E-01  1.170080e-02
+('sndr_g12', '12')         0.887403E-01  0.784056E-01  1.033470e-02
+('sndr_g12', '13')         0.400715E-01  0.385591E-01  1.512400e-03
+('sndr_g12', '14')         0.502557E-01  0.487598E-01  1.495900e-03
+('sndr_g12', '15')         0.458107E-01  0.423271E-01  3.483600e-03
+('sndr_g12', '16')         0.238177E-01  0.227650E-01  1.052700e-03
+('sndr_g12', '17')         0.590895E-02  0.553707E-02  3.718800e-04
+('sndr_g12', '18')         0.717759E-02  0.532826E-02  1.849330e-03
+
+
+* records where no value found in satbang or tlapmean.rc
+--------------------------------------------------------
+('avhrr3_n16', '3')       tlapmean:  0.532826E-02
+('avhrr3_n16', '4')       tlapmean:  0.532826E-02
+('avhrr3_n16', '5')       tlapmean:  0.532826E-02
+('avhrr3_n17', '3')       tlapmean:  0.532826E-02
+('avhrr3_n17', '4')       tlapmean:  0.532826E-02
+('avhrr3_n17', '5')       tlapmean:  0.532826E-02
+('avhrr3_n18', '3')       tlapmean:  0.532826E-02
+('avhrr3_n18', '4')       tlapmean:  0.532826E-02
+('avhrr3_n18', '5')       tlapmean:  0.532826E-02
+('amsre_aqua', '1')       tlapmean:  0.532826E-02
+('amsre_aqua', '2')       tlapmean:  0.532826E-02
+('amsre_aqua', '3')       tlapmean:  0.532826E-02
+('amsre_aqua', '4')       tlapmean:  0.532826E-02
+('amsre_aqua', '5')       tlapmean:  0.532826E-02
+('amsre_aqua', '6')       tlapmean:  0.532826E-02
+('amsre_aqua', '7')       tlapmean:  0.532826E-02
+('amsre_aqua', '8')       tlapmean:  0.532826E-02
+('amsre_aqua', '9')       tlapmean:  0.532826E-02
+('amsre_aqua', '10')      tlapmean:  0.532826E-02
+('amsre_aqua', '11')      tlapmean:  0.532826E-02
+('amsre_aqua', '12')      tlapmean:  0.532826E-02
+('imgr_g11', '2')         tlapmean:  0.532826E-02
+('imgr_g11', '3')         tlapmean:  0.532826E-02
+('imgr_g11', '4')         tlapmean:  0.532826E-02
+('imgr_g11', '5')         tlapmean:  0.532826E-02
+('imgr_g12', '2')         tlapmean:  0.532826E-02
+('imgr_g12', '3')         tlapmean:  0.532826E-02
+('imgr_g12', '4')         tlapmean:  0.532826E-02
+('imgr_g12', '5')         tlapmean:  0.532826E-02
+('sndr_g13', '1')         tlapmean:  0.532826E-02
+('sndr_g13', '2')         tlapmean:  0.532826E-02
+('sndr_g13', '3')         tlapmean:  0.532826E-02
+('sndr_g13', '4')         tlapmean:  0.532826E-02
+('sndr_g13', '5')         tlapmean:  0.532826E-02
+('sndr_g13', '6')         tlapmean:  0.532826E-02
+('sndr_g13', '7')         tlapmean:  0.532826E-02
+('sndr_g13', '8')         tlapmean:  0.532826E-02
+('sndr_g13', '9')         tlapmean:  0.532826E-02
+('sndr_g13', '10')        tlapmean:  0.532826E-02
+('sndr_g13', '11')        tlapmean:  0.532826E-02
+('sndr_g13', '12')        tlapmean:  0.532826E-02
+('sndr_g13', '13')        tlapmean:  0.532826E-02
+('sndr_g13', '14')        tlapmean:  0.532826E-02
+('sndr_g13', '15')        tlapmean:  0.532826E-02
+('sndr_g13', '16')        tlapmean:  0.532826E-02
+('sndr_g13', '17')        tlapmean:  0.532826E-02
+('sndr_g13', '18')        tlapmean:  0.532826E-02
+('imgr_g13', '2')         tlapmean:  0.532826E-02
+('imgr_g13', '3')         tlapmean:  0.532826E-02
+('imgr_g13', '4')         tlapmean:  0.532826E-02
+('imgr_g13', '5')         tlapmean:  0.532826E-02
+('ssmis_f19', '1')        tlapmean:  0.532826E-02
+('ssmis_f19', '2')        tlapmean:  0.532826E-02
+('ssmis_f19', '3')        tlapmean:  0.532826E-02
+('ssmis_f19', '4')        tlapmean:  0.532826E-02
+('ssmis_f19', '5')        tlapmean:  0.532826E-02
+('ssmis_f19', '6')        tlapmean:  0.532826E-02
+('ssmis_f19', '7')        tlapmean:  0.532826E-02
+('ssmis_f19', '8')        tlapmean:  0.532826E-02
+('ssmis_f19', '9')        tlapmean:  0.532826E-02
+('ssmis_f19', '10')       tlapmean:  0.532826E-02
+('ssmis_f19', '11')       tlapmean:  0.532826E-02
+('ssmis_f19', '12')       tlapmean:  0.532826E-02
+('ssmis_f19', '13')       tlapmean:  0.532826E-02
+('ssmis_f19', '14')       tlapmean:  0.532826E-02
+('ssmis_f19', '15')       tlapmean:  0.532826E-02
+('ssmis_f19', '16')       tlapmean:  0.532826E-02
+('ssmis_f19', '17')       tlapmean:  0.532826E-02
+('ssmis_f19', '18')       tlapmean:  0.532826E-02
+('ssmis_f19', '19')       tlapmean:  0.532826E-02
+('ssmis_f19', '20')       tlapmean:  0.532826E-02
+('ssmis_f19', '21')       tlapmean:  0.532826E-02
+('ssmis_f19', '22')       tlapmean:  0.532826E-02
+('ssmis_f19', '23')       tlapmean:  0.532826E-02
+('ssmis_f19', '24')       tlapmean:  0.532826E-02
+('ssmis_f20', '1')        tlapmean:  0.532826E-02
+('ssmis_f20', '2')        tlapmean:  0.532826E-02
+('ssmis_f20', '3')        tlapmean:  0.532826E-02
+('ssmis_f20', '4')        tlapmean:  0.532826E-02
+('ssmis_f20', '5')        tlapmean:  0.532826E-02
+('ssmis_f20', '6')        tlapmean:  0.532826E-02
+('ssmis_f20', '7')        tlapmean:  0.532826E-02
+('ssmis_f20', '8')        tlapmean:  0.532826E-02
+('ssmis_f20', '9')        tlapmean:  0.532826E-02
+('ssmis_f20', '10')       tlapmean:  0.532826E-02
+('ssmis_f20', '11')       tlapmean:  0.532826E-02
+('ssmis_f20', '12')       tlapmean:  0.532826E-02
+('ssmis_f20', '13')       tlapmean:  0.532826E-02
+('ssmis_f20', '14')       tlapmean:  0.532826E-02
+('ssmis_f20', '15')       tlapmean:  0.532826E-02
+('ssmis_f20', '16')       tlapmean:  0.532826E-02
+('ssmis_f20', '17')       tlapmean:  0.532826E-02
+('ssmis_f20', '18')       tlapmean:  0.532826E-02
+('ssmis_f20', '19')       tlapmean:  0.532826E-02
+('ssmis_f20', '20')       tlapmean:  0.532826E-02
+('ssmis_f20', '21')       tlapmean:  0.532826E-02
+('ssmis_f20', '22')       tlapmean:  0.532826E-02
+('ssmis_f20', '23')       tlapmean:  0.532826E-02
+('ssmis_f20', '24')       tlapmean:  0.532826E-02
+('imgr_g14', '2')         tlapmean:  0.532826E-02
+('imgr_g14', '3')         tlapmean:  0.532826E-02
+('imgr_g14', '4')         tlapmean:  0.532826E-02
+('imgr_g14', '5')         tlapmean:  0.532826E-02
+('imgr_g15', '2')         tlapmean:  0.532826E-02
+('imgr_g15', '3')         tlapmean:  0.532826E-02
+('imgr_g15', '4')         tlapmean:  0.532826E-02
+('imgr_g15', '5')         tlapmean:  0.532826E-02
+('avhrr3_metop-b', '3')   tlapmean:  0.532826E-02
+('avhrr3_metop-b', '4')   tlapmean:  0.532826E-02
+('avhrr3_metop-b', '5')   tlapmean:  0.532826E-02
+('avhrr3_metop-a', '3')   tlapmean:  0.532826E-02
+('avhrr3_metop-a', '4')   tlapmean:  0.532826E-02
+('avhrr3_metop-a', '5')   tlapmean:  0.532826E-02
+('avhrr3_n19', '3')       tlapmean:  0.532826E-02
+('avhrr3_n19', '4')       tlapmean:  0.532826E-02
+('avhrr3_n19', '5')       tlapmean:  0.532826E-02
+
+
+* records removed; not found in satinfo.rc
+------------------------------------------
+('gmis1_gpm', '1')
+('gmis1_gpm', '2')
+('gmis1_gpm', '3')
+('gmis1_gpm', '4')
+('gmis1_gpm', '5')
+('gmis1_gpm', '6')
+('gmis1_gpm', '7')
+('gmis1_gpm', '8')
+('gmis1_gpm', '9')
+('gmis2_gpm', '10')
+('gmis2_gpm', '11')
+('gmis2_gpm', '12')
+('gmis2_gpm', '13')
+('tmi_trmm', '1')
+('tmi_trmm', '2')
+('tmi_trmm', '3')
+('tmi_trmm', '4')
+('tmi_trmm', '5')
+('tmi_trmm', '6')
+('tmi_trmm', '7')
+('tmi_trmm', '8')
+('tmi_trmm', '9')

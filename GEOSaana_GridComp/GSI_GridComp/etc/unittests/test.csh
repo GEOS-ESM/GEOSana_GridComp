@@ -1,9 +1,17 @@
 #!/usr/bin/env tcsh
 
+set echo
+set debug = ""
+foreach arg ($argv)
+    if ("$arg" == "-db") then
+       set debug = $arg
+    endif
+end
+
 @ stat = 0
 foreach file (test*.py)
     set echo
-    $file -v
+    $file -v $debug
     @ stat += $status
     unset echo
     sleep 2

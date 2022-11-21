@@ -43,6 +43,7 @@ module crtm_interface
 !   2020-01-12  guo     - added if(present(tcwv)), if(present(hwp_radtio)), and
 !                         if(stability)) to avoid accessing non-present()
 !                         optional arguments.
+!   2022-03-04  Jin J./Akkraoui	- Added amsre
 !   
 !
 ! subroutines included:
@@ -525,7 +526,7 @@ subroutine init_crtm(init_pass,mype_diaghdr,mype,nchanl,nreal,isis,obstype,radmo
    isazi_ang2= 37  ! index of solar azimuth angle (degrees)
    icount = isazi_ang2
    if(dval_use) icount=icount+2
- else if  ( obstype == 'amsr2' ) then
+ else if  ( obstype == 'amsr2' .or. obstype == 'amsre' ) then
    icount=ilate+2
  endif
 
@@ -980,7 +981,7 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
                    tsim,emissivity,ptau5,ts, &
                    emissivity_k,temp,wmix,jacobian,error_status,tsim_clr,tcc, & 
                    tpwc_guess, &
-                   tcwv,hwp_ratio,stability,layer_od,jacobian_aero)  
+                   tcwv,hwp_ratio,stability,layer_od,jacobian_aero, ice_temperature_0)  
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    call_crtm   creates vertical profile of t,q,oz,p,zs,etc., 
@@ -1104,6 +1105,7 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
   real(r_kind),dimension(nsigaerojac,nchanl),intent(out),optional :: jacobian_aero
   real(r_kind),dimension(nsig,nchanl)   ,intent(  out)  ,optional :: layer_od
   real(r_kind)                          ,intent(  out)  ,optional :: tpwc_guess
+  real(r_kind)                          ,intent(  out)  ,optional :: ice_temperature_0
 
 ! Declare local parameters
   character(len=*),parameter::myname_=myname//'*call_crtm'
@@ -1196,6 +1198,7 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
   if (present(hwp_ratio)) hwp_ratio=zero  
   if (present(tcwv)) tcwv=zero           
   if (present(tcc)) tcc=zero           
+  if (present(ice_temperature_0))  ice_temperature_0 = data_s(its_ice)
 
   dx  = data_s(ilat)                 ! grid relative latitude
   dy  = data_s(ilon)                 ! grid relative longitude
@@ -1559,6 +1562,7 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
            endif
            surface(1)%land_temperature      = data_s(its_lnd)+dtskin(1)
            surface(1)%ice_temperature       = min(data_s(its_ice)+dtskin(2),280._r_kind)
+           if (present(ice_temperature_0))  ice_temperature_0 = surface(1)%ice_temperature
            surface(1)%snow_temperature      = min(data_s(its_sno)+dtskin(3),280._r_kind)
            surface(1)%soil_moisture_content = data_s(ism)
            surface(1)%vegetation_fraction   = data_s(ivfr)

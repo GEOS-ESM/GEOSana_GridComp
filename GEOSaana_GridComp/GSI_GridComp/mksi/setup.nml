@@ -4,14 +4,14 @@
 
 	! Mondatory parameters: specify the time.
 
-nymd=20021231
+nymd=20181231
 nhms=  000000
 
 	! Recommended parameters, speicify the input satinfo
 	! template file and the output satinfo file.
 
-satinfo_tmpl  ='satinfo-merged.tmpl'	! template ["satinfo.tmpl"]
-satinfo_outf  ='satinfo-merged.txt'	! output ["satinfo.txt"]
+satinfo_tmpl  ='satinfo.tmpl'	! template ["satinfo.tmpl"]
+satinfo_outf  ='satinfo.txt'	! output ["satinfo.txt"]
 
 	! Optional parameters, specify the database about the
 	! satellite-sensor-channel activities.

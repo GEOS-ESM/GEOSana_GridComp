@@ -122,7 +122,7 @@ subroutine selectb_(p_nm,p_sb,p_ot,n,from,dbase,bufrsize, &
 
   character(len=*),parameter :: myname_=myname//"::selectb_"
 
-  integer :: lu,ier,j,k,m
+  integer :: lu,ier,j,k,m,nrec,irec
   integer :: iymd,ihms
   integer :: nymd,nhms
   integer :: lymd,lhms
@@ -155,13 +155,18 @@ subroutine selectb_(p_nm,p_sb,p_ot,n,from,dbase,bufrsize, &
     nhms=where_dt(2)
   endif
 
-  call getarec(lu,bufr,ier)
+  irec=0
+  call getarec(lu,bufr,ier,nrec=nrec)
   do while(ier==0)
+    irec=irec+nrec
     read(bufr,*,iostat=ier) sb,iymd,ihms,lymd,lhms,nm,m
       if(ier/=0) then
-        call perr(myname_,'bufr="'//trim(bufr)//'"')
-        call die(myname_, &
-	  'stem-read("'//trim(dbase)//'/'//trim(from)//'"), iostat =',ier)
+        call perr(myname_,'stem-read(bufr) error, iostat =',ier)
+        call perr(myname_,'                     at # rec =',irec)
+        call perr(myname_,'   bufr =',trim(bufr))
+	call perr(myname_,'   file =',trim(dbase)//'/'//trim(from))
+        call perr(myname_,'expected fields are, "sb,iymd,ihms,lymd,lhms,nm,m"')
+        call  die(myname_)
       endif
 
     nm_matched = nm_any
@@ -191,28 +196,28 @@ subroutine selectb_(p_nm,p_sb,p_ot,n,from,dbase,bufrsize, &
       read(bufr,*,iostat=ier) sb,iymd,ihms,lymd,lhms,nm,k, &
                               p_ot(n+1:n+m),ot
         if(ier==0.and.(ot(1:1)/='#'.and.ot(1:1)/='!')) then
-          call perr(myname_,'bufr ="'//trim(bufr)//'"')
-          call perr(myname_,'extr ="'//trim(bufr)//'"')
-          call perr(myname_,'   m = ',m)
-          call die (myname_, &
-	    'leaf-read("'//trim(dbase)//'/'//trim(from)// &
-	    '"), too many otypes for this record',m+1)
+          call perr(myname_,'leaf-read(bufr) error, too many otypes available, at rec# =',irec)
+          call perr(myname_,'                               allowed total otypes count =',m) 
+          call perr(myname_,'   bufr =',trim(bufr))
+	  call perr(myname_,'   file =',trim(dbase)//'/'//trim(from))
+          call  die(myname_)
 	endif
 
       read(bufr,*,iostat=ier) sb,iymd,ihms,lymd,lhms,nm,k, &
                               p_ot(n+1:n+m)
         if(ier/=0) then
-          call perr(myname_,'bufr="'//trim(bufr)//'"')
-          call perr(myname_,'   m = ',m)
-          call die(myname_, &
-	    'leaf-read("'//trim(dbase)//'/'//trim(from)//'"), iostat =',ier)
+          call perr(myname_,'leaf-read(bufr) error, not enough otypes available, at rec# =',irec)
+          call perr(myname_,'                              expected minimum otypes count =',m) 
+          call perr(myname_,'   bufr =',trim(bufr))
+	  call perr(myname_,'   file =',trim(dbase)//'/'//trim(from))
+          call  die(myname_)
         endif
 
       n=n+m
     endif
 
         ! potential read() errors are ignored
-    call getarec(lu,bufr,ier)
+    call getarec(lu,bufr,ier,nrec=nrec)
   enddo
 
   close(lu,iostat=ier)

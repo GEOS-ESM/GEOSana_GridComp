@@ -19,7 +19,8 @@
    biascor=-0.10,bcoption=0,diurnalbc=1.0,
    crtm_coeffs_path="CRTM_Coeffs/",
    print_diag_pcg=.false.,
-   use_compress=.true.,nsig_ext=@NLEV_EXT,gpstop=60.,lgpsbnd_revint=.true.,
+   use_compress=.true.,nsig_ext=@NLEV_EXT,gpstop=55.,lgpsbnd_revint=.true.,
+   commgpstop=45.,spiregpserrinf=2.,
    use_sp_eqspace=.true.,
    lbicg=.true.,lcongrad=.false.,ltlint=.true.,
 !  lsqrtb=.true.,lcongrad=.false.,ltlint=.true.,
@@ -124,6 +125,7 @@ OBS_INPUT::
    amsrebufr      amsre_low   aqua        amsre_aqua            0.0     1      0        ncep_amsre_bufr
    amsrebufr      amsre_mid   aqua        amsre_aqua            0.0     1      0        ncep_amsre_bufr
    amsrebufr      amsre_hig   aqua        amsre_aqua            0.0     1      0        ncep_amsre_bufr
+!  amsregmao      amsre       aqua        amsre_aqua            0.0     1      0        gmao_amsre_bufr
 !  ssmisbufr      ssmis_las   f16         ssmis_f16             0.0     1      0        test
 !  ssmisbufr      ssmis_uas   f16         ssmis_f16             0.0     1      0        test
 !  ssmisbufr      ssmis_img   f16         ssmis_f16             0.0     1      0        test
@@ -147,6 +149,7 @@ OBS_INPUT::
 !  gomebufr       gome        metop-a     gome_metop-a          0.0     2      0        test
 !  mlsoz          o3lev       aura        mls_aura_ozlv         0.0     0      0        test
 !  mlsozbufr      o3lev       aura        o3lev_aura            0.0     0      0        test
+   ompslpgnc      ompslpnc    npp         ompslpnc_npp          1.0     0      0        ompslpnc_nc
    ompslpuvnc     ompslpuv    npp         ompslpuv_npp          1.0     0      0        ompslpuv_nc
    ompslpvisnc    ompslpvis   npp         ompslpvis_npp         1.0     0      0        ompslpvis_nc
 !  mlsoztext      o3lev       aura        o3lev_aura            0.0     0      0        test
@@ -178,7 +181,7 @@ OBS_INPUT::
    avcsambufr     avhrr       metop-b     avhrr3_metop-b        0.0     1      0        ncep_avcsam_bufr
 !  omieffbufr     omieff      aura        omieff_aura           0.0     2      0        test
    omieffnc       omieff      aura        omieff_aura           0.0     2      0        aura_omieff_nc
-   ompsnmeffnc    ompsnmeff   npp         ompsnmeff_npp         1.0     2      0        npp_ompsnmeff_nc
+   ompsnmeffnc    ompsnmeff   npp         ompsnmeff_npp         0.0     2      0        npp_ompsnmeff_nc
    gsnd1bufr      sndrd1      g15         sndrD1_g15            0.0     1      0        ncep_goesfv_bufr
    gsnd1bufr      sndrd2      g15         sndrD2_g15            0.0     1      0        ncep_goesfv_bufr
    gsnd1bufr      sndrd3      g15         sndrD3_g15            0.0     1      0        ncep_goesfv_bufr
