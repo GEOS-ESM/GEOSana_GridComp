@@ -11,6 +11,8 @@ module m_tgasNode
 ! program history log:
 !   2021-04-25  j guo   - added this document block for the initial polymorphic
 !                         implementation.
+!   2022-10-21  b weir  - removed tabs (not a valid Fortran character), working
+!                         on making whitespace consistent
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -23,17 +25,17 @@ module m_tgasNode
 !$$$  end subprogram documentation block
 
 ! module interface:
-  use m_obsdiagNode, only: obs_diag,aofp_obs_diag => fptr_obsdiagNode
+  use m_obsdiagNode, only: obs_diag, aofp_obs_diag => fptr_obsdiagNode
   use m_obsdiagNode, only: obs_diags
-  use kinds , only: i_kind,r_kind
-  use mpeu_util, only: assert_,die,perr,warn,tell
+  use kinds, only: i_kind, r_kind
+  use mpeu_util, only: assert_, die, perr, warn, tell
   use m_obsNode, only: obsNode
   implicit none
   private
 
-  public:: tgasNode
+  public :: tgasNode
 
-  type,extends(obsNode):: tgasNode
+  type, extends(obsNode) :: tgasNode
      type(aofp_obs_diag), dimension(:),   pointer :: diags   => NULL()
 
      real(r_kind),        dimension(:),   pointer :: res     => NULL()          ! residual
@@ -41,37 +43,38 @@ module m_tgasNode
      real(r_kind),        dimension(:),   pointer :: raterr2 => NULL()          ! square of ratio of final obs error to original obs error
      real(r_kind),        dimension(:,:), pointer :: avgker  => NULL()          ! averaging kernel
      real(r_kind),        dimension(:,:), pointer :: avgwgt  => NULL()          ! averaging weights
+     integer(i_kind),     dimension(:),   pointer :: itgas   => NULL()          ! index of trace gas observed
      integer(i_kind),     dimension(:),   pointer :: ipos    => NULL()
 
      integer(i_kind)    :: nchanl         ! number of channels for this profile
-     integer(i_kind)    :: npro           ! number of elements for this profile
+     integer(i_kind)    :: navg           ! number of elements for this profile
 
      integer(i_kind)    :: ij(4)          ! horizontal locations
      real(r_kind)       :: wij(4)         ! horizontal interpolation weights
      character(len=256) :: obstype        ! observation type of int/stp procedures
 
   contains
-    procedure,nopass::  mytype
-    procedure::  setHop => obsNode_setHop_
-    procedure::   xread => obsNode_xread_
-    procedure::  xwrite => obsNode_xwrite_
-    procedure:: isvalid => obsNode_isvalid_
-    procedure::  getTLDdp => getTLDdp_
+    procedure, nopass ::  mytype
+    procedure ::   setHop => obsNode_setHop_
+    procedure ::    xread => obsNode_xread_
+    procedure ::   xwrite => obsNode_xwrite_
+    procedure ::  isvalid => obsNode_isvalid_
+    procedure :: getTLDdp => getTLDdp_
 
     ! procedure, nopass:: headerRead  => obsHeader_read_
     ! procedure, nopass:: headerWrite => obsHeader_write_
     ! procedure:: init  => obsNode_init_
-    procedure:: clean => obsNode_clean_
+    procedure :: clean => obsNode_clean_
 
   end type tgasNode
 
-  public:: tgasNode_typecast
-  public:: tgasNode_nextcast
-        interface tgasNode_typecast; module procedure typecast_ ; end interface
-        interface tgasNode_nextcast; module procedure nextcast_ ; end interface
+  public :: tgasNode_typecast
+  public :: tgasNode_nextcast
+  interface tgasNode_typecast; module procedure typecast_ ; end interface
+  interface tgasNode_nextcast; module procedure nextcast_ ; end interface
 
-  public:: tgasNode_appendto
-        interface tgasNode_appendto; module procedure appendto_ ; end interface
+  public :: tgasNode_appendto
+  interface tgasNode_appendto; module procedure appendto_ ; end interface
 
   character(len=*),parameter:: MYNAME="m_tgasNode"
 
@@ -139,9 +142,10 @@ _ENTRY_(myname_)
     if(associated(aNode%res    )) deallocate(aNode%res    )
     if(associated(aNode%err2   )) deallocate(aNode%err2   )
     if(associated(aNode%raterr2)) deallocate(aNode%raterr2)
+    if(associated(aNode%ipos   )) deallocate(aNode%ipos   )
+    if(associated(aNode%itgas  )) deallocate(aNode%itgas  )
     if(associated(aNode%avgker )) deallocate(aNode%avgker )
     if(associated(aNode%avgwgt )) deallocate(aNode%avgwgt )
-    if(associated(aNode%ipos   )) deallocate(aNode%ipos   )
 _EXIT_(myname_)
 return
 end subroutine obsNode_clean_
@@ -158,7 +162,7 @@ subroutine obsNode_xread_(aNode,iunit,istat,diagLookup,skip)
 
   character(len=*),parameter:: myname_=MYNAME//'::obsNode_xread_'
   integer(i_kind),allocatable,dimension(:):: ich
-  integer(i_kind):: k,nchanl,npro,nsig_read
+  integer(i_kind):: k,nchanl,navg,nsig_read
   logical:: skip_
 _ENTRY_(myname_)
   skip_=.false.
@@ -180,51 +184,53 @@ _ENTRY_(myname_)
                 endif
 
   else
-    read(iunit,iostat=istat) aNode%nchanl,aNode%npro,nsig_read,aNode%obstype	! nchanl,npro,nsig,obstype
-                if (istat/=0) then
-                  call perr(myname_,'read(%nchanl, ...), istat =',istat)
-                  _EXIT_(myname_)
-                  return
-                end if
+    read(iunit,iostat=istat) aNode%nchanl,aNode%navg,nsig_read,aNode%obstype ! nchanl,navg,nsig,obstype
+    if (istat/=0) then
+       call perr(myname_,'read(%nchanl, ...), istat =',istat)
+       _EXIT_(myname_)
+       return
+    end if
 
-	if(nsig/=nsig_read) then
-          call perr(myname_,'read(%nchanl, ,,,), expecting nsig =',nsig)
-          call perr(myname_,'                     but nsig_read =',nsig_read)
-          _EXIT_(myname_)
-          return
-	endif
+    if (nsig/=nsig_read) then
+       call perr(myname_,'read(%nchanl, ,,,), expecting nsig =',nsig)
+       call perr(myname_,'                     but nsig_read =',nsig_read)
+       _EXIT_(myname_)
+       return
+    endif
 
-                ! re-allocation is needed, because a node may have been read in
-                ! but excluded later.
-        if(associated(aNode%diags  )) deallocate(aNode%diags  )
-        if(associated(aNode%res    )) deallocate(aNode%res    )
-        if(associated(aNode%err2   )) deallocate(aNode%err2   )
-        if(associated(aNode%raterr2)) deallocate(aNode%raterr2)
-        if(associated(aNode%ipos   )) deallocate(aNode%ipos   )
-        if(associated(aNode%avgker )) deallocate(aNode%avgker )
-        if(associated(aNode%avgwgt )) deallocate(aNode%avgwgt )
+    ! re-allocation is needed, because a node may have been read in
+    ! but excluded later.
+    if (associated(aNode%diags  )) deallocate(aNode%diags  )
+    if (associated(aNode%res    )) deallocate(aNode%res    )
+    if (associated(aNode%err2   )) deallocate(aNode%err2   )
+    if (associated(aNode%raterr2)) deallocate(aNode%raterr2)
+    if (associated(aNode%ipos   )) deallocate(aNode%ipos   )
+    if (associated(aNode%itgas  )) deallocate(aNode%itgas  )
+    if (associated(aNode%avgker )) deallocate(aNode%avgker )
+    if (associated(aNode%avgwgt )) deallocate(aNode%avgwgt )
 
     nchanl = aNode%nchanl
-    npro   = aNode%npro
+    navg   = aNode%navg
 
-        allocate( aNode%res    (nchanl) &
-                 ,aNode%diags  (nchanl) &
-                 ,aNode%err2   (nchanl) &
-                 ,aNode%raterr2(nchanl) &
-                 ,aNode%ipos   (nchanl) & 
-                 ,aNode%avgker (nchanl,npro) & 
-                 ,aNode%avgwgt (npro  ,nsig) &
-		)
+    allocate(aNode%res(nchanl),          &
+             aNode%diags(nchanl),        &
+             aNode%err2(nchanl),         &
+             aNode%raterr2(nchanl),      &
+             aNode%ipos(nchanl),         & 
+             aNode%itgas(nchanl),        &
+             aNode%avgker(nchanl, navg), & 
+             aNode%avgwgt(navg, nsig))
 
-        allocate(       ich    (nchanl) )
+    allocate(ich(nchanl))
 
     read(iunit,iostat=istat)          ich    , & !(nchanl)
                                 aNode%res    , & !(nchanl)
                                 aNode%err2   , & !(nchanl)
                                 aNode%raterr2, & !(nchanl)
                                 aNode%ipos   , & !(nchanl)
-                                aNode%avgker , & !(nchanl,npro)
-                                aNode%avgwgt     !(npro  ,nsig)
+                                aNode%itgas  , & !(nchanl)
+                                aNode%avgker , & !(nchanl,navg)
+                                aNode%avgwgt     !(navg  ,nsig)
                 if (istat/=0) then
                   call perr(myname_,'read(ich,%(...)), istat =',istat)
                   _EXIT_(myname_)
@@ -262,7 +268,7 @@ subroutine obsNode_xwrite_(aNode,junit,jstat)
 _ENTRY_(myname_)
 
   jstat=0
-  write(junit,iostat=jstat) aNode%nchanl,aNode%npro,size(aNode%avgwgt,2),aNode%obstype	! nchanl,npro,nsig
+  write(junit,iostat=jstat) aNode%nchanl,aNode%navg,size(aNode%avgwgt,2),aNode%obstype ! nchanl,navg,nsig
                 if (jstat/=0) then
                   call perr(myname_,'write(%nchanl, ...), jstat =',jstat)
                   _EXIT_(myname_)
@@ -274,8 +280,9 @@ _ENTRY_(myname_)
                                 aNode%err2   , & !(%nchanl)
                                 aNode%raterr2, & !(%nchanl)
                                 aNode%ipos   , & !(%nchanl)
-				aNode%avgker , & !(%nchanl,%npro)
-				aNode%avgwgt     !(%npro,nsig)
+                                aNode%itgas  , & !(%nchanl)
+                                aNode%avgker , & !(%nchanl,%navg)
+                                aNode%avgwgt     !(%navg,nsig)
                 if (jstat/=0) then
                   call perr(myname_,'write(ich,%(res,...)), istat =',jstat)
                   _EXIT_(myname_)

@@ -63,16 +63,22 @@ subroutine stptgas(tgashead, rval, sval, out, sges, nstep)
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-  use kinds,         only: r_kind, i_kind, r_quad
-  use constants,     only: zero, zero_quad, one, r3600
-  use gridmod,       only: lat2, lon2, nsig
-  !use jfunc,         only: l_foto, xhat_dt, dhat_dt
-  use gsi_bundlemod, only: gsi_bundle, gsi_bundlegetpointer
-  use tgasinfo,      only: ihave_co, ihave_co2
-  use m_obsNode,     only: obsNode
-  use m_tgasNode,    only: tgasNode
-  use m_tgasNode,    only: tgasNode_typecast
-  use m_tgasNode,    only: tgasNode_nextcast
+
+  use m_obsNode,  only: obsNode
+  use m_tgasNode, only: tgasNode
+  use m_tgasNode, only: tgasNode_typecast
+  use m_tgasNode, only: tgasNode_nextcast
+
+  use kinds,      only: r_kind, i_kind, r_quad
+  use constants,  only: zero, zero_quad, one, r3600,                           &
+                        varlen => max_varname_length
+  use gridmod,    only: lat2, lon2, nsig
+! use jfunc,      only: l_foto, xhat_dt, dhat_dt
+  use tgasinfo,   only: ntgas, tgnames
+
+  use gsi_bundlemod,     only: gsi_bundle, gsi_bundlegetpointer
+  use gsi_chemguess_mod, only: gsi_chemguess_get
+
   implicit none
 
 ! Declare passed variables
@@ -83,96 +89,78 @@ subroutine stptgas(tgashead, rval, sval, out, sges, nstep)
   real(r_kind),                intent(in   ) :: sges(max(1,nstep))
 
 ! Declare local variables
-  integer(i_kind) :: i, j, k, l, ij, is, ier, istatus
-  integer(i_kind) :: ij1, ij2, ij3, ij4 !, ij1x, ij2x, ij3x, ij4x
-  integer(i_kind) :: nchanl, npro
+  integer(i_kind) :: i, j, k, l, n, ij, is, ier, istatus
+  integer(i_kind) :: ij1, ij2, ij3, ij4
+! integer(i_kind) :: ijx, ij1x, ij2x, ij3x, ij4x
+  integer(i_kind) :: nchanl, navg
 
-  real(r_kind) :: w1, w2, w3, w4, tgas
-  !real(r_kind) :: w1, w2, w3, w4, time, tgas
+  real(r_kind) :: w1, w2, w3, w4, time, tgas
   real(r_quad) :: val, val1, val_lay, val1_lay, valr, vals
 
   character(len=256) :: obstype
 
   real(r_kind), dimension(max(1,nstep)) :: pen
 
-  !real(r_kind), pointer,     dimension(:)     :: xhat_dt_co,  dhat_dt_co
-  !real(r_kind), pointer,     dimension(:)     :: xhat_dt_co2, dhat_dt_co2
-  real(r_kind), allocatable, dimension(:,:)   :: sco, rco, sco2, rco2
-  real(r_kind), pointer,     dimension(:,:,:) :: scoptr,  rcoptr
-  real(r_kind), pointer,     dimension(:,:,:) :: sco2ptr, rco2ptr
+  real(r_kind), allocatable, dimension(:,:,:) :: stg,    rtg
+  real(r_kind), pointer,     dimension(:,:,:) :: stgptr, rtgptr
+! real(r_kind), allocatable, dimension(:,:)   :: xtg,    dtg
+! real(r_kind), pointer,     dimension(:)     :: xtgptr, dtgptr
 
   type(tgasNode), pointer :: tgasptr
 
 ! Return if no trace gas observations
   if (.not. associated(tgashead)) return
 
-! Initialize carbon monoxide arrays
-  if (ihave_co) then
+! Can't do rank-3 pointer into rank-3, therefore, allocate work space
+  allocate(stg(lat2*lon2,nsig,ntgas))
+  allocate(rtg(lat2*lon2,nsig,ntgas))
+! allocate(xtg(lat2*lon2*nsig,ntgas))
+! allocate(dtg(lat2*lon2*nsig,ntgas))
+
+! Initialize trace gas arrays
+  do n = 1,ntgas
 !    Retrieve pointers and return if any pointer not found
-     ier = 0
+     istatus = 0
+     call gsi_bundlegetpointer(sval, trim(tgnames(n)), stgptr, ier)
+     istatus = istatus + ier
+     call gsi_bundlegetpointer(rval, trim(tgnames(n)), rtgptr, ier)
+     istatus = istatus + ier
 
-     call gsi_bundlegetpointer(sval, 'co', scoptr, istatus)
-     ier = istatus + ier
-     call gsi_bundlegetpointer(rval, 'co', rcoptr, istatus)
-     ier = istatus + ier
-
-     !if (l_foto) then
-     !   call gsi_bundlegetpointer(xhat_dt, 'co', xhat_dt_co, istatus)
-     !   ier = istatus + ier
-     !   call gsi_bundlegetpointer(dhat_dt, 'co', dhat_dt_co, istatus)
-     !   ier = istatus + ier
-     !end if
-
-     if (ier /= 0) return
-
-!    Can't do rank-2 pointer into rank-2, therefore, allocate work space
-     allocate(sco(lat2*lon2,nsig), rco(lat2*lon2,nsig))
+!    Probably could be a little more informative (fixme)
+     if (istatus /= 0) return
 
      do k = 1,nsig
         ij = 0
         do j = 1,lon2
            do i = 1,lat2
               ij = ij+1
-              sco(ij,k) = scoptr(i,j,k)
-              rco(ij,k) = rcoptr(i,j,k)
+              stg(ij,k,n) = stgptr(i,j,k)
+              rtg(ij,k,n) = rtgptr(i,j,k)
            end do
         end do
      end do
-  end if
 
-! Initialize carbon dioxide arrays
-  if (ihave_co2) then
-!    Retrieve pointers and return if any pointer not found
-     ier = 0
-
-     call gsi_bundlegetpointer(sval, 'co2', sco2ptr, istatus)
-     ier = istatus + ier
-     call gsi_bundlegetpointer(rval, 'co2', rco2ptr, istatus)
-     ier = istatus + ier
-
-     !if (l_foto) then
-     !   call gsi_bundlegetpointer(xhat_dt, 'co2', xhat_dt_co2, istatus)
-     !   ier = istatus + ier
-     !   call gsi_bundlegetpointer(dhat_dt, 'co2', dhat_dt_co2, istatus)
-     !   ier = istatus + ier
-     !end if
-
-     if (ier /= 0) return
-
-!    Can't do rank-2 pointer into rank-2, therefore, allocate work space
-     allocate(sco2(lat2*lon2,nsig), rco2(lat2*lon2,nsig))
-
-     do k = 1,nsig
-        ij = 0
-        do j = 1,lon2
-           do i = 1,lat2
-              ij = ij+1
-              sco2(ij,k) = sco2ptr(i,j,k)
-              rco2(ij,k) = rco2ptr(i,j,k)
-           end do
-        end do
-     end do
-  end if
+!     if (l_foto) then
+!        call gsi_bundlegetpointer(xhat_dt, trim(tgnames(n)), xtgptr, ier)
+!        istatus = istatus + ier
+!        call gsi_bundlegetpointer(dhat_dt, trim(tgnames(n)), dtgptr, ier)
+!        istatus = istatus + ier
+!
+!!       Probably could be a little more informative (fixme)
+!        if (istatus /= 0) return
+!
+!        ijx = 0
+!        do k = 1,nsig
+!           do j = 1,lon2
+!              do i = 1,lat2
+!                 ijx = ijx+1
+!                 xtg(ijx,n) = xtgptr(ijx)
+!                 dtg(ijx,n) = dtgptr(ijx)
+!              end do
+!           end do
+!        end do
+!     end if
+  end do
 
 ! Loop over trace gas observations
   tgasptr => tgasNode_typecast(tgashead)
@@ -181,7 +169,7 @@ subroutine stptgas(tgashead, rval, sval, out, sges, nstep)
 !       Get level and constituent info
         obstype = tgasptr%obstype
         nchanl  = tgasptr%nchanl
-        npro    = tgasptr%npro
+        navg    = tgasptr%navg
 
         if (0 < nstep) then
 !          Get location
@@ -195,125 +183,48 @@ subroutine stptgas(tgashead, rval, sval, out, sges, nstep)
            w3 = tgasptr%wij(3)
            w4 = tgasptr%wij(4)
 
-           !if (l_foto) time = tgasptr%time*r3600
+!          if (l_foto) time = tgasptr%time*r3600
         end if
 
         do k = 1,nchanl
+           n = tgasptr%itgas(k)   ! index of the trace gas observed
+
            if (0 < nstep) then
               val  =  zero_quad
               val1 = -tgasptr%res(k)
 
-              if (trim(obstype) == 'mopitt' .and. ihave_co) then
-                 do j = 1,npro
-                    val_lay  = zero_quad
-                    val1_lay = zero_quad
+              do j = 1,navg
+                 val_lay  = zero_quad
+                 val1_lay = zero_quad
 
-                    do l = 1,nsig
-                       valr = w1*rco(ij1,l) + w2*rco(ij2,l) + &
-                              w3*rco(ij3,l) + w4*rco(ij4,l)
-                       vals = w1*sco(ij1,l) + w2*sco(ij2,l) + &
-                              w3*sco(ij3,l) + w4*sco(ij4,l)
+                 do l = 1,nsig
+                    valr = w1*rtg(ij1,l,n) + w2*rtg(ij2,l,n) + &
+                           w3*rtg(ij3,l,n) + w4*rtg(ij4,l,n)
+                    vals = w1*stg(ij1,l,n) + w2*stg(ij2,l,n) + &
+                           w3*stg(ij3,l,n) + w4*stg(ij4,l,n)
 
-                       val_lay  = val_lay  + tgasptr%avgwgt(j,l)*valr
-                       val1_lay = val1_lay + tgasptr%avgwgt(j,l)*vals
+                    val_lay  = val_lay  + tgasptr%avgwgt(j,l)*valr
+                    val1_lay = val1_lay + tgasptr%avgwgt(j,l)*vals
 
-                       !if (l_foto) then
-                       !   ij1x = ij1 + (l-1)*lat2*lon2
-                       !   ij2x = ij2 + (l-1)*lat2*lon2
-                       !   ij3x = ij3 + (l-1)*lat2*lon2
-                       !   ij4x = ij4 + (l-1)*lat2*lon2
-  
-                       !   valr = w1*dhat_dt_co(ij1x) + w2*dhat_dt_co(ij2x) + &
-                       !          w3*dhat_dt_co(ij3x) + w4*dhat_dt_co(ij4x)
-                       !   vals = w1*xhat_dt_co(ij1x) + w2*xhat_dt_co(ij2x) + &
-                       !          w3*xhat_dt_co(ij3x) + w4*xhat_dt_co(ij4x)
- 
-                       !   val_lay  = val_lay  + time*tgasptr%avgwgt(j,l)*valr
-                       !   val1_lay = val1_lay + time*tgasptr%avgwgt(j,l)*vals
-                       !end if
-                    end do
-
-                    val  = val  + tgasptr%avgker(k,j)*val_lay
-                    val1 = val1 + tgasptr%avgker(k,j)*val1_lay
+!                    if (l_foto) then
+!                       ij1x = ij1 + (l-1)*lat2*lon2
+!                       ij2x = ij2 + (l-1)*lat2*lon2
+!                       ij3x = ij3 + (l-1)*lat2*lon2
+!                       ij4x = ij4 + (l-1)*lat2*lon2
+!
+!                       valr = w1*dtg(ij1x,n) + w2*dtg(ij2x,n) + &
+!                              w3*dtg(ij3x,n) + w4*dtg(ij4x,n)
+!                       vals = w1*xtg(ij1x,n) + w2*xtg(ij2x,n) + &
+!                              w3*xtg(ij3x,n) + w4*xtg(ij4x,n)
+!
+!                       val_lay  = val_lay  + time*tgasptr%avgwgt(j,l)*valr
+!                       val1_lay = val1_lay + time*tgasptr%avgwgt(j,l)*vals
+!                    end if
                  end do
 
-              else if (trim(obstype) == 'acos' .and. ihave_co2) then
-                 do j = 1,npro
-                    val_lay  = zero_quad
-                    val1_lay = zero_quad
-
-                    do l = 1,nsig
-                       valr = w1*rco2(ij1,l) + w2*rco2(ij2,l) + &
-                              w3*rco2(ij3,l) + w4*rco2(ij4,l)
-                       vals = w1*sco2(ij1,l) + w2*sco2(ij2,l) + &
-                              w3*sco2(ij3,l) + w4*sco2(ij4,l)
-
-                       val_lay  = val_lay  + tgasptr%avgwgt(j,l)*valr
-                       val1_lay = val1_lay + tgasptr%avgwgt(j,l)*vals
-
-                       !if (l_foto) then
-                       !   ij1x = ij1 + (l-1)*lat2*lon2
-                       !   ij2x = ij2 + (l-1)*lat2*lon2
-                       !   ij3x = ij3 + (l-1)*lat2*lon2
-                       !   ij4x = ij4 + (l-1)*lat2*lon2
-  
-                       !   valr = w1*dhat_dt_co2(ij1x) + w2*dhat_dt_co2(ij2x) + &
-                       !          w3*dhat_dt_co2(ij3x) + w4*dhat_dt_co2(ij4x)
-                       !   vals = w1*xhat_dt_co2(ij1x) + w2*xhat_dt_co2(ij2x) + &
-                       !          w3*xhat_dt_co2(ij3x) + w4*xhat_dt_co2(ij4x)
- 
-                       !   val_lay  = val_lay  + time*tgasptr%avgwgt(j,l)*valr
-                       !   val1_lay = val1_lay + time*tgasptr%avgwgt(j,l)*vals
-                       !end if
-                    end do
-
-                    val  = val  + tgasptr%avgker(k,j)*val_lay
-                    val1 = val1 + tgasptr%avgker(k,j)*val1_lay
-                 end do
-
-              else if (trim(obstype) == 'flask') then
-                 if (ihave_co) then
-                    val_lay  = w1*rco(ij1,1) + w2*rco(ij2,1) &
-                             + w3*rco(ij3,1) + w4*rco(ij4,1)
-                    val1_lay = w1*sco(ij1,1) + w2*sco(ij2,1) &
-                             + w3*sco(ij3,1) + w4*sco(ij4,1)
-   
-                    !if (l_foto) then
-                    !   val_lay  = val_lay  + time*(  w1*dhat_dt_co(ij1) &
-                    !                               + w2*dhat_dt_co(ij2) &
-                    !                               + w3*dhat_dt_co(ij3) &
-                    !                               + w4*dhat_dt_co(ij4) )
-                    !   val1_lay = val1_lay + time*(  w1*xhat_dt_co(ij1) &
-                    !                               + w2*xhat_dt_co(ij2) &
-                    !                               + w3*xhat_dt_co(ij3) &
-                    !                               + w4*xhat_dt_co(ij4) )
-                    !end if
-
-                    val  = val  + tgasptr%avgker(k,1)*val_lay
-                    val1 = val1 + tgasptr%avgker(k,1)*val1_lay
-                 end if
-
-                 if (ihave_co2) then
-                    val_lay  = w1*rco2(ij1,1) + w2*rco2(ij2,1) &
-                             + w3*rco2(ij3,1) + w4*rco2(ij4,1)
-                    val1_lay = w1*sco2(ij1,1) + w2*sco2(ij2,1) &
-                             + w3*sco2(ij3,1) + w4*sco2(ij4,1)
-                    !if (l_foto) then
-                    !   val_lay  = val_lay  + time*(  w1*dhat_dt_co2(ij1) &
-                    !                               + w2*dhat_dt_co2(ij2) &
-                    !                               + w3*dhat_dt_co2(ij3) &
-                    !                               + w4*dhat_dt_co2(ij4) )
-                    !   val1_lay = val1_lay + time*(  w1*xhat_dt_co2(ij1) &
-                    !                               + w2*xhat_dt_co2(ij2) &
-                    !                               + w3*xhat_dt_co2(ij3) &
-                    !                               + w4*xhat_dt_co2(ij4) )
-                    !end if
-
-                    val  = val  + tgasptr%avgker(k,2)*val_lay
-                    val1 = val1 + tgasptr%avgker(k,2)*val1_lay
-                 end if
-
-              end if
+                 val  = val  + tgasptr%avgker(k,j)*val_lay
+                 val1 = val1 + tgasptr%avgker(k,j)*val1_lay
+              end do
 
               do is = 1,nstep
                  tgas = val1 + sges(is)*val
@@ -328,17 +239,16 @@ subroutine stptgas(tgashead, rval, sval, out, sges, nstep)
               out(is) = out(is) + (pen(is) - pen(1))*tgasptr%raterr2(k)
            end do
         end do
-     end if
+     end if ! luse
 
      tgasptr => tgasNode_nextcast(tgasptr)
   end do ! loop over observations
 
 ! Clean 
-  if (ihave_co)  deallocate(sco,  rco)
-  if (ihave_co2) deallocate(sco2, rco2)
+  deallocate(stg, rtg)
+! deallocate(xtg, dtg)
 
   return
-
 end subroutine stptgas
 
 end module stptgasmod

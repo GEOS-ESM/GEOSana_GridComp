@@ -749,11 +749,11 @@ subroutine read_obs(ndata,mype)
 
 !   Declare local variables
     logical :: lexist,ssmis,amsre,sndr,hirs,avhrr,lexistears,lexistdb,use_prsl_full,use_hgtl_full
-    logical :: use_sfc,nuse,use_prsl_full_proc,use_hgtl_full_proc,seviri,mls,abi
+    logical :: use_sfc,nuse,use_prsl_full_proc,use_hgtl_full_proc,seviri,mls,mls_molec,abi
     logical,dimension(ndat):: belong,parallel_read,ears_possible,db_possible
     logical :: modis,use_sfc_any
     logical :: acft_profl_file
-    character(10):: obstype,platid
+    character(10):: obstype,platid,molec_type
     character(22):: string
     character(120):: infile
     character(20):: sis
@@ -840,6 +840,7 @@ subroutine read_obs(ndata,mype)
     ears_possible = .false.
     db_possible = .false.
     nmls_type=0
+    mls_molec = .false.
     read_rec1 = 0
     read_ears_rec1=0
     read_db_rec1=0
@@ -854,6 +855,13 @@ subroutine read_obs(ndata,mype)
        seviri = index(obstype,'seviri') /= 0
        abi = index(obstype,'abi') /= 0
        mls = index(obstype,'mls') /= 0
+!      Support for non-ozone MLS species ***needs to follow above line***
+       if(obstype == 'mlsh2o' .or. obstype == 'mlsn2o'  .or. &
+          obstype == 'mlshcl' .or. obstype == 'mlshno3' .or. &
+          obstype == 'mlsclo' .or. obstype == 'mlsco') then
+          mls_molec = .true.
+          mls = .false.
+       end if
        if(obstype == 'mls20' ) nmls_type=nmls_type+1
        if(obstype == 'mls22' ) nmls_type=nmls_type+1
        if(obstype == 'mls30' ) nmls_type=nmls_type+1
@@ -903,9 +911,12 @@ subroutine read_obs(ndata,mype)
            .or. mls &
            ) then
           ditype(i) = 'ozone'
-       else if (obstype == 'mopitt' .or. obstype == 'acos' .or. &
-                obstype == 'flask') then
+       else if (obstype == 'tgez' .or. obstype == 'tgev' .or. &
+                obstype == 'tgav' .or. obstype == 'tgaz' .or. &
+                obstype == 'tgop' .or. obstype == 'acos') then
           ditype(i) = 'tgas'
+       else if (mls_molec) then
+          ditype(i) = 'molec'
        else if (index(obstype,'pcp')/=0 )then
           ditype(i) = 'pcp'
        else if (obstype == 'gps_ref' .or. obstype == 'gps_bnd') then
@@ -1802,8 +1813,20 @@ subroutine read_obs(ndata,mype)
 !         Process trace gas data
           else if (ditype(i) == 'tgas') then 
              call read_tgas(nread,npuse,nouse,platid,infile,gstime,lunout,&
-                  obstype,twind,sis,ithin,rmesh,nobs_sub1(1,i)) ! nobs_sub1?
+                  obstype,twind,sis,ithin,rmesh,nobs_sub1(1,i))
              string='READ_TGAS'
+
+!         Process MLS trace gas data
+          else if (ditype(i) == 'molec') then
+             if (obstype == 'mlsh2o')  molec_type = 'h2o'
+             if (obstype == 'mlsn2o')  molec_type = 'n2o'
+             if (obstype == 'mlshcl')  molec_type = 'hcl'
+             if (obstype == 'mlshno3') molec_type = 'hno3'
+             if (obstype == 'mlsclo')  molec_type = 'clo'
+             if (obstype == 'mlsco')   molec_type = 'co'
+             call read_mls_molec(nread,npuse,nouse,molec_type,infile,obstype,&
+                  lunout,gstime,twind,sis)
+             string='READ_MLS_MOLEC'
 
 !         Process precipitation             
           else if (ditype(i) == 'pcp')then

@@ -917,128 +917,33 @@ end subroutine setvscalesoz_
 !
 ! !INTERFACE:
 
-subroutine setcorchem_(cname,corchem,rc)
-
-   use kinds,    only: r_single,r_kind
-   use mpimod,   only: mype
-   use constants,only: zero,one
-   use mpimod,   only: npe,mpi_rtype,mpi_sum,mpi_comm_world
-
-   use gridmod,only: nlat,nsig
-   use gridmod,only: lon1,lat1
-
-   use guess_grids,only: ntguessig
-   use guess_grids,only: ges_prsi ! interface pressures (kPa)
-
-   use gsi_chemguess_mod,only: gsi_chemguess_bundle
-   use gsi_bundlemod,    only: gsi_bundlegetpointer
+subroutine setcorchem_(cname, corchem, rc)
+   use gridmod, only: nlat, nsig
+   use kinds,   only: r_single, r_kind
+   use mpimod,  only: mype
 
    implicit none
 
-   character(len=*)                   ,intent(in   ) :: cname   ! constituent name
-   real(r_single),dimension(nlat,nsig),intent(  out) :: corchem ! constituent correlations
-   integer(i_kind)                    ,intent(  out) :: rc      ! return error code
+   character(len=*), intent(in   ) :: cname               ! constituent name
+   real(r_single),   intent(  out) :: corchem(nlat, nsig) ! constituent correlations
+   integer(i_kind),  intent(  out) :: rc                  ! return error code
 
 ! !REVISION HISTORY:
 !    15Jul2010 - Todling - created from Guo's OZ routine
 !    20Apr2015 - Weir    - relaced chemz with a constant, old approach
 !                          wasn't appropriate for CO
+!    09Dec2022 - Weir    - replaced everything with a constant
 !
 !EOP ___________________________________________________________________
 
    character(len=*),parameter :: myname_=myname//'::setcorchem_'
 
-   real(r_kind),parameter:: r25 = one/25.0_r_kind
+   rc = 0
+   corchem = 1._r_kind
 
-   real(r_kind),dimension(nsig+1,npe) :: work_chem,work_chem1
-   real(r_kind),dimension(nsig) :: chemz
-   real(r_kind) :: asum,bsum
-
-   integer(i_kind) :: mlat,msig
-   integer(i_kind) :: i,j,k,n,iptr,mm1
-   integer(i_kind) :: ierror
-
-   rc=0
-
-   ! sanity check
-   if ( mype==0 ) write(6,*) myname_,'(PREWGT): mype = ',mype
-
-   ! Get information for how to use CO2
-   iptr=-1
-   if ( size(gsi_chemguess_bundle)>0 ) then ! check to see if bundle's allocated
-       call gsi_bundlegetpointer(gsi_chemguess_bundle(1),cname,iptr,ierror)
-      if ( ierror/=0 ) then
-         rc=-2  ! field not found
-         return 
-      endif
-   else
-      rc=-1     ! chem not allocated
-      return
+   if (mype == 0) then
+      write(6,*) myname_, ': Defined general B cov for: ', trim(cname)
    endif
-
-   mlat=size(corchem,1)
-   msig=size(corchem,2)
-   if ( mlat/=nlat .or. msig/=nsig ) then
-      write(6,*) myname_,'(PREWGT): shape mismatching on PE ',mype
-      write(6,*) myname_,'(PREWGT): shape(corchem',trim(cname),') = ',shape(corchem)
-      write(6,*) myname_,'(PREWGT): while expecting nlat = ',nlat
-      write(6,*) myname_,'(PREWGT): while expecting nsig = ',nsig
-      call stop2(default_rc_)
-   endif
-
-   ! The first part is taken from read_guess().
-
-   ! Calculate global means for constituent
-   ! Calculate sums for constituent to estimate variance.
-   mm1=mype+1
-   work_chem = zero
-   do k=1,nsig
-      do j=2,lon1+1
-         do i=2,lat1+1
-            work_chem(k,mm1) = work_chem(k,mm1) + gsi_chemguess_bundle(ntguessig)%r3(iptr)%q(i,j,k)* &
-               (ges_prsi(i,j,k,ntguessig)-ges_prsi(i,j,k+1,ntguessig))
-            !_RT not sure yet how to handle scaling factor (rozcon) in general
-            !_RT            rozcon*(ges_prsi(i,j,k,ntguessig)-ges_prsi(i,j,k+1,ntguessig))
-         enddo
-      enddo
-   enddo
-   work_chem(nsig+1,mm1)=float(lon1*lat1)
-  
-   call mpi_allreduce(work_chem,work_chem1,(nsig+1)*npe,mpi_rtype,mpi_sum,&
-        mpi_comm_world,ierror)
-   if ( ierror/=0 ) then
-      write(6,*) myname_,'(PREWGT): MPI_allreduce() error on PE ',mype
-      call stop2(ierror)
-   endif
-
-   ! All it does above, through mm1 plus mpi_allreduce() to work_chem1[],
-   ! seems no more than a mpi_allgatherv() to me.  The "reduce" part is
-   ! actually done below ...
-
-   bsum=zero
-   do n=1,npe
-      bsum=bsum+work_chem1(nsig+1,n)
-   enddo
-   do k=1,nsig
-      chemz(k)=zero
-      asum=zero
-      do n=1,npe
-         asum=asum+work_chem1(k,n)
-      enddo
-!      Not appropriate for co, just replacing with a constant, will revisit
-!      later (bweir)
-!      if (bsum>zero) chemz(k)=asum/bsum
-      chemz(k) = 1._r_kind
-   enddo
-
-   ! now this part is taken from prewgt().
-
-   ! load variances onto subdomains
-   do k=1,nsig
-      corchem(:,k) = max(chemz(k),0.0002_r_kind)*r25
-   enddo
-
-   if ( mype==0 ) write(6,*) myname_, ': Defined general B cov for: ', trim(cname)
 
    return
 end subroutine setcorchem_
@@ -1100,5 +1005,6 @@ end subroutine setcorchem_
          write(6,*) myname_, '(PREWGT): mype = ', mype, 'finish sethwllchem_'
       end if
 
+      return
    end subroutine sethwllchem_
 end module m_berror_stats

@@ -425,7 +425,6 @@ module obsmod
   public :: perturb_fact,dtbduv_on,nsat1,obs_sub_comm,mype_diaghdr
   public :: lobsdiag_allocated
   public :: nloz_v8,nloz_v6,nloz_omi,nobskeep
-  public :: nlmopitt,nlacos,nlflask
   public :: grids_dim,rmiss_single,nchan_total,mype_sst,mype_gps
   public :: mype_uv,mype_dw,mype_rw,mype_q,mype_tcp,mype_lag,mype_ps,mype_t
   public :: mype_pw,iout_rw,iout_dw,iout_sst,iout_pw,iout_t,iout_q,iout_tcp
@@ -509,7 +508,7 @@ module obsmod
   integer(i_kind) grids_dim,nchan_total,ianldate
   integer(i_kind) ndat,ndat_types,ndat_times,nprof_gps
   integer(i_kind) lunobs_obs,nloz_v6,nloz_v8,nobskeep,nloz_omi
-  integer(i_kind) nlmopitt,nlacos,nlflask,use_limit 
+  integer(i_kind) use_limit 
   integer(i_kind) iout_rad,iout_pcp,iout_t,iout_q,iout_uv, &
                   iout_oz,iout_ps,iout_pw,iout_rw, iout_dbz
   integer(i_kind) iout_dw,iout_gps,iout_sst,iout_tcp,iout_lag
@@ -784,10 +783,6 @@ contains
     nloz_v6 = 12               ! number of "levels" in ozone version8 data
     nloz_v8 = 21               ! number of "levels" in ozone version6 data
     nloz_omi= 11               ! number of "levels" in OMI apriori profile
-
-    nlmopitt = 10              ! number of "levels" in MOPITT version 6 CO data
-    nlacos   = 20              ! number of "levels" in ACOS/GOSAT version 3.4 CO2 data
-    nlflask  = 1               ! number of "levels" in NOAA flask data
 
     lunobs_obs = 2             ! unit to which to write/read information
                                ! related to brightness temperature and 
@@ -1220,7 +1215,7 @@ allocate(ditype(nall),ipoint(nall))
 dval_use = .false. 
 do ii=1,nrows0
      read(utable(ii),*) dfile(ii),& ! local file name from which to read observatinal data
-                        dtype(ii),& ! character string identifying type of observatio
+                        dtype(ii),& ! character string identifying type of observation
                         dplat(ii),& ! currently contains satellite id (no meaning for non-sat data)
                         dsis(ii), & ! sensor/instrument/satellite identifier for info files
                         dval(ii), & ! 
@@ -1228,7 +1223,9 @@ do ii=1,nrows0
                         dsfcalc(ii) ! use orig bilinear FOV surface calculation (routine deter_sfc)
 
    ! The following is to sort out some historical naming conventions
-   select case (dsis(ii)(1:4))
+!  bweir: Using dsis is too greedy, prevents using tgas obs from these platforms
+!  select case (dsis(ii)(1:4))
+   select case (dtype(ii)(1:4))
       case ('airs')
          dsis(ii)='airs_aqua'
       case ('iasi')

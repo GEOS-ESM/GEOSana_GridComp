@@ -354,9 +354,12 @@ function dtype2index_(dtype) result(index_)
  !case("lag"    ,"[lagoper]"    ); index_= iobOper_lag
 
   case("tgas"   ,"[tgasoper]"   ); index_= iobOper_tgas
-    case("mopitt" ); index_= iobOper_tgas
+    case("tgez"   ); index_= iobOper_tgas
+    case("tgev"   ); index_= iobOper_tgas
+    case("tgav"   ); index_= iobOper_tgas
+    case("tgaz"   ); index_= iobOper_tgas
+    case("tgop"   ); index_= iobOper_tgas
     case("acos"   ); index_= iobOper_tgas
-    case("flask"  ); index_= iobOper_tgas
 
   case("aero"   ,"[aerooper]"   ); index_= iobOper_aero
     case("aod"      ); index_= iobOper_aero

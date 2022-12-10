@@ -207,7 +207,8 @@ contains
     endif
 
     if(nconvtype == 0) then
-       write(6,*) 'CONVINFO_READ: NO CONVENTIONAL DATA USED'
+!      bweir: protected with mype == 0
+       if (mype == 0) write(6,*) 'CONVINFO_READ: NO CONVENTIONAL DATA USED'
        return
     endif
   

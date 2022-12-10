@@ -467,6 +467,7 @@ set (SRCS_SOLVER
   read_avhrr_navy.f90
   read_bufrtovs.f90
   read_tgas.f90
+  read_mls_molec.f90
   read_dbz_nc.f90
   read_dbz_netcdf.f90
   read_files.f90
