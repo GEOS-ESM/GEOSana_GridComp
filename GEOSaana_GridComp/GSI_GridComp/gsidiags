@@ -20,6 +20,7 @@
 #  13Feb2017 Todling  Set default for GSI binary output; revised env var names
 #  02Aug2018 McCarty  Integrated bin2txt processing for pyradmon usage
 #  27Oct2021 Todling  Removed redundancy in handling obs types; Revised parallelization. 
+#  15Dec2022 Weir     Fixed bug mangling -rc command line option
 #-----------------------------------------------------------------------------------------------------
 
 use Env;                 # make env vars readily available
@@ -205,7 +206,9 @@ sub lndiag_files {
 
   $echorc_x = "$FVROOT/bin/echorc.x";
   if ($thisrc) {
-     $gsidiags_rc = chomp($thisrc);
+#    $gsidiags_rc = chomp($thisrc);
+#    bweir: above was broken
+     $gsidiags_rc = $thisrc;
   } else {
      $gsidiags_rc = "$FVROOT/etc/gsidiags.rc";
   }

@@ -360,6 +360,7 @@ function dtype2index_(dtype) result(index_)
     case("tgaz"   ); index_= iobOper_tgas
     case("tgop"   ); index_= iobOper_tgas
     case("acos"   ); index_= iobOper_tgas
+    case("mlstgas"); index_= iobOper_tgas
 
   case("aero"   ,"[aerooper]"   ); index_= iobOper_aero
     case("aod"      ); index_= iobOper_aero

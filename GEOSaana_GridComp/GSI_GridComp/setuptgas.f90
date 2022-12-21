@@ -933,7 +933,7 @@ end if ! (in_curbin)
                       ireal, idout, ' to file ', trim(diag_tgas_file), ' ',    &
                       ianldate
            write(4) isis, dplat(is), obstype, jiter, nchanl, ianldate, iint,   &
-                    ireal, idout
+                    ireal, irdim1, irmin
            write(4) real(pchanl,r_single), real(gross,r_single),               &
                     real(sclstd,r_single), iouse
         end if
