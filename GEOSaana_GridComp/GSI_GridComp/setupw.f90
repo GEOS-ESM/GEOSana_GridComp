@@ -1881,10 +1881,11 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
               call nc_diag_data2d("specific_humidity", sngl(qges))
            endif
+           call nc_diag_metadata("Dominant_Sfc_Type", sngl(data(idomsfc,i))           )
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
            call nc_diag_metadata("surface_skin_temperature", sngl(skint))
            call nc_diag_metadata("landmask", sngl(landfrac))
-
+           call nc_diag_metadata("tropopause_pressure",   sngl(trop5*100)  )  ! Pa  (hPa*100)
 
   end subroutine contents_netcdf_diag_
 
