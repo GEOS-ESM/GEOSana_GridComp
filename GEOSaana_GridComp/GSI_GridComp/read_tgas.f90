@@ -643,8 +643,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
   end if
 
 ! Write header record and data to output file for further processing
-! ***FIXME*** count_obs is a subroutine from obs_para that is neither external
-! nor contained in a module
+! (count_obs is a subroutine from obs_para)
   call count_obs(npuse, ntgasdat, ilat, ilon, tgasout, nobs)
   write(lunout) obstype, sis, nreal, nchanl, ilat, ilon
   write(lunout) ((tgasout(j,k),j=1,ntgasdat),k=1,npuse)
