@@ -58,8 +58,8 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
 !
 !   notes about function of use variables:
 !     luse  - processor use flag, set by obspara
-!                      = 0, obs not assigned to this processor
-!                      = 1, obs     assigned to this processor
+!                      = .false., obs not assigned to this processor
+!                      = .true.,  obs     assigned to this processor
 !     qcuse - gross and qc check use flag, set by this routine
 !                      = 0, obs does not pass gross and qc checks
 !                      = 1, obs does     pass gross and qc checks
@@ -275,7 +275,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
 
 ! If there's no data for assimilation or diagnostic output, return
   if (.not. lmaybeany .or. nchon == 0) then
-     if (mype == 0) write(6,*) myname // ': no channels found for ', isis
+     if (mype == 0) write(0,*) myname // ': no channels found for ', isis
      if (0  < nobs) read(lunin)
 
      call final_vars_
@@ -350,7 +350,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
 !    If debugging, allow centering of obs in space and time to eliminate
 !    interpolation
      if (ldebug .and. lcenter) then
-        if (mype == 0) write(6,*) myname // ': *** WARNING: centering obs ' // &
+        if (mype == 0) write(0,*) myname // ': *** WARNING: centering obs ' // &
                                   'in time and moving to nearest grid '     // &
                                   'point ***'
         grdtime = 3._r_kind
@@ -778,7 +778,9 @@ end if ! (in_curbin)
            ibin = 1
         end if
         if (ibin < 1 .or. nobs_bins < ibin) then
-           write(6,*) mype, ' error nobs_bins, ibin = ', nobs_bins, ibin
+           write(0,*) myname // ': ', mype, ' error nobs_bins, ibin = ',       &
+                      nobs_bins, ibin
+           call die(myname)
         end if
 
         if (ldebug) print *, 'ibin  = ', ibin, 'nobs_bins = ', nobs_bins
@@ -792,10 +794,10 @@ if (in_curbin) then
            allocate(my_head)
            call tgasNode_appendto(my_head,tgashead(ibin))
 
-           my_head%idv = is
-           my_head%iob = ioid(i)
-           my_head%elat= grdlat
-           my_head%elon= grdlon
+           my_head%idv  = is
+           my_head%iob  = ioid(i)
+           my_head%elat = grdlat
+           my_head%elon = grdlon
 
            my_head%luse    = luse(i)
            my_head%time    = grdtime
@@ -803,23 +805,21 @@ if (in_curbin) then
            my_head%navg    = navg
            my_head%obstype = obstype
 
-           allocate(my_head%res(nchanl),         &
-                    my_head%err2(nchanl),        &
-                    my_head%raterr2(nchanl),     &
-                    my_head%ipos(nchanl),        &
-                    my_head%itgas(nchanl),       &
-                    my_head%avgker(nchanl,navg), &
-                    my_head%avgwgt(navg,nsig),   &
-                    stat=istatus)
+           allocate(my_head%res(nchanl),       my_head%err2(nchanl),           &
+                    my_head%raterr2(nchanl),   my_head%ipos(nchanl),           &
+                    my_head%itgas(nchanl),     my_head%avgker(nchanl,navg),    &
+                    my_head%avgwgt(navg,nsig), stat=istatus)
            if (istatus /= 0) then
-              write(6,*) trim(myname), ': allocation error for tgas ' //       &
-                         'pointer, istatus = ', istatus
+              write(0,*) myname // ': allocation error for tgas pointer, ' //  &
+                         'istatus = ', istatus
+              call die(myname)
            end if
            if (luse_obsdiag) then
               allocate(my_head%diags(nchanl), stat=istatus)
               if (istatus /= 0) then
-                 write(6,*) trim(myname), ': allocation error for tgas ' //       &
+                 write(0,*) myname // ': allocation error for tgas ' //        &
                             'pointer, istatus = ', istatus
+                 call die(myname)
               end if
            end if
 
@@ -846,66 +846,64 @@ end if ! (in_curbin)
 !       Link obs to diagnostics structure
         do k = 1,nchanl
            if (luse_obsdiag) then
-              my_diag => obsdiagLList_nextNode(my_diagLL,&
-                 create = .not. lobsdiag_allocated      ,&
-                    idv = is            ,&
-                    iob = ioid(i)       ,&
-                    ich = k             ,&
-                   elat = grdlat        ,&
-                   elon = grdlon        ,&
-                   luse = luse(i)       ,&
-                  miter = miter         )
+              my_diag => obsdiagLList_nextNode(my_diagLL,                      &
+                 create = .not. lobsdiag_allocated, idv = is, iob = ioid(i),   &
+                 ich = k, elat = grdlat, elon = grdlon,                        &
+                 luse = luse(i) .and. (qcuse(k) == 1), miter = miter)
            end if
 
-           if(.not.associated(my_diag)) call die(myname,&
-             "obsdiagLList_nextnode(), create =",.not.lobsdiag_allocated)
+           if (.not. associated(my_diag)) then
+              write(0,*) myname // ': obsdiagLList_nextNode(), create = ',     &
+                         .not. lobsdiag_allocated
+              call die(myname)
+           end if
 
 if (in_curbin) then
            if (luse_obsdiag) then
-              call obsdiagNode_set(my_diag,     &
-                 wgtjo   = varinv(k)*raterr2(k), & 
-                 jiter   = jiter,                &
-                 muse    = (ikeep==1),           &
-                 nldepart= obsinv(k))
+              call obsdiagNode_set(my_diag, wgtjo = varinv(k)*raterr2(k),      &
+                 jiter = jiter, muse = (ikeep==1), nldepart = obsinv(k))
            end if
 
            if (.not. last .and. ikeep == 1) then
               my_head => tailNode_typecast_(tgashead(ibin))
               if (.not. associated(my_head)) then
-                 call die(myname, "unexpected, associated(my_head) = ", associated(my_head))
+                 write(0,*) myname // ': unexpected, associated(my_head) = ',  &
+                            associated(my_head)
+                 call die(myname)
               end if
 
               if (luse_obsdiag) then
-                 call obsdiagNode_assert(my_diag,my_head%idv,my_head%iob,k,myname,"my_diag:my_head")
+                 call obsdiagNode_assert(my_diag, my_head%idv, my_head%iob,    &
+                    k, myname, 'my_diag:my_head')
                  my_head%diags(k)%ptr => my_diag
               end if
               my_head => null()
            end if
 
            if (ltgasdiagsave .and. lobsdiagsave .and. luse(i)) then
-            associate( odiag => my_diag )
-              jdiag = irmin
-              do jj = 1,miter
-                 jdiag = jdiag + 1
-                 if (odiag%muse(jj)) then
-                    rdiagbuf(jdiag,k,idout) =  one
-                 else
-                    rdiagbuf(jdiag,k,idout) = -one
-                 end if
-              end do
-              do jj = 1,miter+1
-                 jdiag = jdiag + 1
-                 rdiagbuf(jdiag,k,idout) = odiag%nldepart(jj)
-              end do
-              do jj = 1,miter
-                 jdiag = jdiag + 1
-                 rdiagbuf(jdiag,k,idout) = odiag%tldepart(jj)
-              end do
-              do jj = 1,miter
-                 jdiag = jdiag + 1
-                 rdiagbuf(jdiag,k,idout) = odiag%obssen(jj)
-              end do
-            end associate ! odiag
+              associate(odiag => my_diag)
+                 jdiag = irmin
+                 do jj = 1,miter
+                    jdiag = jdiag + 1
+                    if (odiag%muse(jj)) then
+                       rdiagbuf(jdiag,k,idout) =  one
+                    else
+                       rdiagbuf(jdiag,k,idout) = -one
+                    end if
+                 end do
+                 do jj = 1,miter+1
+                    jdiag = jdiag + 1
+                    rdiagbuf(jdiag,k,idout) = odiag%nldepart(jj)
+                 end do
+                 do jj = 1,miter
+                    jdiag = jdiag + 1
+                    rdiagbuf(jdiag,k,idout) = odiag%tldepart(jj)
+                 end do
+                 do jj = 1,miter
+                    jdiag = jdiag + 1
+                    rdiagbuf(jdiag,k,idout) = odiag%obssen(jj)
+                 end do
+              end associate ! odiag
            end if
 end if ! (in_curbin)
         end do ! (k = 1,nchanl)
@@ -966,7 +964,6 @@ end if ! (in_curbin)
   function tailNode_typecast_(oll) result(ptr_)
 ! Cast the tailNode of oll to an obsNode, as in
 !      ptr_ => typecast_(tailNode_(oll))
-
      use m_tgasNode, only: tgasNode, typecast_ => tgasNode_typecast
      use m_obsLList, only: obsLList, tailNode_ => obsLList_tailNode
      use m_obsNode,  only: obsNode
