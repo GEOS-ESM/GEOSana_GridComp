@@ -116,6 +116,7 @@ subroutine prewgt(mype)
   use gsi_bundlemod, only: gsi_bundlegetpointer
   use gsi_metguess_mod, only: gsi_metguess_bundle
   use gsi_chemguess_mod, only: gsi_chemguess_bundle
+  use ozinfo, only: oz_bgadj_stratonly
 
   implicit none
 
@@ -475,8 +476,13 @@ subroutine prewgt(mype)
               do k=1,nsig
                  do i=1,lon2
                     my_corz = max(ges_oz(j,i,k),0.000000002_r_kind)
-                    ! Reduce weight in the stratosphere
-                    if (my_corz .gt. 0.0000001_r_kind) my_corz = my_corz/4.0 
+                    ! If oz_bgadj_stratonly flag is 1, reduce weight in the stratosphere only
+                    if ( oz_bgadj_stratonly==1 ) then
+                       if (my_corz .gt. 0.0000001_r_kind) my_corz = my_corz/4.0
+                    ! Otherwise, reduce weight everywhere (cakelle2, 9/15/22)
+                    else
+                       my_corz = my_corz/4.0
+                    endif
                     dssv(j,i,k,n)=dsv(i,k)*my_corz*as3d(n)   ! ozone
                  end do
               end do

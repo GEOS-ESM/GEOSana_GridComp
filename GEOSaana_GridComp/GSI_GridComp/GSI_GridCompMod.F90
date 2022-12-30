@@ -457,6 +457,8 @@ _ENTRY_(trim(Iam))
 
    use gsi_4dcouplermod, only: gsi_4dCoupler_init_traj
    use mpeu_util, only: tell
+   use ozinfo, only: oz_bgadj_stratonly
+
    implicit NONE
 
 ! !ARGUMENTS:
@@ -563,6 +565,12 @@ _ENTRY_(trim(Iam))
 ! Allocate memory for GSI internal variables (first guess time levels)
 
    call GSI_GridCompAlloc_()
+
+ ! Check for ozone background error adjustment flag. There is probably a better place to put this... (cakelle2, 9/15/22)
+ call ESMF_ConfigGetAttribute( CF, oz_bgadj_stratonly, label='oz_bgadj_stratonly:', Default=1, rc=STATUS )
+ VERIFY_(STATUS)
+ ! testing
+ if ( MAPL_am_I_Root() ) write(*,*) 'oz_bgadj_stratonly set to: ', oz_bgadj_stratonly
 
 !                       -----------------------
 !                       Initialize MAPL Generic

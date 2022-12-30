@@ -53,9 +53,11 @@ module ozinfo
   public :: jpch_oz,diag_ozone,nusis_oz,iuse_oz,b_oz,pg_oz,gross_oz
   public :: error_oz,pob_oz,mype_oz,nulev
   public :: ihave_oz
+  ! only adjust ozone background error in the stratosphere (default)?
+  public :: oz_bgadj_stratonly
 
   logical diag_ozone
-  integer(i_kind) mype_oz,jpch_oz
+  integer(i_kind) mype_oz,jpch_oz,oz_bgadj_stratonly
   real(r_kind),allocatable,dimension(:)::pob_oz,gross_oz,error_oz,pg_oz,b_oz
   integer(i_kind),allocatable,dimension(:):: nulev,iuse_oz
   character(len=20),allocatable,dimension(:):: nusis_oz
