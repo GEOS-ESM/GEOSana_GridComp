@@ -600,6 +600,10 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         call tintrp2a1(geop_hgtl,zges,dlat,dlon,dtime,hrdifsig,&
              nsig,mype,nfldsig)
 
+!       Keep the original geopotential height field in zges2 because we need to
+!       write out full column.
+        zges2 = zges
+
 !       For observation reported with geometric height above sea level,
 !       convert geopotential to geometric height.
 
