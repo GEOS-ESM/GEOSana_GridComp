@@ -83,40 +83,40 @@ state_tendencies::
 #::
 
 chem_guess::
-#!var      level   itracer  crtm_use type               orig_name
+#!var     level   itracer  crtm_use type               orig_name
 #    ------ Trace gases ------
- co2       72      1          3      carbon_dioxide     CO2
+ co2      72      1          3      carbon_dioxide     CO2
 # bweir: CO2, CH4, and N2O will be overwritten unless crtm_use < 0
 # AFAIK they are still used in CRTM when crtm_use < 0
-#co2       72      1         -1      carbon_dioxide     CO2
-#ch4       72      1         -1      methane            CH4
-#co        72      1         -1      carbon_monoxide    CO
-#clo       72      1         -1      chlorine_monoxide  CLO
-#ch3cl     72      1         -1      methyl_chloride    CH3CL
-#n2o       72      1         -1      nitrous_oxide      N2O
-#hno3      72      1         -1      nitric_acid        HNO3
-#hcl       72      1         -1      hydrochloric_acid  HCL
-#h2o       72      1         -1      water_vapor        H2O
+#co2      72      1         -1      carbon_dioxide     CO2
+#ch4      72      1         -1      methane            CH4
+#co       72      1         -1      carbon_monoxide    CO
+#clo      72      1         -1      chlorine_monoxide  CLO
+#ch3cl    72      1         -1      methyl_chloride    CH3CL
+#n2o      72      1         -1      nitrous_oxide      N2O
+#hno3     72      1         -1      nitric_acid        HNO3
+#hcl      72      1         -1      hydrochloric_acid  HCL
+#h2o      72      1         -1      water_vapor        H2O
 #      GOCART Aerosols
 #    ------ Dust ------
-#du001     72      1         11      dust               DU001
-#du002     72      1         11      dust               DU002
-#du003     72      1         11      dust               DU003
-#du004     72      1         11      dust               DU004
-#du005     72      1         11      dust               DU005
+#du001    72      1         11      dust               DU001
+#du002    72      1         11      dust               DU002
+#du003    72      1         11      dust               DU003
+#du004    72      1         11      dust               DU004
+#du005    72      1         11      dust               DU005
 #     ------ Sea-salt ------
-#ss001     72      1         11      ssam               SS001
-#ss002     72      1         11      sscm1              SS002
-#ss003     72      1         11      sscm2              SS003
-#ss004     72      1         11      sscm3              SS004
-#ss005     72      1         11      sea_salt           SS005
+#ss001    72      1         11      ssam               SS001
+#ss002    72      1         11      sscm1              SS002
+#ss003    72      1         11      sscm2              SS003
+#ss004    72      1         11      sscm3              SS004
+#ss005    72      1         11      sea_salt           SS005
 #     ------ Sulfates ------
-#so4       72      1         11      sulfate            SO4        
+#so4      72      1         11      sulfate            SO4        
 #     ------ Carbonaceous (main) ------
-#bcphobic  72      1         11      dry_black_carbon   BCPHOBIC
-#bcphilic  72      1         11      wet_black_carbon   BCPHILIC
-#ocphobic  72      1         11      dry_organic_carbon OCPHOBIC
-#ocphilic  72      1         11      wet_organic_carbon OCPHILIC
+#bcphobic 72      1         11      dry_black_carbon   BCPHOBIC
+#bcphilic 72      1         11      wet_black_carbon   BCPHILIC
+#ocphobic 72      1         11      dry_organic_carbon OCPHOBIC
+#ocphilic 72      1         11      wet_organic_carbon OCPHILIC
 ::
 
 state_vector::
