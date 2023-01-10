@@ -12,6 +12,7 @@ module tgasinfo
 !   2014-04-18  weir     - initial code
 !   2014-11-10  weir     - renamed pob_tgas to pchanl_tgas
 !   2016-05-16  weir     - adding o3 & nox support
+!   2022-12-30  keller   - add trop. reactive trace gas stuff (no2 & so2) 
 !
 ! subroutines Included:
 !   sub init_tgas     - set trace gas related variables to defaults
@@ -61,6 +62,28 @@ module tgasinfo
   public :: gross_tgas, error_tgas, b_tgas, pg_tgas, bias_tgas
   public :: vname_tgas, vunit_tgas
 
+! Variables used to control reactive trace gases (no2 & so2)
+  public :: nreact                    ! number of reactive gases (set below)
+  public :: reactname                 ! names of reactive gases
+  public :: tgas_minsigobs            ! minimum obs uncertainty (in 1e15 molec cm-2)
+  public :: tgas_maxsigobs            ! maximum obs uncertainty (in 1e15 molec cm-2)
+  public :: tgas_sigobsscal           ! obs uncertainty scale factor
+  public :: tgas_minbgstrat           ! minimum bkg uncertainty in stratosphere 
+  public :: tgas_minbgwater           ! minimum bkg uncertainty over water (sfc & free trop) 
+  public :: tgas_minbglndpbl          ! minimum bkg uncertainty over land, pbl 
+  public :: tgas_minbglndfree         ! minimum bkg uncertainty over land, free troposphere
+  public :: tgas_bgscalstrat          ! background error scale factor for stratosphere
+  public :: tgas_bgscalwater          ! background error scale factor over water 
+  public :: tgas_bgscallndpbl         ! background error scale factor over land, pbl 
+  public :: tgas_bgscallndfree        ! background error scale factor over land, free trop 
+  public :: tgas_vadj                 ! vertical scale adjustment factor
+  public :: tgas_hadjlevidx           ! horizontal scale boundary (level index)
+  public :: tgas_hadjabove            ! horizontal scale adjustment above boundary level
+  public :: tgas_hadjbelow            ! horizontal scale adjustment below boundary level
+  public :: tgas_szamax               ! Maximum SZA
+  public :: tgas_albmax               ! Maximum surface albedo
+  public :: tgas_cldmax               ! Maximum cloud radiance fraction 
+
   integer(i_kind) :: mype_tgas, jpch_tgas, ntgas
 
   logical :: diag_tgas, ihave_tgas
@@ -73,6 +96,18 @@ module tgasinfo
   character(len=20),     allocatable :: nusis_tgas(:)
   character(len=varlen), allocatable :: vname_tgas(:), vunit_tgas(:)
   character(len=varlen), allocatable :: tgnames(:)
+
+  ! Reactive trace gas stuff
+  integer(i_kind), parameter  :: nreact = 2    ! 1=no2; 2=so2
+  character(len=6), parameter :: reactname(nreact) = (/ 'no2', 'so2' /)
+  real(r_kind)                :: tgas_minsigobs(nreact), tgas_maxsigobs(nreact), tgas_sigobsscal(nreact)
+  real(r_kind)                :: tgas_minbgstrat(nreact), tgas_minbgwater(nreact)
+  real(r_kind)                :: tgas_minbglndpbl(nreact), tgas_minbglndfree(nreact)
+  real(r_kind)                :: tgas_bgscalstrat(nreact), tgas_bgscalwater(nreact)
+  real(r_kind)                :: tgas_bgscallndpbl(nreact), tgas_bgscallndfree(nreact)
+  real(r_kind)                :: tgas_vadj(nreact), tgas_szamax(nreact), tgas_albmax(nreact), tgas_cldmax(nreact)
+  integer(i_kind)             :: tgas_hadjlevidx(nreact)
+  real(r_kind)                :: tgas_hadjabove(nreact), tgas_hadjbelow(nreact)
 
 contains
   

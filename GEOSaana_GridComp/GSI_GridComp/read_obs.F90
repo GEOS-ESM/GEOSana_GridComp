@@ -905,9 +905,12 @@ subroutine read_obs(ndata,mype)
            .or. mls &
            ) then
           ditype(i) = 'ozone'
-       else if (obstype == 'tgez' .or. obstype == 'tgev' .or. &
-                obstype == 'tgav' .or. obstype == 'tgaz' .or. &
-                obstype == 'tgop' .or. obstype == 'acos') then
+       else if (obstype == 'tgez'   .or. obstype == 'tgev'    .or. &
+                obstype == 'tgav'   .or. obstype == 'tgaz'    .or. &
+                obstype == 'tgop'   .or. obstype == 'acos'    .or. &
+                obstype == 'omno2'  .or. obstype == 'omso2'   .or. & 
+                obstype == 'gomno2' .or. obstype == 'tomno2'  .or. &
+                obstype == 'momno2' ) then
           ditype(i) = 'tgas'
        else if (obstype == 'mlstgas') then
           ditype(i) = 'mlstgas'

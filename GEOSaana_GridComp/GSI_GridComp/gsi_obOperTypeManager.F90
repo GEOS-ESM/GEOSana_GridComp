@@ -361,6 +361,11 @@ function dtype2index_(dtype) result(index_)
     case("tgop"   ); index_= iobOper_tgas
     case("acos"   ); index_= iobOper_tgas
     case("mlstgas"); index_= iobOper_tgas
+    case("omso2"  ); index_= iobOper_tgas
+    case("omno2"  ); index_= iobOper_tgas
+    case("momno2" ); index_= iobOper_tgas
+    case("tomno2" ); index_= iobOper_tgas
+    case("gomno2" ); index_= iobOper_tgas
 
   case("aero"   ,"[aerooper]"   ); index_= iobOper_aero
     case("aod"      ); index_= iobOper_aero

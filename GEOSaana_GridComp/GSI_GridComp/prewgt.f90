@@ -117,6 +117,10 @@ subroutine prewgt(mype)
   use gsi_metguess_mod, only: gsi_metguess_bundle
   use gsi_chemguess_mod, only: gsi_chemguess_bundle
   use ozinfo, only: oz_bgadj_stratonly
+  use tgasinfo, only: tgas_minbgstrat, tgas_minbgwater, tgas_minbglndpbl, tgas_minbglndfree, &
+                      tgas_bgscalstrat, tgas_bgscalwater, tgas_bgscallndpbl, tgas_bgscallndfree, &
+                      tgas_vadj, tgas_hadjlevidx, tgas_hadjabove, tgas_hadjbelow, nreact
+  use guess_grids, only: pbltopl, troplev
 
   implicit none
 
@@ -132,7 +136,11 @@ subroutine prewgt(mype)
   integer(i_kind),dimension(0:40):: iblend
   integer(i_kind) nrf3_sf,nrf3_q,nrf3_vp,nrf3_t,nrf3_oz,nrf2_ps,nrf2_sst,nrf3_cw
   integer(i_kind),allocatable,dimension(:) :: nrf3_loc,nrf2_loc
-
+  ! trace gas stuff
+  integer(i_kind) nrf3_o3, nrf3_no2, nrf3_so2, ireact, inrf3, hadjlevidx
+  logical :: stratadj, instrat, inpbl
+  real(r_kind) :: hadjbelow,hadjabove,ihadj,minuncert,bgadj,ilev
+  ! 
   real(r_kind) wlipi,wlipih,df
   real(r_kind) samp,s2u,df2,pi2
   real(r_quad) y,x,dxx
@@ -212,6 +220,9 @@ subroutine prewgt(mype)
   nrf2_sst  = getindex(cvars2d,'sst')
 ! nrf2_stl  = getindex(cvarsmd,'stl')
 ! nrf2_sti  = getindex(cvarsmd,'sti')
+  nrf3_o3   = getindex(cvars3d,'o3')
+  nrf3_no2  = getindex(cvars3d,'no2')
+  nrf3_so2  = getindex(cvars3d,'so2g')
 
 ! Setup blending
   mm=4
@@ -323,6 +334,39 @@ subroutine prewgt(mype)
      end do
   end do
   if(nrf3_oz>0.and.adjustozhscl>zero) hwll(:,:,nrf3_oz)=hwll(:,:,nrf3_oz)*adjustozhscl   !inflate scale
+  if(nrf3_o3>0.and.adjustozhscl>zero) hwll(:,:,nrf3_o3)=hwll(:,:,nrf3_o3)*adjustozhscl   !inflate scale
+
+  ! Adjust trace gas horizontal length scales by values set in GSI_GridComp.rc. Can use
+  ! different length scale in bottom layers, with a gradual transition between the length scales. 
+  do ireact=1,nreact
+     select case ( ireact )
+        case ( 1 )
+           inrf3 = nrf3_no2
+        case ( 2 ) 
+           inrf3 = nrf3_so2
+        case default
+           inrf3 = -1   
+     end select
+     if(inrf3>0) then
+        hadjlevidx = tgas_hadjlevidx(ireact)
+        hadjbelow  = tgas_hadjbelow(ireact)   
+        hadjabove  = tgas_hadjabove(ireact)   
+        if ( hadjlevidx <= 0    ) hadjlevidx = 1
+        if ( hadjlevidx >  nsig ) hadjlevidx = nsig
+        if ( hadjbelow  <= 0.0  ) hadjbelow  = 1.0
+        if ( hadjabove  <= 0.0  ) hadjabove  = 1.0
+        ! adjust length scale below 
+        hwll(:,1:hadjlevidx,inrf3)=hwll(:,1:hadjlevidx,inrf3)*hadjbelow
+        ! adjust length scale above. Make gradual transition between two length scales
+        ! over 5 model levels.
+        if ( hadjlevidx < nsig ) then
+           do k=hadjlevidx+1,nsig
+              ihadj = hadjbelow + ( hadjabove - hadjbelow ) * min(max(real((k-hadjlevidx)/5),0.0),1.0)
+              hwll(:,k,inrf3)=hwll(:,k,inrf3)*ihadj
+           enddo
+        endif
+     endif
+  enddo
 
 ! surface pressure
   if(nrf2_ps>0) then
@@ -393,6 +437,14 @@ subroutine prewgt(mype)
         end do
      end do
   end do
+
+! Adjust vertical length scales for NO2
+  if (nrf3_no2>0.and.tgas_vadj(1)>0.0) then
+     vz(:,:,nrf3_no2) = vz(:,:,nrf3_no2)*tgas_vadj(1)
+  endif
+  if (nrf3_so2>0.and.tgas_vadj(2)>0.0) then
+     vz(:,:,nrf3_so2) = vz(:,:,nrf3_so2)*tgas_vadj(2)
+  endif
 
   call rfdpar1(be,rate,ndeg)
   call rfdpar2(be,rate,turn,samp,ndeg)
@@ -470,7 +522,8 @@ subroutine prewgt(mype)
                  dssv(j,i,k,n)=dsv(i,k)*tvar(j,i,k)*as3d(n)    ! temperature
               end do
            end do
-        else if (n==nrf3_oz.and.adjustozvar) then
+        ! cakelle2: now apply to oz and o3...
+        else if ((n==nrf3_oz.or.n==nrf3_o3).and.adjustozvar) then
            call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'oz',ges_oz,istatus)
            if (istatus==0) then
               do k=1,nsig
@@ -486,6 +539,75 @@ subroutine prewgt(mype)
                     dssv(j,i,k,n)=dsv(i,k)*my_corz*as3d(n)   ! ozone
                  end do
               end do
+           endif
+        ! cakelle2: adjust NO2 and SO2 bkg based on parameters passed via GSI_GridComp.rc 
+        else if (n==nrf3_no2 .or. n==nrf3_so2) then
+           call gsi_bundlegetpointer(gsi_chemguess_bundle(ntguessig),          &
+                                     trim(cvars3d(n)), ges_tgas, istatus)
+           if ( istatus==0 ) then
+              do k=1,nsig
+                 do i=1,lon2
+                    ! no2 or so2?
+                    if ( n==nrf3_no2 ) ireact = 1
+                    if ( n==nrf3_so2 ) ireact = 2
+                    ! are we in the pbl? 
+                    inpbl = .false.
+                    ilev  = pbltopl(j,i,ntguessig)
+                    if ( k <= nint(ilev) ) inpbl = .true.
+                    ! are we in the stratosphere? 
+                    instrat = .false.
+                    ilev  = troplev(j,i,ntguessig)
+                    if ( k > nint(ilev) ) instrat = .true.
+                    ! get concentration from background field, multiply by value set in codas.rc
+                    my_corz = ges_tgas(j,i,k)
+                    ! determine minimum uncertainty: can be different over 'potentially polluted'
+                    ! area, i.e., if over land and within PBL
+                    ! - Stratosphere
+                    if ( instrat ) then
+                       minuncert = tgas_minbgstrat(ireact)
+                       bgadj     = tgas_bgscalstrat(ireact)
+                    ! - Troposphere 
+                    else
+                       ! -- over land 
+                       if ( isli2(j,i)==1 ) then
+                          ! --- in PBL 
+                          if ( inpbl ) then
+                             minuncert = tgas_minbglndpbl(ireact)
+                             bgadj     = tgas_bgscallndpbl(ireact)
+                          ! --- in free troposphere 
+                          else
+                             minuncert = tgas_minbglndfree(ireact)
+                             bgadj     = tgas_bgscallndfree(ireact)
+                          endif
+                       ! -- not over land 
+                       else
+                          minuncert = tgas_minbgwater(ireact)
+                          bgadj     = tgas_bgscalwater(ireact)
+                       endif
+                    endif
+                    if ( bgadj < 0.0 ) bgadj = 1.0
+                    ! Hybrid: multiplicative in stratosphere, additive in troposphere
+                    if ( itr3d(n) == 3 ) then
+                       if ( instrat ) then
+                          my_corz = corz(jx,k,n)*(my_corz+tiny(1._r_single))
+                       else
+                          my_corz = corz(jx,k,n)
+                       endif
+                    ! Multiplicative error
+                    elseif ( itr3d(n) == 2 ) then
+                       my_corz = corz(jx,k,n)*(my_corz+tiny(1._r_single))
+                    ! Additive error
+                    else
+                       my_corz = corz(jx,k,n)
+                    endif
+                    my_corz = max(my_corz,minuncert*1.0e-9)
+                    dssv(j,i,k,n) = dsv(i,k)*my_corz*bgadj*as3d(n)
+                 enddo !i
+              enddo !k
+           else
+              write(6,*) 'prewgt: ', trim(cvars3d(n)), ' not found in ',       &
+                         'gsi_chemguess_bundle ', ntguessig
+              call stop2(109)
            endif
 !       Trace gases w/ multiplicative errors ala ozone (bweir)
         else if (itr3d(n) == 2) then

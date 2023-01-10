@@ -39,6 +39,9 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
                        nf90_inquire_dimension, nf90_inq_varid, nf90_get_var,   &
                        nf90_close
   use mpimod,    only: npe
+  use tgasinfo,  only: tgas_szamax,tgas_albmax,tgas_cldmax
+  ! thinning
+  use satthin,   only: makegrids,map2tgrid,destroygrids,finalcheck,itxmax  
 
   implicit none
 
@@ -95,6 +98,22 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
   real(r_kind),      allocatable :: pchanls1(:), uncerts1(:)
   real(r_kind),      allocatable :: avgkers1(:,:), priorobses1(:), obses1(:)
 
+  ! NO2/SO2 stuff
+  logical                        :: isdoas
+  integer(i_kind)                :: idx, ier, iflag
+  integer(i_kind)                :: id_sza,  id_scwp,  id_albd, id_cldfrc, id_qav
+  integer(i_kind)                :: id_vcds, id_tropp, id_amfs, id_rows
+  real(r_kind)                   :: amf
+  real(r_kind),      allocatable :: scwtpress(:)
+  real(r_kind),      allocatable :: szas1(:), cldfrcs1(:), qflags1(:), albds1(:), qav1(:)
+  real(r_kind),      allocatable :: rows(:), tropp(:), vcds(:), amfs(:)
+
+  ! thinning
+  real(r_kind)                   :: tdiff,sstime,crit1,dist1,timedif
+  integer(i_kind)                :: i,kk,iidx,itx,itt,nodata
+  logical                        :: iuse
+  real(r_kind),parameter         :: r6   = 6.0_r_kind
+
 ! tgez = Point obs on a vertical grid of altitudes
 ! tgev = Point obs on a vertical grid of pressures
 ! tgaz = Avg kernel obs on a vertical grid of altitudes
@@ -103,9 +122,14 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 
 !$$$ -- 1. ALLOCATE AND INITIALIZE VARIABLES
 !===============================================================================
+! DOAS style NO2/SO2 obs?
+  isdoas = (obstype == 'gomno2' .or. obstype == 'tomno2' .or.                   &
+            obstype == 'omno2'  .or. obstype == 'omso2'  .or.                   &
+            obstype == 'momno2' )
+
 ! Check if this is an averaging-kernel obs type
-  useak = (obstype == 'tgav' .or. obstype == 'tgaz' .or.                       &
-           obstype == 'acos')
+  useak = (obstype == 'tgav'   .or. obstype == 'tgaz'   .or.                   &
+           obstype == 'acos'   .or. isdoas ) 
 
 ! Get dimension lengths
   if (obstype == 'tgez' .or. obstype == 'tgev') then
@@ -168,6 +192,22 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
      nedge  = navg
      nreal  = 6 + 3*nchanl + nedge + (navg + navg*nchanl + nchanl)
 
+  ! OMI NO2 & SO2
+  else if ( isdoas ) then
+
+     ! make thinning grids
+     call makegrids(rmesh,ithin)
+
+     call check(nf90_open(infile, nf90_nowrite, id_fin))
+     call check(nf90_inq_dimid(id_fin, 'nrec', id_nsound))
+     call check(nf90_inquire_dimension(id_fin, id_nsound, len=nsound))
+     call check(nf90_inq_dimid(id_fin, 'nlev', id_navg))
+     call check(nf90_inquire_dimension(id_fin, id_navg, len=navg))
+
+     nchanl = 1
+     nedge  = navg + 1
+     nreal  = 6 + 3*nchanl + nedge + (navg + navg*nchanl + nchanl)
+
   else
      return
 
@@ -204,9 +244,18 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
                              uncerts1(nsound),    avgkers1(navg,nsound),       &
                              priorobses1(nsound), obses1(nsound))
 
+  if ( isdoas ) then 
+     allocate(szas1(nsound), cldfrcs1(nsound), qflags1(nsound), albds1(nsound), qav1(nsound) )
+     allocate(scwtpress(navg), rows(nsound), tropp(nsound), vcds(nsound), amfs(nsound))
+  endif
+
 ! Allocate output array
   ntgasdat = nreal + nchanl
-  allocate(tgasout(ntgasdat,maxobs))
+  if ( isdoas ) then
+     allocate(tgasout(ntgasdat,itxmax))
+  else
+     allocate(tgasout(ntgasdat,maxobs))
+  endif
 
 !$$$ -- 2. READ DATA
 !$$$       POINT (TGEZ,TGEV) & AVG KER (TGAV,TGAZ) TEMPLATES
@@ -455,6 +504,114 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
      avgkers(1,:,:)  = avgkers1
      priorobses(1,:) = priorobses1
      obses(1,:)      = obses1
+
+!$$$       NO2 (MINDS OMI/GOME/TROPOMI and OMI SO2 
+!===============================================================================
+  else if ( isdoas ) then
+     ! omi specific arrays
+
+     call check(nf90_inq_varid(id_fin, 'Year',                          id_year))
+     call check(nf90_inq_varid(id_fin, 'Month',                         id_mon))
+     call check(nf90_inq_varid(id_fin, 'Day',                           id_day))
+     call check(nf90_inq_varid(id_fin, 'Hour',                          id_hour))
+     call check(nf90_inq_varid(id_fin, 'Minute',                        id_mint))
+     call check(nf90_inq_varid(id_fin, 'Row',                           id_rows))
+     call check(nf90_inq_varid(id_fin, 'Latitude',                      id_lat))
+     call check(nf90_inq_varid(id_fin, 'Longitude',                     id_lon))
+     call check(nf90_inq_varid(id_fin, 'SolarZenithAngle',              id_sza))
+     call check(nf90_inq_varid(id_fin, 'TerrainPressure',               id_prs))
+     call check(nf90_inq_varid(id_fin, 'ScatteringWeight',              id_avgker))
+     call check(nf90_inq_varid(id_fin, 'CloudRadianceFraction',         id_cldfrc))
+     ! should change to:
+     !call check(nf90_inq_varid(id_fin, 'CloudFraction',                 id_cldfrc))
+     if ( obstype == 'omso2' ) then
+        call check(nf90_inq_varid(id_fin, 'SlantColumnAmountSO2',          id_obs))
+        call check(nf90_inq_varid(id_fin, 'AlgorithmFlag_SnowIce',         id_unc))
+        call check(nf90_inq_varid(id_fin, 'LayerBottomPressure',           id_scwp))
+        call check(nf90_inq_varid(id_fin, 'SurfaceReflectivity',           id_albd))
+        call check(nf90_inq_varid(id_fin, 'Flag_RowAnomaly',               id_bad))
+        call check(nf90_inq_varid(id_fin, 'Flag_SAA',                      id_tropp))
+     else
+        if ( obstype == 'omno2' ) then
+           call check(nf90_inq_varid(id_fin, 'SlantColumnAmountNO2Destriped', id_obs))
+           call check(nf90_inq_varid(id_fin, 'ScatteringWtPressure',          id_scwp))
+        else
+           call check(nf90_inq_varid(id_fin, 'SlantColumnAmountNO2',          id_obs))
+           call check(nf90_inq_varid(id_fin, 'ScatteringWeightPressure',      id_scwp))
+        endif
+        call check(nf90_inq_varid(id_fin, 'SlantColumnAmountNO2Std',       id_unc))
+        call check(nf90_inq_varid(id_fin, 'TerrainReflectivity',           id_albd))
+        call check(nf90_inq_varid(id_fin, 'VcdQualityFlags',               id_bad))
+        call check(nf90_inq_varid(id_fin, 'TropopausePressure',            id_tropp))
+!        call check(nf90_inq_varid(id_fin, 'ColumnAmountNO2Strat',          id_vcds))
+!        call check(nf90_inq_varid(id_fin, 'AmfStrat',                      id_amfs))
+        if ( obstype == 'tomno2' ) then
+           call check(nf90_inq_varid(id_fin, 'qa_value', id_qav))
+        endif
+     endif
+
+     call check(nf90_get_var(id_fin, id_year,   iyears))
+     call check(nf90_get_var(id_fin, id_mon,    imons))
+     call check(nf90_get_var(id_fin, id_day,    idays))
+     call check(nf90_get_var(id_fin, id_hour,   ihours))
+     call check(nf90_get_var(id_fin, id_mint,   imints))
+     call check(nf90_get_var(id_fin, id_rows,   rows  ))
+     call check(nf90_get_var(id_fin, id_lat,    satlats))
+     call check(nf90_get_var(id_fin, id_lon,    satlons))
+     call check(nf90_get_var(id_fin, id_obs,    obses1))
+     call check(nf90_get_var(id_fin, id_unc,    uncerts1))
+     call check(nf90_get_var(id_fin, id_prs,    psurfs))
+     call check(nf90_get_var(id_fin, id_avgker, avgkers1))
+     call check(nf90_get_var(id_fin, id_scwp,   scwtpress))
+     call check(nf90_get_var(id_fin, id_sza,    szas1))
+     call check(nf90_get_var(id_fin, id_albd,   albds1))
+     call check(nf90_get_var(id_fin, id_cldfrc, cldfrcs1))
+     call check(nf90_get_var(id_fin, id_bad,    qflags1))
+     call check(nf90_get_var(id_fin, id_tropp,  tropp))
+     if ( obstype == 'tomno2' ) then
+        call check(nf90_get_var(id_fin, id_qav,  qav1))
+     endif
+     ! For OMNO2, albedo and cloud fraction are integers (0-1000). Convert to fractions here
+     if ( obstype == 'omno2' ) then
+        albds1(:)   = albds1(:)   / 1000.0
+        cldfrcs1(:) = cldfrcs1(:) / 1000.0
+     endif
+
+!     call check(nf90_get_var(id_fin, id_vcds,   vcds))
+!     call check(nf90_get_var(id_fin, id_amfs,   amfs))
+
+     ! Hack for compatability
+     isecs = 0._r_kind
+
+     ! Set observation pressure to 1000.0
+     pchanls1(:) = 1000.0
+     pchanls(1,:) = pchanls1
+
+     ! obs edge pressures. this is the same for all obs, get from data
+     ! and broadcast to all observations.
+     ! omi pressures are in hPa. 
+     ! set surface pressure to really high value to make sure that we will
+     ! cover the entire GEOS profile (will be cropped in setuptgas).
+     peavgs(1,:) = 1200_r_kind
+     ! SO2: bottom layer pressure. OMI SO2 vertical axis is GEOS-style, i.e., index 1 is top of 
+     ! atmosphere
+     if ( obstype == 'omso2' ) then
+        do k = 2,navg
+           peavgs(k,:) = scwtpress(navg-k+1)
+        end do
+     ! NO2: middle of layer
+     else
+        do k = 2,nedge-1
+           peavgs(k,:) = 0.5_r_kind*(scwtpress(k-1)+scwtpress(k))  ! hPa 
+           peavgs(k,:) = min(peavgs(k,:), peavgs(1,:))
+        end do
+     endif
+     ! set top level to max GEOS level 
+     peavgs(nedge,:) = 0.01_r_kind                              ! hPa
+
+     ! set data quality to 'good' for every data point. Bad data 
+     ! will be skipped in the writing step below (when calculating AMF, etc.)
+     isbads(:,:) = 0
   end if
 
   call check(nf90_close(id_fin))
@@ -550,54 +707,138 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
        if (lskip) cycle
      end if
 
+     ! DOAS style observations
+     if ( isdoas ) then
+
+        ! check data quality: 
+        if ( obstype == 'omso2' ) then
+           lskip = .false.
+           if ( rows(n)<5. .or. rows(n)>55. ) lskip = .true.  ! rows 5-55 (1-based)
+           if ( uncerts1(n) /= 0.0          ) lskip = .true.  ! non-zero SnowIce flag
+           if ( qflags1(n)  /= 0.0          ) lskip = .true.  ! RowAnommaly flag
+           if ( tropp(n)    /= 0.0          ) lskip = .true.  ! SAA flag
+           if ( szas1(n)    > tgas_szamax(2)) lskip = .true.  ! SZA > value set in GSI_GridComp.rc 
+           if ( albds1(n)   > tgas_albmax(2)) lskip = .true.  ! Surface reflectivity > 0.3
+           if ( cldfrcs1(n) > tgas_cldmax(2)) lskip = .true.  ! Cloud radiance fraction > 0.3  
+           !if ( albds1(n)   > 0.3           ) lskip = .true.  ! Surface reflectivity > 0.3
+           !if ( cldfrcs1(n) > 0.3           ) lskip = .true.  ! Cloud radiance fraction > 0.3  
+        else
+           ! - VcdQualityFlag is an even integer 
+           ! - sza < 80
+           ! - reflectivity (albedo) < 0.3
+           ! - cloud radiance fraction < 0.5
+           lskip = .true.
+           iflag = int(qflags1(n))
+           if ( IAND ( iflag, 1 ) .eq. 0    ) lskip = .false.
+           if ( rows(n)<5. .or. rows(n)>55. ) lskip = .true.  ! rows 5-55 (1-based)
+           if ( szas1(n)    > tgas_szamax(1)) lskip = .true.
+           if ( albds1(n)   > tgas_albmax(1)) lskip = .true.
+           if ( cldfrcs1(n) > tgas_cldmax(1)) lskip = .true.
+           !if ( albds1(n)   > 300.          ) lskip = .true.
+           !if ( cldfrcs1(n) > 500.          ) lskip = .true.
+           ! for TROPOMI, skip values with a qa_value <= 0.75
+           if ( obstype == 'tomno2' ) then
+              if ( qav1(n) <= 0.75 ) lskip = .true.
+           endif
+
+        endif
+        if (lskip) cycle
+
+        ! thin data
+        if (l4dvar .or. l4densvar) then
+           timedif = zero
+        else
+           sstime=real(nmind,r_kind)
+           tdiff=(sstime-gstime)*r60inv
+           timedif = r6*abs(tdiff)
+        endif
+        crit1 = 0.01_r_kind+timedif
+        call map2tgrid(radlat,radlon,dist1,crit1,itx,ithin,itt,iuse,sis)
+        if ( .not. iuse ) cycle
+        call finalcheck(dist1,crit1,itx,iuse)
+        if ( .not. iuse ) cycle
+
+        ! Convert obs to 1e15 molec cm-2
+        obses(1,n)      = obses1(n) / 1.0e15
+        if ( obstype == 'omso2' ) then
+           ! flip averaging kernel to make sure that surface is index 1
+           avgkers(1,:,n)  = avgkers1(navg:1:-1,n)
+        else
+           avgkers(1,:,n)  = avgkers1(:,n)
+        endif
+
+        ! dummy a-priori profile 
+        priorpros(:,n) = -99.0
+
+        ! Uncertainties
+        if ( obstype == 'omso2' ) then
+           ! The OMI SO2 readme document reports SCD uncertainties of ~0.2 DU
+           ! if SZA < 50deg, and 0.3-0.4 DU for SZAs 50-70degrees. Translate to 1.0e15 molec/cm2 here.
+           if ( szas1(n) < 50.0 ) then
+              uncerts(1,n)  = 5.374   ! 0.2 DU = 5.374e15 molec/cm2 
+           else
+              uncerts(1,n)  = 10.748  ! 0.4 DU = 10.748e15 molec/cm2
+           endif
+        else
+           ! Pass SCD uncertainties. Will derive VCD uncertainties from this 
+           uncerts(1,n)   = uncerts1(n) / 1.0e15
+        endif
+
+     endif
+
 !    Write record to output file
      npuse = npuse + 1
+     nodata = npuse
 
-     tgasout(1,npuse) = n
-     tgasout(2,npuse) = grdtime
-     tgasout(3,npuse) = grdlon
-     tgasout(4,npuse) = grdlat
-     tgasout(5,npuse) = deglon
-     tgasout(6,npuse) = deglat
+     ! index in tgasout to write into
+     iidx = npuse
+     if ( isdoas ) iidx = itx
+
+     tgasout(1,iidx) = n
+     tgasout(2,iidx) = grdtime
+     tgasout(3,iidx) = grdlon
+     tgasout(4,iidx) = grdlat
+     tgasout(5,iidx) = deglon
+     tgasout(6,iidx) = deglat
 
      iout = 6
      do k = 1,nchanl
         iout = iout + 1
-        tgasout(iout,npuse) = pchanls(k,n)             ! channel pressure
+        tgasout(iout,iidx) = pchanls(k,n)             ! channel pressure
      end do
      do k = 1,nchanl
         iout = iout + 1
-        tgasout(iout,npuse) = isbads(k,n)              ! qc flag
+        tgasout(iout,iidx) = isbads(k,n)              ! qc flag
      end do
      do k = 1,nchanl
         iout = iout + 1
-        tgasout(iout,npuse) = uncerts(k,n)             ! channel uncertainty
+        tgasout(iout,iidx) = uncerts(k,n)             ! channel uncertainty
      end do 
 
      if (useak) then
         do k = 1,nedge
            iout = iout + 1
-           tgasout(iout,npuse) = peavgs(k,n)           ! averaging kernel edge pressures
+           tgasout(iout,iidx) = peavgs(k,n)           ! averaging kernel edge pressures
         end do
         do k = 1,navg
            do j = 1,nchanl
               iout = iout + 1
-              tgasout(iout,npuse) = avgkers(j,k,n)     ! averaging kernel
+              tgasout(iout,iidx) = avgkers(j,k,n)     ! averaging kernel
            end do
         end do
         do k = 1,navg
            iout = iout + 1
-           tgasout(iout,npuse) = priorpros(k,n)        ! a priori profile
+           tgasout(iout,iidx) = priorpros(k,n)        ! a priori profile
         end do 
         do j = 1,nchanl
            iout = iout + 1
-           tgasout(iout,npuse) = priorobses(j,n)       ! a priori obs data
+           tgasout(iout,iidx) = priorobses(j,n)       ! a priori obs data
         end do
      end if
 
      do k = 1,nchanl
         iout = iout + 1
-        tgasout(iout,npuse) = obses(k,n)               ! observation
+        tgasout(iout,iidx) = obses(k,n)               ! observation
      end do
 
 !    Print diagnostic output if debugging
@@ -635,6 +876,21 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
   nread = nsound * nchanl
   nouse = npuse  * nchanl
 
+! If thinning, compress array to thinned data
+  if (isdoas) then
+     kk=0
+     do k=1,itxmax
+        if (tgasout(1,k)>zero) then
+           kk=kk+1
+           do i=1,ntgasdat
+              tgasout(i,kk)=tgasout(i,k)
+           end do
+        endif
+     end do
+     npuse=kk
+     nouse=npuse
+  endif
+
   if (ldebug) then
      print *, '---'
      print *, 'nread    = ', nread
@@ -661,6 +917,10 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
   if (obstype == 'acos') deallocate(imodes, istypes)
   if (nchanl  == 1)      deallocate(pchanls1, isbads1, uncerts1, avgkers1,     &
                                     priorobses1, obses1)
+  if ( isdoas ) then 
+     deallocate(szas1,cldfrcs1,qflags1,albds1,scwtpress,rows,tropp,vcds,amfs,qav1)
+     call destroygrids
+  endif
 
   return
   

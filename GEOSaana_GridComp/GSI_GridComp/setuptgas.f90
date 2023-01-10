@@ -97,17 +97,21 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   use kinds,             only: r_kind, r_single, i_kind
   use constants,         only: zero, half, one, two, tiny_r_kind, huge_r_kind, &
                                cg_term, wgtlim, varlen => max_varname_length
+  use constants,         only: vv_to_molec
   use obsmod,            only: dplat, nobskeep, mype_diaghdr, dirname,         &
                                time_offset, ianldate, luse_obsdiag,            &
                                lobsdiag_allocated, lobsdiagsave
   use gsi_4dvar,         only: nobs_bins, mn_obsbin
   use gridmod,           only: get_ij, nsig
   use guess_grids,       only: nfldsig, ntguessig, hrdifsig, ges_pe => ges_prsi
+  use guess_grids,       only: no2_priorc, so2_priorc 
   use gsi_bundlemod,     only: gsi_bundlegetpointer
   use gsi_chemguess_mod, only: gsi_chemguess_get, gsi_chemguess_bundle
   use tgasinfo,          only: jpch_tgas, nusis_tgas, iuse_tgas, gross_tgas,   &
                                error_tgas, b_tgas, pg_tgas, bias_tgas,         &
-                               vname_tgas, vunit_tgas, ntgas, tgnames
+                               vname_tgas, vunit_tgas, ntgas, tgnames,         &
+                               nreact, reactname, tgas_minsigobs,              &
+                               tgas_maxsigobs, tgas_sigobsscal
   use jfunc,             only: jiter, last, miter
   use m_dtime,           only: dtime_setup, dtime_check
 
@@ -179,6 +183,18 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
 
   integer(i_kind), dimension(nobs) :: ioid  ! initial (pre-distribution) observation ID
 
+  ! stuff for NO2/SO2 (call it 'DOAS' here)
+  logical                                        :: isdoas
+  real(r_kind),    allocatable, dimension(:,:)   :: tmpwgt
+  real(r_kind),    allocatable, dimension(:)     :: qvavg
+  real(r_kind),    allocatable, dimension(:)     :: delps  
+  real(r_kind),    dimension(nsig)               :: priortgas
+  real(r_kind)                                   :: scd_tot, scd_trop, amf, pbl
+  real(r_kind)                                   :: lscal, surfscal
+  real(r_kind)                                   :: minsigobs, maxsigobs, sigobsscal
+  logical                                        :: ispos
+  real(r_kind), dimension(:,:,:), pointer        :: rank3 => NULL()
+
   type(tgasNode),  pointer :: my_head
   type(obs_diag),  pointer :: my_diag
   type(obs_diags), pointer :: my_diagLL
@@ -186,11 +202,27 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   tgashead => obsLL(:)
 
 ! Check if this is an averaging-kernel obs type
-  useak = (trim(obstype) == 'tgav' .or. trim(obstype) == 'tgaz' .or.           &
-           trim(obstype) == 'acos')
+  useak = (trim(obstype) == 'tgav'   .or. trim(obstype) == 'tgaz'   .or.           &
+           trim(obstype) == 'acos'   .or. trim(obstype) == 'omno2'  .or.           &
+           trim(obstype) == 'omso2'  .or. trim(obstype) == 'gomno2' .or.           &
+           trim(obstype) == 'tomno2' .or. trim(obstype) == 'momno2' )
 
 ! Determine level variables navg and nedge from nreal and nchanl
-  call init_levs_(useak, nreal, nchanl, navg, nedge)
+  ! init_levs_ caused some issues with NO2/SO2 because I added additional fields. Hardcoding it
+  ! here for now. Need to revisit this (TODO)
+  isdoas = .false.
+  if ( trim(obstype) == 'omno2'  .or. trim(obstype) == 'tomno2' .or. &
+       trim(obstype) == 'gomno2' .or. trim(obstype) == 'momno2' ) then
+     isdoas = .true.
+     navg   = 35
+     nedge  = navg + 1
+  elseif ( trim(obstype) == 'omso2' ) then
+     isdoas = .true.
+     navg   = 72
+     nedge  = navg + 1
+  else
+     call init_levs_(useak, nreal, nchanl, navg, nedge)
+  endif
 
 ! If required guess fields are available, extract from bundle
   call init_vars_
@@ -320,6 +352,12 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   else
      allocate(grdpch(nchanl))
   end if
+
+  ! NO2/SO2 stuff 
+  if( isdoas ) then
+     allocate(tmpwgt(navg,nsig),qvavg(navg))
+     allocate(delps(navg))
+  endif
 
   call dtime_setup
 
@@ -491,8 +529,50 @@ if (in_curbin) then
                        nsig, mype, nfldsig)
 
 !       Average onto averaging kernel levels:
+        ! for reactive trace gases, recalculate AMF using scattering weights and background trace gas profiles
+        if ( isdoas ) then
+
+           ! Get guess fields on obs levels (averaging kernel levels) 
+           call zavgtgas_(pemod, geslmod, grdpe, gespro, avgwgt)
+
+           ! get background (= a-priori) NO2/SO2 on model levels
+           priortgas(:) = 0.0
+           if ( obstype=='omso2' ) then
+              call tintrp2a1(so2_priorc, priortgas, grdlat, grdlon, grdtime, hrdifsig, &
+                             nsig, mype, nfldsig)
+           else 
+              call tintrp2a1(no2_priorc, priortgas, grdlat, grdlon, grdtime, hrdifsig, &
+                             nsig, mype, nfldsig)
+           endif
+
+           ! map q onto obs levels
+           call zavgtgas_(pemod, qvmod, grdpe, qvavg, tmpwgt)
+
+           ! map prior tgas onto obs levels
+           priorpro(:) = 0.0
+           call zavgtgas_(pemod, priortgas, grdpe, priorpro, tmpwgt)
+
+           ! convert both the a-priori and the current guess profile from mol/mol to 1e15 molec cm-2
+           ! also accumulate guess observation, which is sum of all partial columns of the a-priori profile
+           do k = 1,navg
+              surfscal = max(0.0,min(1.0,(pemod(1)-peavg(k+1))/(peavg(k)-peavg(k+1))))
+              ! conversion factor to go from v/v dry to molec cm-3. 
+              ! Multiply by 1-Q for conversion of kg/kg dry to kg/kg total.
+              lscal = surfscal * (peavg(k)-peavg(k+1)) * vv_to_molec * (1.-qvavg(k))
+              gespro(k) = gespro(k) * lscal
+              priorpro(k) = priorpro(k) * lscal
+              avgwgt(k,:) = avgwgt(k,:) * lscal
+           enddo
+           
+           ! calculate AMF and actual averaging kernel using scattering weights and a-priori columns 
+           amf = sum(avgker(1,:)*gespro(:)) / sum(gespro)
+           avgker(1,:) = avgker(1,:) / amf
+
+           ! a-priori observation
+           priorobs(1) = sum(priorpro)
+
 !       a. Mixing ratios in mol/mol, log, ...
-        if (vunit /= 'molm2') then
+        elseif (vunit /= 'molm2') then
            call zavgtgas_(pemod, geslmod, grdpe, gespro, avgwgt)
 
 !       b. Partial columns in mol/m2 (fix hard-coded constants below)
@@ -648,8 +728,30 @@ if (in_curbin) then
      do k = 1,nchanl
         j = ipos(k)
 
-!       Subtract any specified bias from obs
+!       Get observation
         obs  = tgasdata(nreal+k,i)
+
+        ! for DOAS style obs, convert SCD to VCD using AMF calculated above
+        if ( isdoas ) then
+           scd_tot   = obs
+           obs = scd_tot / amf
+           ! get obs uncertainty 
+           uncert(k) = obs * ( uncert(k) / scd_tot )
+
+           if ( trim(obstype) == 'omso2' ) then
+              minsigobs  = tgas_minsigobs(2)
+              maxsigobs  = tgas_maxsigobs(2)
+              sigobsscal = tgas_sigobsscal(2)
+           else
+              minsigobs  = tgas_minsigobs(1)
+              maxsigobs  = tgas_maxsigobs(1)
+              sigobsscal = tgas_sigobsscal(1)
+           endif
+           uncert(k) = min(max(uncert(k),minsigobs),maxsigobs)*sigobsscal
+           !if ( sza(k) > 50.0 ) uncert(k) = uncert(k) * 1.+max(0.0,((sza(k)-50.0)/(tgas_szamax-sza(k))))
+        endif
+
+!       Subtract any specified bias from obs
         bias = bias_tgas(j)
         obs  = obs - bias
 
@@ -954,6 +1056,10 @@ end if ! (in_curbin)
   else
      deallocate(grdpch)
   end if
+  ! doas stuff
+  if(allocated(tmpwgt    )) deallocate(tmpwgt)
+  if(allocated(qvavg     )) deallocate(qvavg)
+  if(allocated(delps     )) deallocate(delps)
 
   if (ltgasdiagsave) deallocate(rdiagbuf)
 
