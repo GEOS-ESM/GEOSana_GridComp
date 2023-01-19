@@ -202,27 +202,27 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   tgashead => obsLL(:)
 
 ! Check if this is an averaging-kernel obs type
-  useak = (trim(obstype) == 'tgav'   .or. trim(obstype) == 'tgaz'   .or.           &
-           trim(obstype) == 'acos'   .or. trim(obstype) == 'omno2'  .or.           &
-           trim(obstype) == 'omso2'  .or. trim(obstype) == 'gomno2' .or.           &
-           trim(obstype) == 'tomno2' .or. trim(obstype) == 'momno2' )
+  isdoas = ( trim(obstype) == 'omno2' .or. trim(obstype) == 'mindsno2' .or. &
+             trim(obstype) == 'omso2' )
+  useak  = ( trim(obstype) == 'tgav'  .or. trim(obstype) == 'tgaz'     .or. &
+             trim(obstype) == 'acos'  .or. isdoas )  
 
 ! Determine level variables navg and nedge from nreal and nchanl
   ! init_levs_ caused some issues with NO2/SO2 because I added additional fields. Hardcoding it
   ! here for now. Need to revisit this (TODO)
-  isdoas = .false.
-  if ( trim(obstype) == 'omno2'  .or. trim(obstype) == 'tomno2' .or. &
-       trim(obstype) == 'gomno2' .or. trim(obstype) == 'momno2' ) then
-     isdoas = .true.
-     navg   = 35
-     nedge  = navg + 1
-  elseif ( trim(obstype) == 'omso2' ) then
-     isdoas = .true.
-     navg   = 72
-     nedge  = navg + 1
-  else
-     call init_levs_(useak, nreal, nchanl, navg, nedge)
-  endif
+!  if ( trim(obstype) == 'omno2'  .or. trim(obstype) == 'mindsno2' ) then 
+!     isdoas = .true.
+!     navg   = 35
+!     nedge  = navg + 1
+!  elseif ( trim(obstype) == 'omso2' ) then
+!     isdoas = .true.
+!     navg   = 72
+!     nedge  = navg + 1
+!  else
+!     call init_levs_(useak, nreal, nchanl, navg, nedge)
+!  endif
+
+  call init_levs_(useak, nreal, nchanl, navg, nedge)
 
 ! If required guess fields are available, extract from bundle
   call init_vars_

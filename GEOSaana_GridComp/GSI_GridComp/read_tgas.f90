@@ -123,9 +123,8 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 !$$$ -- 1. ALLOCATE AND INITIALIZE VARIABLES
 !===============================================================================
 ! DOAS style NO2/SO2 obs?
-  isdoas = (obstype == 'gomno2' .or. obstype == 'tomno2' .or.                   &
-            obstype == 'omno2'  .or. obstype == 'omso2'  .or.                   &
-            obstype == 'momno2' )
+  isdoas = (obstype == 'omno2'  .or. obstype == 'omso2'  .or.                  &
+            obstype == 'mindsno2' )
 
 ! Check if this is an averaging-kernel obs type
   useak = (obstype == 'tgav'   .or. obstype == 'tgaz'   .or.                   &
@@ -248,6 +247,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
      allocate(szas1(nsound), cldfrcs1(nsound), qflags1(nsound), albds1(nsound), qav1(nsound) )
      allocate(scwtpress(navg), rows(nsound), tropp(nsound), vcds(nsound), amfs(nsound))
   endif
+  id_qav = -1
 
 ! Allocate output array
   ntgasdat = nreal + nchanl
@@ -545,8 +545,10 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
         call check(nf90_inq_varid(id_fin, 'TropopausePressure',            id_tropp))
 !        call check(nf90_inq_varid(id_fin, 'ColumnAmountNO2Strat',          id_vcds))
 !        call check(nf90_inq_varid(id_fin, 'AmfStrat',                      id_amfs))
-        if ( obstype == 'tomno2' ) then
-           call check(nf90_inq_varid(id_fin, 'qa_value', id_qav))
+        ! TROPOMI MINDS has qa_value. Check here if this is available.
+        if ( obstype == 'mindsno2' ) then
+           istat = nf90_inq_varid(id_fin, 'qa_value', id_qav)
+           if (istat /= nf90_noerr) id_qav = -1 
         endif
      endif
 
@@ -568,7 +570,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
      call check(nf90_get_var(id_fin, id_cldfrc, cldfrcs1))
      call check(nf90_get_var(id_fin, id_bad,    qflags1))
      call check(nf90_get_var(id_fin, id_tropp,  tropp))
-     if ( obstype == 'tomno2' ) then
+     if ( id_qav > 0 ) then 
         call check(nf90_get_var(id_fin, id_qav,  qav1))
      endif
      ! For OMNO2, albedo and cloud fraction are integers (0-1000). Convert to fractions here
@@ -737,7 +739,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
            !if ( albds1(n)   > 300.          ) lskip = .true.
            !if ( cldfrcs1(n) > 500.          ) lskip = .true.
            ! for TROPOMI, skip values with a qa_value <= 0.75
-           if ( obstype == 'tomno2' ) then
+           if ( id_qav > 0 ) then 
               if ( qav1(n) <= 0.75 ) lskip = .true.
            endif
 

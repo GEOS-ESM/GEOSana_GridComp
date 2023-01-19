@@ -354,18 +354,16 @@ function dtype2index_(dtype) result(index_)
  !case("lag"    ,"[lagoper]"    ); index_= iobOper_lag
 
   case("tgas"   ,"[tgasoper]"   ); index_= iobOper_tgas
-    case("tgez"   ); index_= iobOper_tgas
-    case("tgev"   ); index_= iobOper_tgas
-    case("tgav"   ); index_= iobOper_tgas
-    case("tgaz"   ); index_= iobOper_tgas
-    case("tgop"   ); index_= iobOper_tgas
-    case("acos"   ); index_= iobOper_tgas
-    case("mlstgas"); index_= iobOper_tgas
-    case("omso2"  ); index_= iobOper_tgas
-    case("omno2"  ); index_= iobOper_tgas
-    case("momno2" ); index_= iobOper_tgas
-    case("tomno2" ); index_= iobOper_tgas
-    case("gomno2" ); index_= iobOper_tgas
+    case("tgez"     ); index_= iobOper_tgas
+    case("tgev"     ); index_= iobOper_tgas
+    case("tgav"     ); index_= iobOper_tgas
+    case("tgaz"     ); index_= iobOper_tgas
+    case("tgop"     ); index_= iobOper_tgas
+    case("acos"     ); index_= iobOper_tgas
+    case("mlstgas"  ); index_= iobOper_tgas
+    case("omso2"    ); index_= iobOper_tgas
+    case("omno2"    ); index_= iobOper_tgas
+    case("mindsno2" ); index_= iobOper_tgas
 
   case("aero"   ,"[aerooper]"   ); index_= iobOper_aero
     case("aod"      ); index_= iobOper_aero
