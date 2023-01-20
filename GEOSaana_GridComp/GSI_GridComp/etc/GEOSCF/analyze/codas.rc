@@ -1,0 +1,38 @@
+BACKGROUND:
+#=======================================================================================
+# TYPE == 'ANA': Analyze		(Full analysis)
+# TYPE == 'MON': Monitor 		(Compute analysis, but don't apply increment)
+#     else     : Do nothing
+#
+# NB == 1      : Use standard background errors
+# NB == 2      : Multiply background errors by tracer value
+#
+# NC           : Number for CRTM usage
+# SCALE        : Rescaling factor for applying the increment in GCM
+# AS           : Background error standard deviation rescaling factor
+
+#   'OUT NAME', 'PROVIDER'     , 'TYPE', NB, NC, SCALE     , AS       , 'DESCRIPTION'
+#=======================================================================================
+#   GROUP: MLS
+##    'OZ'      , 'STRATCHEM'    , 'ANA' , 1 ,  2 , 1.0e-6   , 0.20     , 'ozone'
+#   'O3'      , 'STRATCHEM'    , 'ANA' , 1 ,  2 , 1.0e-6   , 0.20     , 'ozone'
+#    'H2O'     , 'STRATCHEM'    , 'ANA' , 2 , -1 , 1.0      , 0.06     , 'water_vapor'
+#    'HCL'     , 'STRATCHEM'    , 'ANA' , 2 , -1 , 1.0      , 0.10     , 'hydrochloric_acid'
+#    'HNO3'    , 'STRATCHEM'    , 'ANA' , 2 , -1 , 1.0      , 0.10     , 'nitric_acid'
+
+#    'N2O'     , 'STRATCHEM'    , 'ANA' , 1 , -1 , 1.0      , 8.e-9    , 'nitrous_oxide'
+#   'CLO'     , 'STRATCHEM'    , 'MON' , 2 , -1 , 1.0      , 0.10     , 'chlorine_monoxide'
+#   'CO'      , 'STRATCHEM'    , 'MON' , 1 , -1 , 1.0      , 1.50     , 'carbon_monoxide'
+
+#   GROUP: GEOS-CHEM 
+#   'O3'      , 'GEOSCHEMCHEM' , 'ANA' , 1 ,  2 , 1.0      , 0.20     , 'ozone'
+#   'CO'      , 'GEOSCHEMCHEM' , 'ANA' , 1 , -1 , 1.0      , 0.20     , 'carbon_monoxide'
+#   'NO2'     , 'GEOSCHEMCHEM' , 'ANA' , 1 , -1 , 1.0      , 0.20     , 'nitrogen_dioxide'
+#    'SO2g'    , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.5       , 'sulfur_dioxide'
+#    'SO2g'    , 'GEOSCHEMCHEM' , 'ANA' , 1 , -1 , 1.0      , 5.e-10   , 'sulfur_dioxide'
+
+#   GROUP: CARBON
+#   'CO'      , 'GOCART'       , 'ANA' , 1 , -1 , 1.0      , 1.50     , 'carbon_monoxide'
+#   'CO2'     , 'GOCART'       , 'MON' , 1 , -1 , 1.0      , 50.e-6   , 'carbon_dioxide'
+#   'CH4'     , 'GOCART'       , 'MON' , 1 , -1 , 1.0      , 1.0      , 'methane'
+::

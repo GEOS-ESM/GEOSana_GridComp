@@ -1,0 +1,268 @@
+# =================  MERRA2  =================== 
+# This observation system resource file database will track
+# the whereabout of observation files.
+#   It will be used by scripts require_obsys (hard check the
+# existence of observation files)
+#   and acquire_obsys (will call acquire to get files).
+#
+# Syntax:
+# -------
+# BEGIN observation_file_class => StandardName
+#   startYYYYMMDD_HHz-endYYYYMMDD_HHz incrementHHMMSS remote_file_name_template
+# END
+#
+# Modification History:
+# ---------------------
+# 2013.07.01 dmerkova   source: d591_rpit1 experiment
+#                       merra2_ssmitxx_bufr will be updated v6 => v7
+# 2013.09.04 dmerkova   ozon update from K. Wargan
+# 2013.10.29 todling    all classes named merra2_?????
+#                       Per Rob/Joe replace "present" w/ 21001231_18z
+# 2013.11.01 mccarty    Revise/fix goes sounder class/dates
+# 2013.11.05 todling    some rename of class to enable triggering of Haimberger's correction
+# 2013.11.12 lucchesi   latest revisions for TOVS-BEST (GMAO's version/location Todling)
+# 2013.11.13 dmerkova   extend ncep2013 obs to end of 2000
+# 2013.11.13 todling    update tcvitals
+# 2013.11.18 todling    add ascat (prepbufr) per Rob Lucchesi
+# 2013.11.19 wargan     out with all of TOMS; revise dates on all of Ozone data
+# 2013.11.20 todling    updated all of SSMI per Rob Lucchesi instructions
+# 2013.11.22 mccarty    updates to ASCAT, removal of unnecessary entries for 
+#             & merkova   1979-onward processing
+# 2013.11.25 mccarty    updates to AVHRR satwindbufr stream, ASCAT startdate (extended
+#             & merkova   w/ new data), and cdas0 prepbufr stream
+############################################################
+
+
+#AURA OMI totoz+eff., NetCDF data
+#-------------------------
+BEGIN merra2_aura_omieff_nc => omieff.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_18z 240000 dirac:/archive/input/gmao_ops/ops/reanalysis/omi_eff/netcdf/Y%y4/M%m2/OMIeff.%y4%m2%d2_%h2z.nc
+END
+
+# AURA MLS near real time (In MERRA-2 this is just MLS oz data in netCDF format, NOT genuine NRT data)
+# (Krys still needs to generate April and May 2015)
+BEGIN mls_nrt_nc => mlsnc.%y4%m2%d2_%h2z.nc
+ 10000101_18z-20150331_18z 240000 dirac:/archive/u/kwargan/data/MLSv4.2/NETCDF/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
+ 20150601_00z-30000101_18z 240000 dirac:/archive/input/dao_ops/obs/reanalysis/mls/oz_v4/netcdf/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
+#10001011_18z-30000101_18z 240000 dirac:/archive/input/gmao_ops/ops/reanalysis/mls/oz_v4/netcdf/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
+END
+
+###################################################################################################
+##                                  Trace gas data (from B Weir)                                 ## 
+###################################################################################################
+# MLS v5 H2O data
+BEGIN tgas_mls_h2o_nc => mls_h2o.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/H2O/Y%y4/M%m2/MLS-v5.0-h2o.%y4%m2%d2_%h2z.nc
+END
+
+# MLS v5 N2O data
+BEGIN tgas_mls_n2o_nc => mls_n2o.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/N2O/Y%y4/M%m2/MLS-v5.0-n2o.%y4%m2%d2_%h2z.nc
+END
+
+# MLS v5 HCl data
+BEGIN tgas_mls_hcl_nc => mls_hcl.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/HCL/Y%y4/M%m2/MLS-v5.0-hcl.%y4%m2%d2_%h2z.nc
+END
+
+# MLS v5 HNO3 data
+BEGIN tgas_mls_hno3_nc => mls_hno3.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/HNO3/Y%y4/M%m2/MLS-v5.0-hno3.%y4%m2%d2_%h2z.nc
+END
+
+# MLS v5 CO data
+BEGIN tgas_mls_co_nc => mls_co.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/CO/Y%y4/M%m2/MLS-v5.0-co.%y4%m2%d2_%h2z.nc
+END
+
+# MLS v5 CH3Cl data
+BEGIN tgas_mls_ch3cl_nc => mls_ch3cl.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/CH3CL/Y%y4/M%m2/MLS-v5.0-ch3cl.%y4%m2%d2_%h2z.nc
+END
+
+# MLS v5 ClO data
+BEGIN tgas_mls_clo_nc => mls_clo.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/CLO/Y%y4/M%m2/MLS-v5.0-clo.%y4%m2%d2_%h2z.nc
+END
+
+# SAGE III/ISS solar H2O data
+BEGIN tgas_sage3s_h2o_iss_nc => sage3s_h2o_iss.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 discover:/discover/nobackup/pawales/Satellite/SAGE3_ISS/codas_prep/Y%y4/SAGE3-ISS_sol_H2O.%y4.nc
+END
+
+# SAGE III/ISS solar O3 data
+BEGIN tgas_sage3s_o3_iss_nc => sage3s_o3_iss.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 discover:/discover/nobackup/pawales/Satellite/SAGE3_ISS/codas_prep/Y%y4/SAGE3-ISS_sol_O3.%y4.nc
+END
+
+# SAGE III/ISS lunar O3 data
+BEGIN tgas_sage3l_o3_iss_nc => sage3l_o3_iss.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 discover:/discover/nobackup/pawales/Satellite/SAGE3_ISS/codas_prep/Y%y4/SAGE3-ISS_lun_O3.%y4.nc
+END
+
+# SAGE II solar H2O data
+BEGIN tgas_sage2s_h2o_nc => sage2s_h2o.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 discover:/discover/nobackup/pawales/Satellite/SAGE2/codas_prep/Y%y4/SAGE2_sol_H2O.%y4.nc
+END
+
+# SAGE II solar O3 data
+BEGIN tgas_sage2s_o3_nc => sage2s_o3.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 discover:/discover/nobackup/pawales/Satellite/SAGE2/codas_prep/Y%y4/SAGE2_sol_O3.%y4.nc
+END
+
+# MOPITT NIR v9r CO data
+BEGIN tgas_mopitt_nir_terra_nc => mopitt_nir.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/mopitt/nir_v9r_chunks/Y%y4/mopitt_nir_v9r.%y4%m2%d2_%h2z.nc
+END
+
+# MOPITT TIR v9r CO data
+BEGIN tgas_mopitt_tir_terra_nc => mopitt_tir.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/mopitt/tir_v9r_chunks/Y%y4/mopitt_tir_v9r.%y4%m2%d2_%h2z.nc
+END
+
+# IASI METOP-A CO data
+BEGIN tgas_iasi_co_metop-a_nc => iasi_co_metop-a.%y4%m2%d2_%h2z.nc
+ 10000101_00z-20140929_18z 240000 /discover/nobackup/bweir/iasi/co/metop-a_v2010r_chunks/Y%y4/iasi_co_metop-a_v2010r.%y4%m2%d2_%h2z.nc
+ 20140930_00z-20190513_18z 240000 /discover/nobackup/bweir/iasi/co/metop-a_v2014r_chunks/Y%y4/iasi_co_metop-a_v2014r.%y4%m2%d2_%h2z.nc
+ 20190514_00z-20191211_18z 240000 /discover/nobackup/bweir/iasi/co/metop-a_v2015r_chunks/Y%y4/iasi_co_metop-a_v2015r.%y4%m2%d2_%h2z.nc
+ 20191212_00z-30000101_00z 240000 /discover/nobackup/bweir/iasi/co/metop-a_v6.5r_chunks/Y%y4/iasi_co_metop-a_v6.5r.%y4%m2%d2_%h2z.nc
+END
+
+# IASI METOP-B CO data
+BEGIN tgas_iasi_co_metop-b_nc => iasi_co_metop-b.%y4%m2%d2_%h2z.nc
+ 10000101_00z-20140929_18z 240000 /discover/nobackup/bweir/iasi/co/metop-b_v2010r_chunks/Y%y4/iasi_co_metop-b_v2010r.%y4%m2%d2_%h2z.nc
+ 20140930_00z-20190513_18z 240000 /discover/nobackup/bweir/iasi/co/metop-b_v2014r_chunks/Y%y4/iasi_co_metop-b_v2014r.%y4%m2%d2_%h2z.nc
+ 20190514_00z-20191211_18z 240000 /discover/nobackup/bweir/iasi/co/metop-b_v2015r_chunks/Y%y4/iasi_co_metop-b_v2015r.%y4%m2%d2_%h2z.nc
+ 20191212_00z-30000101_00z 240000 /discover/nobackup/bweir/iasi/co/metop-b_v6.5r_chunks/Y%y4/iasi_co_metop-b_v6.5r.%y4%m2%d2_%h2z.nc
+END
+
+# IASI METOP-C CO data
+BEGIN tgas_iasi_co_metop-c_nc => iasi_co_metop-c.%y4%m2%d2_%h2z.nc
+ 10000101_00z-20191211_18z 240000 /discover/nobackup/bweir/iasi/co/metop-c_v2015r_chunks/Y%y4/iasi_co_metop-c_v2015r.%y4%m2%d2_%h2z.nc
+ 20191212_00z-30000101_00z 240000 /discover/nobackup/bweir/iasi/co/metop-c_v6.5r_chunks/Y%y4/iasi_co_metop-c_v6.5r.%y4%m2%d2_%h2z.nc
+END
+
+# IASI METOP-A CH4 data
+BEGIN tgas_iasi_ch4_metop-a_nc => iasi_ch4_metop-a.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/iasi/ch4/metop-a_v9.1r_chunks/Y%y4/iasi_ch4_metop-a_v9.1r.%y4%m2%d2_%h2z.nc
+END
+
+# IASI METOP-B CH4 data
+BEGIN tgas_iasi_ch4_metop-b_nc => iasi_ch4_metop-b.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/iasi/ch4/metop-b_v9.1r_chunks/Y%y4/iasi_ch4_metop-b_v9.1r.%y4%m2%d2_%h2z.nc
+END
+
+# TROPOMI S5P CO data
+BEGIN tgas_tropomi_co_s5p_nc => tropomi_co_s5p.%y4%m2%d2_%h2z.nc
+ 10000101_00z-20190806_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/co/s5p_v1.3f_chunks/Y%y4/tropomi_co_s5p_v1.3f.%y4%m2%d2_%h2z.nc
+ 20190806_00z-20210701_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/co/s5p_v1.4f_chunks/Y%y4/tropomi_co_s5p_v1.4f.%y4%m2%d2_%h2z.nc
+ 20210701_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/co/s5p_v2.2f_chunks/Y%y4/tropomi_co_s5p_v2.2f.%y4%m2%d2_%h2z.nc
+END
+
+# TROPOMI S5P CH4 data
+BEGIN tgas_tropomi_ch4_s5p_nc => tropomi_ch4_s5p.%y4%m2%d2_%h2z.nc
+ 10000101_00z-20190806_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/ch4/s5p_v1.3f_chunks/Y%y4/tropomi_ch4_s5p_v1.3f.%y4%m2%d2_%h2z.nc
+ 20190806_00z-20210701_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/ch4/s5p_v1.4f_chunks/Y%y4/tropomi_ch4_s5p_v1.4f.%y4%m2%d2_%h2z.nc
+ 20210701_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/ch4/s5p_v2.2f_chunks/Y%y4/tropomi_ch4_s5p_v2.2f.%y4%m2%d2_%h2z.nc
+END
+
+# TROPOMI S5P HCHO data
+BEGIN tgas_tropomi_hcho_s5p_nc => tropomi_hcho_s5p.%y4%m2%d2_%h2z.nc
+ 10000101_00z-20190806_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/hcho/s5p_v1.3f_chunks/Y%y4/tropomi_hcho_s5p_v1.3f.%y4%m2%d2_%h2z.nc
+ 20190806_00z-20210701_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/hcho/s5p_v1.4f_chunks/Y%y4/tropomi_hcho_s5p_v1.4f.%y4%m2%d2_%h2z.nc
+ 20210701_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/hcho/s5p_v2.2f_chunks/Y%y4/tropomi_hcho_s5p_v2.2f.%y4%m2%d2_%h2z.nc
+END
+
+# TROPOMI S5P SO2 data
+BEGIN tgas_tropomi_so2_s5p_nc => tropomi_so2_s5p.%y4%m2%d2_%h2z.nc
+ 10000101_00z-20190806_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/so2/s5p_v1.3f_chunks/Y%y4/tropomi_so2_s5p_v1.3f.%y4%m2%d2_%h2z.nc
+ 20190806_00z-20210701_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/so2/s5p_v1.4f_chunks/Y%y4/tropomi_so2_s5p_v1.4f.%y4%m2%d2_%h2z.nc
+ 20210701_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/so2/s5p_v2.2f_chunks/Y%y4/tropomi_so2_s5p_v2.2f.%y4%m2%d2_%h2z.nc
+END
+
+# TROPOMI S5P NO2 data
+BEGIN tgas_tropomi_no2_s5p_nc => tropomi_no2_s5p.%y4%m2%d2_%h2z.nc
+ 10000101_00z-20190806_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/no2/s5p_v1.3f_chunks/Y%y4/tropomi_no2_s5p_v1.3f.%y4%m2%d2_%h2z.nc
+ 20190806_00z-20210701_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/no2/s5p_v1.4f_chunks/Y%y4/tropomi_no2_s5p_v1.4f.%y4%m2%d2_%h2z.nc
+ 20210701_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/tropomi/no2/s5p_v2.2f_chunks/Y%y4/tropomi_no2_s5p_v2.2f.%y4%m2%d2_%h2z.nc
+END
+
+# LEICESTER-GOSAT v9.0r proxy CH4 data
+BEGIN tgas_leic_ch4_gosat_nc => leic_ch4_gosat.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/euroghg/leicester/ch4/gosat_v9.0r_chunks/Y%y4/leic_ch4_gosat_v9.0r.%y4%m2%d2_%h2z.nc
+END
+
+# BESD-SCIAMACHY v02.01.02r CO2 data
+BEGIN tgas_besd_co2_sciam_nc => besd_co2_sciam.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/euroghg/besd/co2/sciam_v02.01.02r_chunks/Y%y4/besd_co2_sciam_v02.01.02r.%y4%m2%d2_%h2z.nc
+END
+
+# ACOS-GOSAT v9r CO2 data
+BEGIN tgas_acos_gosat_nc => acos_gosat.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/acos/gosat_v9r_chunks/Y%y4/acos_v9r_LtCO2_%y4%m2%d2_%h2z.nc4
+END
+
+# OCO-2 v9 CO2 data
+BEGIN tgas_oco2_v9_nc => oco2_v9.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/acos/oco2_v9r_chunks/Y%y4/oco2_v9r_LtCO2_%y4%m2%d2_%h2z.nc4
+END
+
+# OCO-2 v10r CO2 data
+BEGIN tgas_oco2_v10_nc => oco2_v10.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/acos/oco2_v10r_chunks/Y%y4/oco2_v10r_LtCO2_%y4%m2%d2_%h2z.nc4
+END
+
+# OCO-2 v11r CO2 data
+BEGIN tgas_oco2_nc => oco2.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/acos/oco2_v11r_chunks/Y%y4/oco2_v11r_LtCO2_%y4%m2%d2_%h2z.nc4
+END
+
+# OCO-3 v10.4r CO2 data
+BEGIN tgas_oco3_nc => oco3.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/xtralite/data-stable/acos/oco3_v10.4r_chunks/Y%y4/oco3_v10.4r_LtCO2_%y4%m2%d2_%h2z.nc4
+END
+
+# TCCON CO data
+BEGIN tgas_tccon_co_nc => tccon_co.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/tccon/data/tccon_co.latest.converted.nc
+END
+
+# TCCON CO2 data
+BEGIN tgas_tccon_co2_nc => tccon_co2.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/tccon/data/tccon_co2.latest.converted.nc
+END
+
+# TCCON CH4 data
+BEGIN tgas_tccon_ch4_nc => tccon_ch4.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/tccon/data/tccon_ch4.latest.converted.nc
+END
+
+# ObsPack OCO2MIP v2.2 CO2 data
+BEGIN tgas_obspack_oco2mip_nc => obspack_oco2mip.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/noaa/data/archive/obspack_co2_1_OCO2MIP_v2.2_2020-04-12/data/converted/obspack_co2_1_OCO2MIP_v2.2_2020-04-12.%y4%m2%d2.nc
+END
+
+# OMI NO2
+BEGIN tgas_omno2_no2_nc => omno2.%y4%m2%d2.t%h2z.nc
+ 20180101_00z-20210430_18z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/OMNO2_003/nc/Y%y4/M%m2/OMNO2v4.%y4%m2%d2.t%h2z.nc
+END
+
+# OMI SO2
+BEGIN tgas_omso2_so2_nc => omso2.%y4%m2%d2.t%h2z.nc
+ 20180101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/OMSO2/nc/Y%y4/M%m2/OMSO2v2.%y4%m2%d2.t%h2z.nc
+END
+
+# MINDS OMI NO2
+BEGIN omi_minds_no2_nc => omi_minds_no2.%y4%m2%d2.t%h2z.nc
+ 20180101_00z-20210430_18z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/MINDS/OMI_MINDS_NO2_1.1/nc/Y%y4/M%m2/OMI_MINDS_NO2_1.1.%y4%m2%d2.t%h2z.nc
+END
+
+# MINDS TROPOMI NO2
+BEGIN tropmi_minds_no2_nc => tropmi_minds_no2.%y4%m2%d2.t%h2z.nc
+ 20180101_00z-20210430_18z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/MINDS/TROPOMI_MINDS_NO2_1.1/nc/Y%y4/M%m2/TROPOMI_MINDS_NO2_1.1.%y4%m2%d2.t%h2z.nc
+END
+
+# MINDS GOME NO2
+BEGIN gome_minds_no2_nc => gome_minds_no2.%y4%m2%d2.t%h2z.nc
+ 20180101_00z-20210430_18z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/MINDS/GOME_MINDS_NO2_1.1/nc/Y%y4/M%m2/GOME_MINDS_NO2_1.1.%y4%m2%d2.t%h2z.nc
+END
