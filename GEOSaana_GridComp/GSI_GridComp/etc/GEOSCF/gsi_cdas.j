@@ -194,6 +194,7 @@ while ( ! -f $geos_done )
    sed -e "s?@ACQOBS_O?codas_acqobs2.log.o%j?; s?@FVROOT?$FVROOT?" $EXPDIR/analyze/codas_acqobs.j >! $fname
    echo "acquire_obsys -v -d $SPLDIR -s $SPLDIR -ssh -e 999 ${nymdt} ${nhmst} 060000 4 $OBSCLASS" >> $fname
    chmod 755 $fname
+   sbatch ./$fname
  
 #   set NX_GSI = `grep NX: GSI_GridComp.rc | cut -d':' -f2`
 #   set NY_GSI = `grep NY: GSI_GridComp.rc | cut -d':' -f2`
