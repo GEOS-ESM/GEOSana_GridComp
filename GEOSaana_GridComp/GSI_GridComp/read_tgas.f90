@@ -124,7 +124,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 !===============================================================================
 ! DOAS style NO2/SO2 obs?
   isdoas = (obstype == 'omno2'  .or. obstype == 'omso2'  .or.                  &
-            obstype == 'mindsno2' )
+            obstype == 'mindsno2' .or. obstype == 'nmso2' )
 
 ! Check if this is an averaging-kernel obs type
   useak = (obstype == 'tgav'   .or. obstype == 'tgaz'   .or.                   &
@@ -524,13 +524,15 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
      call check(nf90_inq_varid(id_fin, 'CloudRadianceFraction',         id_cldfrc))
      ! should change to:
      !call check(nf90_inq_varid(id_fin, 'CloudFraction',                 id_cldfrc))
-     if ( obstype == 'omso2' ) then
+     if ( obstype == 'omso2' .or. obstype=='nmso2' ) then
         call check(nf90_inq_varid(id_fin, 'SlantColumnAmountSO2',          id_obs))
         call check(nf90_inq_varid(id_fin, 'AlgorithmFlag_SnowIce',         id_unc))
         call check(nf90_inq_varid(id_fin, 'LayerBottomPressure',           id_scwp))
         call check(nf90_inq_varid(id_fin, 'SurfaceReflectivity',           id_albd))
-        call check(nf90_inq_varid(id_fin, 'Flag_RowAnomaly',               id_bad))
         call check(nf90_inq_varid(id_fin, 'Flag_SAA',                      id_tropp))
+        ! Flag_RowAnomaly is not defined for OMPS
+        istat = nf90_inq_varid(id_fin, 'Flag_RowAnomaly', id_bad)
+        if (istat /= nf90_noerr) id_bad = -1 
      else
         if ( obstype == 'omno2' ) then
            call check(nf90_inq_varid(id_fin, 'SlantColumnAmountNO2Destriped', id_obs))
@@ -568,8 +570,10 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
      call check(nf90_get_var(id_fin, id_sza,    szas1))
      call check(nf90_get_var(id_fin, id_albd,   albds1))
      call check(nf90_get_var(id_fin, id_cldfrc, cldfrcs1))
-     call check(nf90_get_var(id_fin, id_bad,    qflags1))
      call check(nf90_get_var(id_fin, id_tropp,  tropp))
+     if ( id_bad > 0 ) then
+        call check(nf90_get_var(id_fin, id_bad,    qflags1))
+     endif
      if ( id_qav > 0 ) then 
         call check(nf90_get_var(id_fin, id_qav,  qav1))
      endif
@@ -597,7 +601,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
      peavgs(1,:) = 1200_r_kind
      ! SO2: bottom layer pressure. OMI SO2 vertical axis is GEOS-style, i.e., index 1 is top of 
      ! atmosphere
-     if ( obstype == 'omso2' ) then
+     if ( obstype == 'omso2' .or. obstype=='nmso2' ) then
         do k = 2,navg
            peavgs(k,:) = scwtpress(navg-k+1)
         end do
@@ -717,13 +721,19 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
            lskip = .false.
            if ( rows(n)<5. .or. rows(n)>55. ) lskip = .true.  ! rows 5-55 (1-based)
            if ( uncerts1(n) /= 0.0          ) lskip = .true.  ! non-zero SnowIce flag
-           if ( qflags1(n)  /= 0.0          ) lskip = .true.  ! RowAnommaly flag
+           if ( qflags1(n)  /= 0.0          ) lskip = .true.  ! RowAnomaly flag
            if ( tropp(n)    /= 0.0          ) lskip = .true.  ! SAA flag
            if ( szas1(n)    > tgas_szamax(2)) lskip = .true.  ! SZA > value set in GSI_GridComp.rc 
            if ( albds1(n)   > tgas_albmax(2)) lskip = .true.  ! Surface reflectivity > 0.3
            if ( cldfrcs1(n) > tgas_cldmax(2)) lskip = .true.  ! Cloud radiance fraction > 0.3  
-           !if ( albds1(n)   > 0.3           ) lskip = .true.  ! Surface reflectivity > 0.3
-           !if ( cldfrcs1(n) > 0.3           ) lskip = .true.  ! Cloud radiance fraction > 0.3  
+        elseif ( obstype == 'nmso2' ) then
+           lskip = .false.
+           if ( rows(n)<2. .or. rows(n)>33. ) lskip = .true.
+           !if ( uncerts1(n) /= 0.0          ) lskip = .true.  ! non-zero SnowIce flag
+           if ( tropp(n)    /= 0.0          ) lskip = .true.  ! SAA flag
+           if ( szas1(n)    > tgas_szamax(2)) lskip = .true.  ! SZA > value set in GSI_GridComp.rc 
+           if ( albds1(n)   > tgas_albmax(2)) lskip = .true.  ! Surface reflectivity > 0.3
+           if ( cldfrcs1(n) > tgas_cldmax(2)) lskip = .true.  ! Cloud radiance fraction > 0.3  
         else
            ! - VcdQualityFlag is an even integer 
            ! - sza < 80
@@ -762,7 +772,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 
         ! Convert obs to 1e15 molec cm-2
         obses(1,n)      = obses1(n) / 1.0e15
-        if ( obstype == 'omso2' ) then
+        if ( obstype == 'omso2' .or. obstype=='nmso2' ) then
            ! flip averaging kernel to make sure that surface is index 1
            avgkers(1,:,n)  = avgkers1(navg:1:-1,n)
         else
@@ -773,7 +783,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
         priorpros(:,n) = -99.0
 
         ! Uncertainties
-        if ( obstype == 'omso2' ) then
+        if ( obstype == 'omso2' .or. obstype=='nmso2' ) then
            ! The OMI SO2 readme document reports SCD uncertainties of ~0.2 DU
            ! if SZA < 50deg, and 0.3-0.4 DU for SZAs 50-70degrees. Translate to 1.0e15 molec/cm2 here.
            if ( szas1(n) < 50.0 ) then

@@ -909,7 +909,7 @@ subroutine read_obs(ndata,mype)
                 obstype == 'tgav'   .or. obstype == 'tgaz'    .or. &
                 obstype == 'tgop'   .or. obstype == 'acos'    .or. &
                 obstype == 'omno2'  .or. obstype == 'omso2'   .or. & 
-                obstype == 'mindsno2' ) then
+                obstype == 'mindsno2' .or. obstype == 'nmso2' ) then
           ditype(i) = 'tgas'
        else if (obstype == 'mlstgas') then
           ditype(i) = 'mlstgas'

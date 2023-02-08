@@ -203,7 +203,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
 
 ! Check if this is an averaging-kernel obs type
   isdoas = ( trim(obstype) == 'omno2' .or. trim(obstype) == 'mindsno2' .or. &
-             trim(obstype) == 'omso2' )
+             trim(obstype) == 'omso2' .or. trim(obstype) == 'nmso2' )
   useak  = ( trim(obstype) == 'tgav'  .or. trim(obstype) == 'tgaz'     .or. &
              trim(obstype) == 'acos'  .or. isdoas )  
 
@@ -537,7 +537,7 @@ if (in_curbin) then
 
            ! get background (= a-priori) NO2/SO2 on model levels
            priortgas(:) = 0.0
-           if ( obstype=='omso2' ) then
+           if ( obstype=='omso2' .or. obstype=='nmso2' ) then
               call tintrp2a1(so2_priorc, priortgas, grdlat, grdlon, grdtime, hrdifsig, &
                              nsig, mype, nfldsig)
            else 
@@ -738,7 +738,7 @@ if (in_curbin) then
            ! get obs uncertainty 
            uncert(k) = obs * ( uncert(k) / scd_tot )
 
-           if ( trim(obstype) == 'omso2' ) then
+           if ( trim(obstype) == 'omso2' .or. trim(obstype)=='nmso2' ) then
               minsigobs  = tgas_minsigobs(2)
               maxsigobs  = tgas_maxsigobs(2)
               sigobsscal = tgas_sigobsscal(2)

@@ -362,6 +362,7 @@ function dtype2index_(dtype) result(index_)
     case("acos"     ); index_= iobOper_tgas
     case("mlstgas"  ); index_= iobOper_tgas
     case("omso2"    ); index_= iobOper_tgas
+    case("nmso2"    ); index_= iobOper_tgas
     case("omno2"    ); index_= iobOper_tgas
     case("mindsno2" ); index_= iobOper_tgas
 
