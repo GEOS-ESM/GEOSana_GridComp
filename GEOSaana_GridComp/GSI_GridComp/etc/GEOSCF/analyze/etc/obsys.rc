@@ -42,9 +42,10 @@ END
 # AURA MLS near real time (In MERRA-2 this is just MLS oz data in netCDF format, NOT genuine NRT data)
 # (Krys still needs to generate April and May 2015)
 BEGIN mls_nrt_nc => mlsnc.%y4%m2%d2_%h2z.nc
- 10000101_18z-20150331_18z 240000 dirac:/archive/u/kwargan/data/MLSv4.2/NETCDF/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
- 20150601_00z-30000101_18z 240000 dirac:/archive/input/dao_ops/obs/reanalysis/mls/oz_v4/netcdf/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
+#10000101_18z-20150331_18z 240000 dirac:/archive/u/kwargan/data/MLSv4.2/NETCDF/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
+#20150601_00z-30000101_18z 240000 dirac:/archive/input/dao_ops/obs/reanalysis/mls/oz_v4/netcdf/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
 #10001011_18z-30000101_18z 240000 dirac:/archive/input/gmao_ops/ops/reanalysis/mls/oz_v4/netcdf/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
+ 10001011_18z-30000101_18z 240000 dirac:/archive/u/kwargan/data/MLSv5/O3/Y%y4/M%m2/MLS-v5.0-oz.%y4%m2%d2_%h2z.nc
 END
 
 ###################################################################################################
