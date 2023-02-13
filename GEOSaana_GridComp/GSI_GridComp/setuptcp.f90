@@ -107,6 +107,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
   logical proceed
 
   real(r_kind) err_input,err_adjst,err_final,errinv_input,errinv_adjst,errinv_final
+  real(r_kind) error_input,error_adjst
   real(r_kind) scale,ratio,obserror,obserrlm
   real(r_kind) residual,ress,ressw2,val,val2
   real(r_kind) valqc,tges,tges2
@@ -207,6 +208,8 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
      dtime=data(itime,i)
      call dtime_check(dtime, in_curbin, in_anybin)
      if(.not.in_anybin) cycle
+     error_adjst = data(ier,i)
+     error_input = data(ier,i)
 
      if(in_curbin) then
         dlat=data(ilat,i)
@@ -684,6 +687,9 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
            call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)     )
            call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
            call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
+!          the original Error_Input and Error_Adjust saved during the reading procedure 
+           call nc_diag_metadata("Error_Input",             sngl(error_input*r10)  )  ! mb
+           call nc_diag_metadata("Error_Adjust",            sngl(error_adjst*r10)  )  ! mb
 
            call nc_diag_metadata("Observation",                   sngl(pob)        )
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(pob-pges)   )

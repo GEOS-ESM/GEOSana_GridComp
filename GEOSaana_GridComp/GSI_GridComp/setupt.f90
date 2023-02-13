@@ -247,6 +247,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind) residual,ressw2,scale,ress,ratio_errors,tob,ddiff
   real(r_kind) val,valqc,dlon,dlat,dtime,dpres,error,prest,rwgt,var_jb
   real(r_kind) errinv_input,errinv_adjst,errinv_final
+  real(r_kind) error_input,error_adjst
   real(r_kind) err_input,err_adjst,err_final,tfact
   real(r_kind) cg_t,wgross,wnotgross,wgt,arg,exp_arg,term,rat_err2,qcgross
   real(r_kind),dimension(nobs)::dup
@@ -461,6 +462,9 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      dtime=data(itime,i)
      call dtime_check(dtime, in_curbin, in_anybin)
      if(.not.in_anybin) cycle
+!    error_adjst & error_input saved during "read_prepbufr.f90"
+     error_adjst = data(ier,i)
+     error_input = data(ier2,i)
 
      ikx=nint(data(ikxx,i))
      itype=ictype(ikx)
@@ -1668,6 +1672,10 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
     call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)     )
     call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
     call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
+!   the original Error_Input and Error_Adjust saved during the reading procedure 
+    call nc_diag_metadata("Error_Input",             sngl(error_input)      )
+    call nc_diag_metadata("Error_Adjust",            sngl(error_adjst)      )
+
     call nc_diag_metadata("Observation",             sngl(data(itob,i))     )
     call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(ddiff)      )
     call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(tob-tges)   )
@@ -1779,6 +1787,9 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
     call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)     )
     call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
     call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
+!   the original Error_Input and Error_Adjust saved during the reading procedure 
+    call nc_diag_metadata("Error_Input",             sngl(error_input)      )
+    call nc_diag_metadata("Error_Adjust",            sngl(error_adjst)      )
     call nc_diag_metadata("Observation",             sngl(data(itob,i))     )
     call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(ddiff)      )
     call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(ddiff)      )

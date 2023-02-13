@@ -122,6 +122,7 @@ subroutine setupcldch(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_dia
   real(r_kind) cg_cldch,wgross,wnotgross,wgt,arg,exp_arg,rat_err2
   real(r_kind) ratio_errors,tfact
   real(r_kind) errinv_input,errinv_adjst,errinv_final
+  real(r_kind) error_input,error_adjst
   real(r_kind) err_input,err_adjst,err_final
   real(r_kind),dimension(nobs):: dup
   real(r_kind),dimension(nele,nobs):: data
@@ -253,6 +254,9 @@ subroutine setupcldch(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_dia
     dtime=data(itime,i)
     call dtime_check(dtime, in_curbin, in_anybin)
     if(.not.in_anybin) cycle
+!   error_adjst & error_input saved during "read_prepbufr.f90"
+    error_adjst = data(ier,i)
+    error_input = data(ier,i)
 
     if(in_curbin) then
        dlat=data(ilat,i)
@@ -708,6 +712,9 @@ subroutine setupcldch(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_dia
            call nc_diag_metadata("Errinv_Input",            errinv_input           )
            call nc_diag_metadata("Errinv_Adjust",           errinv_adjst           )
            call nc_diag_metadata("Errinv_Final",            errinv_final           )
+!          the original Error_Input and Error_Adjust saved during the reading procedure 
+           call nc_diag_metadata("Error_Input",             error_input            )
+           call nc_diag_metadata("Error_Adjust",            error_adjst            )
 
            call nc_diag_metadata("Observation",                   data(icldch,i)   )
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   ddiff            )

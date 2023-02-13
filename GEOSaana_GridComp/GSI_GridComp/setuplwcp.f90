@@ -119,6 +119,7 @@ subroutine setuplwcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
   real(r_kind) rat_err2,exp_arg,term,ratio_errors,rwgt
   real(r_kind) cg_lwcp,wgross,wnotgross,wgt,arg
   real(r_kind) errinv_input,errinv_adjst,errinv_final
+  real(r_kind) error_input,error_adjst
   real(r_kind) err_input,err_adjst,err_final,tfact
   real(r_kind),dimension(nobs)::dup
   real(r_kind),dimension(nele,nobs):: data
@@ -317,6 +318,9 @@ subroutine setuplwcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
      dtime=data(itime,i)
      call dtime_check(dtime, in_curbin, in_anybin)
      if(.not.in_anybin) cycle
+!    error_adjst & error_input saved during "read_prepbufr.f90"
+     error_adjst = data(ier,i)
+     error_input = data(ier2,i)
 
      if(in_curbin) then
         dlat=data(ilat,i)
@@ -870,6 +874,10 @@ subroutine setuplwcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
     call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)     )
     call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
     call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
+!   the original Error_Input and Error_Adjust saved during the reading procedure 
+    call nc_diag_metadata("Error_Input",             sngl(error_input)      )
+    call nc_diag_metadata("Error_Adjust",            sngl(error_adjst)      )
+
     call nc_diag_metadata("Observation",             sngl(dlwcp)            )
     call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(ddiff)      )
     call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(dlwcp-lwcpges))
