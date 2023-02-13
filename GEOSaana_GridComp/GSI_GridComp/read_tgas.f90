@@ -195,7 +195,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
   else if ( isdoas ) then
 
      ! make thinning grids
-     call makegrids(rmesh,ithin)
+     if ( ithin>0 ) call makegrids(rmesh,ithin)
 
      call check(nf90_open(infile, nf90_nowrite, id_fin))
      call check(nf90_inq_dimid(id_fin, 'nrec', id_nsound))
@@ -251,7 +251,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 
 ! Allocate output array
   ntgasdat = nreal + nchanl
-  if ( isdoas ) then
+  if ( isdoas .and. ithin>0 ) then
      allocate(tgasout(ntgasdat,itxmax))
   else
      allocate(tgasout(ntgasdat,maxobs))
@@ -756,18 +756,20 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
         endif
         if (lskip) cycle
 
-        ! thin data
-        if (l4dvar .or. l4densvar) then
-           timedif = zero
-        else
-           sstime=real(nmind,r_kind)
-           tdiff=(sstime-gstime)*r60inv
-           timedif = r6*abs(tdiff)
+        ! eventually thin data
+        iuse = .true.
+        if ( ithin > 0 ) then
+           if (l4dvar .or. l4densvar) then
+              timedif = zero
+           else
+              sstime=real(nmind,r_kind)
+              tdiff=(sstime-gstime)*r60inv
+              timedif = r6*abs(tdiff)
+           endif
+           crit1 = 0.01_r_kind+timedif
+           call map2tgrid(radlat,radlon,dist1,crit1,itx,ithin,itt,iuse,sis)
+           if ( iuse ) call finalcheck(dist1,crit1,itx,iuse)
         endif
-        crit1 = 0.01_r_kind+timedif
-        call map2tgrid(radlat,radlon,dist1,crit1,itx,ithin,itt,iuse,sis)
-        if ( .not. iuse ) cycle
-        call finalcheck(dist1,crit1,itx,iuse)
         if ( .not. iuse ) cycle
 
         ! Convert obs to 1e15 molec cm-2
@@ -804,7 +806,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 
      ! index in tgasout to write into
      iidx = npuse
-     if ( isdoas ) iidx = itx
+     if ( isdoas .and. ithin>0 ) iidx = itx
 
      tgasout(1,iidx) = n
      tgasout(2,iidx) = grdtime
@@ -889,7 +891,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
   nouse = npuse  * nchanl
 
 ! If thinning, compress array to thinned data
-  if (isdoas) then
+  if (isdoas .and. ithin>0) then
      kk=0
      do k=1,itxmax
         if (tgasout(1,k)>zero) then
@@ -931,7 +933,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
                                     priorobses1, obses1)
   if ( isdoas ) then 
      deallocate(szas1,cldfrcs1,qflags1,albds1,scwtpress,rows,tropp,vcds,amfs,qav1)
-     call destroygrids
+     if( ithin>0 ) call destroygrids
   endif
 
   return
