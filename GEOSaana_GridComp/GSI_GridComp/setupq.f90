@@ -162,6 +162,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use gsi_metguess_mod, only : gsi_metguess_get,gsi_metguess_bundle
   use sparsearr, only: sparr2, new, size, writearray, fullarray
   use state_vectors, only: svars3d, levels, nsdim
+  use convinfo, only: id_drifter, subtype_drifter
 
   implicit none
 
@@ -1284,8 +1285,13 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
            call nc_diag_metadata("Station_ID",              station_id             )
            call nc_diag_metadata("Observation_Class",       obsclass               )
-           call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
-           call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
+           if ((int(ictype(ikx)) == 199 .or. int(ictype(ikx)) == 299) .and. id_drifter ) then
+              call nc_diag_metadata("Observation_Type",        ictype(ikx)-19         )
+              call nc_diag_metadata("Observation_Subtype",     subtype_drifter        )
+           else
+              call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
+              call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
+           endif
            call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
            call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
            call nc_diag_metadata("Station_Elevation",       sngl(data(istnelv,i))  )
@@ -1371,10 +1377,13 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
            call nc_diag_metadata("Station_ID",              station_id             )
            call nc_diag_metadata("Observation_Class",       obsclass               )
-           call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
-           call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
-           call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
-           call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
+           if ((int(ictype(ikx)) == 199 .or. int(ictype(ikx)) == 299) .and. id_drifter ) then
+              call nc_diag_metadata("Observation_Type",        ictype(ikx)-19         )
+              call nc_diag_metadata("Observation_Subtype",     subtype_drifter        )
+           else
+              call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
+              call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
+           endif
            call nc_diag_metadata("Station_Elevation",       sngl(data(istnelv,i))  )
            call nc_diag_metadata("Pressure",                sngl(presq*r100)       )
            call nc_diag_metadata("Height",                  sngl(data(iobshgt,i))  )
