@@ -108,6 +108,8 @@ subroutine setupbend(obsLL,odiagLL, &
 !   2021-07-29  cucurull - remove Jacobian QC
 !   2021-07-29  cucurull - revert gross error check to default values
 !   2021-07-29  cucurull - fix forward operator issues identified with L127 
+!   2021-11-16  j.jin    - fix the bug to derive and save the "interface level geopotential height, hgti",
+!                          and the "mid level log(pressure), prslnl"
 !
 !   input argument list:
 !     lunin    - unit from which to read observations
@@ -242,6 +244,7 @@ subroutine setupbend(obsLL,odiagLL, &
 
   real(r_kind),dimension(3,nsig+nsig_ext) :: q_w,q_w_tl
   real(r_kind),dimension(nsig) :: hges,irefges,zges,dhdt,dhdp
+  real(r_kind),dimension(nsig+1) :: hgesi
   real(r_kind),dimension(nsig+1) :: prsltmp
   real(r_kind),dimension(nsig)   :: prsltmpl
   real(r_kind),dimension(nsig)   :: prstmpl
@@ -461,29 +464,30 @@ subroutine setupbend(obsLL,odiagLL, &
           nsig,mype,nfldsig)
      call tintrp2a1(ges_q,qges,dlat,dlon,dtime,hrdifsig,&
           nsig,mype,nfldsig)
+     call tintrp2a1(geop_hgti,hgesi,dlat,dlon,dtime,hrdifsig,&
+          nsig+1,mype,nfldsig)
+     call tintrp2a1(geop_hgtl,hges,dlat,dlon,dtime,hrdifsig,&
+          nsig,mype,nfldsig)
      call tintrp2a11(ges_z,zsges,dlat,dlon,dtime,hrdifsig,&
           mype,nfldsig)
  !    Interpolate mid-level log(pres),mid-level geopotential height,
  !    and air temperature for JEDI
-      call tintrp2a1(ges_tsen,  Tsen(1:nsig,i),  dlat,dlon,dtime,hrdifsig, &
-                     nsig, mype,nfldsig)
+     call tintrp2a1(ges_tsen,  Tsen(1:nsig,i),  dlat,dlon,dtime,hrdifsig, &
+          nsig, mype,nfldsig)
+     call tintrp2a1(ges_lnprsl,prstmpl(1:nsig),dlat,dlon,dtime,hrdifsig,&
+          nsig, mype,nfldsig)
      if (lgpsbnd_revint) then
-        call tintrp2a1(geop_hgtl,hges,dlat,dlon,dtime,hrdifsig,&
-            nsig,mype,nfldsig)
-        call tintrp2a1(ges_lnprsl,prstmpl(1:nsig),dlat,dlon,dtime,hrdifsig,&
-             nsig, mype,nfldsig)
         prsltmp_o(1:nsig,i)=prstmpl(1:nsig) ! needed in minimization
      else
-        call tintrp2a1(geop_hgti,hges,dlat,dlon,dtime,hrdifsig,&
-             nsig+1,mype,nfldsig)
         prsltmp_o(1:nsig,i)=prsltmp(1:nsig) ! needed in minimization
      endif
 
       Tvir(1:nsig,i)      = tges(1:nsig)            ! virtual temperature
       sphm(1:nsig,i)      = qges(1:nsig)            ! specific humidity
-      hgtl(1:nsig,i)      = hgtl(1:nsig,i) + zsges  ! mid level geopotential height
-      hgti(1:nsig+1,i)    = hges(1:nsig+1) + zsges  ! interface level geopotential height
+      hgtl(1:nsig,i)      = hges(1:nsig) + zsges    ! mid level geopotential height
+      hgti(1:nsig+1,i)    = hgesi(1:nsig+1) + zsges  ! interface level geopotential height
       prslni(1:nsig+1,i)  = prsltmp(1:nsig+1)       ! interface level log(pressure)
+      prslnl(1:nsig,i)    = prstmpl(1:nsig)         !  mid level log(pressure)
 
 ! Compute refractivity index-radius product at interface
 !
