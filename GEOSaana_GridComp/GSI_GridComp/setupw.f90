@@ -248,7 +248,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind),dimension(nele,nobs):: data
   real(r_kind),dimension(nobs):: dup
   real(r_kind),dimension(nsig+1)::prsitmp
-  real(r_kind),dimension(nsig)::prsltmp,tges,zges,qges,zges2
+  real(r_kind),dimension(nsig)::prsltmp,tges,zges,qges
   real(r_kind),dimension(nsig)::tsentmp,zges_read,uges,vges,prsltmp2
   real(r_kind) wdirob,wdirgesin,wdirdiffmax
   real(r_kind),dimension(34)::ptabluv
@@ -600,10 +600,6 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !       at observation location.
         call tintrp2a1(geop_hgtl,zges,dlat,dlon,dtime,hrdifsig,&
              nsig,mype,nfldsig)
-
-!       Keep the original geopotential height field in zges2 because we need to
-!       write out full column.
-        zges2 = zges
 
 !       For observation reported with geometric height above sea level,
 !       convert geopotential to geometric height.
@@ -1879,7 +1875,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp2*r1000))
               call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
               call nc_diag_data2d("virtual_temperature", sngl(tges))
-              call nc_diag_data2d("geopotential_height", sngl(zges2+zsges))
+              call nc_diag_data2d("geopotential_height", sngl(zges_read))
               call nc_diag_data2d("eastward_wind", sngl(uges))
               call nc_diag_data2d("northward_wind", sngl(vges))
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
