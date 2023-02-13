@@ -77,6 +77,7 @@ module convinfo
   public :: use_prepb_satwnd
   public :: index_sub
   public :: id_drifter
+  public :: subtype_drifter
   public :: id_ship
   public :: ec_amv_qc
 
@@ -91,6 +92,7 @@ module convinfo
            rmesh_conv,pmesh_conv,pmot_conv,ptime_conv
   integer(i_kind),allocatable,dimension(:):: ncmiter,ncgroup,ncnumgrp,icuse,ictype,icsubtype,&
            ithin_conv,index_sub
+  integer(i_kind) subtype_drifter
   character(len=16),allocatable,dimension(:)::ioctype
 
   logical,save :: convinfo_initialized=.false.
@@ -128,6 +130,9 @@ contains
     mype_conv = 0         ! mpi task to collect and print conv obs use information 
     use_prepb_satwnd=.false.  ! allow use of satwind stored in prepbufr file
     id_drifter=.false.        ! modify KX of drifting buoys
+    subtype_drifter=3         ! A assigned subtype for drifting buoys in some nc_diag files 
+                              ! after their obstypes are re-assigned to 180 or 280 from 199 or 299
+                              ! when id_drifter = true.
     id_ship=.false.           ! modify KX of ships
     ec_amv_qc=.true.
 
