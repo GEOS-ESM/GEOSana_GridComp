@@ -71,6 +71,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use gsi_bundlemod, only : gsi_bundlegetpointer
   use gsi_metguess_mod, only : gsi_metguess_get,gsi_metguess_bundle
   use sparsearr, only: sparr2, new, size, writearray, fullarray
+  use convinfo, only: id_drifter, subtype_drifter
 
   implicit none
   
@@ -599,6 +600,10 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !       at observation location.
         call tintrp2a1(geop_hgtl,zges,dlat,dlon,dtime,hrdifsig,&
              nsig,mype,nfldsig)
+
+!       Keep the original geopotential height field in zges2 because we need to
+!       write out full column.
+        zges2 = zges
 
 !       For observation reported with geometric height above sea level,
 !       convert geopotential to geometric height.
@@ -1748,8 +1753,13 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
            call nc_diag_metadata("Station_ID",              station_id             )
            call nc_diag_metadata("Observation_Class",       obsclass               )
-           call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
-           call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
+           if ((int(ictype(ikx)) == 199 .or. int(ictype(ikx)) == 299) .and. id_drifter ) then
+              call nc_diag_metadata("Observation_Type",        ictype(ikx)-19         )
+              call nc_diag_metadata("Observation_Subtype",     subtype_drifter        )
+           else
+              call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
+              call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
+           endif
            call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
            call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
            call nc_diag_metadata("Station_Elevation",       sngl(data(ielev,i))    )
@@ -1875,10 +1885,11 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
               call nc_diag_data2d("specific_humidity", sngl(qges))
            endif
+           call nc_diag_metadata("Dominant_Sfc_Type", sngl(data(idomsfc,i))           )
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
            call nc_diag_metadata("surface_skin_temperature", sngl(skint))
            call nc_diag_metadata("landmask", sngl(landfrac))
-
+           call nc_diag_metadata("tropopause_pressure",   sngl(trop5*100)  )  ! Pa  (hPa*100)
 
   end subroutine contents_netcdf_diag_
 
