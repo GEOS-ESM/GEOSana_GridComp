@@ -1047,7 +1047,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
               !call nc_diag_metadata("surface_height", sngl())
               !call nc_diag_metadata("2m_temperature", sngl(tgges))
               !call nc_diag_metadata("2m_specific_humidity", sngl())
-              call nc_diag_data2d("geopotential_height", sngl(zsges+zges))
+              call nc_diag_data2d("geopotential_height", sngl(zges))
               call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp2*r1000))
               call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
               call nc_diag_data2d("virtual_temperature", sngl(tvgestmp))
