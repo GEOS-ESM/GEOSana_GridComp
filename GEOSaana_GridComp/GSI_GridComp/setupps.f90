@@ -169,6 +169,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   real(r_kind) tges,tges2,drbx,pob,pges,psges,psges2,dlat,dlon,dtime,var_jb
   real(r_kind) rdelz,rdp,halfpi,obserror,obserrlm,drdp,residual,ratio
   real(r_kind) errinv_input,errinv_adjst,errinv_final
+  real(r_kind) error_input,error_adjst
   real(r_kind) err_input,err_adjst,err_final,tfact
   real(r_kind) zsges,pgesorig,rwgt, factw, sfcr, landfrac
   real(r_kind) r0_005,r0_2,r2_5,tmin,tmax,half_tlapse
@@ -331,6 +332,9 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
      dtime=data(itime,i)
      call dtime_check(dtime, in_curbin, in_anybin)
      if(.not.in_anybin) cycle
+!    error_adjst & error_input saved during "read_prepbufr.f90"
+     error_adjst = data(ier,i)
+     error_input = data(ier2,i)
 
      if(in_curbin) then
         ikx=nint(data(ikxx,i))
@@ -1001,6 +1005,8 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
            call nc_diag_metadata("Errinv_Input",            sngl(errinv_input/r100)     )
            call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst/r100)     )
            call nc_diag_metadata("Errinv_Final",            sngl(errinv_final/r100)     )
+           call nc_diag_metadata("Error_Input",             sngl(error_input*r1000)     )  ! Pa
+           call nc_diag_metadata("Error_Adjust",            sngl(error_adjst*r1000)     )  ! Pa
 
            call nc_diag_metadata("Observation",                   sngl(pob*r100)        )
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl((pob-pges)*r100)   )
@@ -1047,7 +1053,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
               !call nc_diag_metadata("surface_height", sngl())
               !call nc_diag_metadata("2m_temperature", sngl(tgges))
               !call nc_diag_metadata("2m_specific_humidity", sngl())
-              call nc_diag_data2d("geopotential_height", sngl(zsges+zges))
+              call nc_diag_data2d("geopotential_height", sngl(zges))
               call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp2*r1000))
               call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
               call nc_diag_data2d("virtual_temperature", sngl(tvgestmp))

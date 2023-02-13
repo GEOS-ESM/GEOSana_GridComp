@@ -145,6 +145,7 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
   real(r_kind) qrgesin1,qsgesin1,qggesin1, qligesin1
   real(r_kind) rdBZ,presw,dbznoise
   real(r_kind) errinv_input,errinv_adjst,errinv_final
+  real(r_kind) error_input,error_adjst
   real(r_kind) err_input,err_adjst,err_final
   real(r_kind),dimension(nele,nobs):: data
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
@@ -264,6 +265,9 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
        print *, dlat,dlon,dpres
        print *, data(ilate,i),data(ilone,i)
      endif
+!    error_adjst & error_input saved during "read_prepbufr.f90"
+     error_adjst = data(ier,i)
+     error_input = data(ier2,i)
 
 
 !    Link observation to appropriate observation bin
@@ -970,6 +974,9 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
            call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)  )
            call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)  )
            call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)  )
+!          the original Error_Input and Error_Adjust saved during the reading procedure 
+           call nc_diag_metadata("Error_Input",             sngl(error_input)      )
+           call nc_diag_metadata("Error_Adjust",            sngl(error_adjst)      )
 
            call nc_diag_metadata("Observation",             sngl(data(idbzob,i)) )
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(ddiff)   )
