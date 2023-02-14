@@ -253,6 +253,11 @@ BEGIN tgas_omso2_so2_nc => omso2.%y4%m2%d2.t%h2z.nc
  20180101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/OMSO2/nc/Y%y4/M%m2/OMSO2v2.%y4%m2%d2.t%h2z.nc
 END
 
+# OMPS SO2
+BEGIN tgas_nmso2_nc => ompsso2.%y4%m2%d2.t%h2z.nc
+ 20180101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/OMPS_NPP_NMSO2/nc/Y%y4/M%m2/OMPS_NPP_NMSO2.%y4%m2%d2.t%h2z.nc
+END
+
 # MINDS OMI NO2
 BEGIN omi_minds_no2_nc => omi_minds_no2.%y4%m2%d2.t%h2z.nc
  20180101_00z-20210430_18z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/MINDS/OMI_MINDS_NO2_1.1/nc/Y%y4/M%m2/OMI_MINDS_NO2_1.1.%y4%m2%d2.t%h2z.nc

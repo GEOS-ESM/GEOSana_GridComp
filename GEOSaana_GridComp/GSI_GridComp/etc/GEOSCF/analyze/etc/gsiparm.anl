@@ -129,6 +129,7 @@ OBS_INPUT::
 !  sage2sh2onc    tgez        erbs        sage2s_h2o            1.0     0      0        tgas_sage2s_h2o_nc
 !  sage2so3nc     tgez        erbs        sage2s_o3             1.0     0      0        tgas_sage2s_o3_nc
 !   omso2nc        omso2       aura        omso2_aura            1.0     8      0        tgas_omso2_so2_nc
+!   nmso2nc        nmso2       npp         nmso2_npp             1.0     8      0        tgas_nmso2_nc
 !   omno2nc        omno2       aura        omno2_aura            1.0     8      0        tgas_omno2_no2_nc
    omimndno2nc    mindsno2    aura        omi_minds_no2         1.0     8      0        omi_minds_no2_nc
 !   trpmndno2nc    mindsno2    s5p         tropmi_minds_no2      1.0     8      0        tropmi_minds_no2_nc
