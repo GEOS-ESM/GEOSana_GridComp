@@ -206,8 +206,6 @@ sub lndiag_files {
 
   $echorc_x = "$FVROOT/bin/echorc.x";
   if ($thisrc) {
-#    $gsidiags_rc = chomp($thisrc);
-#    bweir: above was broken
      $gsidiags_rc = $thisrc;
   } else {
      $gsidiags_rc = "$FVROOT/etc/gsidiags.rc";

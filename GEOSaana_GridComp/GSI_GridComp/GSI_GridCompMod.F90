@@ -1908,6 +1908,34 @@ _ENTRY_(trim(Iam))
    endif
 
    end subroutine Scale_Import_ 
+
+   subroutine Scale_TGAS_Import_(it)
+   integer, intent(in) :: it
+ 
+   character(len=*), parameter :: myname_ = myname//'*Scale_TGAS_Import_'
+   character(len=ESMF_MAXSTR) :: cvar
+   integer ii, ipnt, ico24crtm, istatus
+
+   call gsi_chemguess_get ( 'i4crtm::co2', ico24crtm, ier )
+   if (ico24crtm<0) return 
+   do ii = 1,size(tgases_gsi)
+      cvar = trim(tgases_gsi(ii)) 
+      call GSI_BundleGetPointer ( GSI_chemguess_bundle(it), cvar, ipnt, istatus ) 
+      if (istatus==0) then
+         select case (cvar)
+           case('co2')
+             where ( GSI_chemguess_bundle(it)%r3(ipnt)%q /= MAPL_UNDEF )
+                     GSI_chemguess_bundle(it)%r3(ipnt)%q = GSI_chemguess_bundle(it)%r3(ipnt)%q * KGpKG2ppmvCO2  ! convert carbon dioxide to ppmv
+             endwhere
+           case('co')
+             where ( GSI_chemguess_bundle(it)%r3(ipnt)%q /= MAPL_UNDEF )
+                     GSI_chemguess_bundle(it)%r3(ipnt)%q = log10(GSI_chemguess_bundle(it)%r3(ipnt)%q * KGpKG2PPBV)  ! convert carbon monoxide unit (need gen. way of handling chemistry)
+             endwhere
+         end select
+      endif
+   enddo
+
+   end subroutine Scale_TGAS_Import_
 !-------------------------------------------------------------------------
 !  NASA/GSFC, Global Modeling and Assimilation Office, Code 610.3, GMAO  !
 !-------------------------------------------------------------------------
@@ -2124,6 +2152,10 @@ _ENTRY_(trim(Iam))
        call guess_grids_stats(cvar, GSI_chemguess_bundle(it)%r3(ipnt)%q, mype)
 #endif
    enddo
+
+!  Scale trace gases
+!  -----------------
+   call scale_tgas_import_(it)
 
 !  If so, this allows overwriting CO2 (and other trace gases) in background 
 !  ------------------------------------------------------------------------
