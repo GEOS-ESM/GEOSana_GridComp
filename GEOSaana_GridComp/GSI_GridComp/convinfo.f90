@@ -212,7 +212,7 @@ contains
     endif
 
     if(nconvtype == 0) then
-       write(6,*) 'CONVINFO_READ: NO CONVENTIONAL DATA USED'
+       if (mype == 0) write(6,*) 'CONVINFO_READ: NO CONVENTIONAL DATA USED'
        return
     endif
   

@@ -418,7 +418,8 @@ drv_set=.true.
 
     integer(i_kind) i,j,k
 
-    if (getindex(svars3d,'q')>0) then
+!   bweir: need even when not analyzing q
+!   if (getindex(svars3d,'q')>0) then
        allocate(qsatg(lat2,lon2,nsig),&
             dqdt(lat2,lon2,nsig),dqdrh(lat2,lon2,nsig),&
             dqdp(lat2,lon2,nsig),&
@@ -435,7 +436,7 @@ drv_set=.true.
              end do
           end do
        end do
-    endif
+!   endif
 
     allocate(cwgues(lat2,lon2,nsig))
     do k=1,nsig

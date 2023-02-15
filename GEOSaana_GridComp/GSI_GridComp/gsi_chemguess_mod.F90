@@ -729,6 +729,7 @@ end subroutine final_
      istatus=0
   else if(trim(desc)=='ghg') then
      ivar = nghg
+     istatus=0
   else if(trim(desc)=='aerosols') then
      ivar = naero
      istatus=0

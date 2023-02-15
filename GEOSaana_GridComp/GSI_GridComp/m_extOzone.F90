@@ -51,6 +51,8 @@ module m_extOzone
 
   public:: is_extOzone
   public:: extOzone_read
+! needed by read_mlstgas
+  public:: check
 
 !!  public:: extOzone_setupoz
 !!  public:: extOzone_setupozlev

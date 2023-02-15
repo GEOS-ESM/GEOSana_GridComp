@@ -33,6 +33,7 @@ module control_vectors
 !                          in obs operator and analysis 
 !   2019-07-11  Todling  - move WRF specific variables w_exist and dbz_exit to a new wrf_vars_mod.f90.
 !                        . move imp_physics and lupp to ncepnems_io.f90.
+!   2022-12-09  weir     - added extended support for trace gases
 !
 ! subroutines included:
 !   sub init_anacv   
@@ -129,6 +130,8 @@ public be2d        ! normalized scale factor for ensemble background error 2d-va
 public atsfc_sdv   ! standard deviation of surface temperature error over (1) land (and (2) ice
 public an_amp0     ! multiplying factors on reference background error variances
 public lcalc_gfdl_cfrac ! when .t., calculate and use GFDL cloud fraction in obs operator 
+public itr3d       ! flag for how to treat tracers 3d-variables
+public itr2d       ! flag for how to treat tracers 2d-variables
 
 public nrf2_loc,nrf3_loc,nmotl_loc   ! what are these for??
 public ntracer
@@ -175,6 +178,8 @@ real(r_kind)    ,allocatable,dimension(:) :: be2d
 real(r_kind)    ,allocatable,dimension(:) :: bemo ! not public; not needed
 real(r_kind)    ,allocatable,dimension(:) :: atsfc_sdv
 real(r_kind)    ,allocatable,dimension(:) :: an_amp0
+integer(i_kind) ,allocatable,dimension(:) :: itr3d
+integer(i_kind) ,allocatable,dimension(:) :: itr2d
 
 logical :: llinit = .false.
 
@@ -346,6 +351,7 @@ allocate(be3d(nc3d),be2d(nc2d),bemo(mvars))
 allocate(cvarsmd(mvars))
 allocate(atsfc_sdv(mvars))
 allocate(an_amp0(nvars))
+allocate(itr3d(nc3d),itr2d(nc2d))
 
 ! want to rid code from the following ...
 nrf=nc2d+nc3d
@@ -373,6 +379,7 @@ do ii=1,nvars
          nrf2_loc(nc2d)=ii  ! rid of soon
          as2d(nc2d)=aas
          be2d(nc2d)=bes
+         itr2d(nc2d)=itracer
       else
          nc3d=nc3d+1
          cvars3d(nc3d)=trim(adjustl(var))
@@ -380,6 +387,7 @@ do ii=1,nvars
          nrf_3d(ii)=.true.
          as3d(nc3d)=aas
          be3d(nc3d)=bes
+         itr3d(nc3d)=itracer
       endif
    endif
    nrf_var(ii)=trim(adjustl(var))
@@ -412,6 +420,7 @@ subroutine final_anacv
   deallocate(nrf_3d,nrf2_loc,nrf3_loc,nmotl_loc)
   deallocate(as3d,as2d)
   deallocate(be3d,be2d,bemo)
+  deallocate(itr2d,itr3d)
   deallocate(an_amp0)
   deallocate(atsfc_sdv)
   deallocate(cvarsmd)

@@ -236,6 +236,7 @@
 !   19Oct2013 Todling - metguess now holds background
 !   24Mar2014 Weir    - Changed carbon monoxide to be stored as its log
 !   10Aug2014 Weir    - Added methane
+!   23Nov2022 Weir    - Rolled trace gases into generic tgasp
 !
 !EOP
 !-------------------------------------------------------------------------
@@ -1217,9 +1218,8 @@ _ENTRY_(trim(Iam))
    real(r_single),dimension(:,:,:), pointer :: qrmr ! rain mixing ratio
    real(r_single),dimension(:,:,:), pointer :: qsmr ! snow mixing ratio
    real(r_single),dimension(:,:,:), pointer :: clfr ! cloud fraction for radiation
-   ! import chem tracers ... preliminary (dummy implementation)
-   real(r_single),dimension(:,:,:), pointer :: cop   =>NULL() ! carbone monoxide
-   real(r_single),dimension(:,:,:), pointer :: co2p  =>NULL() ! carbone dioxide
+   ! import chem tracers
+   real(r_single),dimension(:,:,:), pointer :: tgasp =>NULL() ! generic trace gas
    ! import aerosol optical depth
    real(r_single),dimension(:,:),   pointer :: aodp =>NULL()  ! aerosol optical depth
    ! import aerosols: dust
@@ -1288,9 +1288,8 @@ _ENTRY_(trim(Iam))
    real(r_single),dimension(:,:  ), pointer :: dfrlake    ! lake fraction
    real(r_single),dimension(:,:  ), pointer :: dfrocean   ! ocean fraction
    real(r_single),dimension(:,:  ), pointer :: dfrseaice  ! sea-ice fraction
-   ! export chem tracers ... preliminary (dummy implementation)
-   real(r_single),dimension(:,:,:), pointer :: dcop  ! carbone monoxide
-   real(r_single),dimension(:,:,:), pointer :: dco2p ! carbone dioxide
+   ! export chem tracers
+   real(r_single),dimension(:,:,:), pointer :: dtgasp ! generic trace gas
    ! export AOD
    real(r_single),dimension(:,:),   pointer :: daodp ! AOD
    !
@@ -1649,12 +1648,6 @@ _ENTRY_(trim(Iam))
          case ( 'AOD' )
             call ESMFL_StateGetPointerToData(import, aodp, trim(cvar), rc=STATUS)
             VERIFY_(STATUS)
-         case ( 'CO' )
-            call ESMFL_StateGetPointerToData(import, cop, trim(cvar), rc=STATUS)
-            VERIFY_(STATUS)
-         case ('CO2')
-            call ESMFL_StateGetPointerToData(import, co2p, trim(cvar), rc=STATUS)
-            VERIFY_(STATUS)
          case ('DU001')
             call ESMFL_StateGetPointerToData(import, du001p, trim(cvar), rc=STATUS)
             VERIFY_(STATUS)
@@ -1709,10 +1702,11 @@ _ENTRY_(trim(Iam))
          case ('OCPHILIC')
             call ESMFL_StateGetPointerToData(import, ocphilicp, trim(cvar), rc=STATUS)
             VERIFY_(STATUS)
-         case default
-            if(mype==0) write(6,*) trim(Iam), ': ', trim(cvar), ' no such chem (imp) variable, aborting ...'
-            status = 1
-            VERIFY_(STATUS)
+!        Do not die here, generic trace gas will take care of business
+!        case default
+!           if(mype==0) write(6,*) trim(Iam), ': ', trim(cvar), ' no such chem (imp) variable, aborting ...'
+!           status = 1
+!           VERIFY_(STATUS)
       end select
    enddo
 
@@ -1792,14 +1786,9 @@ _ENTRY_(trim(Iam))
          case ('AOD')
             call ESMFL_StateGetPointerToData(export, daodp, trim(cvar), alloc=.true., rc=STATUS)
             VERIFY_(STATUS)
-         case ('CO')
-            call ESMFL_StateGetPointerToData(export, dcop, trim(cvar), alloc=.true., rc=STATUS)
-            VERIFY_(STATUS)
-         case ('CO2')
-            call ESMFL_StateGetPointerToData(export, dco2p, trim(cvar), alloc=.true., rc=STATUS)
-            VERIFY_(STATUS)
-         case default
-            if(mype==0) write(6,*) trim(Iam), ': ', trim(cvar), ' not available in chem (ex), skipping ...'
+!        Do not die here, generic trace gas will take care of business
+!        case default
+!           if(mype==0) write(6,*) trim(Iam), ': ', trim(cvar), ' not available in chem (ex), skipping ...'
       end select
    enddo
 
@@ -1823,19 +1812,6 @@ _ENTRY_(trim(Iam))
       if(associated(ozp)) then
          where ( ozp /= MAPL_UNDEF )
                  ozp = ozp * PPMV2GpG  ! convert from ppmv to g/g
-         endwhere
-      endif
-      if(associated(cop)) then
-         where ( cop /= MAPL_UNDEF )
-!                Carbon monox is now stored as a log; this makes the obs operator for mopitt linear and
-!                prevents us from having to use an ad hoc lower bound; update_guess also needs to reflect
-!                this by not applying the lower bound; also inverse in dcop needs to reflect change (weir)
-                 cop = log10(cop * KGpKG2PPBV)  ! convert carbon monoxide unit (need gen. way of handling chemistry)
-         endwhere
-      endif
-      if(associated(co2p)) then
-         where ( co2p /= MAPL_UNDEF )
-                 co2p = co2p * KGpKG2ppmvCO2  ! convert carbon dioxide to ppmv
          endwhere
       endif
       if(associated(du001p)) then
@@ -1932,6 +1908,34 @@ _ENTRY_(trim(Iam))
    endif
 
    end subroutine Scale_Import_ 
+
+   subroutine Scale_TGAS_Import_(it)
+   integer, intent(in) :: it
+ 
+   character(len=*), parameter :: myname_ = myname//'*Scale_TGAS_Import_'
+   character(len=ESMF_MAXSTR) :: cvar
+   integer ii, ipnt, ico24crtm, istatus
+
+   call gsi_chemguess_get ( 'i4crtm::co2', ico24crtm, ier )
+   if (ico24crtm<0) return 
+   do ii = 1,size(tgases_gsi)
+      cvar = trim(tgases_gsi(ii)) 
+      call GSI_BundleGetPointer ( GSI_chemguess_bundle(it), cvar, ipnt, istatus ) 
+      if (istatus==0) then
+         select case (cvar)
+           case('co2')
+             where ( GSI_chemguess_bundle(it)%r3(ipnt)%q /= MAPL_UNDEF )
+                     GSI_chemguess_bundle(it)%r3(ipnt)%q = GSI_chemguess_bundle(it)%r3(ipnt)%q * KGpKG2ppmvCO2  ! convert carbon dioxide to ppmv
+             endwhere
+           case('co')
+             where ( GSI_chemguess_bundle(it)%r3(ipnt)%q /= MAPL_UNDEF )
+                     GSI_chemguess_bundle(it)%r3(ipnt)%q = log10(GSI_chemguess_bundle(it)%r3(ipnt)%q * KGpKG2PPBV)  ! convert carbon monoxide unit (need gen. way of handling chemistry)
+             endwhere
+         end select
+      endif
+   enddo
+
+   end subroutine Scale_TGAS_Import_
 !-------------------------------------------------------------------------
 !  NASA/GSFC, Global Modeling and Assimilation Office, Code 610.3, GMAO  !
 !-------------------------------------------------------------------------
@@ -2100,10 +2104,6 @@ _ENTRY_(trim(Iam))
       endif
       if (irank==3) then
          select case (cvar)
-           case ('co')
-             call GSI_GridCompSwapIJ_(cop,GSI_chemguess_bundle(it)%r3(ipnt)%q)
-           case ('co2')
-             call GSI_GridCompSwapIJ_(co2p,GSI_chemguess_bundle(it)%r3(ipnt)%q)
            case ('du001')
              call GSI_GridCompSwapIJ_(du001p,GSI_chemguess_bundle(it)%r3(ipnt)%q)
            case ('du002')
@@ -2140,12 +2140,22 @@ _ENTRY_(trim(Iam))
              call GSI_GridCompSwapIJ_(ocphobicp,GSI_chemguess_bundle(it)%r3(ipnt)%q)
            case ('ocphilic')
              call GSI_GridCompSwapIJ_(ocphilicp,GSI_chemguess_bundle(it)%r3(ipnt)%q)
+           case default
+!            Generic trace gas takes care of business here
+             cvar = trim(tgases_usr(nt))
+             call ESMFL_StateGetPointerToData(import, tgasp, trim(cvar), alloc=.true., rc=STATUS)
+             VERIFY_(STATUS)
+             call GSI_GridCompSwapIJ_(tgasp,GSI_chemguess_bundle(it)%r3(ipnt)%q)
          end select
       end if ! rank 3
 #ifdef UPAverbose
        call guess_grids_stats(cvar, GSI_chemguess_bundle(it)%r3(ipnt)%q, mype)
 #endif
    enddo
+
+!  Scale trace gases
+!  -----------------
+   call scale_tgas_import_(it)
 
 !  If so, this allows overwriting CO2 (and other trace gases) in background 
 !  ------------------------------------------------------------------------
@@ -2952,13 +2962,11 @@ _ENTRY_(trim(Iam))
          end select
       endif
       if (irank==3) then
-         select case (cvar)
-           case('co')
-              call GSI_GridCompSwapJI_(dcop,GSI_chemguess_bundle(it)%r3(ipnt)%q)
-              idco=.true.
-           case ('co2')
-              call GSI_GridCompSwapJI_(dco2p,GSI_chemguess_bundle(it)%r3(ipnt)%q)
-         end select
+!        Generic trace gas takes care of business here
+         cvar = trim(tgases_usr(nt))
+         call ESMFL_StateGetPointerToData(export, dtgasp, trim(cvar), alloc=.true., rc=STATUS)
+         VERIFY_(STATUS)
+         call GSI_GridCompSwapJI_(dtgasp,GSI_chemguess_bundle(it)%r3(ipnt)%q)
       endif
    enddo
 
@@ -3030,11 +3038,6 @@ _ENTRY_(trim(Iam))
    if(GsiGridType==0) then
       if(associated(dhs)) dhs = grav * dhs
       if(associated(doz)) doz = doz  / PPMV2GpG
-      if(idco.and.associated(dcop)) then
-!        changed this because forward transform has changed (weir)
-         dcop = 10._r_kind**(dcop) / KGpKG2PPBV
-      endif
-      if(associated(dco2p)) dco2p = dco2p / PPMV
    endif
    end subroutine UnScale_Export_
 
@@ -3730,6 +3733,7 @@ _ENTRY_(trim(Iam))
    integer(i_kind) ii, iii
    logical iamroot
    character(len=ESMF_MAXSTR) :: cvar
+   logical :: lmatch
 
 !  Declare import 2d-fields
 !  ------------------------
@@ -3869,10 +3873,8 @@ _ENTRY_(trim(Iam))
 !  Declare import 3d-fields for trace gases - this needs 
 !  to come from gsi_chemguess_mod
 !  -----------------------------------------------------
-   integer, parameter :: nin3dg=20
+   integer, parameter :: nin3dg=18
    character(len=16), parameter :: insname3dg(nin3dg) = (/ &
-                                   'CO              ',     &
-                                   'CO2             ',     &
                                    'DU001           ',     &
                                    'DU002           ',     &
                                    'DU003           ',     &
@@ -3892,8 +3894,6 @@ _ENTRY_(trim(Iam))
                                    'OCPHOBIC        ',     &
                                    'OCPHILIC        '/)
    character(len=32), parameter :: inlname3dg(nin3dg) = (/ &
-                      'carbon monoxide                 ',  &
-                      'carbon dioxide                  ',  &
                       'dust                            ',  &
                       'dust                            ',  &
                       'dust                            ',  &
@@ -3913,8 +3913,6 @@ _ENTRY_(trim(Iam))
                       'dry organic carbon              ',  &
                       'wet organic carbon              '/)
    character(len=16), parameter :: inunits3dg(nin3dg) = (/ &
-                                   'mol/mol         ',     &
-                                   'mol/mol         ',     &
                                    'g/g             ',     &
                                    'g/g             ',     &
                                    'g/g             ',     &
@@ -4024,16 +4022,10 @@ _ENTRY_(trim(Iam))
 !  Declare export 3d-fields for trace gases - this needs 
 !  to come from gsi_chemguess_mod
 !  -----------------------------------------------------
-   integer, parameter :: nex3dg=2
-   character(len=16), parameter :: exsname3dg(nex3dg) = (/ &
-                                   'CO              ',     &
-                                   'CO2             '/)
-   character(len=32), parameter :: exlname3dg(nex3dg) = (/ &
-                      'carbon monoxide inc             ',  &
-                      'carbon dioxide inc              '/)
-   character(len=16), parameter :: exunits3dg(nex3dg) = (/ &
-                                   'mol/mol         ',     &
-                                   'mol/mol         '     /)
+   integer, parameter :: nex3dg=0
+   character(len=16), parameter :: exsname3dg(nex3dg) = [character(len=16) :: ]
+   character(len=32), parameter :: exlname3dg(nex3dg) = [character(len=32) :: ]
+   character(len=16), parameter :: exunits3dg(nex3dg) = [character(len=16) :: ]
 
 
 ! Begin
@@ -4137,6 +4129,7 @@ _ENTRY_(trim(Iam))
        enddo
     enddo
     do iii = 1, ntgases
+       lmatch = .false.
        cvar = trim(tgases_usr(iii))
        do ii = 1, nin2dg 
           if ( trim(lowercase(cvar))==trim(lowercase(insname2dg(ii))) ) then
@@ -4148,6 +4141,7 @@ _ENTRY_(trim(Iam))
                   VLOCATION = MAPL_VLocationNone,   &
                   HALOWIDTH = local_hw,             &
                   RC=STATUS  ); VERIFY_(STATUS)
+               lmatch = .true.
           endif
        enddo
        do ii = 1, nin3dg 
@@ -4160,8 +4154,20 @@ _ENTRY_(trim(Iam))
                   VLOCATION = MAPL_VLocationCenter, &
                   HALOWIDTH = local_hw,             &
                   RC=STATUS  ); VERIFY_(STATUS)
+               lmatch = .true.
           endif
        enddo
+!      Fill generic 3D trace gases (bweir)
+       if ( .not. lmatch ) then
+            call MAPL_AddImportSpec(GC,           &
+               SHORT_NAME= trim(cvar),            &
+               LONG_NAME = trim(cvar),            &
+               UNITS     = 'mol/mol',             &
+               DIMS      = MAPL_DimsHorzVert,     &
+               VLOCATION = MAPL_VLocationCenter,  &
+               HALOWIDTH = local_hw,              &
+               RC=STATUS  ); VERIFY_(STATUS)
+       endif
     enddo
 
 ! Exports
@@ -4202,6 +4208,7 @@ _ENTRY_(trim(Iam))
        enddo
     enddo
     do iii = 1, ntgases
+       lmatch = .false.
        cvar = trim(tgases_usr(iii))
        do ii = 1, nex2dg
           if ( trim(lowercase(cvar))==trim(lowercase(exsname2dg(ii))) ) then
@@ -4213,6 +4220,7 @@ _ENTRY_(trim(Iam))
                  VLOCATION = MAPL_VLocationNone,   &
                  HALOWIDTH = local_hw,             &
                  RC=STATUS  );  VERIFY_(STATUS)
+               lmatch = .true.
           endif
        enddo
        do ii = 1, nex3dg
@@ -4225,8 +4233,20 @@ _ENTRY_(trim(Iam))
                  VLOCATION = MAPL_VLocationCenter, &
                  HALOWIDTH = local_hw,             &
                  RC=STATUS  );  VERIFY_(STATUS)
+               lmatch = .true.
           endif
        enddo
+!      Fill generic 3D trace gases (bweir)
+       if ( .not. lmatch ) then
+            call MAPL_AddExportSpec(GC,          &
+              SHORT_NAME= trim(cvar),            &
+              LONG_NAME = trim(cvar),            &
+              UNITS     = 'mol/mol',             &
+              DIMS      = MAPL_DimsHorzVert,     &
+              VLOCATION = MAPL_VLocationCenter,  &
+              HALOWIDTH = local_hw,              &
+              RC=STATUS  );  VERIFY_(STATUS)
+       endif
     enddo
 
    end subroutine GSI_GridCompSetupSpecs
