@@ -24,7 +24,6 @@
    use_sp_eqspace=.true.,
    lbicg=.true.,lcongrad=.false.,ltlint=.true.,
 !  lsqrtb=.true.,lcongrad=.false.,ltlint=.true.,
-@4DHYB l4densvar=.true.,nmn_obsbin=@VAROBSBIN,iwrtinc=@IWRTINC,thin4d=.true.,
    iorthomax=10,
    ens_nstarthr=3,
    netcdf_diag=.false.,
@@ -52,10 +51,10 @@
    anisotropic=.false.,
  /
  &JCOPTS
-   ljcpdry=@JCPDRY,bamp_jcpdry=2.5e7,
+   ljcpdry=.false.,bamp_jcpdry=2.5e7,
  /
  &STRONGOPTS
-   tlnmc_option=@TLNMC,nstrong=1,nvmodes_keep=24,period_max=6.,period_width=1.5,
+   tlnmc_option=0,nstrong=1,nvmodes_keep=24,period_max=6.,period_width=1.5,
    baldiag_full=.true.,baldiag_inc=.true.,
  /
  &OBSQC
@@ -63,7 +62,7 @@
    use_poq7=.true.,qc_noirjaco3=.false.,qc_satwnds=.false.,cld_det_dec2bin=.true.,
    half_goesr_err=.false.,
 !  tcp_ermin=0.75,tcp_ermax=0.75,
-   >>>AIRCFT_BIAS<<<
+!  >>>AIRCFT_BIAS<<<
  /
  &OBS_INPUT
    dmesh(1)=145.0,dmesh(2)=150.0,dmesh(3)=180.0,time_window_max=3.0, 
@@ -301,5 +300,5 @@ OBS_INPUT::
  &CHEM
  /
  &NST
- nst_gsi=3,
+!nst_gsi=3,
  /

@@ -1732,7 +1732,7 @@ _ENTRY_(trim(Iam))
 ! ---------------------------
    do nt=1,nmguess
       cvar = trim(mguess_usr(nt))
-      select case (cvar)
+      select case (lowercase(cvar))
          case ('phis')
             call ESMFL_StateGetPointerToData(export,  dhs,  trim(cvar), alloc=.true., rc=STATUS)
             VERIFY_(STATUS)
@@ -2423,26 +2423,28 @@ _ENTRY_(trim(Iam))
    call GSI_GridCompSwapIJ_(soqp,soil_moi(:,:,it))
 
 ! Soil temperature
-   call undef_2ssi(sotp,MAPL_UNDEF,trim(Iam),	&
-        verb=.false.,vname='TSOIL1')
-   call undef_2ssi(sotp,UNDEF_SOIL_TEMP,trim(Iam),	&
-        verb=.true.,vname='TSOIL1')
-! A hack solution to work around possible undesired undef values.
-   where(sotp == UNDEF_SSI_)
-      sotp=tskp
-   endwhere
-
-   call GSI_GridCompSwapIJ_(sotp,soil_temp(:,:,it))
+   if ( associated(sotp) ) then
+      call undef_2ssi(sotp,MAPL_UNDEF,trim(Iam),	&
+           verb=.false.,vname='TSOIL1')
+      call undef_2ssi(sotp,UNDEF_SOIL_TEMP,trim(Iam),	&
+           verb=.true.,vname='TSOIL1')
+   ! A hack solution to work around possible undesired undef values.
+      where(sotp == UNDEF_SSI_)
+         sotp=tskp
+      endwhere
+      call GSI_GridCompSwapIJ_(sotp,soil_temp(:,:,it))
+   endif
 
 ! Surface roughness
-   call undef_2ssi(sz0p,MAPL_UNDEF,trim(Iam),	&
-        verb=.false.,vname='Z0M')
-! A hack solution to work around possible undesired undef values.
-   where(sz0p == UNDEF_SSI_ .or. sz0p<zero)
-      sz0p=0.
-   endwhere
-
-   call GSI_GridCompSwapIJ_(sz0p,sfc_rough(:,:,it))
+   if (associated(sz0p) ) then
+      call undef_2ssi(sz0p,MAPL_UNDEF,trim(Iam),	&
+           verb=.false.,vname='Z0M')
+   ! A hack solution to work around possible undesired undef values.
+      where(sz0p == UNDEF_SSI_ .or. sz0p<zero)
+         sz0p=0.
+      endwhere
+      call GSI_GridCompSwapIJ_(sz0p,sfc_rough(:,:,it))
+   endif
 
 ! SLI mask  (adaptation from L. Takacs change elsewhere)
    allocate(islip(lon2,lat2), stat=STATUS)
@@ -2478,24 +2480,27 @@ _ENTRY_(trim(Iam))
 ! F10M is derived from U10M,V10m,U,V and defined through GSI's
 ! internal variable fact10 (declared in guess_grids.f90)
 
-      call undef_2ssi(u10p,MAPL_UNDEF,trim(Iam),	&
-           verb=.false.,vname='U10M')
-      call undef_2ssi(v10p,MAPL_UNDEF,trim(Iam),	&
-           verb=.false.,vname='V10M')
-#ifdef SFCverbose
-      print *,Iam,':  u10m (PE,min,max,sum): ',mype,minval(u10p),maxval(u10p),sum(u10p)
-      print *,Iam,':  v10m (PE,min,max,sum): ',mype,minval(v10p),maxval(v10p),sum(v10p)
-#endif
       allocate(f10p(lon2,lat2), stat=STATUS)
       VERIFY_(STATUS)
-   
-      where(u10p == UNDEF_SSI_ .or. v10p == UNDEF_SSI_)	        ! in case there is any
-        f10p(:,:)=one ! RT: this would happen over the halo only anyway 
-      elsewhere
-        f10p(:,:)=sqrt(u10p(:,:)*u10p(:,:)+v10p(:,:)*v10p(:,:))
-      endwhere
 
-      call GSI_GridCompSwapIJ_(f10p,fact10(:,:,it))
+      if (associated(u10p) .and. associated(v10p) ) then
+         call undef_2ssi(u10p,MAPL_UNDEF,trim(Iam),	&
+              verb=.false.,vname='U10M')
+         call undef_2ssi(v10p,MAPL_UNDEF,trim(Iam),	&
+              verb=.false.,vname='V10M')
+#ifdef SFCverbose
+         print *,Iam,':  u10m (PE,min,max,sum): ',mype,minval(u10p),maxval(u10p),sum(u10p)
+         print *,Iam,':  v10m (PE,min,max,sum): ',mype,minval(v10p),maxval(v10p),sum(v10p)
+#endif
+   
+         where(u10p == UNDEF_SSI_ .or. v10p == UNDEF_SSI_)	        ! in case there is any
+           f10p(:,:)=one ! RT: this would happen over the halo only anyway 
+         elsewhere
+           f10p(:,:)=sqrt(u10p(:,:)*u10p(:,:)+v10p(:,:)*v10p(:,:))
+         endwhere
+
+         call GSI_GridCompSwapIJ_(f10p,fact10(:,:,it))
+      endif
 
 !     zero somewhere.  To compute factor at 10m, wind speed at the
 !     bottom of the atmosphere is needed, which is level 1 of the
@@ -3491,7 +3496,6 @@ _ENTRY_(trim(Iam))
    use file_utility, only : get_lun
    use mpeu_util, only: gettablesize
    use mpeu_util, only: gettable
-   use mpeu_util, only: getindex
    implicit none
 
    character(len=*),parameter::myname_=myname//'*get_obsclass_'
@@ -3695,7 +3699,9 @@ _ENTRY_(trim(Iam))
 !
 ! !USES:
 !
-  implicit NONE
+   use mpeu_util, only: die
+   use mpeu_util, only: getindex
+   implicit NONE
 
 ! !ARGUMENTS:
 
@@ -3733,6 +3739,7 @@ _ENTRY_(trim(Iam))
    integer(i_kind) ii, iii
    logical iamroot
    character(len=ESMF_MAXSTR) :: cvar
+   character(len=ESMF_MAXSTR) :: myname
    logical :: lmatch
 
 !  Declare import 2d-fields
@@ -4081,9 +4088,13 @@ _ENTRY_(trim(Iam))
 
 ! Imports
 
-    do ii = 1, nin2d 
+    do ii = 1, nin2d
+       myname = insname2d(ii)
+       if(getindex(mguess_usr,uppercase(myname))>0) then
+          myname = uppercase(myname)
+       endif
        call MAPL_AddImportSpec(GC,        &
-         SHORT_NAME= trim(insname2d(ii)), &
+         SHORT_NAME= trim(myname       ), &
          LONG_NAME = trim(inlname2d(ii)), &
          UNITS     = trim(inunits2d(ii)), &
          DIMS      = MAPL_DimsHorzOnly,   &
@@ -4092,8 +4103,12 @@ _ENTRY_(trim(Iam))
          RC=STATUS  ); VERIFY_(STATUS)
     enddo
     do ii = 1, nin3d 
+      myname = insname3d(ii)
+      if(getindex(mguess_usr,uppercase(myname))>0) then
+         myname = uppercase(myname)
+      endif
      call MAPL_AddImportSpec(GC,           &
-         SHORT_NAME= trim(insname3d(ii)),  &
+         SHORT_NAME= trim(myname       ),  &
          LONG_NAME = trim(inlname3d(ii)),  &
          UNITS     = trim(inunits3d(ii)),  &
          DIMS      = MAPL_DimsHorzVert,    &
@@ -4173,8 +4188,12 @@ _ENTRY_(trim(Iam))
 ! Exports
 
     do ii = 1, nex2d
+       myname = exsname2d(ii)
+       if(getindex(mguess_usr,uppercase(myname))>0) then
+          myname = uppercase(myname)
+       endif
        call MAPL_AddExportSpec(GC,         &
-         SHORT_NAME= trim(exsname2d(ii)),  &
+         SHORT_NAME= trim(myname       ),  &
          LONG_NAME = trim(exlname2d(ii)),  &
          UNITS     = trim(exunits2d(ii)),  &
          DIMS      = MAPL_DimsHorzOnly,    &
@@ -4183,8 +4202,12 @@ _ENTRY_(trim(Iam))
          RC=STATUS  ); VERIFY_(STATUS)
     enddo
     do ii = 1, nex3d
+       myname = exsname3d(ii)
+       if(getindex(mguess_usr,uppercase(myname))>0) then
+          myname = uppercase(myname)
+       endif
        call MAPL_AddExportSpec(GC,         &
-         SHORT_NAME= trim(exsname3d(ii)),  &
+         SHORT_NAME= trim(myname       ),  &
          LONG_NAME = trim(exlname3d(ii)),  &
          UNITS     = trim(exunits3d(ii)),  &
          DIMS      = MAPL_DimsHorzVert,    &

@@ -1,0 +1,106 @@
+ &SETUP
+   miter=2,niter(1)=@NITER1,niter(2)=@NITER2,
+   niter_no_qc(1)=999,niter_no_qc(2)=999,
+   write_diag(1)=.true.,write_diag(2)=.false.,write_diag(3)=.true.,
+   gencode=82,qoption=2,
+   factqmin=0.005,factqmax=0.005,deltim=300,
+!--gencode=82,qoption=1,
+!--factqmin=0.8,factqmax=1.2,deltim=300,
+   ifact10=0,
+   pseudo_q2=.true.,
+   use_prepb_satwnd=>>>USE_PREPB_SATWND<<<,
+   ec_amv_qc=.false.,
+   diag_version=30303,
+   iguess=-1,
+   id_drifter=.true.,
+   id_ship=.false.,
+   tzr_qc=1,
+   oneobtest=.false.,retrieval=.false.,
+   biascor=-0.10,bcoption=0,diurnalbc=1.0,
+   crtm_coeffs_path="CRTM_Coeffs/",
+   print_diag_pcg=.false.,
+   use_compress=.true.,nsig_ext=@NLEV_EXT,gpstop=55.,lgpsbnd_revint=.true.,
+   commgpstop=45.,spiregpserrinf=2.,
+   use_sp_eqspace=.true.,
+   lbicg=.true.,lcongrad=.false.,ltlint=.true.,
+   iorthomax=10,
+   ens_nstarthr=3,
+   netcdf_diag=.false.,
+@RADBC   newpc4pred=.true.,adp_anglebc=.true.,angord=4,
+@RADBC   passive_bc=.true.,use_edges=.false.,
+@RADBC   diag_precon=.true.,step_start=1.e-3,emiss_bc=.true.,
+   lrun_subdirs=.false.,
+ /
+ &GRIDOPTS
+   JCAP=@JCAP,NLAT=@GSINLAT,NLON=@GSINLON,nsig=@NSIG,
+   regional=.false.,
+   nvege_type=13,
+ /
+ &BKGERR
+   vs=0.6,
+   hzscl=0.588,1.25,2.0,
+   hswgt=0.45,0.3,0.25,
+   bw=0.0,norsp=4,
+   bkgv_flowdep=.true.,bkgv_rewgtfct=1.5,
+   fpsproj=.true.,
+   adjustozvar=.true.,
+   bkgv_write=.false.,
+ /
+ &ANBKGERR
+   anisotropic=.false.,
+ /
+ &JCOPTS
+   ljcpdry=.false.,bamp_jcpdry=2.5e7,
+ /
+ &STRONGOPTS
+   tlnmc_option=0,nstrong=1,nvmodes_keep=24,period_max=6.,period_width=1.5,
+   baldiag_full=.true.,baldiag_inc=.true.,
+ /
+ &OBSQC
+   dfact=0.75,dfact1=3.0,noiqc=.false.,oberrflg=.true.,c_varqc=0.02,blacklst=.true.,
+   use_poq7=.true.,qc_noirjaco3=.false.,qc_satwnds=.false.,cld_det_dec2bin=.true.,
+   half_goesr_err=.false.,
+ /
+ &OBS_INPUT
+   dmesh(1)=145.0,dmesh(2)=150.0,dmesh(3)=180.0,time_window_max=3.0, 
+ /
+OBS_INPUT::
+!  dfile          dtype       dplat       dsis                  dval    dthin  dsfcalc  obsclass
+   sbuvbufr       sbuv2       n16         sbuv8_n16             0.0     0      0        ncep_osbuv_bufr
+   sbuvbufr       sbuv2       n17         sbuv8_n17             0.0     0      0        ncep_osbuv_bufr
+   sbuvbufr       sbuv2       n18         sbuv8_n18             0.0     0      0        ncep_osbuv_bufr
+   omibufr        omi         aura        omi_aura              0.0     2      0        ncep_aura_omi_bufr
+   ompsnmbufr     ompsnm      npp         ompsnm_npp            0.0     2      0        npp_ompsnm_bufr
+   ompsnpbufr     ompsnp      npp         ompsnp_npp            0.0     0      0        npp_ompsnp_bufr
+   ompsnpnc       ompsnpnc    npp         ompsnpnc_npp          0.0     0      0        npp_ompsnp_nc
+!  gomebufr       gome        metop-a     gome_metop-a          0.0     2      0        test
+!  mlsoz          o3lev       aura        mls_aura_ozlv         0.0     0      0        test
+!  mlsozbufr      o3lev       aura        o3lev_aura            0.0     0      0        test
+   ompslpgnc      ompslpnc    npp         ompslpnc_npp          1.0     0      0        ompslpnc_nc
+   ompslpuvnc     ompslpuv    npp         ompslpuv_npp          1.0     0      0        ompslpuv_nc
+   ompslpvisnc    ompslpvis   npp         ompslpvis_npp         1.0     0      0        ompslpvis_nc
+!  mlsoztext      o3lev       aura        o3lev_aura            0.0     0      0        test
+   sbuvbufr       sbuv2       n19         sbuv8_n19             0.0     0      0        ncep_osbuv_bufr
+!  gomebufr       gome        metop-b     gome_metop-b          0.0     2      0        test
+!  omieffbufr     omieff      aura        omieff_aura           0.0     2      0        test
+   omieffnc       omieff      aura        omieff_aura           0.0     2      0        aura_omieff_nc
+   ompsnmeffnc    ompsnmeff   npp         ompsnmeff_npp         0.0     2      0        npp_ompsnmeff_nc
+!  tomseffnc      tomseff     nim07       tomseff_nim07         0.0     2      0        test
+!  tomseffnc      tomseff     ep          tomseff_ep            0.0     2      0        test
+!  sbuvbufr       sbuv2       nim07       sbuv8_nim07           0.0     0      0        test
+   mlsnc          mls55       aura        mls55_aura            0.0     0      0        mls_nrt_nc
+::
+ &SUPEROB_RADAR
+ /
+ &LAG_DATA
+ /
+ &HYBRID_ENSEMBLE
+ /
+ &RAPIDREFRESH_CLDSURF
+ /
+ &SINGLEOB_TEST
+ /
+ &CHEM
+ /
+ &NST
+ /
