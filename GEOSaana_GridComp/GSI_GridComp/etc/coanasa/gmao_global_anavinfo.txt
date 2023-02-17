@@ -2,24 +2,26 @@ met_guess::
 !var     level   crtm_use    desc                 orig_name
   ps        1      -1         surface_pressure     PS
   z         1      -1         geopotential_height  PHIS
-# q        72       2         specific_humidity    SPHU
+  tv       72       2         virtual_temperature  TV
+  q        72       2         specific_humidity    SPHU
   oz       72       2         ozone                OZONE
 ::
 
 state_derivatives::
 !var  level  src
  ps   1      met_guess
-#q    72     met_guess
+ tv   72     met_guess
+ q    72     met_guess
  oz   72     met_guess
  prse 73     met_guess
-#sst  central  --> I don't think this is needed
 ::
 
 state_tendencies::
 !var  levels  source
  prse 73      met_guess
  oz   72      met_guess
-#q    72      met_guess
+ tv   72      met_guess
+ q    72      met_guess
 ::
 
 chem_guess::
@@ -42,8 +44,8 @@ state_vector::
 !var     level  itracer source     funcof
 #q        72      1     met_guess    q
  oz       72      1     met_guess    oz
- prse     73      0     met_guess    prse
- ps        1      0     met_guess    prse
+#prse     73      0     met_guess    prse
+#ps        1      0     met_guess    prse
  co2      72      1     chem_guess   co2
  ch4      72      1     chem_guess   ch4
  co       72      1     chem_guess   co
@@ -57,7 +59,7 @@ state_vector::
 
 control_vector::
 !var     level  itracer as/tsfc_sdv  an_amp0   source  funcof  be
-#q        72      1       0.60        -1.0     state    q       -1.00
+ q        72      1       0.60        -1.0     state    q       -1.00
  oz       72      1       0.20        -1.0     state    oz      -1.00
  co2      72      1       0.15e-6     -1.0     state    co2     -1.00
  ch4      72      1       5.00e-9     -1.0     state    ch4     -1.00
