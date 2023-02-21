@@ -115,8 +115,8 @@ install(
 
 # Handle O3-only analysis settings
 set (o3anasa_files
-   o3anasa/gmao_global_anavinfo_rcov.txt
-   o3anasa/gmao_global_anavinfo.txt
+   o3anasa/gmao_global_anavinfo_rcov.rc
+   o3anasa/gmao_global_anavinfo.rc
    o3anasa/gsi.rc.tmpl
    o3anasa/GSI_GridComp.rc.tmpl
    )
@@ -127,8 +127,8 @@ install(
 
 # Handle TGAS-only analysis settings
 set (coanasa_files
-   coanasa/gmao_global_anavinfo_rcov.txt
-   coanasa/gmao_global_anavinfo.txt
+   coanasa/gmao_global_anavinfo_rcov.rc
+   coanasa/gmao_global_anavinfo.rc
    coanasa/gsi.rc.tmpl
    coanasa/GSI_GridComp.rc.tmpl
    )

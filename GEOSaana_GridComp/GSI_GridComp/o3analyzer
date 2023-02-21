@@ -1,0 +1,1461 @@
+#!/usr/bin/env perl
+# 
+# ANALYZER
+#
+# Main driver for the GSI Ozone-only analysis
+#
+# !REVISION HISTORY:
+#
+#  17Feb2023 Todling  Stripped off version of analyzer for Ozone only
+#-----------------------------------------------------------------------------------------------------
+
+use Env;                 # make env vars readily available
+use File::Basename;      # for basename(), dirname()
+use File::Copy "cp";     # for cp()
+use Getopt::Long;        # load module with GetOptions function
+use Time::Local;         # time functions
+use FindBin;             # so we can find where this script resides
+use POSIX;
+
+# look for perl packages in the following locations
+#--------------------------------------------------
+use lib ( "$FindBin::Bin", "$FVROOT/bin", "$ESMADIR/$ARCH/bin" );
+use Run_parallel qw(init_parallel parallel wrapup_parallel);
+
+
+my $scriptname = basename($0);
+
+# Command line options
+
+  $jiter = -1;
+  GetOptions ( "d=s"       => \$fvInput,
+               "prepqc=s"  => \$prepqc,
+               "expid=s"   => \$expid,
+               "ua=i"      => \$upa,
+               "rc=s"      => \$rcname,
+               "t=s"       => \$jcap,
+               "x=s"       => \$nlon,
+               "y=s"       => \$nlat,
+               "levs=s"    => \$nsig,
+               "pa=f"      => \$pabove,
+               "pb=f"      => \$pbelow,
+               "bkg=s"     => \$fvbkg,
+               "log=s"     => \$log,
+	       "berror=s"  => \$berror,
+               "jiter=i"   => \$jiter,
+               "debug",
+               "no_asyn",
+               "observer",
+               "lnobs",
+               "strict",
+               "h");
+
+  usage() if $opt_h;
+
+# Parse command line, etc
+
+  init();
+
+# Set background
+
+  foreach $sbground (@atbkg) {
+     ($asynymd, $asynhms) = ( tick($asynymd,$asynhms,$dtasyn*3600) );
+      $asynhh =  substr($asynhms,0,2);
+      $fvbkg   = `echorc.x -template $expid $asynymd $asynhms -rc $gcrc upper-air_bkg_filename`; chomp($fvbkg);
+      setbkg($fvbkg,"$asynymd","$asynhms","$dtasyn","$sbground");
+  }
+
+# Run Setobs
+
+  setobs ( $nymd, $hh );
+
+# Run GSI 
+
+  ana();                       # Run GSI
+
+# All done
+
+  if ($rc==0) {
+     if ( $doANA && $doHYB ) {
+# This has been moved for later
+#         system("touch $fvhome/.DONE_MEM001_analyzer.${yyyy}${mm}${dd}${hh}");
+     }
+     print "$0: sucessfully completed.\n\n";
+  } else {
+     print "$0: trouble.\n\n";
+  }
+
+  exit(0);
+
+#......................................................................
+
+sub init {
+
+   if ( $#ARGV  <  1 ) {
+     print STDERR " Missing nymd nhms ; see usage:\n";
+     usage();
+   } else {              # required command line args
+     $nymd = $ARGV[0];
+     $nhms = sprintf("%6.6d",$ARGV[1]);
+     $yyyy = substr($nymd,0,4);
+     $mm   = substr($nymd,4,2);
+     $dd   = substr($nymd,6,2);
+     $hh   = substr($nhms,0,2);
+   }
+
+# process options
+
+   $rc      = 0;
+
+# FVROOT is where the binaries have been installed
+# CAUTION: to be used only as a means of identifying gsi/ssi appls
+# ----------------------------------------------------------------
+   $fvroot  = $ENV{FVROOT};
+   if ( -e "$fvroot/bin/gsi.x" ) {
+     $myexec = "gsi.x"; 
+     $doGSI  = 1;
+   } elsif ( -e "$fvroot/bin/GSIsa.x" ) {
+     $myexec = "GSIsa.x"; 
+     $doGSI  = 1;
+   }
+   if ( $doGSI ) {
+        $myetc  = "gsi/etc";
+        $myrc   = "gsi.rc";
+        $gcrc   = "GSI_GridComp.rc";
+        $ananm  = "gsi";
+   } else {
+        die ">>>> ERROR <<< SSI is no longer suppoorted <<<< ";
+   }
+   $fvhome  = $ENV{FVHOME};
+
+   $fvInput  = "$fvhome/fvInput"  unless $fvInput;
+   $doSFCANA = 1;
+   $doANA    = 0;
+   $doANA    = 1;
+   $doABC    = $ENV{ACFTBIAS};
+   $doABC    = 0  if ( $opt_skipACFTBIAS );
+   $doSFCANA = 0  if ( $ENV{NOSFCANA} );
+   $debug    = 1  if ( $ENV{DEBUG}  || $opt_debug  );
+   $strict   = "-strict" if ( $ENV{STRICT} || $opt_strict );
+   $prepqc   = "prepqc" unless $prepqc;
+   $expid    = $ENV{EXPID} unless $expid;
+   $do4dvar  = $ENV{DO4DVAR};
+   $do4dtlm  = $ENV{DO4DTLM};
+   $sv4sens  = $ENV{SAVE4ASENS};
+   $npes     = $ENV{NCPUS_GSI}; if(! $npes) { $npes = $ENV{NCPUS} };
+   $doasens  = $ENV{ANASENS};
+   $ncsuffix = $ENV{NCSUFFIX};
+   $do4diau  = $ENV{DO4DIAU};
+   $doRcorr  = $ENV{DORCORR};
+   $lnOBS    = 0;
+
+   if ( $opt_lnobs ) { $lnOBS = 1 };
+
+   if ( $opt_observer ) {
+        $doANA    = 0;  # make sure analysis   is off when observer is on
+        $do4dvar  = 0;  # make sure 4dvar      is off when observer is on
+        $do4dtlm  = 0;  # make sure 4dvar      is off when observer is on
+        $do4diau  = 0;  # make sure 4dvar      is off when observer is on
+   }
+  
+   print "skipping ANALYSIS\n"     if ( ! $doANA   );
+
+   $fvwork  = $ENV{FVWORK};
+
+   $rcname  = "$fvwork/$myrc" unless $rcname;
+   if ( $doANA ) {
+      $fvbkg   = `echorc.x -template $expid $nymd $nhms -rc $gcrc upper-air_bkg_filename` unless $fvbkg; chomp($fvbkg);
+   }
+   $upa     = "none" unless $upa;
+   $obs     = "1" unless $obs;
+   $jcap    = "62" unless $jcap;
+   $nsig    = "28" unless $nsig;
+   $nlon    = "144" unless $nlon;
+   $nlat    = "91" unless $nlat;
+   $doASYN  =  1   unless $no_asyn;
+   if($jiter or $jiter==0) {
+      $jiter = $jiter;
+   }
+
+   $ensdir = $ENV{HYBRIDGSI};
+   $doHYB  = $ensdir && $ensdir ne "/dev/null";
+   $redo_berror = $ENV{MPIRUN_CALCSTATS};
+
+   $do_ARMA_be = $ENV{AENS4BERROR} unless ($ENV{AENS4BERROR} eq "/dev/null");
+   $doPPE  = $ENV{POOR_PEOPLE_ENSEMBLE};
+   $member = 0;
+
+   $dsbdir = $ENV{DIURNAL_SATBIAS};
+   $doDSB  = $dsbdir && $dsbdir ne "/dev/null";
+
+#  Define entries for asynoptic setup
+#  ----------------------------------
+   $obsgranular   = 6;                             # observations granularity (e.g., 6-hr windows)
+   $anatwindow_mn = $ENV{TIMEINC};                 # time interval between consecutive analyses (minutes)
+   $anatwindow_hr = $anatwindow_mn / 60;           # time interval between consecutive analyses (hours)
+   $nobstinterval = $anatwindow_hr / $obsgranular; # number of 6-hr time intervals within var window
+   $ndays         = int ( $anatwindow_hr / 24 );   # number of days of var window (will be 0 for a while!)
+   if ($doASYN) {
+      $dtasyn = $ENV{ASYNBKG};                     # asynoptic frequency in minutes (e.g., 180)
+      $dtasyn = ($dtasyn / 60)*10000;
+   } else {
+       $dtasyn  = 060000;                          # set regular 6 hrs analysis
+   }
+   $dtasyn  = $dtasyn / 10000 ;
+
+   $aoffset_mn  = $ENV{VAROFFSET}; $aoffset_hr = $aoffset_mn / 60; # ana offset in hours
+   $bkgbits = 0;
+   print " TIMEINC $anatwindow_mn\n";
+   print " ANAFREQ $anatwindow_hr\n";
+   while( $bkgbits <= $anatwindow_hr ) {
+      $fcsthr  = $bkgbits + $aoffset_hr; $fcsthr  = `printf "%02d" $fcsthr`;
+      $atbkg   = "$atbkg" . "$fcsthr ";
+      $bkgbits = $bkgbits + $dtasyn;
+   }
+   chomp($atbkg);
+   @atbkg = split(/ /,$atbkg);
+
+   ($asynymd, $asynhms) = ( tick($nymd,$nhms,-($aoffset_hr+$dtasyn)*3600) ); # step back to previous synoptic time
+
+   $log     = "1"  unless $log;
+
+   if ($log eq "1") {
+       $log_ana    = "$fvwork/ssi.log";
+       $log_ana5sfc = "$fvwork/ana5sfc.log";
+   } else {
+       $log_ana    = "$fvwork/$log";
+       $log_ana5sfc = "$fvwork/$log";
+   }
+   $ana_stats_log = "$fvwork/$expid.ana_stats.log.${nymd}_${hh}z.txt";
+
+# create SSI date 
+
+   $adate = $yyyy.$mm.$dd.$hh;
+   $hr    = substr($adate,8,2);
+   $ghr   = "t".$hr."z";
+   $daily = $yyyy.$mm.$dd;
+
+# define blending region
+
+   @blend = (0.0,0.0);   # defaults for no-blending
+   if (($nsig =~ "28" && $jcap =~"62") || ($nsig =~ "42" && $jcap =~ "170")) {   
+     @blend = (10.0,30.0);
+   }
+   if (($nsig =~ "64" && $jcap =~ "62") || ($nsig =~ "64" && $jcap =~ "254") || ($nsig =~ "64" && $jcap =~ "382")) {
+     @blend = (0.2,0.4);
+   }
+   if ($nsig =~ "32" ) {
+     @blend = (1.0,5.0);
+   }
+   $pabove = $blend[0] unless $pabove;
+   $pbelow = $blend[1] unless $pbelow;
+
+#  Get full pathnames
+#  ------------------
+
+#  Work in local SSI directory to avoid conflicts
+#  ----------------------------------------------
+   $nlon_ens = $nlon;
+   $nlat_ens = $nlat;
+   if ( $opt_observer ) {  # observer runs in main work area
+     $anadir = $fvwork;
+     print " Doing Observer Only \n";
+   } else {                # this is the actual analyzer; run in own dir
+     $tmp = $fvwork;
+     $anadir = "$tmp/ana.$nymd.$nhms"; # SSI working directory
+     $rc = system("/bin/mkdir -p $anadir" );
+     die ">>> ERROR <<< cannot create $anadir " if ( $rc );
+     chdir("$anadir");
+     $rc_ignore = system("/bin/touch $anadir/.no_archiving");   # working cqc dir not to be achived
+
+    # In case of running Hybrid GSI, link directory holding ensemble within present directory
+    # ---------------------------------------------------------------------------------------
+      if ( $doHYB ) {
+        if ( $doasens ) {
+          if ( -e "$fvwork/atmens_asens.acq" ) {
+            if ( ! -d "$fvwork/atmens" ) {
+               $cmd = "acquire_atmens.csh $expid $nymd $nhms $fvwork/atmens_asens.acq";
+               print " $cmd\n";
+               $rc = System($cmd, "$log_ana","acquire_atmens.csh");
+               if ( $rc ) {
+                  print "Failed to acquire ensemble, aborting ... \n";
+               }
+               $tau_fcst = `nmlread.py $rcname SETUP tau_fcst`; chomp($tau_fcst);
+               if ( $tau_fcst > 0 ) {
+                  if ( -e "$fvwork/atmens_eprg.acq" ) {
+                     my ($nymd_fcst, $nhms_fcst) = ( tick($nymd,$nhms,-6*3600) ); # tick time tau-6 (since Xfb are stored 6-hr earlier)
+                     $cmd = "acquire_atmens.csh $expid $nymd_fcst $nhms_fcst $fvwork/atmens_eprg.acq";
+                     print " $cmd\n";
+                     $rc = System($cmd, "$log_ana","acquire_atmens.csh");
+                     if ( $rc ) {
+                        die ">>>> ERROR: Failed to acquire ensemble, aborting ... <<< \n";
+                     }
+                  }
+               }
+            }
+            $ensdir = "$fvwork/atmens";
+            print "Running GSI adjoint using hybrid ensemble ... \n";
+          } else {
+            print "Running hybrid GSI ... \n";
+          }
+        } else {
+          if ( -e "$fvwork/atmens_replay.acq" ) {
+            if( $jiter <= 1 ) { # for now, in 4d mode, only retrieve ensemble once
+               $cmd = "acquire_atmens.csh $expid $nymd $nhms $fvwork/atmens_replay.acq";
+               print " $cmd\n";
+               $rc = System($cmd, "$log_ana","acquire_atmens.csh");
+               if ( $rc ) {
+                  die ">>>> ERROR: Failed to acquire ensemble, aborting ... <<< \n";
+               }
+               $ensdir = "$fvwork/atmens";
+               print "Running hybrid GSI, in replay mode ... \n";
+            } else {
+               $ensdir = "$fvwork/atmens";
+            }
+          }
+        }
+
+        # extract resolution of ensemble
+        my($var,$var1,$var2);
+        $var = `grep nlat_ens $rcname`;
+        ($var1, $var2) = split(/nlat_ens/,$var);
+        ($var1, $var2) = split(/=/,$var2);
+        ($nlat_ens, $var2) = split(/,/,$var2);
+        $var = `grep nlon_ens $rcname`;
+        ($var1, $var2) = split(/nlon_ens/,$var);
+        ($var1, $var2) = split(/=/,$var2);
+        ($nlon_ens, $var2) = split(/,/,$var2);
+
+        # interpolate ensemble to central
+        $cmd = "atmens_interp.csh $expid $nymd $nhms $nlon_ens $nlat_ens $nsig $fvwork $fvwork";
+        print " $cmd\n";
+        $rc = System($cmd, "$log_ana","atmens_interp.csh");
+
+        # link ensemble members locally for the analysis to proceed
+        my($var,$var1,$var2);
+        $var = `grep n_ens $rcname`;
+        ($var1, $var2) = split(/n_ens/,$var);
+        ($var1, $var2) = split(/=/,$var2);
+        ($n_ens, $var2) = split(/,/,$var2);
+
+        #Assignfn( "$ensdir/ensmean", "ensmean");
+        #print "linking ensmean locally ... \n";
+        $allmembers = `ls -d $ensdir/mem*`;
+        $memcnt = 1;
+        while ( $memcnt < $n_ens + 1) {
+           $memtag = sprintf("%3.3d",$memcnt);
+           Assignfn( "$ensdir/mem${memtag}","mem${memtag}");
+           print "linking mem${memtag} locally ... \n";
+           $memcnt = $memcnt + 1;
+        }
+        if ( -d "$ensdir/ensmean" ) {
+           Assignfn( "$ensdir/ensmean","ensmean");
+        }
+
+
+        if ( $redo_berror ) {
+           # in case calculating berror from ensemble ...
+           if ( -e "$fvwork/atmens_berror.rc" ) {
+             Assignfn( "$fvwork/atmens_berror.rc","atmens_berror.rc");
+           }
+           Assignfn( "$ensdir/ensmean","ensmean");
+           $cmd = "atmens_berror.csh $expid $nymd $nhms $anadir $anadir";
+           print " $cmd\n";
+           $rc = System($cmd, "$log_ana","atmens_berror.csh");
+           print "Regenerating B-error based on ensemble ... \n";
+           $ahh =  substr($nhms,0,2);
+           if ( -e "$expid.gsi.berror_stats.${nymd}_${ahh}z.tar" ) {
+              rename("$expid.gsi.berror_stats.${nymd}_${ahh}z.tar","$fvwork/$expid.gsi.berror_stats.${nymd}_${ahh}z.tar");
+           }
+        }
+
+      }  # Hybrid GSI check
+
+   } # Observer-only check
+
+# Static data needed for transforms and resolution independent static data
+# ------------------------------------------------------------------------
+   if ( $ENV{CRTM_COEFFS} ) {
+      Assignfn( "$CRTM_COEFFS","CRTM_Coeffs");
+   } else {
+      Assignfn( "$fvInput/$myetc/fix_ncep20210525/REL-2.2.3-r60152_local-rev_5/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
+   }
+   Assignfn( "$fvhome/run/prepobs_errtable.global","errtable");
+
+# SSI/GSI static data and resolution dependent static data
+# NOTE: for a while, when using GSI, will need both because of spectral transforms
+# --------------------------------------------------------------------------------
+#   if ( $doTRANSF ) {
+       if (-e "$fvInput/$myetc/newncepsfc.${jcap}" ) {
+          Assignfn( "$fvInput/$myetc/newncepsfc.${jcap}", "ncepsfc");
+       } else {
+          print "WARNING, analyzer: jcap inconsistent with available NCEP SFC file, reset to 254\n";
+          Assignfn( "$fvInput/$myetc/newncepsfc.254", "ncepsfc");
+       }
+#   }
+
+    if ( $doGSI ) {
+
+     # Create Satellite info ( gmao_global_satinfo.rc );
+     # ------------------------------------------------
+       if ( $doANA ) {  # same-name files should not be linked onto themselves
+          Assignfn( "$fvwork/$gcrc",                        "GSI_GridComp.rc");
+          Assignfn( "$fvwork/prepobs_prep.bufrtable","prepobs_prep.bufrtable");
+          if ($do4dvar) { # files for the nggps fv3 adjoint
+             Assignfn( "$fvwork/inputpert.nml", "inputpert.nml");
+             Assignfn( "$fvwork/input.nml", "input.nml");
+          }
+       }
+
+
+#      Create Satellite info ( satinfo | gmao_global_satinfo.yyyymmdd_hhz.txt );
+#     /------------------------------------------------------------------------
+       $cmd = "gsiinfo.pl $expid $nymd $nhms";
+       print " $cmd\n";
+       $rc = System($cmd, "$log_ana","gsiinfo");
+
+#      end-of-make_satinfo()
+#     \------------------------------------------------------------------------
+
+       Assignfn( "$rcname",                                    "gsiparm.anl");
+       Assignfn( "$fvwork/gsi_atms_beamwidth.rc",       "atms_beamwidth.txt");
+       Assignfn( "$fvwork/gmao_global_cloudy_radiance_info.rc",       "cloudy_radiance_info.txt");
+       Assignfn( "$fvwork/gmao_global_aeroinfo.rc",               "aeroinfo");
+       if ( $nsig == 72 ) {
+               cp( "$fvwork/gmao_global_anavinfo.rc",             "anavinfo");
+       } else {
+               cp( "$fvwork/gmao_global_anavinfo_l${nsig}.rc",    "anavinfo");
+       }
+       Assignfn( "$fvwork/gmao_global_pcpinfo.rc",                 "pcpinfo");
+       Assignfn( "$fvwork/gmao_global_tgasinfo.rc",               "tgasinfo");
+       Assignfn( "$fvwork/gmao_global_blacklist.rc",             "blacklist");
+       Assignfn( "$fvwork/gmao_global_insituinfo.rc",           "insituinfo");
+       Assignfn( "$fvwork/gmao_global_scaninfo.rc",               "scaninfo");
+       if ( -e "$fvwork/gmao_global_rad_time_thin.rc ") {
+          rename("anavinfo","anavinfo.hold");
+          $cmd = "cat `ls anavinfo.hold $fvwork/gmao_global_rad_time_thin.rc`>>anavinfo";
+          print " $cmd\n";
+          $rc_ignore = system($cmd);
+          if ( -e "anavinfo" ) {rm("anavinfo.hold")};
+       }
+       if ( $doHYB ) {
+          if( -e "$fvwork/gmao_global_hybens_info.x${nlon_ens}y${nlat_ens}l${nsig}.rc" ) {
+             Assignfn( "$fvwork/gmao_global_hybens_info.x${nlon_ens}y${nlat_ens}l${nsig}.rc","hybens_info");
+          } else {
+             die ">>>> ERROR <<< cannot find gmao_global_hybens_info.x${nlon_ens}y${nlat_ens}l${nsig}.rc file ";
+          }
+          if ( $doasens ) {
+             if( -e "$fvwork/gmao_global_hybens_info_tauf.x${nlon_ens}y${nlat_ens}l${nsig}.rc" ) {
+                Assignfn( "$fvwork/gmao_global_hybens_info_tauf.x${nlon_ens}y${nlat_ens}l${nsig}.rc","hybens_info_tauf");
+             }
+          }
+       }
+       if( -e "$fvwork/gmao_airs_bufr.tbl" ) {
+          Assignfn( "$fvwork/gmao_airs_bufr.tbl", "airs_bufr.table")};
+       # RC and BC files for aerosol usage
+       if(! -e "Chem_AerRegistry.rc"    ) {Assignfn("$fvhome/run/gocart/Chem_AerRegistry.rc","Chem_AerRegistry.rc")};
+       if(! -e "Chem_Mie-550nm.rc"      ) {Assignfn("$fvhome/run/gocart/Chem_Mie-550nm.rc"  ,"Chem_Mie-550nm.rc")};
+       if(! -e "Chem_Registry_apert.rc" ) {Assignfn("$fvwork/Chem_Registry_apert.rc","Chem_Registry_apert.rc")};
+       if(! -d "ExtData"                ) {Assignfn("$fvInput", "ExtData")};
+
+       # figure out which CO2 climatology file to use
+       $maxdiff = 9999;
+       foreach $fn ( <$fvInput/$myetc/gmao_co2_v1/gmao_global_co2.*txt> ) {
+          $co2fname = basename("$fn");
+          $dbco2yyyy = `echo $co2fname | cut -d. -f2 | cut -d_ -f3`;
+          $this_dd = abs($yyyy - $dbco2yyyy);
+          if ( $this_dd < $maxdiff ) { $maxdiff = $this_dd; $co2yyyy = $dbco2yyyy};
+       }
+       chomp($co2yyyy);
+#      Assignfn( "$fvInput/$myetc/gmao_co2_v1/gmao_global_co2.l${nsig}_${co2yyyy}_v1.txt","global_co2_data.txt");
+       Assignfn( "$fvInput/$myetc/gmao_co2_v1/gmao_global_co2.v1_l${nsig}_${co2yyyy}.txt","global_co2_data.txt");
+
+       if ( $ENV{BERROR_FROMENS} ) {
+          print "analyzer: bypass typical  Berror clim ... \n";   
+       } else {
+          # Choose the file of background error statistics.  First, use any user
+          # defined run-time value, from --berror=<> or from environment variable
+          # BERROR.
+          if ( ! "$berror" ) { $berror = $ENV{BERROR} };
+
+          # If $berror is undefined, try a list of known historical filenames in
+          # a backward order.
+          if ( ! "$berror" ) {
+
+               # locally derived file on fv-interpolated Gaussian grid
+               $berror="$fvInput/$myetc/berror_gmao/gmao24Jun2016_fp+oz_fix/MJK";
+  
+               # if none fits, set the name back to none.
+               $berror = "" unless ( -e "$berror" );
+          }
+          $berrorfile = "$berror/l${nsig}x${nlon}y${nlat}.berror_stats_psoz_gcv.bin";
+          print " Bkg-Error File: $berrorfile \n";
+
+          # Check the status
+          if ( !    "$berrorfile" ) {die ">>>> ERROR <<< no berror_stats file defined" }
+          if ( ! -e "$berrorfile" ) {die ">>>> ERROR <<< can not open berror_stats file, \"$berrorfile\"" }
+   
+          Assignfn( "$berrorfile", "berror_stats");
+          $rc_ignore = system("ls -tl $berrorfile");
+       }
+
+       $rc_ignore = system("ls -tl berror_stats");
+       $rc_file = "";          # input file not read from std input
+
+   } else {
+       die ">>>> ERROR <<< SSI is no longer suppoorted <<<< ";
+   }
+
+#  Allow for setting for user-specified observation error covariances
+#  for now, only: AIRS, CrIS, IASI, and SSIS
+   if ( $doRcorr ) {
+      if( $ENV{RERROR} ) {
+        $rerror = $ENV{RERROR}; chomp($rerror);
+      } else {
+        $rerror = "$fvInput/$myetc/rerror_gmao/13jan2020/";
+      }
+      chdir("$rerror");
+      @rcovs = (`ls *_rcov.bin`);
+      chdir("$anadir");
+      print "analyzer: will link rcovs ... \n";
+      foreach $fn ( @rcovs ) {
+          chomp($fn);
+          print "analyzer: link $rerror/$fn to ./$fn \n";
+          Assignfn( "$rerror/$fn", "$fn");
+      }
+      rename("anavinfo","anavinfo.hold");
+      $cmd = "cat `ls anavinfo.hold $fvwork/gmao_global_anavinfo_rcov.rc`>>anavinfo";
+      print " $cmd\n";
+      $rc_ignore = system($cmd);
+      if ( -e "anavinfo" ) {unlink("anavinfo.hold")};
+   }
+
+#  Initialize sat-bias file (link or prepare to create one)
+#  --------------------------------------------------------
+   $doSPINBIAS = 0;
+ 
+#  Initialize bias files
+#  ---------------------
+   if ( $doANA || $opt_observer ) {
+       if ( -e "$fvwork/biasinp.ctl" ) {
+            cp ( "$fvwork/biasinp.ctl", "biasinp.ctl"   );
+       } 
+       my ($bnymd, $bnhms) = ( tick($nymd,$nhms,-6*3600) ); # tick time to previous cycle
+       my $bhh = substr($bnhms,0,2);
+       if (   -e "$fvwork/$expid.bbias.eta.${bnymd}_${bhh}z.bin" ) {
+            cp ( "$fvwork/$expid.bbias.eta.${bnymd}_${bhh}z.bin", "biascor_in"   );
+       } 
+   }
+
+#  Bring in guess field (in case it's available)
+#  ---------------------------------------------
+   if ( -e "$fvwork/gesfile" && ( $doANA || $opt_observer) ) {
+      cp ( "$fvwork/gesfile", "gesfile_in");
+   }
+
+#  Bring in sensitivity vector from GCM adjoint integration
+#  --------------------------------------------------------
+   if ( $doasens ) {
+       if ( $ENV{INCSENS} ) {
+          $gnorm = "inc";
+       } else {
+          $gnorm = `echorc.x -rc $fvwork/initadj.rc pert_norm`; chomp($gnorm);
+       }
+       $gsensfn = "$expid.fsens_${gnorm}.eta.${nymd}_${hh}z.$ncsuffix";
+       if ( -e "$fvwork/$gsensfn" ) {
+            cp("$fvwork/$gsensfn","fsens.eta.$ncsuffix");
+       } else { 
+            $rc = 1;
+            die ">>> ERROR <<< cannot find forecast sensitivity vector $fvwork/$gsensfn ";
+       }
+   } else {
+       if (    -e "$fvwork/ferr.eta.$ncsuffix" ) {
+         Assignfn("$fvwork/ferr.eta.$ncsuffix","ferr.eta.$ncsuffix");
+       }
+   }
+
+#  Welcome message
+#  ---------------
+
+   print <<"EOF" ;
+
+   --------------------------------------------------
+   Analyzer -  Produces atmospheric analysis with GSI
+   --------------------------------------------------
+
+      Experiment id : $expid
+      fvInput       : $fvInput
+      Work dir      : $anadir
+      NYMD          : $nymd
+      NHMS          : $nhms
+      ANA           : $doANA
+      PREPQC name   : $prepqc
+      RC name       : $rcname
+      Spectral T    : $jcap
+      NLAT          : $nlat
+      Sigma levs    : $nsig
+      PABOVE        : $pabove
+      PBELOW        : $pbelow
+      berror        : $berror
+
+
+Starting...
+
+EOF
+
+}
+
+#......................................................................
+
+sub setbkg {                        
+
+  return if ( $opt_observer );
+
+  my ( $fvbkg, $this_nymd, $this_nhms, $fhour, $atbkg ) = @_;
+
+  Assignfn ( "$fvwork/$fvbkg",  "$fvbkg"  );
+
+}
+#......................................................................
+
+sub setobs {
+
+  my ( $nymd, $hh ) = @_;
+
+  return if ( $rc!=0 );
+  return 0 unless ( $lnOBS );
+
+  print " Setting up observations ...\n";
+
+# Temporary bug fix
+# -----------------
+  my $pbfile = "$fvwork/$expid.prepbufr.$nymd.t${hh}z.blk";
+  my $size_pb = ( -s $pbfile ); 
+  print "pbfile = $pbfile size = $size_pb\n";
+  if ( -z $pbfile ) { 
+      print "Removing 0 length $pbfile\n";
+      unlink("$pbfile"); 
+  }
+
+  $cmd = "ln -s $fvwork Obsloc";
+  print " $cmd\n";
+  $rcdum = system($cmd);
+
+}
+#....................................................................................
+sub setup_4dvar {
+
+  my ($symd, $shms) = ( tick($nymd,$nhms,-($aoffset_hr)   *3600) ); # initial analysis time
+  my ($eymd, $ehms) = ( tick($symd,$shms, ($anatwindow_hr)*3600) ); # final   analysis time
+
+# Bring in resource files for ADM/TLM
+# -----------------------------------
+  cp("$fvwork/fv4dvar.ccmrun.namelist.tmpl","ccmrun.namelist.tmpl");
+  cp("$fvwork/fvgcm.ccmflags.namelist"     ,"ccmflags.namelist");
+
+# Edit resource files for ADM/TLM
+# -------------------------------
+  unlink("sed_file");
+  open(SED_FILE,">sed_file") or
+  die ">>> ERROR <<< cannot write sed_file";
+  print  SED_FILE <<"EOF";
+s/>>>EXPID<<</$expid/1
+s/>>>NYMDB<<</$symd/1
+s/>>>NHMSB<<</$shms/1
+s/>>>NYMDE<<</$eymd/1
+s/>>>NHMSE<<</$ehms/1
+s/>>>NDAY<<</$ndays/1
+s/>>>NCSUFFIX<<</$ncsuffix/1
+EOF
+
+  unlink("ccmrun.namelist");
+  $cmd = "sed -f sed_file ./ccmrun.namelist.tmpl > ./ccmrun.namelist";
+  print " $cmd\n";
+  $rc_ignore = system($cmd);
+
+  $cmd = "cut -f1 -d! ccmrun.namelist   | tee fort.811";
+  print " $cmd\n";
+  $rc_ignore = system($cmd);
+  $cmd = "cut -f1 -d! ccmflags.namelist | tee fort.813";
+  print " $cmd\n";
+  $rc_ignore = system($cmd);
+
+
+# Link up to rst for GEOS TLM/ADM
+# -------------------------------
+  $dofgat = 0;
+  if ( $do4dvar ) {
+
+    # Determine whether running FGAT or 4DVAR
+    # ---------------------------------------
+    my($var,$var1,$var2);
+    $var = `grep idmodel gsiparm.anl`;
+    ($var1, $var2) = split(/idmodel/,$var);
+    ($var1, $var2) = split(/=/,$var2);
+    ($var1, $var2) = split(/,/,$var2);
+
+    if ( $var1 eq ".true." || $var1 eq ".t.") {
+#        $icrst = `echorc.x -template $expid $symd $shms -rc $gcrc upper-air_bkg_filename`; chomp($icrst);
+         $dofgat = 1;
+         $icrst = `echorc.x -template $expid $symd $shms -rc $gcrc upalcv_traj_filename`; chomp($icrst);
+         print " I am doing fgat \n";
+    } else {
+         $icrst = `echorc.x -template $expid $symd $shms -rc $gcrc upalcv_traj_filename`; chomp($icrst);
+         print " I am doing 4dvar \n";
+    }
+
+  } else {
+    $icrst = `echorc.x -template $expid $symd $shms -rc $gcrc upper-air_bkg_filename`; chomp($icrst);
+    print " I am doing iau \n";
+  }
+  if($doasens) {
+    if( -e "fsens.eta.$ncsuffix" ) { Assignfn("fsens.eta.$ncsuffix","rst.$ncsuffix") };
+  } else {
+    if( -e "$fvwork/$icrst" ) { Assignfn("$fvwork/$icrst","rst.$ncsuffix") };
+  }
+ 
+  $willret = $do4dvar + $dofgat;
+  return 0 if ( $willret != 1 );
+
+# Determine dimensions of required BCs for ADM/TLM; do dim error checking
+# -----------------------------------------------------------------------
+  my $cmd  = `getgfiodim.x rst.$ncsuffix`; chomp($cmd); @dimbuf = split(" ",$cmd);
+  my $im = @dimbuf[0];
+  my $jm = @dimbuf[1];
+
+  unlink(trajdir) if ( -d trajdir ); # need this here since Assignfn is really for files (not dirs)
+  Assignfn("$fvwork/trajdir_$jiter","trajdir");
+
+}
+#....................................................................................
+sub ana {
+
+  return if ( $rc!=0 );
+
+  print " Running $myexec , please wait...\n";
+
+# Setup 4dvar
+# -----------
+  setup_4dvar();
+
+# Bring in internal input
+# -----------------------
+  setup_internal("set");
+
+# Bring in ensemble of fields kept to represent dynamic background error covariance 
+# ---------------------------------------------------------------------------------
+  if ($do_ARMA_be) {
+     $cmd = "berror.pl -edir $do_ARMA_be -adir $anadir $expid $nymd $nhms $anatwindow_hr set";
+     print "$cmd \n";
+     $rc = System($cmd, "$log_ana","berror.pl");
+  }
+
+# Create link to observation (this prog to overcomes MPT problem in handling fortran system call)
+# -----------------------------------------------------------------------------------------------
+  $cmd = "match_obcls_obsys.pl $nymd ${hh}0000 GSI_GridComp.rc gsiparm.anl";
+  print "$cmd \n";
+  $rc = System($cmd, "$log_ana","match_obcls_obsys.pl");
+
+# Now run NCEP analysis
+# ---------------------
+  $mpirun_ana = $ENV{MPIRUN_ANA};
+  if ( $mpirun_ana =~ "mpirun" || $mpirun_ana =~ "prun" ) {
+       $cmd = "${mpirun_ana} $rc_file ";
+  } elsif ( $mpirun_ana =~ "poe" ) {
+       $cmd = "${mpirun_ana} < gsiparm.anl ";   # this should be generilzed; gsi should not have wired in filename
+  } else {
+       if ( $npes > 0 ) {
+            $cmd = "mpirun -np $npes $myexec $rc_file ";
+       } else {
+            $cmd = "mpirun -np 1     $myexec $rc_file ";
+       }
+  }
+
+  print " $cmd\n";
+  $rc = System($cmd, "$log_ana","$myexec");
+  print " $0: $myexec \$rc =  $rc\n";
+  die ">>>> ERROR <<< running $myexec" if ( $rc );
+  if ( $debug ) {$rc_ignore = system('ls -lrt')};
+
+  $cmd = "cat `ls $anadir/fort.2*`>>$ana_stats_log";  
+  print " $cmd\n";
+  $rc_ignore = system($cmd);
+  
+# Cat diag files to proper after-analysis names
+# ---------------------------------------------
+  lndiag("set");
+
+# If analysis completed successfully it can become a guess for the next analysis
+# ------------------------------------------------------------------------------
+  if ( $do4dvar ) {
+#     if ( $do4diau ) {
+#        # in case gsi is running single exec w/ miter>1, add up all intermediate increments
+#        addxinc($nymd,$nhms);
+#        #
+#        $recdate  = `echorc.x RECORD_REF_DATE -rc GSI_GridComp.rc`; chomp($recdate);
+#        $rectime  = `echorc.x RECORD_REF_TIME -rc GSI_GridComp.rc`; chomp($rectime);
+#        $anaout = `echorc.x -template $expid $recdate $rectime -rc $gcrc upper-air_inc_filename`; chomp($anaout);
+#        print " 4d-iau- anaout $anaout\n";
+#        @lsxinc =  glob("*xinc.eta.*.$ncsuffix");
+#        foreach $fn ( @lsxinc ) {
+#           print " 4d-iau- moving $fn to work dir\n";
+#           rename("$fn","$fvwork/$fn");
+#        }
+#     } else {
+#     my ($aymd, $ahms) = ( tick($nymd,$nhms,-($aoffset_hr+$dtasyn)*3600) ); # step back to previous synoptic time
+#        ($aymd, $ahms) = ( tick($aymd,$ahms,$dtasyn*3600) );
+#         $anaout = `echorc.x -template $expid $aymd $ahms -rc $gcrc upper-air_inc_filename`; chomp($anaout);
+#     }
+  } else {
+     $anaout = `echorc.x -template $expid $nymd $nhms -rc $gcrc upper-air_ana_filename`; chomp($anaout);
+#    if ( $do4diau ) {
+#        # in case gsi is running single exec w/ miter>1, add up all intermediate increments
+#        addxinc($nymd,$nhms);
+#        # in this case, GSI should not write out the full analysis ...
+#        # if, for some reason it does, get rid of it
+#        if ( -e $anaout ) {unlink("$anaout")};
+#    }
+     # now move all analysis increments to main work directory
+#    @lsxinc =  glob("*xinc.eta.*.$ncsuffix");
+#    foreach $fn ( @lsxinc ) {
+#       print " 4d-iau- moving $fn to work dir\n";
+#       rename("$fn","$fvwork/$fn");
+#    }
+  }
+  if ( ! $doasens ) {
+    if ( -e "$anaout" ) { 
+       $ensdir = $ENV{HYBRIDGSI};
+       if ( $ensdir && $ensdir ne "/dev/null" && (! -e "$fvwork/atmens_replay.acq")) {
+           $stg4hyb = $ENV{STAGE4HYBGSI};
+           if ( $stg4hyb && ($stg4hyb ne "/dev/null") ) {
+               print "copying $anaout to $stg4hyb \n";
+               cp("$anaout","$stg4hyb/$anaout");
+           }
+       }
+       rename("$anaout","$fvwork/$anaout");
+    } else {
+      if ( (! $do4dvar) && (! $do4diau) ) {
+         $rc = 99;
+         die ">>>> ERROR <<< analysis/increment not found" if ( $rc );
+      }
+    }
+  }
+
+# Shuffle internal output around
+# ------------------------------
+  setup_internal("unset");
+
+}
+
+#....................................................................................
+sub addxinc {
+
+ return 0 unless $miter > 1;
+  
+  my ( $this_nymd, $this_nhms ) = @_;
+
+  my ( $this_nymdi, $this_nhmsi );
+  my ( $this_nymde, $this_nhmse );
+  my ( $dtsec, $this_iter, $this_iter3, $this_hhmni );
+
+  ($this_nymdi,$this_nhmsi) = tick($this_nymd,$this_nhms,-($aoffset_hr)*3600);
+  ($this_nymde,$this_nhmse) = tick($this_nymd,$this_nhms,  $aoffset_hr *3600);
+  
+  my $nm_obsbin = `nmlread.py $rcname SETUP nmn_obsbin`;
+  $dtsec = $nm_obsbin * 60;
+
+# Create directory to push used intermediate increments into
+  $rc = system("/bin/mkdir -p interxinc" );
+  die ">>> ERROR <<< cannot create interxinc " if ( $rc );
+
+# Handle initial time
+  $this_hhmni  = substr($this_nhmsi,0,4);
+# Define final increment filename
+  $ofile = "$expid.xinc.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ofile);
+# First iteration is simply a copy ...
+  $this_iter = 1;
+  $ifile = "$expid.xinc.001.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ifile);
+  print "Analyzer addxinc On ITER $this_iter: cp $ifile $ofile \n";
+  cp("$ifile","$ofile"); 
+  rename("$ifile","interxinc/$ifile");
+  $this_iter = 1;
+# Loop over iterations
+  while ( $this_iter < $miter ) {
+     $this_iter = $this_iter + 1;
+     $this_iter3 = sprintf("%3.3d",$this_iter);
+     $ifile = "$expid.xinc.$this_iter3.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ifile);
+     if ( ! -e "$ifile"  ) {
+        $errcode = 999;
+        die ">>> ERROR <<< cannot find increment file $ifile " if ( $errcode );
+     }
+     $cmd = $fvroot . "/bin/dyn_iupd.x $ifile $ofile";
+     print "Analyzer addxinc On ITER $this_iter: $cmd \n";
+     $errcode = system($cmd);
+     die ">>> ERROR <<< failed to update increment at time ($this_nymdi,$this_nhmsi) " if ( $errcode );
+     if ( ! -e "$ofile" ) {
+        die ">>> ERROR <<< did not increment update at time ($this_nymdi,$this_nhmsi) " if ( $errcode );
+     }
+     rename("$ifile","interxinc/$ifile");
+  }
+
+# Loop over remaining times ...
+  while ( $this_nymdi != $this_nymde || $this_nhmsi != $this_nhmse ) {
+     ($this_nymdi,$this_nhmsi) = tick($this_nymdi,$this_nhmsi,$dtsec);
+
+     $this_hhmni  = substr($this_nhmsi,0,4);
+#    Define final increment filename
+     $ofile = "$expid.xinc.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ofile);
+#    First iteration is simply a copy ...
+     $this_iter = 1;
+     $ifile = "$expid.xinc.001.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ifile);
+     print "Analyzer addxinc On ITER $this_iter: cp $ifile $ofile \n";
+     cp("$ifile","$ofile"); 
+     rename("$ifile","interxinc/$ifile");
+     $this_iter = 1;
+#    Loop over iterations
+     while ( $this_iter < $miter ) {
+        $this_iter = $this_iter + 1;
+        $this_iter3 = sprintf("%3.3d",$this_iter);
+        $ifile = "$expid.xinc.$this_iter3.eta.${this_nymdi}_${this_hhmni}z.$ncsuffix";chomp($ifile);
+        if ( ! -e "$ifile"  ) {
+           $errcode = 999;
+           die ">>> ERROR <<< cannot find increment file $ifile " if ( $errcode );
+        }
+        $cmd = $fvroot . "/bin/dyn_iupd.x $ifile $ofile";
+        print "Analyzer addxinc On ITER $this_iter: $cmd \n";
+        $errcode = system($cmd);
+        die ">>> ERROR <<< failed to update increment at time ($this_nymdi,$this_nhmsi) " if ( $errcode );
+        if ( ! -e "$ofile" ) {
+           die ">>> ERROR <<< did not increment update at time ($this_nymdi,$this_nhmsi) " if ( $errcode );
+        }
+        rename("$ifile","interxinc/$ifile");
+     }
+  }
+
+}
+#....................................................................................
+sub setup_internal {
+
+  my ( $what ) = @_;
+
+# -------------------------------
+#            iau  4dvar  asens
+# -------------------------------
+#    set      n     y     n
+#  unset      y     y     y
+# -------------------------------
+  return 0 if ( $doasens); # for now, bypass all this when Asens (i.e., Asens only works in IAU)
+
+  return 0 if ( (! $do4dvar) && (! $doasens) && ("$what" eq "set"  ) );
+  return 0 if (                    $doasens  && ("$what" eq "unset") );
+
+  $npes = $ENV{NCPUS_GSI}; if(! $npes) { $npes = $ENV{NCPUS} };
+  if ( $do4dvar ) { 
+       if ($jiter < 0) { $jiter = 0 };
+       $it      = $jiter;
+       $totiter = $jiter+1;
+  } else {
+       $var = `grep miter gsiparm.anl`;
+       ($var1, $var2) = split(/miter/,$var);
+       ($var1, $var2) = split(/=/,$var2);
+       ($miter,$var2) = split(/,/,$var2); 
+       $it      = 0;
+       $totiter = $miter;
+       print "setup_internal: Total number of iterations: $totiter \n";
+  }
+
+  print "setup_internal: Shuffling obsdiags, xhatsave, and other files around ...\n";
+
+  $rc = 0;
+  if ( "$what" eq "set" ) {
+
+   $myiter3 = sprintf("%3.3d",$jiter);
+   if ( -e "$anadir/$expid.xhatsave.${myiter3}.eta.${nymd}_${hh}z.$ncsuffix" ) {
+      Assignfn("$anadir/$expid.xhatsave.${myiter3}.eta.${nymd}_${hh}z.$ncsuffix","$anadir/xhatsave.$myiter3");
+   }
+   if ( -e "$anadir/$expid.yhatsave.${myiter3}.eta.${nymd}_${hh}z.$ncsuffix" ) {
+      Assignfn("$anadir/$expid.yhatsave.${myiter3}.eta.${nymd}_${hh}z.$ncsuffix","$anadir/yhatsave.$myiter3");
+   }
+
+   # For each iteration (more than one only in non-4dvar or ASENS cases)
+   # -------------------------------------------------------------------
+   while ( $it < $totiter ) { 
+
+     # --------------------------------------------------------
+     # Move observer-related files to analysis-work directory 
+     # ------------------------------------------------------
+      $ic = 0;
+                          $myvitr3 = sprintf("%3.3d",$it);     # previous iteration counter
+      $myiter = $it + 1;  $myiter3 = sprintf("%3.3d",$myiter); #     this iteration counter
+      while( $ic < $npes ) {
+        $myic = sprintf("%4.4d",$ic);
+
+        # Bring in obsdiags from previous observer run
+        # --------------------------------------------
+        $obf = "obsdiags.$myiter3.$myic";
+        if ( $doasens ) {
+             $obfa = "$expid.$obf.${nymd}_${hh}z.bin";
+             if ( -e "$fvwork/$obfa" ) {
+                print "mv $fvwork/$obfa   $anadir/$obf \n";
+                rename  ("$fvwork/$obfa","$anadir/$obf");
+             }
+        } else {
+             if ( -e "$fvwork/$obf" ) {
+                print "mv $fvwork/$obf   $anadir/$obf \n";
+                rename  ("$fvwork/$obf","$anadir/$obf");
+             }
+        }
+  
+        # Bring in lagstate from previous observer run
+        # --------------------------------------------
+        $obf = "lagstate.save.$myic";
+        if ( $doasens ) {
+             $obfa = "$expid.$obf.${nymd}_${hh}z.bin";
+             if ( -e "$fvwork/$obfa" ) {
+                print "mv $fvwork/$obfa   $anadir/$obf \n";
+                rename  ("$fvwork/$obfa","$anadir/$obf");
+             }
+        } else {
+             if ( -e "$fvwork/$obf" ) {
+                print "mv $fvwork/$obf   $anadir/$obf \n";
+                rename  ("$fvwork/$obf","$anadir/$obf");
+             }
+        }
+        # Bring in xhatsave from previous observer run
+        # --------------------------------------------
+        if ( $doasens ) {
+             $xhf  = "xhatsave.$myiter3.$myic";
+             $xhfa = "$expid.$xhf.${nymd}_${hh}z.bin";
+             if ( -e "$fvwork/$xhfa" ) {
+                print "mv $fvwork/$xhfa   $anadir/$xhf \n";
+                rename  ("$fvwork/$xhfa","$anadir/$xhf");
+             }
+        } else {
+             $xhf = "xhatsave.$myvitr3.$myic";
+             if ( -e "$fvwork/$xhf" ) {
+                print "mv $fvwork/$xhf   $anadir/$xhf \n";
+                rename  ("$fvwork/$xhf","$anadir/$xhf");
+             }
+             $yhf = "yhatsave.$myvitr3.$myic";
+             if ( -e "$fvwork/$yhf" ) {
+                print "mv $fvwork/$yhf   $anadir/$yhf \n";
+                rename  ("$fvwork/$yhf","$anadir/$yhf");
+             }
+        }
+
+        # Bring in evec from main work directory (only when ASENS)
+        # --------------------------------------------------------        
+        if ( $doasens ) {
+             $nv    = 0;
+             $fn    = `ls $fvwork/*evec.*.${nymd}_${hh}z.bin`;
+             chomp($fn); @fn = qw($fn); $nvtot = split(" ",$fn);
+             $nvtot = $nvtot / $npes;
+             while ( $nv < $nvtot ) {
+               $nv   = $nv + 1;
+               $idx  = sprintf("%4.4d",$nv);
+               $evc  = "evec.$myiter3.$idx.$myic";
+               $evca = "$expid.$evc.${nymd}_${hh}z.bin";
+               if ( -e "$fvwork/$evca" ) {
+                    print "cp  $fvwork/$evca   $anadir/$evc \n";
+                           cp("$fvwork/$evca","$anadir/$evc");
+               }
+             }
+             open(LUN,">numpcvecs.$myiter3");   # file containing the number of evecs available
+             $rcd = $nvtot;
+             print(LUN "$rcd\n");
+             close(LUN);
+
+             $nv    = 0;
+             $fn    = `ls $fvwork/*lanczvec.*.${nymd}_${hh}z.bin`;
+             chomp($fn); @fn = qw($fn); $nvtot = split(" ",$fn);
+             $nvtot = $nvtot / $npes;
+             while ( $nv < $nvtot ) {
+               $nv   = $nv + 1;
+               $idx  = sprintf("%4.4d",$nv);
+               $lvc  = "lanczvec.$myiter3.$idx.$myic";
+               $lvca = "$expid.$lvc.${nymd}_${hh}z.bin";
+               if ( -e "$fvwork/$lvca" ) {
+                    print  "ln -s  $fvwork/$lvca   $anadir/$lvc \n";
+                         Assignfn("$fvwork/$lvca","$anadir/$lvc");
+               }
+             }
+        }
+  
+        $ic = $ic + 1;
+      }
+      $lvc  = "zlanczos.$myiter3";
+      $lvca = "$expid.$lvc.${nymd}_${hh}z.bin";
+      if ( -e "$fvwork/$lvca" ) {
+           print  "ln -s  $fvwork/$lvca   $anadir/$lvc \n";
+                Assignfn("$fvwork/$lvca","$anadir/$lvc");
+      }
+
+      $it = $it + 1;
+   }
+
+  } elsif ( "$what" eq "unset" ) {
+
+
+   # For each iteration (more than only in non-4dvar case)
+   # -----------------------------------------------------
+   while ( $it < $totiter ) { 
+    $myiter = $it + 1;  $myiter3 = sprintf("%3.3d",$myiter);
+
+   # Move observer-related files to analysis-work directory
+   # ------------------------------------------------------
+    $ic = 0;
+    while( $ic < $npes ) {
+      $myic = sprintf("%4.4d",$ic);
+
+      $obf = "obsdiags.$myiter3.$myic";
+      if ( -e "$obf" ) {
+         if ( $sv4sens) { 
+             print "cp  $obf   $fvwork/$expid.$obf.${nymd}_${hh}z.bin \n";
+                    cp("$obf","$fvwork/$expid.$obf.${nymd}_${hh}z.bin");
+         }
+         if ( $do4dvar ) {
+             print "mv $obf   $fvwork/$obf \n";
+             rename  ("$obf","$fvwork/$obf");
+         }
+      }
+
+      $xhf = "xhatsave.$myiter3.$myic";
+      $yhf = "yhatsave.$myiter3.$myic";
+      if ( -e "$xhf" ) {
+         if ( $sv4sens ) {
+               print "cp  $xhf   $fvwork/$expid.$xhf.${nymd}_${hh}z.bin \n";
+                      cp("$xhf","$fvwork/$expid.$xhf.${nymd}_${hh}z.bin");
+         }
+         if ( $do4dvar ) {
+             print "mv $xhf   $fvwork/$xhf \n";
+             rename  ("$xhf","$fvwork/$xhf");
+             if ( -e "$yhf" ) {
+                 print "mv $yhf   $fvwork/$yhf \n";
+                 rename  ("$yhf","$fvwork/$yhf");
+             }
+         }
+      }
+
+      $nv    = 0;
+      if ( -e "numpcvecs.$myiter3" ) {
+         $nvtot = `cat numpcvecs.$myiter3`;
+         while ( $nv < $nvtot ) {
+           $nv  = $nv + 1;
+           $idx = sprintf("%4.4d",$nv);
+           $evc = "evec.$myiter3.$idx.$myic";
+           if ( -e "$evc" ) {
+              if ( $sv4sens ) {
+                  print "cp  $evc   $fvwork/$expid.$evc.${nymd}_${hh}z.bin \n";
+                         cp("$evc","$fvwork/$expid.$evc.${nymd}_${hh}z.bin");
+              }
+            }
+         }
+      }
+
+      $var = `grep niter gsiparm.anl`;
+      $iiter = index($var,"niter($myiter)");
+      $iiter = substr($var,$iiter,15);  # 15 is an arbitrary number, relatively large
+      ($var1, $var2) = split(/niter/,$iiter);
+      ($var1, $var2) = split(/=/,$var2);
+      ($iiter,$var2) = split(/,/,$var2); 
+      $nv    = 0;
+      $nvtot = $iiter; # number of iterations in this inner loop
+      while ( $nv < $nvtot ) {
+        $nv  = $nv + 1;
+        $idx = sprintf("%4.4d",$nv);
+        $lvc = "lanczvec.$myiter3.$idx.$myic";
+        if ( -e "$lvc" ) {
+           if ( $sv4sens ) { # looks funny but that's how it must be for pesto to work
+               print   "mv  $lvc   $fvwork/$expid.$lvc.${nymd}_${hh}z.bin \n";
+                    rename("$lvc","$fvwork/$expid.$lvc.${nymd}_${hh}z.bin");
+               print       "ln -s  $fvwork/$expid.$lvc.${nymd}_${hh}z.bin   $lvc \n";
+                         Assignfn("$fvwork/$expid.$lvc.${nymd}_${hh}z.bin","$lvc");
+           }
+        }
+      }
+
+
+      $ic = $ic + 1;
+    }
+
+    $lvc = "zlanczos.$myiter3";
+    if ( -e "$lvc" ) {
+       if ( $sv4sens ) { # looks funny but that's how it must be for pesto to work
+           print   "mv  $lvc   $fvwork/$expid.$lvc.${nymd}_${hh}z.bin \n";
+                rename("$lvc","$fvwork/$expid.$lvc.${nymd}_${hh}z.bin");
+           print       "ln -s  $fvwork/$expid.$lvc.${nymd}_${hh}z.bin   $lvc \n";
+                     Assignfn("$fvwork/$expid.$lvc.${nymd}_${hh}z.bin","$lvc");
+       }
+    }
+
+    $it = $it + 1;
+   }
+
+  } else {
+     
+    print " Error: failed in setup_internal ...\n";
+    $rc = 1;
+  }
+
+
+}
+#....................................................................................
+sub fvpert {
+
+  return 0 unless ( $do4dtlm );
+
+  my ( $myinfile ) = @_;
+  my ( $cmd, $mpirun_fvpert, $fvpert_exec );
+
+# Link input file to default input filename
+# -----------------------------------------
+  Assignfn ("$myinfile","fvpert.eta.$ncsuffix");
+
+  $this_exec     = "fvpert.x";
+  $mpirun_fvpert = $ENV{ADMRUN_OPT_BEGIN};
+  if ( $mpirun_fvpert =~ "mpirun" || $mpirun_fvpert =~ "prun" ) {
+       $cmd = "${mpirun_fvpert} ";
+  } elsif ( $mpirun_fvpert =~ "poe" ) {
+       $cmd = "${mpirun_fvpert} ";
+  } else {
+       $npes = $ENV{NCPUS_GSI}; if(! $npes) { $npes = $ENV{NCPUS} };
+       if ( $npes > 0 ) {
+            $cmd = "mpirun -np $npes ";
+       } else {
+            $cmd = "mpirun -np 1     ";
+       }
+  }
+
+# Now propagate increment forward within current time window
+# ----------------------------------------------------------
+  $cmd = "$cmd $this_exec -memtraj -g5 -inc -o $expid.finc.eta ";
+  print " $cmd\n";
+  $rc = System($cmd, "$log_ana","$myexec");
+
+}
+
+#....................................................................................
+sub lndiag {
+   my ( $opt ) = @_;
+   my $obsvr; 
+   
+   $obsvr = $ENV{OBSVR_ONLY};
+   if ( ! $obsvr ) {
+      return 0 unless ( ! $do4dvar ); 
+   }
+
+   my ($miterp1);
+
+   $var = `grep miter gsiparm.anl`;
+   ($var1, $var2) = split(/miter/,$var);
+   ($var1, $var2) = split(/=/,$var2);
+   ($miter,$var2) = split(/,/,$var2); 
+   $miterp1 = $miter + 1;
+   $jiteradm = $miterp1 - $jiter + 1;
+
+   $ldirs = `nmlread.py $rcname SETUP lrun_subdirs`; chomp($ldirs);
+   $lsubdirs = "";
+   if($ldirs eq "True") {
+      $lsubdirs = "-subdirs";
+   }
+
+   $npe_factor = 4;
+   $myncpus = floor($npes/$npe_factor);
+   $myncpus = $myncpus  - $myncpus % 2;
+   if ( $doasens ) {
+        my $nametag = "ans_${gnorm}${jiteradm}";
+        $cmd = "gsidiags -ncpus $myncpus -jiter $jiteradm -tag $nametag $nymd $nhms $expid $opt";
+   } else {
+        $cmd = "gsidiags $lsubdirs -ncpus $myncpus $nymd $nhms $expid $opt";
+   }
+   print " $cmd\n";
+   $rc = System($cmd, "$log_ana","gsidiag");
+}
+#......................................................................
+#
+# Tick - advance date/time by nsecs seconds
+#
+#
+
+sub tick {
+    my ( $nymd, $nhms, $nsecs ) = @_;
+
+    if("$nsecs" == "0" ) {
+        return ($nymd, $nhms);
+    }
+
+    $yyyy1  = substr($nymd,0,4);
+    $mm1    = substr($nymd,4,2);
+    $dd1    = substr($nymd,6,2);
+
+    $hh1 = 0 unless ( $hh1 = substr($nhms,0,2));
+    $mn1 = 0 unless ( $mn1 = substr($nhms,2,2));
+    $ss1 = 0 unless ( $ss1 = substr($nhms,4,2));
+    $time1 = timegm($ss1,$mn1,$hh1,$dd1,$mm1-1,$yyyy1) + $nsecs;
+    ($ss1,$mn1,$hh1,$dd1,$mm1,$yyyy1,undef,undef,undef) = gmtime($time1);
+
+    $nymd = (1900+$yyyy1)*10000 + ($mm1+1)*100 + $dd1;
+    $nhms = sprintf("%6.6d",$hh1*10000 + $mn1*100 + $ss1);
+    return ($nymd, $nhms);
+
+}
+
+#....................................................................................
+sub System {
+
+    my ( $cmd, $logfile, $xname ) = @_;
+    my ( @zname );
+
+    open SAVEOUT, ">&STDOUT";  # save stdout
+    open SAVEERR, ">&STDERR";  # save stderr
+
+    open STDOUT, ">>$logfile" or die "can't redirect stdout";
+    open STDERR, ">>$logfile" or die "can't redirect stderr";
+
+    select STDERR; $| = 1;     # make it unbuffered
+    select STDOUT; $| = 1;     # make it unbuffered
+
+    @zname = split(" ", $cmd);
+    if ( $xname ) {
+      $rc1 = system( "zeit_ci.x -r $fvwork/.zeit $xname");
+    } else {
+      $rc1 = system( "zeit_ci.x -r $fvwork/.zeit $zname[0]");
+    }
+
+    $rc = system ( $cmd );     # run the shell command
+
+    if ( $xname ) {
+      $rc2 = system( "zeit_co.x -r $fvwork/.zeit $xname");
+    } else {
+      $rc2 = system( "zeit_co.x -r $fvwork/.zeit $zname[0]");
+    }
+
+    # Bitwise shift returns actual UNIX return code
+    $exit_code = $rc >> 8;
+
+    close STDOUT;
+    close STDERR;
+
+    open STDOUT, ">&SAVEOUT" ;  # restore stdout
+    open STDERR, ">&SAVEERR" ;  # restore stdout
+
+    return $exit_code;
+
+  }
+
+#......................................................................
+
+sub Assign {
+
+  my ( $fname, $lu ) = @_;
+
+  $f77name = "fort.$lu";
+  unlink($f77name) if ( -e $f77name ) ;
+  symlink("$fname","$f77name");
+
+}
+
+sub Assignfn {
+
+# Assignfn - assigns fn to given file name fname.
+# fname = old file
+# fn = new file (links to old)
+  my ( $fname, $fn ) = @_;
+  unlink($fn) if ( -e $fn ) ;
+  symlink("$fname","$fn");
+
+}
+
+sub fullpath {
+
+    my ( $fname ) = @_;
+
+    $dirn = dirname("$fname");
+    chomp($dirn = `pwd`) if ( "$dirn" eq "." ) ;
+    $name = basename("$fname");
+    $full = "$dirn/$name";
+    return ($full);
+
+  }
+
+#......................................................................
+
+sub usage {
+
+   print <<"EOF";
+
+NAME
+     analyzer - Produces atmospheric analysis
+          
+SYNOPSIS
+
+     analyzer [...options...]  nymd nhms 
+          
+DESCRIPTION
+
+     This script is a frontend for the GSI analysis.
+     It drives the analsysis process for a given synoptic time.
+     It executes the following applications:
+
+        $myexec (NCEP's analysis)
+
+     The following parameters are required 
+
+     nymd     Year-month-day, e.g., 2002010  for 10 Jan 2002
+     nhms     Hour-month-sec, e.g., 000000   for 00Z
+
+OPTIONS
+
+     -h          : prints this usage notice
+     -d          : fvInput directory (default /share/fvdas/fvInput/ssi) 
+     -skipOIQC   : skips OIQC
+     -skipSOLVER : skips analysis, sets increments to zero
+     -skipTRANSF : skips transforms
+     -berror     : file of background error statistics (default is from a list)
+     -prepqc     : prepqc file name
+     -expid      : experiment id
+     -rc         : resource file
+     -t          : resolution (default: T62L28)
+     -pa         : pabove blending level in mb (default 30)
+     -pb         : pbelow blending level in mb (default 10)
+     -bkg        : FV background eta file
+     -sbkg       : FV background sfc file
+     -log        : name of log file (default: three log files)
+     -strict     : when specified, will die in case of missing obs files (see ENV)
+     -debug      : echoes extra output from SSI/GSI (bkg-to-data fit; see ENV) 
+     -jiter      : when running outer loop externally, this is the iteration number
+     -lnobs      : will link in observation inside working directory
+
+
+
+NECESSARY ENVIRONMENT
+
+  MPIRUN_ANA   env var specifying mpi command line for ssi.x/gsi.x
+               (e.g., mpirun -np 4 fullpath/$myexec)
+  NCPUS_GSI    number of procs to use in mpi call to SSI 
+               (used only when MPIRUN_ANA not defined)
+               (alternatively, will use NCPUS)
+  FVWORK       location of rc file(s), satbias_in, bkg files,
+               and observations files
+  FVROOT       bin directory for run
+  TIMEINC      time window of analysis
+  VAROFFSET    abs-value of offset time from analysis hour
+  OIQC         runs NCEP's OI quality control when on
+  DO4DVAR      indicates whether outer loop is done externally or not
+
+OPTIONAL ENVIRONMENT
+
+  DEBUG        activates debugging (for now, it only controls listing opt)
+  STRICT       controls level of acceptance of missing observation files
+
+AUTHOR
+
+     Carlos Cruz (ccruz\@gmao.gsfc.nasa.gov), NASA/GSFC/GMAO
+     Last modified: 15Jul2007      by: R. Todling
+
+
+EOF
+
+  exit(1)
+
+}

@@ -1,5 +1,5 @@
  &SETUP
-   miter=2,niter(1)=@NITER1,niter(2)=@NITER2,
+   miter=2,niter(1)=40,niter(2)=40,
    niter_no_qc(1)=999,niter_no_qc(2)=999,
    write_diag(1)=.true.,write_diag(2)=.false.,write_diag(3)=.true.,
    gencode=82,qoption=2,
@@ -8,7 +8,7 @@
 !--factqmin=0.8,factqmax=1.2,deltim=300,
    ifact10=0,
    pseudo_q2=.true.,
-   use_prepb_satwnd=>>>USE_PREPB_SATWND<<<,
+   use_prepb_satwnd=.false.,
    ec_amv_qc=.false.,
    diag_version=30303,
    iguess=-1,
@@ -26,6 +26,7 @@
    iorthomax=10,
    ens_nstarthr=3,
    netcdf_diag=.false.,
+   diag_conv=.false.,
 @RADBC   newpc4pred=.true.,adp_anglebc=.true.,angord=4,
 @RADBC   passive_bc=.true.,use_edges=.false.,
 @RADBC   diag_precon=.true.,step_start=1.e-3,emiss_bc=.true.,
