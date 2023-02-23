@@ -2433,8 +2433,10 @@ subroutine qc_irsnd(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,goessndr,   &
      sum=zero
      sum2=zero
      do i=1,nchanl
-        sum=sum+tbc(i)*ts(i)*varinv_use(i)
-        sum2=sum2+ts(i)*ts(i)*varinv_use(i)
+        if ( varinv_use(i) > tiny_r_kind .and. ts(i) > 0.0001_r_kind) then
+           sum=sum+tbc(i)*ts(i)*varinv_use(i)
+           sum2=sum2+ts(i)*ts(i)*varinv_use(i)
+        endif
      end do
      if (abs(sum2) < tiny_r_kind) sum2 = sign(tiny_r_kind,sum2)
      dts=abs(sum/sum2)

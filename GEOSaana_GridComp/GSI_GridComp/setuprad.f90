@@ -1180,7 +1180,7 @@ contains
                  pred(8,i)=emissivity_k(i)
               end if
            end if
-
+!          Zero out air mass terms if required (don't do Collard/Jung change - screws up our Anchor for AMSU/ATMS -not sure why they do that!)
            do j=1, npred-angord                              
               pred(j,i)=pred(j,i)*air_rad(mm)
            end do
