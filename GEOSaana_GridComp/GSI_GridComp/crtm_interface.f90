@@ -2029,11 +2029,19 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
                  if ( trim(obstype) == 'amsr2' .and. atmosphere(1)%level_pressure(k) <= 50.0_r_kind ) cycle 
                 hwp_guess(ii) = hwp_guess(ii) +  cloud_cont(k,ii)
               enddo
+!yzhu_testb
+              atmosphere(1)%cloud_fraction(k) = zero
+!yzhu_teste
               do ii=1,n_clouds_fwd_wk
                  if (ii==1 .and. atmosphere(1)%temperature(k)-t0c>-20.0_r_kind) &
                     cloud_cont(k,1)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,1))
                  if (ii==2 .and. atmosphere(1)%temperature(k)<t0c) &
                     cloud_cont(k,2)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,2))
+!yzhu_testb                 
+                 if(cloud_cont(k,ii) > 1.000_r_kind*1.0E-6_r_kind) then
+                    atmosphere(1)%cloud_fraction(k) = one
+                 end if
+!yzhu_teste                 
               end do
 !crtm2.3.x    if (.not. regional .and. icfs==0 ) atmosphere(1)%cloud_fraction(k) = cf(kk2)   
           endif   
@@ -2059,6 +2067,10 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
 
                 !Add lower bound to all hydrometers 
                 !note: may want to add lower bound value for effective radius  
+
+!yzhu_testb
+              atmosphere(1)%cloud_fraction(k) = zero
+!yzhu_teste
               do ii=1,n_clouds_fwd_wk
                  if (trim(cloud_names_fwd(ii))=='ql' .and.  atmosphere(1)%temperature(k)-t0c>-20.0_r_kind) &
                      cloud_cont(k,ii)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,ii))
@@ -2070,6 +2082,11 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
                      cloud_cont(k,ii)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,ii))
                  if (trim(cloud_names_fwd(ii))=='qg' .and.  atmosphere(1)%temperature(k)<t0c) &
                      cloud_cont(k,ii)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,ii))
+!yzhu_testb                 
+                 if(cloud_cont(k,ii) > 1.000_r_kind*1.0E-6_r_kind) then
+                    atmosphere(1)%cloud_fraction(k) = one
+                 end if
+!yzhu_teste
               end do
 !crtm2.3.x    if (.not. regional .and. icfs==0 ) atmosphere(1)%cloud_fraction(k) = cf(kk2) 
            end if
