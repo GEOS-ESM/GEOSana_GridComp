@@ -87,7 +87,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   use m_tgasNode, only: tgasNode
   use m_tgasNode, only: tgasNode_appendto
   use m_obsLList, only: obsLList
-
+ 
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
                                nc_diag_write, nc_diag_data2d
   use nc_diag_read_mod,  only: nc_diag_read_init, nc_diag_read_get_dim,        &
@@ -100,7 +100,8 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   use constants,         only: vv_to_molec
   use obsmod,            only: dplat, nobskeep, mype_diaghdr, dirname,         &
                                time_offset, ianldate, luse_obsdiag,            &
-                               lobsdiag_allocated, lobsdiagsave
+                               lobsdiag_allocated, lobsdiagsave, netcdf_diag,  &
+                               binary_diag, wrtgeovals
   use gsi_4dvar,         only: nobs_bins, mn_obsbin
   use gridmod,           only: get_ij, nsig
   use guess_grids,       only: nfldsig, ntguessig, hrdifsig, ges_pe => ges_prsi
@@ -135,6 +136,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   character(len=*), parameter :: myname    = 'setuptgas'
   logical,          parameter :: ldebug    = .false.
   logical,          parameter :: lcenter   = .false.
+  real(r_kind),parameter:: rmiss = -9999.9_r_kind
 
 ! Declare local variables  
   real(r_kind) :: obs, bias, omg, soundn, grdtime
@@ -145,6 +147,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   real(r_kind),    dimension(nchanl) :: obsinv, varinv, raterr2
   real(r_kind),    dimension(nchanl) :: pchanl, gross, sclstd, sclmod
   real(r_kind),    dimension(nchanl) :: priorobs, gesobs, uncert, error
+  real(r_kind),    dimension(nchanl) :: ratio_errors
   real(r_kind),    dimension(nsig+1) :: pemod, zemod, peuse
   real(r_kind),    dimension(nsig)   :: geslmod, qvmod, dpmod, plmod, pluse
   integer(i_kind), dimension(nchanl) :: isbad
@@ -173,8 +176,10 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   integer(i_kind), dimension(nchanl)    :: ipos, iouse, qcuse
 
   character(len=12)     :: string
+  character(len=10)     :: filex
   character(len=128)    :: diag_tgas_file
   character(len=varlen) :: vname, vunit
+  logical               :: tgasdiagexist
 
   logical :: lmaybepassive, lmaybeany, ldebugob
   logical :: in_curbin, in_anybin, useak
@@ -189,7 +194,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   real(r_kind),    allocatable, dimension(:)     :: qvavg
   real(r_kind),    allocatable, dimension(:)     :: delps  
   real(r_kind),    dimension(nsig)               :: priortgas
-  real(r_kind)                                   :: scd_tot, scd_trop, amf, pbl
+  real(r_kind)                                   :: scd_tot, scd_trop, amf, pbl, iuncert
   real(r_kind)                                   :: lscal, surfscal
   real(r_kind)                                   :: minsigobs, maxsigobs, sigobsscal
   logical                                        :: ispos
@@ -331,6 +336,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
      irdim1 = irmin
      if (lobsdiagsave) irdim1 = irdim1 + 4*miter + 1
      allocate(rdiagbuf(irdim1,nchanl,nobs))
+     if(netcdf_diag) call init_netcdf_diag_
   end if
 
   if (ldebug) then
@@ -731,12 +737,15 @@ if (in_curbin) then
 !       Get observation
         obs  = tgasdata(nreal+k,i)
 
+        ! local copy of uncertainty. Probably not needed
+        iuncert = uncert(k)
+
         ! for DOAS style obs, convert SCD to VCD using AMF calculated above
         if ( isdoas ) then
            scd_tot   = obs
            obs = scd_tot / amf
            ! get obs uncertainty 
-           uncert(k) = obs * ( uncert(k) / scd_tot )
+           iuncert = obs * ( iuncert / scd_tot )
 
            if ( trim(obstype) == 'omso2' .or. trim(obstype)=='nmso2' ) then
               minsigobs  = tgas_minsigobs(2)
@@ -747,7 +756,7 @@ if (in_curbin) then
               maxsigobs  = tgas_maxsigobs(1)
               sigobsscal = tgas_sigobsscal(1)
            endif
-           uncert(k) = min(max(uncert(k),minsigobs),maxsigobs)*sigobsscal
+           iuncert = min(max(iuncert,minsigobs),maxsigobs)*sigobsscal
            !if ( sza(k) > 50.0 ) uncert(k) = uncert(k) * 1.+max(0.0,((sza(k)-50.0)/(tgas_szamax-sza(k))))
         endif
 
@@ -757,11 +766,11 @@ if (in_curbin) then
 
 !       Convert model units to prior units (applied as inverse)
         obs = obs / sclmod(k)
-        uncert(k) = uncert(k) / sclmod(k)
+        iuncert = iuncert / sclmod(k)
 
 !       Compute observation innovation and error standard deviation
         obsinv(k) = obs - gesobs(k)
-        error(k)  = sclstd(k) * uncert(k)
+        error(k)  = sclstd(k) * iuncert
 
 !       Toss the obs that fail qc and gross checks
 !       and set inverse obs error variance (varinv) and
@@ -840,6 +849,45 @@ if (in_curbin) then
            rdiagbuf(4,k,idout) = pchanl(k)                   ! (nominal) obs pressure (hPa)
            rdiagbuf(5,k,idout) = pemod(1)                    ! model surface pressure (hPa)
            rdiagbuf(6,k,idout) = soundn                      ! sounding number
+
+           ! undefined: nlevs
+
+           if (netcdf_diag) then
+              call nc_diag_metadata("TopLevelPressure",sngl(pemod(nsig+1)) )
+              call nc_diag_metadata("BottomLevelPressure",sngl(pemod(1)) )
+              call nc_diag_metadata("MPI_Task_Number", mype                      )
+              call nc_diag_metadata("Latitude",        sngl(tgasdata(idlat,i))       )
+              call nc_diag_metadata("Longitude",       sngl(tgasdata(idlon,i))       )
+              call nc_diag_metadata("Time",            sngl(tgasdata(itime,i)-time_offset) )
+              call nc_diag_metadata("Analysis_Use_Flag",      iouse(k)           )
+              call nc_diag_metadata("Observation",     sngl(obs))
+              call nc_diag_metadata("Inverse_Observation_Error",    sngl(errorinv))
+              call nc_diag_metadata("Input_Observation_Error", sngl(error(k)))
+              call nc_diag_metadata("Obs_Minus_Forecast_adjusted",  sngl(obsinv(k)))
+              call nc_diag_metadata("Obs_Minus_Forecast_unadjusted",sngl(obsinv(k)))
+              call nc_diag_metadata("Forecast_unadjusted", sngl(gesobs(k)))
+              call nc_diag_metadata("Forecast_adjusted",sngl(gesobs(k)))
+              if ( isdoas ) then
+                 call nc_diag_metadata("Slant_Column_Density",      sngl(scd_tot) )
+                 call nc_diag_metadata("SCD_error",                 sngl(uncert(k)) )
+                 call nc_diag_metadata("Air_Mass_Factor"     ,      sngl(amf) )
+                 call nc_diag_metadata("A_Priori_VCD"        ,      sngl(priorobs(1)) )
+                 call nc_diag_metadata("Solar_Zenith_Angle"  ,      sngl(rmiss) )
+                 call nc_diag_metadata("Scan_Position"       ,      sngl(rmiss) )
+              else
+                 call nc_diag_metadata("Slant_Column_Density",      sngl(rmiss) )
+                 call nc_diag_metadata("SCD_error",                 sngl(rmiss) )
+                 call nc_diag_metadata("Air_Mass_Factor"     ,      sngl(rmiss) )
+                 call nc_diag_metadata("A_Priori_VCD"        ,      sngl(rmiss) )
+                 call nc_diag_metadata("Solar_Zenith_Angle",        sngl(rmiss) )
+                 call nc_diag_metadata("Scan_Position",             sngl(rmiss) )
+              endif
+              if (wrtgeovals) then
+                 call nc_diag_data2d("mole_fraction_of_species", sngl(geslmod))
+                 call nc_diag_data2d("air_pressure_levels",sngl(plmod))
+              endif
+         
+           endif
         end if
 
 !       If not assimilating this observation, reset qcuse and variances
@@ -1020,32 +1068,45 @@ if (in_curbin) then
 end if ! (in_curbin)
  
      end if ! (lmaybepassive)
+
+!    Optionally save data for diagnostics
+!     if (ltgasdiagsave .and. luse(i)) then
+!        errorinv = sqrt(varinv*raterr2)
+!
+!        !if (binary_diag) call contents_binary_diag_(my_diag)
+!        !if (netcdf_diag) call contents_netcdf_diag_(my_diag)
+!     end if   !end if(ozone_diagsave )
   end do ! (i = 1,nobs)
 
 ! If requested, write to diagnostic file
-  if (ltgasdiagsave .and. 0 < idout) then
-     write(string,100) jiter
-100  format('_',i2.2)
-     diag_tgas_file =  trim(dirname) // trim(isis) // string
-     if (init_pass) then
-        open(4, file=diag_tgas_file, form='unformatted', status='unknown',     &
-             position='rewind')
-        if (mype == mype_diaghdr(is)) then
-           write(6,*) trim(myname), ': write header record for ', isis, iint,  &
-                      ireal, idout, ' to file ', trim(diag_tgas_file), ' ',    &
-                      ianldate
-           write(4) isis, dplat(is), obstype, jiter, nchanl, ianldate, iint,   &
-                    ireal, irdim1, irmin
-           write(4) real(pchanl,r_single), real(gross,r_single),               &
-                    real(sclstd,r_single), iouse
+  if (ltgasdiagsave) then
+
+     if (netcdf_diag) call nc_diag_write
+
+     if (binary_diag .and. idout>0 ) then
+        write(string,100) jiter
+100     format('_',i2.2)
+        diag_tgas_file =  trim(dirname) // trim(isis) // string
+        if (init_pass) then
+           open(4, file=diag_tgas_file, form='unformatted', status='unknown',     &
+                position='rewind')
+           if (mype == mype_diaghdr(is)) then
+              write(6,*) trim(myname), ': write header record for ', isis, iint,  &
+                         ireal, idout, ' to file ', trim(diag_tgas_file), ' ',    &
+                         ianldate
+              write(4) isis, dplat(is), obstype, jiter, nchanl, ianldate, iint,   &
+                       ireal, irdim1, irmin
+              write(4) real(pchanl,r_single), real(gross,r_single),               &
+                       real(sclstd,r_single), iouse
+           end if
+        else
+           open(4, file=diag_tgas_file, form='unformatted', status='old',         &
+                position='append')
         end if
-     else
-        open(4, file=diag_tgas_file, form='unformatted', status='old',         &
-             position='append')
-     end if
-     write(4) idout
-     write(4) idiagbuf(:,1:idout), diagbuf(:,1:idout), rdiagbuf(:,:,1:idout)
-     close(4)
+        write(4) idout
+        write(4) idiagbuf(:,1:idout), diagbuf(:,1:idout), rdiagbuf(:,:,1:idout)
+        close(4)
+     endif
   end if
 
 ! Clean up
@@ -1328,6 +1389,50 @@ end if ! (in_curbin)
         call die(myname_)
      end if
   end subroutine zavgtgas_
+
+  subroutine init_netcdf_diag_
+  character(len=80) string
+  integer(i_kind) ncd_fileid,ncd_nobs
+  logical append_diag
+  logical,parameter::verbose=.true.
+  
+     write(string,900) jiter
+900  format('_',i2.2,'.nc4')
+     filex=obstype
+     diag_tgas_file = trim(dirname) // trim(filex) // '_' // trim(dplat(is)) // (string)
+  
+     inquire(file=diag_tgas_file, exist=append_diag)
+  
+     if (append_diag) then
+        call nc_diag_read_init(diag_tgas_file,ncd_fileid)
+        ncd_nobs = nc_diag_read_get_dim(ncd_fileid,'nobs')
+        call nc_diag_read_close(diag_tgas_file)
+  
+        if (ncd_nobs > 0) then
+           if(verbose) print *,'file ' // trim(diag_tgas_file) // ' exists.  Appending.  nobs,mype=',ncd_nobs,mype
+        else
+           if(verbose) print *,'file ' // trim(diag_tgas_file) // ' exists but contains no obs.  Not appending. nobs,mype=',ncd_nobs,mype
+           append_diag = .false. ! if there are no obs in existing file, then do not try to append
+        endif
+     end if
+     
+     call nc_diag_init(diag_tgas_file, append=append_diag)
+     
+     if (.not. append_diag) then ! don't write headers on append - the module will break?
+        call nc_diag_header("date_time",ianldate )
+        call nc_diag_header("Satellite_Sensor", isis)
+        call nc_diag_header("Satellite", dplat(is))
+        call nc_diag_header("Observation_type", obstype)
+     endif
+
+  end subroutine init_netcdf_diag_
+  subroutine contents_binary_diag_
+  end subroutine contents_binary_diag_
+  subroutine contents_netcdf_diag_
+! Observation class
+  character(7),parameter     :: obsclass = '  tgas'
+! contents interleafed above should be moved here (RTodling)
+  end subroutine contents_netcdf_diag_
 
 end subroutine setuptgas
 end module tgas_setup
