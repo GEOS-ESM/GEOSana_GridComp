@@ -246,6 +246,8 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind) dudiff_opp_rs, dvdiff_opp_rs, vecdiff_rs, vecdiff_opp_rs
   real(r_kind) oscat_vec,ascat_vec,rapidscat_vec
   real(r_kind) sfctges
+  real(r_kind),dimension(nobs)::dup_ij
+  real(r_kind),dimension(nsig,nobs):: dup_kx_vector
   real(r_kind),dimension(nele,nobs):: data
   real(r_kind),dimension(nobs):: dup
   real(r_kind),dimension(nsig+1)::prsitmp
@@ -289,6 +291,8 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind) :: delz
   logical z_height,sfc_data
   logical,dimension(nobs):: luse,muse
+  logical,dimension(nobs):: identical_obs
+  real,dimension(nobs):: qc_flag
   logical:: muse_u,muse_v
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical lowlevelsat,duplogic
@@ -410,6 +414,12 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !  handle multiple-report observations at a station
   hr_offset=min_offset/60.0_r_kind
   dup=one
+  dup_kx_vector = -999
+  dup_ij=one
+  do k=1,nobs
+     dup_kx_vector(1,k)=ictype(nint(data(ikxx,k)))  ! save its kx at the 1st slot
+  enddo
+  identical_obs = .false.
   do k=1,nobs
      do l=k+1,nobs
         if (twodvar_regional) then
@@ -418,9 +428,9 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            data(ier,k) < r1000 .and. data(ier,l) < r1000 .and. &
            muse(k) .and. muse(l)
          else
-           duplogic=data(ilat,k) == data(ilat,l) .and.  &
-           data(ilon,k) == data(ilon,l) .and.  &
-           data(ipres,k) == data(ipres,l) .and. &
+           duplogic=sngl(data(ilate,k)) == sngl(data(ilate,l)) .and.  &
+           sngl(data(ilone,k)) == sngl(data(ilone,l)) .and.  &
+           sngl(r1000*exp(data(ipres,k))) == sngl(r1000*exp(data(ipres,l))) .and. &
            data(ier,k) < r1000 .and. data(ier,l) < r1000 .and. &
            muse(k) .and. muse(l)
         end if
@@ -436,9 +446,26 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !              data(itime,k)-hr_offset,data(itime,l)-hr_offset,k,l,&
 !                           muse(k),muse(l)
            else
+              if(sngl(data(ilate,k)) == sngl(data(ilate,l)) .and.  &
+                 sngl(data(ilone,k)) == sngl(data(ilone,l)) .and.  &
+                 sngl(r1000*exp(data(ipres,k))) == sngl(r1000*exp(data(ipres,l))) .and. &
+                 sngl(data(itime,k)) == sngl(data(itime,l)) .and. &
+                 data(id,k)    == data(id,l) ) then
+                 ! Identical obs #k and #l. Not use or inflate error obs #l. 
+                 ! This change is made for JEDI since IODA converter treats them as one observation.
+                 write(6,*) "Same observations as others. Skipped in setupw.f90"
+                 muse(l) = .false.
+                 identical_obs(l) = .true.
+                 cycle
+              endif
+
               tfact=min(one,abs(data(itime,k)-data(itime,l))/dfact1)
               dup(k)=dup(k)+one-tfact*tfact*(one-dfact)
               dup(l)=dup(l)+one-tfact*tfact*(one-dfact)
+              dup_ij(k)=dup_ij(k)+one
+              dup_ij(l)=dup_ij(l)+one
+              dup_kx_vector(nint(dup_ij(k)),k)=ictype(nint(data(ikxx,l)))  ! save the kx of the other obs.
+              dup_kx_vector(nint(dup_ij(l)),l)=ictype(nint(data(ikxx,k)))    ! save the kx of the other obs.
            endif
         end if
      end do
@@ -448,6 +475,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   num_bad_ikx=0
   loop_for_all_obs: &
   do i=1,nobs
+     if(identical_obs(i)) cycle
      isli = -1
      dtime=data(itime,i)
      call dtime_check(dtime, in_curbin, in_anybin)
@@ -1779,9 +1807,10 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            endif
 
            call nc_diag_metadata("Nonlinear_QC_Rel_Wgt",    sngl(rwgt)             )
-           call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)     )
+           call nc_diag_metadata("Errinv_Input",            1./sngl(data(ier2,i))  )
            call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
            call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
+           call nc_diag_metadata("Dupobs_Factor",           sngl(sqrt(dup(i)))     )
 !          the original Error_Input and Error_Adjust saved during the reading procedure 
            call nc_diag_metadata("Error_Input",             sngl(error_input)      )
            call nc_diag_metadata("Error_Adjust",            sngl(error_adjst)      )
@@ -1887,6 +1916,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("northward_wind", sngl(vges))
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
               call nc_diag_data2d("specific_humidity", sngl(qges))
+              call nc_diag_data2d("dup_kx_vector", sngl(dup_kx_vector(:,i)))
            endif
            call nc_diag_metadata("Dominant_Sfc_Type", sngl(data(idomsfc,i))           )
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
