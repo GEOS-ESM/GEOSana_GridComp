@@ -1,6 +1,6 @@
 !-----------------------------------------------------------------------------
 !BOP
- 
+
 ! !MODULE: crtm_aerosol --- Implements the GOCART-CRTM Aerosol Interface
 !
 ! !INTERFACE:
@@ -12,7 +12,7 @@ module crtm_aerosol
 
   use kinds, only: i_kind,r_kind
   use CRTM_Aerosol_Define, only: CRTM_Aerosol_type
-  use CRTM_Aerosol_Define, only: DUST_AEROSOL, SEASALT_SSAM_AEROSOL, &
+  use CRTM_Parameters,     only: DUST_AEROSOL, SEASALT_SSAM_AEROSOL, &
                                  SEASALT_SSCM1_AEROSOL, SEASALT_SSCM2_AEROSOL, &
                                  SEASALT_SSCM3_AEROSOL, SEASALT_SSCM3_AEROSOL, &
                                  BLACK_CARBON_AEROSOL, ORGANIC_CARBON_AEROSOL, &
@@ -47,8 +47,8 @@ CONTAINS
 
 !-----------------------------------------------------------------------------
 !BOP
- 
-! !IROUTINE: setAerosol --- Set CRTM Aerosol Object 
+
+! !IROUTINE: setAerosol --- Set CRTM Aerosol Object
 !
 ! !INTERFACE:
 !
@@ -99,7 +99,7 @@ CONTAINS
   do n = 1, na
 
 !    Map GOCART names into CRTM Aerosol indices
-!    ------------------------------------------   
+!    ------------------------------------------
      Aerosol(n)%Type = AeroType_(aero_name(n))
 
 !    Concentration
@@ -124,10 +124,10 @@ CONTAINS
   function AeroType_(name) Result(atype)
     character(len=*) :: name  ! GOCART name
     integer(i_kind)  :: atype ! CRTM aerosol type
-    
+
     if ( lowercase(name(1:2)) == 'du' ) then
        atype = DUST_AEROSOL
-       
+
     else if ( trim(lowercase(name)) == 'ss001' ) then
        atype = SEASALT_SSAM_AEROSOL
     else if ( trim(lowercase(name)) == 'ss002' ) then
@@ -138,20 +138,20 @@ CONTAINS
        atype = SEASALT_SSCM3_AEROSOL
     else if ( trim(lowercase(name)) == 'ss005' ) then
        atype = SEASALT_SSCM3_AEROSOL
-       
+
     else if ( lowercase(name(1:2))  ==    'bc' ) then
        atype = BLACK_CARBON_AEROSOL
-       
+
     else if ( lowercase(name(1:2))  ==    'oc' ) then
        atype = ORGANIC_CARBON_AEROSOL
-       
+
     else if ( trim(lowercase(name)) ==   'so4' ) then
        atype = SULFATE_AEROSOL
-       
-    else 
+
+    else
        call die(myname,"cannot recognize aerosol name <"//trim(name)//">")
     end if
-    
+
   end function AeroType_
 
 end subroutine setAerosol
