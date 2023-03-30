@@ -14,7 +14,7 @@ BACKGROUND:
 #   'OUT NAME', 'PROVIDER'     , 'TYPE', NB, NC, SCALE     , AS       , 'DESCRIPTION'
 #=======================================================================================
 #   GROUP: MLS
-##    'OZ'      , 'STRATCHEM'    , 'ANA' , 1 ,  2 , 1.0e-6   , 0.20     , 'ozone'
+    'OZ'      , 'STRATCHEM'    , 'ANA' , 1 ,  2 , 1.0e-6   , 0.20     , 'ozone'
 #   'O3'      , 'STRATCHEM'    , 'ANA' , 1 ,  2 , 1.0e-6   , 0.20     , 'ozone'
 #    'H2O'     , 'STRATCHEM'    , 'ANA' , 2 , -1 , 1.0      , 0.06     , 'water_vapor'
 #    'HCL'     , 'STRATCHEM'    , 'ANA' , 2 , -1 , 1.0      , 0.10     , 'hydrochloric_acid'
@@ -27,8 +27,8 @@ BACKGROUND:
 #   GROUP: GEOS-CHEM 
 #   'O3'      , 'GEOSCHEMCHEM' , 'ANA' , 1 ,  2 , 1.0      , 0.20     , 'ozone'
 #   'CO'      , 'GEOSCHEMCHEM' , 'ANA' , 1 , -1 , 1.0      , 0.20     , 'carbon_monoxide'
-#   'NO2'     , 'GEOSCHEMCHEM' , 'ANA' , 1 , -1 , 1.0      , 0.20     , 'nitrogen_dioxide'
-#    'SO2g'    , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.5       , 'sulfur_dioxide'
+    'NO2'     , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.20     , 'nitrogen_dioxide'
+    'SO2g'    , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.5       , 'sulfur_dioxide'
 #    'SO2g'    , 'GEOSCHEMCHEM' , 'ANA' , 1 , -1 , 1.0      , 5.e-10   , 'sulfur_dioxide'
 
 #   GROUP: CARBON

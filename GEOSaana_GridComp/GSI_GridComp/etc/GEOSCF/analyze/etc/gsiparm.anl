@@ -13,6 +13,7 @@
    biascor=-0.10,bcoption=0,diurnalbc=1.0,
    crtm_coeffs_path="CRTM_Coeffs/",
    print_diag_pcg=.false.,
+   netcdf_diag=.true.,wrtgeovals=.false.,
    use_compress=.true.,nsig_ext=13,gpstop=30.,
    use_sp_eqspace=.true.,
 !  lbicg=.true.,lcongrad=.false.,ltlint=.true.,
@@ -114,8 +115,8 @@ OBS_INPUT::
 !  tpso3airnc     tgav        airs        tropess_o3_airs       1.0     0      0        tgas_tropess_o3_airs_nc
 !  tpso3crsnc     tgav        cris-s      tropess_o3_cris-s     1.0     0      0        tgas_tropess_o3_cris-s_nc
 !  tpso3cr1nc     tgav        cris-1      tropess_o3_cris-1     1.0     0      0        tgas_tropess_o3_cris-1_nc
-!!   omieffnc       omieff      aura        omieff_aura           1.0     6      0        merra2_aura_omieff_nc
-!!   mlsnc          mls55       aura        mls55_aura            1.0     0      0        mls_nrt_nc
+   omieffnc       omieff      aura        omieff_aura           1.0     6      0        merra2_aura_omieff_nc
+   mlsnc          mls55       aura        mls55_aura            1.0     0      0        mls_nrt_nc
 !   mlsh2onc       mlstgas     aura        mlsh2o_aura           1.0     0      0        tgas_mls_h2o_nc
 !   mlsn2onc       mlstgas     aura        mlsn2o_aura           1.0     0      0        tgas_mls_n2o_nc
 !   mlshclnc       mlstgas     aura        mlshcl_aura           1.0     0      0        tgas_mls_hcl_nc
@@ -128,10 +129,10 @@ OBS_INPUT::
 !  sage3lo3inc    tgez        iss         sage3l_o3_iss         1.0     0      0        tgas_sage3l_o3_iss_nc
 !  sage2sh2onc    tgez        erbs        sage2s_h2o            1.0     0      0        tgas_sage2s_h2o_nc
 !  sage2so3nc     tgez        erbs        sage2s_o3             1.0     0      0        tgas_sage2s_o3_nc
-!   omso2nc        omso2       aura        omso2_aura            1.0     8      0        tgas_omso2_so2_nc
-!   nmso2nc        nmso2       npp         nmso2_npp             1.0     8      0        tgas_nmso2_nc
-!   omno2nc        omno2       aura        omno2_aura            1.0     8      0        tgas_omno2_no2_nc
-   omimndno2nc    mindsno2    aura        omi_minds_no2         1.0     8      0        omi_minds_no2_nc
+   omso2nc        omso2       aura        omso2_aura            1.0     8      0        tgas_omso2_so2_nc
+   nmso2nc        nmso2       npp         nmso2_npp             1.0     8      0        tgas_nmso2_nc
+   omno2nc        omno2       aura        omno2_aura            1.0     8      0        tgas_omno2_no2_nc
+!   omimndno2nc    mindsno2    aura        omi_minds_no2         1.0     8      0        omi_minds_no2_nc
 !   trpmndno2nc    mindsno2    s5p         tropmi_minds_no2      1.0     8      0        tropmi_minds_no2_nc
 !   gommndno2nc    mindsno2    ers2        gome_minds_no2        1.0     8      0        gome_minds_no2_nc
 ::
