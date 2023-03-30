@@ -105,7 +105,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   use gsi_4dvar,         only: nobs_bins, mn_obsbin
   use gridmod,           only: get_ij, nsig
   use guess_grids,       only: nfldsig, ntguessig, hrdifsig, ges_pe => ges_prsi
-  use guess_grids,       only: no2_priorc, so2_priorc 
+  use guess_grids,       only: no2_priorc, so2_priorc, pbltopl 
   use gsi_bundlemod,     only: gsi_bundlegetpointer
   use gsi_chemguess_mod, only: gsi_chemguess_get, gsi_chemguess_bundle
   use tgasinfo,          only: jpch_tgas, nusis_tgas, iuse_tgas, gross_tgas,   &
@@ -194,7 +194,8 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   real(r_kind),    allocatable, dimension(:)     :: qvavg
   real(r_kind),    allocatable, dimension(:)     :: delps  
   real(r_kind),    dimension(nsig)               :: priortgas
-  real(r_kind)                                   :: scd_tot, scd_trop, amf, pbl, iuncert
+  real(r_kind)                                   :: scd_tot, scd_trop, amf, amftrop, pbl, iuncert
+  integer(i_kind)                                :: ipbl
   real(r_kind)                                   :: lscal, surfscal
   real(r_kind)                                   :: minsigobs, maxsigobs, sigobsscal
   logical                                        :: ispos
@@ -569,10 +570,17 @@ if (in_curbin) then
               priorpro(k) = priorpro(k) * lscal
               avgwgt(k,:) = avgwgt(k,:) * lscal
            enddo
-           
+  
+           ! for amftrop calculation: need to know pbl level at this location:          
+           call tintrp2a11(pbltopl, pbl, grdlat, grdlon, grdtime, hrdifsig, mype, nfldsig)
+           ipbl = nint(pbl)
+
            ! calculate AMF and actual averaging kernel using scattering weights and a-priori columns 
-           amf = sum(avgker(1,:)*gespro(:)) / sum(gespro)
+           amf     = sum(avgker(1,:)*gespro(:)) / sum(gespro)
+           amftrop = sum(avgker(1,1:ipbl)*gespro(1:ipbl)) / sum(gespro(1:ipbl))
            avgker(1,:) = avgker(1,:) / amf
+           ! cap averaging kernels at 1.0
+           where(avgker(1,:)>1.0) avgker(1,:) = 1.0
 
            ! a-priori observation
            priorobs(1) = sum(priorpro)
@@ -871,6 +879,8 @@ if (in_curbin) then
                  call nc_diag_metadata("Slant_Column_Density",      sngl(scd_tot) )
                  call nc_diag_metadata("SCD_error",                 sngl(uncert(k)) )
                  call nc_diag_metadata("Air_Mass_Factor"     ,      sngl(amf) )
+                 call nc_diag_metadata("Air_Mass_Factor_Trop",      sngl(amftrop) )
+                 call nc_diag_metadata("PBL_level_index"     ,      sngl(ipbl))
                  call nc_diag_metadata("A_Priori_VCD"        ,      sngl(priorobs(1)) )
                  call nc_diag_metadata("Solar_Zenith_Angle"  ,      sngl(rmiss) )
                  call nc_diag_metadata("Scan_Position"       ,      sngl(rmiss) )
@@ -878,6 +888,8 @@ if (in_curbin) then
                  call nc_diag_metadata("Slant_Column_Density",      sngl(rmiss) )
                  call nc_diag_metadata("SCD_error",                 sngl(rmiss) )
                  call nc_diag_metadata("Air_Mass_Factor"     ,      sngl(rmiss) )
+                 call nc_diag_metadata("Air_Mass_Factor_Trop",      sngl(rmiss) )
+                 call nc_diag_metadata("PBL_level_index"     ,      sngl(rmiss) )
                  call nc_diag_metadata("A_Priori_VCD"        ,      sngl(rmiss) )
                  call nc_diag_metadata("Solar_Zenith_Angle",        sngl(rmiss) )
                  call nc_diag_metadata("Scan_Position",             sngl(rmiss) )
@@ -885,6 +897,9 @@ if (in_curbin) then
               if (wrtgeovals) then
                  call nc_diag_data2d("mole_fraction_of_species", sngl(geslmod))
                  call nc_diag_data2d("air_pressure_levels",sngl(plmod))
+                 call nc_diag_data2d("a_priori_profile",sngl(priorpro))
+                 call nc_diag_data2d("guess_profile",sngl(gespro))
+                 call nc_diag_data2d("averaging_kernel",sngl(avgker(1,:)))
               endif
          
            endif
