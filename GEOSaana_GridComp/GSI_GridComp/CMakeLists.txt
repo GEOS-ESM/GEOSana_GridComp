@@ -467,6 +467,7 @@ set (SRCS_SOLVER
   read_avhrr_navy.f90
   read_bufrtovs.f90
   read_tgas.f90
+  read_mlstgas.f90
   read_dbz_nc.f90
   read_dbz_netcdf.f90
   read_files.f90
@@ -736,7 +737,7 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 endif ()
 
 set (gsiscripts
-     analyzer gsidiags match_obcls_obsys.pl)
+     analyzer o3analyzer gsidiags match_obcls_obsys.pl)
 
 install(
    PROGRAMS ${gsiscripts} 

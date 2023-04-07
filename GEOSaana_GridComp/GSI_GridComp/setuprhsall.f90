@@ -236,7 +236,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   real(r_kind),dimension(40,ndat):: aivals1
   real(r_kind),dimension(7,jpch_rad):: stats1
   real(r_kind),dimension(9,jpch_oz):: stats_oz1
-  real(r_kind),dimension(9,jpch_tgas):: stats_tgas1
+  real(r_kind),dimension(15,jpch_tgas):: stats_tgas1
   real(r_kind),dimension(npres_print,nconvtype,5,3):: bwork1
   real(r_kind),allocatable,dimension(:,:):: awork1
 
@@ -618,7 +618,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !       Compute and print statistics for ozone
         if (mype==mype_oz .and. ihave_oz) call statsoz(stats_oz1,ndata)
 
-!       Compute and print statistics for carbon monoxide
+!       Compute and print statistics for trace gases
         if (mype==mype_tgas .and. ihave_tgas) call statstgas(stats_tgas1,ndata)
 
      endif

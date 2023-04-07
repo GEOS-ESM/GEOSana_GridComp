@@ -73,6 +73,7 @@ subroutine prewgt(mype)
 !   2014-08-02  zhu     - set up new background error variance and correlation lengths of cw 
 !                         for all-sky radiance assimilation
 !   2020-07-14  todling- add adjustozhscl as optional
+!   2022-12-09  weir   - support for different trace gas error types (additive, multiplicative, mix)
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -100,6 +101,7 @@ subroutine prewgt(mype)
   use control_vectors, only: cvars => nrf_var
   use control_vectors, only: as2d,as3d,atsfc_sdv
   use control_vectors, only: nrf,nc2d,nc3d,mvars
+  use control_vectors, only: itr2d,itr3d
   use gridmod, only: istart,jstart,lat2,lon2,rlats,nlat,nlon,nsig,&
        nnnn1o,lat1,lon1,itotsub,iglobal,ijn,displs_g,&
        strip
@@ -113,6 +115,7 @@ subroutine prewgt(mype)
   use blendmod, only: blend
   use gsi_bundlemod, only: gsi_bundlegetpointer
   use gsi_metguess_mod, only: gsi_metguess_bundle
+  use gsi_chemguess_mod, only: gsi_chemguess_bundle
 
   implicit none
 
@@ -146,7 +149,7 @@ subroutine prewgt(mype)
   real(r_kind),dimension(lon2,nsig):: dsv
   real(r_single) hsstmin
   real(r_kind) minhsst
-  real(r_kind) my_corz
+  real(r_kind) my_corz, my_alpha
   real(r_kind),allocatable:: randfct(:)
   real(r_kind),allocatable,dimension(:,:,:,:):: sli,sli1,sli2
 
@@ -164,6 +167,7 @@ subroutine prewgt(mype)
   real(r_kind),dimension(lat2,lon2,nsig):: sfvar,vpvar,tvar
   real(r_kind),dimension(lat2,lon2):: psvar
   real(r_kind),dimension(:,:,:),pointer :: ges_oz=>NULL()
+  real(r_kind),dimension(:,:,:),pointer :: ges_tgas => NULL()
 ! real(r_kind),parameter:: eight_tenths = 0.8_r_kind
 ! real(r_kind),parameter:: six          = 6.0_r_kind
 ! real(r_kind),parameter:: r800         = 800.0_r_kind
@@ -477,6 +481,44 @@ subroutine prewgt(mype)
                  end do
               end do
            endif
+!       Trace gases w/ multiplicative errors ala ozone (bweir)
+        else if (itr3d(n) == 2) then
+           call gsi_bundlegetpointer(gsi_chemguess_bundle(ntguessig),          &
+                                     trim(cvars3d(n)), ges_tgas, istatus)
+           if (istatus == 0) then
+              do k=1,nsig
+                 do i=1,lon2
+!                   Currently corz is set to 1.0 everywhere, will add ability
+!                   to read values from netCDF file (bweir)
+                    my_corz = corz(jx,k,n)*(ges_tgas(j,i,k) + tiny(1._r_single))
+                    dssv(j,i,k,n) = dsv(i,k)*my_corz*as3d(n)
+                 end do
+              end do
+           else
+              write(6,*) 'prewgt: ', trim(cvars3d(n)), ' not found in ',       &
+                         'gsi_chemguess_bundle ', ntguessig
+              call stop2(109)
+           endif
+!       Trace gases w/ mix of multiplicative and additive errors (bweir)
+        else if (2 < itr3d(n)) then
+           my_alpha = real(itr3d(n)-2)/100._r_single
+           call gsi_bundlegetpointer(gsi_chemguess_bundle(ntguessig),          &
+                                     trim(cvars3d(n)), ges_tgas, istatus)
+           if (istatus == 0) then
+              do k=1,nsig
+                 do i=1,lon2
+!                   Currently corz is set to 1.0 everywhere, will add ability
+!                   to read values from netCDF file
+                    my_corz = corz(jx,k,n)*(ges_tgas(j,i,k)*my_alpha + as3d(n))
+                    dssv(j,i,k,n) = dsv(i,k)*my_corz
+                 end do
+              end do
+           else
+              write(6,*) 'prewgt: ', trim(cvars3d(n)), ' not found in ',       &
+                         'gsi_chemguess_bundle ', ntguessig
+              call stop2(109)
+           endif
+!       Trace gases w/ additive errors
         else
            do k=1,nsig
               do i=1,lon2

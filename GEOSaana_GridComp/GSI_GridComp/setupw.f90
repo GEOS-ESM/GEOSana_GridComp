@@ -71,6 +71,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use gsi_bundlemod, only : gsi_bundlegetpointer
   use gsi_metguess_mod, only : gsi_metguess_get,gsi_metguess_bundle
   use sparsearr, only: sparr2, new, size, writearray, fullarray
+  use convinfo, only: id_drifter, subtype_drifter
 
   implicit none
   
@@ -239,6 +240,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind) uob_reg,vob_reg,uob_e,vob_e,dlon_e,uges_e,vges_e,dudiff_e,dvdiff_e
   real(r_kind) dz,zob,z1,z2,p1,p2,dz21,dlnp21,spdb,dstn
   real(r_kind) errinv_input,errinv_adjst,errinv_final
+  real(r_kind) error_input,error_adjst
   real(r_kind) err_input,err_adjst,err_final,skint,sfcr,landfrac
   real(r_kind) dudiff_opp, dvdiff_opp, vecdiff, vecdiff_opp
   real(r_kind) dudiff_opp_rs, dvdiff_opp_rs, vecdiff_rs, vecdiff_opp_rs
@@ -247,7 +249,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind),dimension(nele,nobs):: data
   real(r_kind),dimension(nobs):: dup
   real(r_kind),dimension(nsig+1)::prsitmp
-  real(r_kind),dimension(nsig)::prsltmp,tges,zges,qges,zges2
+  real(r_kind),dimension(nsig)::prsltmp,tges,zges,qges
   real(r_kind),dimension(nsig)::tsentmp,zges_read,uges,vges,prsltmp2
   real(r_kind) wdirob,wdirgesin,wdirdiffmax
   real(r_kind),dimension(34)::ptabluv
@@ -450,6 +452,9 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      dtime=data(itime,i)
      call dtime_check(dtime, in_curbin, in_anybin)
      if(.not.in_anybin) cycle
+!    error_adjst & error_input saved during "read_prepbufr.f90"
+     error_adjst = data(ier,i)
+     error_input = data(ier2,i)
 
      ikx=nint(data(ikxx,i))
 
@@ -1748,8 +1753,13 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
            call nc_diag_metadata("Station_ID",              station_id             )
            call nc_diag_metadata("Observation_Class",       obsclass               )
-           call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
-           call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
+           if ((int(ictype(ikx)) == 199 .or. int(ictype(ikx)) == 299) .and. id_drifter ) then
+              call nc_diag_metadata("Observation_Type",        ictype(ikx)-19         )
+              call nc_diag_metadata("Observation_Subtype",     subtype_drifter        )
+           else
+              call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
+              call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
+           endif
            call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
            call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
            call nc_diag_metadata("Station_Elevation",       sngl(data(ielev,i))    )
@@ -1772,6 +1782,9 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)     )
            call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
            call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
+!          the original Error_Input and Error_Adjust saved during the reading procedure 
+           call nc_diag_metadata("Error_Input",             sngl(error_input)      )
+           call nc_diag_metadata("Error_Adjust",            sngl(error_adjst)      )
 
            call nc_diag_metadata("Wind_Reduction_Factor_at_10m", sngl(factw)       )
 
@@ -1869,16 +1882,17 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp2*r1000))
               call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
               call nc_diag_data2d("virtual_temperature", sngl(tges))
-              call nc_diag_data2d("geopotential_height", sngl(zges2+zsges))
+              call nc_diag_data2d("geopotential_height", sngl(zges_read))
               call nc_diag_data2d("eastward_wind", sngl(uges))
               call nc_diag_data2d("northward_wind", sngl(vges))
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
               call nc_diag_data2d("specific_humidity", sngl(qges))
            endif
+           call nc_diag_metadata("Dominant_Sfc_Type", sngl(data(idomsfc,i))           )
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
            call nc_diag_metadata("surface_skin_temperature", sngl(skint))
            call nc_diag_metadata("landmask", sngl(landfrac))
-
+           call nc_diag_metadata("tropopause_pressure",   sngl(trop5*100)  )  ! Pa  (hPa*100)
 
   end subroutine contents_netcdf_diag_
 

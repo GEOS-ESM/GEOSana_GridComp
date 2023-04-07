@@ -1,0 +1,75 @@
+met_guess::
+!var     level   crtm_use    desc                 orig_name
+  ps        1      -1         surface_pressure     PS
+  z         1      -1         geopotential_height  PHIS
+  tv       72       2         virtual_temperature  TV
+  q        72       2         specific_humidity    SPHU
+  oz       72       2         ozone                OZONE
+::
+
+state_derivatives::
+!var  level  src
+ ps   1      met_guess
+ tv   72     met_guess
+ q    72     met_guess
+ oz   72     met_guess
+ prse 73     met_guess
+::
+
+state_tendencies::
+!var  levels  source
+ prse 73      met_guess
+ oz   72      met_guess
+ tv   72      met_guess
+ q    72      met_guess
+::
+
+chem_guess::
+#!var     level   itracer  crtm_use type               orig_name
+#    ------ Trace gases ------
+# bweir: CO2, CH4, and N2O will be overwritten unless crtm_use < 0
+# AFAIK they are still used in CRTM when crtm_use < 0
+ co2      72      1         -1      carbon_dioxide     CO2
+ ch4      72      1         -1      methane            CH4
+ co       72      1         -1      carbon_monoxide    CO
+ clo      72      1         -1      chlorine_monoxide  CLO
+ ch3cl    72      1         -1      methyl_chloride    CH3CL
+ n2o      72      1         -1      nitrous_oxide      N2O
+ hno3     72      1         -1      nitric_acid        HNO3
+ hcl      72      1         -1      hydrochloric_acid  HCL
+ h2o      72      1         -1      water_vapor        H2O
+::
+
+state_vector::
+!var     level  itracer source     funcof
+#q        72      1     met_guess    q
+ oz       72      1     met_guess    oz
+#prse     73      0     met_guess    prse
+#ps        1      0     met_guess    prse
+ co2      72      1     chem_guess   co2
+ ch4      72      1     chem_guess   ch4
+ co       72      1     chem_guess   co
+ clo      72      1     chem_guess   clo
+ ch3cl    72      1     chem_guess   ch3cl
+ n2o      72      1     chem_guess   n2o
+ hno3     72      1     chem_guess   hno3
+ hcl      72      1     chem_guess   hcl
+ h2o      72      1     chem_guess   h2o
+::
+
+control_vector::
+!var     level  itracer as/tsfc_sdv  an_amp0   source  funcof  be
+ q        72      1       0.60        -1.0     state    q       -1.00
+ oz       72      1       0.20        -1.0     state    oz      -1.00
+ co2      72      1       0.15e-6     -1.0     state    co2     -1.00
+ ch4      72      1       5.00e-9     -1.0     state    ch4     -1.00
+ co       72      2       0.015       -1.0     state    co      -1.00
+ clo      72      2       0.10        -1.0     state    clo     -1.00
+ ch3cl    72      2       0.10        -1.0     state    ch3cl   -1.00
+ n2o      72      1       8.e-9       -1.0     state    n2o     -1.00
+ hno3     72      2       0.10        -1.0     state    hno3    -1.00
+ hcl      72      2       0.10        -1.0     state    hcl     -1.00
+ h2o      72      2       0.06        -1.0     state    h2o     -1.00
+!             sf    vp    t    q    oz   q2 qi ql qr qs    ps
+! afcts_ = "0.51  0.65 0.98 0.62  0.20 0.64  1  1  1  1  0.83"
+::

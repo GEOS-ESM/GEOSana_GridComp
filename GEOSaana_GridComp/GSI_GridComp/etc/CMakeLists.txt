@@ -113,6 +113,30 @@ install(
    DESTINATION etc/gsi/MERRA2
    )
 
+# Handle O3-only analysis settings
+set (o3anasa_files
+   o3anasa/gmao_global_anavinfo_rcov.rc
+   o3anasa/gmao_global_anavinfo.rc
+   o3anasa/gsi.rc.tmpl
+   o3anasa/GSI_GridComp.rc.tmpl
+   )
+install(
+   FILES ${o3anasa_files}
+   DESTINATION etc/gsi/o3anasa
+   )
+
+# Handle TGAS-only analysis settings
+set (coanasa_files
+   coanasa/gmao_global_anavinfo_rcov.rc
+   coanasa/gmao_global_anavinfo.rc
+   coanasa/gsi.rc.tmpl
+   coanasa/GSI_GridComp.rc.tmpl
+   )
+install(
+   FILES ${coanasa_files}
+   DESTINATION etc/gsi/coanasa
+   )
+
 # Handle GEOSIT settings in a similar way as MERRA2
 set (GEOSIT_files
    GEOSIT/gmao_global_cloudy_radiance_info.rc

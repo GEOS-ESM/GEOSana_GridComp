@@ -204,7 +204,7 @@ _ENTRY_(myname_)
   allocate(rhs_bwork(npres_print,nconvtype,5,3))
   allocate(rhs_aivals(40,ndat))
   allocate(rhs_stats(7,jpch_rad))
-  allocate(rhs_stats_tgas(9,jpch_tgas))
+  allocate(rhs_stats_tgas(15,jpch_tgas))
   allocate(rhs_stats_oz(9,jpch_oz))
 
   allocate(rhs_toss_gps(max(1,nprof_gps)))

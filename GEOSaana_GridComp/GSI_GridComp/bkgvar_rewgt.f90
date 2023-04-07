@@ -76,6 +76,8 @@ subroutine bkgvar_rewgt(sfvar,vpvar,tvar,psvar,mype)
        max_dt0,rmax_dz0,rmax_dd0,rmax_dt0
   real(r_kind) max_dps,max_dps0,rmax_dps0
   integer(i_kind) i,j,k,l,nsmth,mm1,nf,ier,istatus
+  integer(i_kind) ips,idv,itv
+  logical ibal
 
   real(r_kind),dimension(:,:  ),pointer::ges_ps_01 =>NULL()
   real(r_kind),dimension(:,:  ),pointer::ges_ps_nf =>NULL()
@@ -119,72 +121,81 @@ subroutine bkgvar_rewgt(sfvar,vpvar,tvar,psvar,mype)
   nf=nfldsig
   ier=0
   call gsi_bundlegetpointer (gsi_metguess_bundle( 1),'ps'  ,ges_ps_01,    istatus)
-  ier=ier+istatus
+  ips=ips+istatus
   call gsi_bundlegetpointer (gsi_metguess_bundle(nf),'ps'  ,ges_ps_nf,    istatus)
-  ier=ier+istatus
+  ips=ips+istatus
   call gsi_bundlegetpointer (gsi_metguess_bundle( 1),'div' ,ges_div_01,   istatus)
-  ier=ier+istatus
+  idv=idv+istatus
   call gsi_bundlegetpointer (gsi_metguess_bundle(nf),'div' ,ges_div_nf,   istatus)
-  ier=ier+istatus
+  idv=idv+istatus
   call gsi_bundlegetpointer (gsi_metguess_bundle( 1),'vor' ,ges_vor_01,   istatus)
-  ier=ier+istatus
+  idv=idv+istatus
   call gsi_bundlegetpointer (gsi_metguess_bundle(nf),'vor' ,ges_vor_nf,   istatus)
-  ier=ier+istatus
+  idv=idv+istatus
   call gsi_bundlegetpointer (gsi_metguess_bundle( 1),'tv'  ,ges_tv_01,    istatus)
-  ier=ier+istatus
+  itv=itv+istatus
   call gsi_bundlegetpointer (gsi_metguess_bundle(nf),'tv'  ,ges_tv_nf,    istatus)
-  ier=ier+istatus
-  if(ier/=0) call die(myname,'missing fields, ier= ', ier)
+  itv=itv+istatus
+
+  ibal = itv==0.and.idv==0
 
 ! Get stream function and velocity potential from guess vorticity and divergence
-  call getpsichi(ges_vor_01,ges_vor_nf,delpsi)
-  call getpsichi(ges_div_01,ges_div_nf,delchi)
+  if(ibal) then
+    call getpsichi(ges_vor_01,ges_vor_nf,delpsi)
+    call getpsichi(ges_div_01,ges_div_nf,delchi)
+  endif
 
 ! Get delta variables
-  do k=1,nsig
-     do j=1,lon2
-        do i=1,lat2
-           deltv(i,j,k) =ges_tv_nf(i,j,k)-ges_tv_01(i,j,k)
-        end do
-     end do
-  end do
-  do j=1,lon2
-     do i=1,lat2
-        delps(i,j) = ges_ps_nf(i,j)-ges_ps_01(i,j)
-     end do
-  end do
-
-! Balanced surface pressure and velocity potential from delta stream function
-  do k=1,nsig
-     do j=1,lon2
-        do i=1,lat2
-           bald(i,j,k)=bvz(i,k)*delpsi(i,j,k)
-        end do
-     end do
-  end do
-
-! Balanced temperature from delta stream function
-  do k=1,nsig
-     do l=1,nsig
+  if (ibal) then
+     do k=1,nsig
         do j=1,lon2
            do i=1,lat2
-              balt(i,j,l)=balt(i,j,l)+agvz(i,l,k)*delpsi(i,j,k)
+              deltv(i,j,k) =ges_tv_nf(i,j,k)-ges_tv_01(i,j,k)
            end do
         end do
      end do
-  end do
-
-! Subtract off balanced parts
-  do k=1,nsig
+  endif
+  if (ips==0) then
      do j=1,lon2
         do i=1,lat2
-           deltv (i,j,k) = deltv (i,j,k) - balt(i,j,k)
-           delchi(i,j,k) = delchi(i,j,k) - bald(i,j,k)
+           delps(i,j) = ges_ps_nf(i,j)-ges_ps_01(i,j)
         end do
      end do
-  end do
+  endif
 
-  if(fpsproj)then
+! Balanced surface pressure and velocity potential from delta stream function
+  if (ibal) then
+    do k=1,nsig
+       do j=1,lon2
+          do i=1,lat2
+             bald(i,j,k)=bvz(i,k)*delpsi(i,j,k)
+          end do
+       end do
+    end do
+
+! Balanced temperature from delta stream function
+     do k=1,nsig
+        do l=1,nsig
+           do j=1,lon2
+              do i=1,lat2
+                 balt(i,j,l)=balt(i,j,l)+agvz(i,l,k)*delpsi(i,j,k)
+              end do
+           end do
+        end do
+     end do
+
+! Subtract off balanced parts
+    do k=1,nsig
+       do j=1,lon2
+          do i=1,lat2
+             deltv (i,j,k) = deltv (i,j,k) - balt(i,j,k)
+             delchi(i,j,k) = delchi(i,j,k) - bald(i,j,k)
+          end do
+       end do
+    end do
+  endif
+
+  if(fpsproj.and.ibal)then
      do k=1,nsig
         do j=1,lon2
            do i=1,lat2
@@ -202,14 +213,16 @@ subroutine bkgvar_rewgt(sfvar,vpvar,tvar,psvar,mype)
         end do
      endif
   else
-     do j=1,lon2
-        do i=1,lat2
-           do k=1,nsig-1
-              balps(i,j)=balps(i,j)+wgvz(i,k)*delpsi(i,j,k)
-           end do
-           balps(i,j)=balps(i,j)+wgvz(i,nsig)*delchi(i,j,1)
-        end do
-     end do
+     if(ibal) then
+       do j=1,lon2
+          do i=1,lat2
+             do k=1,nsig-1
+                balps(i,j)=balps(i,j)+wgvz(i,k)*delpsi(i,j,k)
+             end do
+             balps(i,j)=balps(i,j)+wgvz(i,nsig)*delchi(i,j,1)
+          end do
+       end do
+     endif
   endif
 
   do j=1,lon2
@@ -219,15 +232,17 @@ subroutine bkgvar_rewgt(sfvar,vpvar,tvar,psvar,mype)
   end do
 
 ! Convert to root mean square
-  do k=1,nsig
-     do j=1,lon2
-        do i=1,lat2
-           delpsi(i,j,k)=sqrt( delpsi(i,j,k)**two )
-           delchi(i,j,k)=sqrt( delchi(i,j,k)**two )
-           deltv (i,j,k)=sqrt( deltv (i,j,k)**two )
-        end do
-     end do
-  end do
+  if (ibal) then
+    do k=1,nsig
+       do j=1,lon2
+          do i=1,lat2
+             delpsi(i,j,k)=sqrt( delpsi(i,j,k)**two )
+             delchi(i,j,k)=sqrt( delchi(i,j,k)**two )
+             deltv (i,j,k)=sqrt( deltv (i,j,k)**two )
+          end do
+       end do
+    end do
+  endif
   do j=1,lon2
      do i=1,lat2
         delps(i,j)=sqrt( delps(i,j)**two )
@@ -236,27 +251,31 @@ subroutine bkgvar_rewgt(sfvar,vpvar,tvar,psvar,mype)
 
 
 ! Smooth the delta fields before computing variance reweighting
-  nsmth=8
-  call smooth2d(delpsi,delchi,deltv,delps,nsig,nsmth,mype)
+  if (ibal) then
+    nsmth=8
+    call smooth2d(delpsi,delchi,deltv,delps,nsig,nsmth,mype)
+  endif
 
 ! Get global maximum and mean of each of the delta fields; while accounting for
 ! reproducibility of this kind of calculation 
   mean_dz =zero_quad ; mean_dd=zero_quad ; mean_dt=zero_quad
   mean_dps=zero_quad
 
-  do k=1,nsig
-     do j=2,lon2-1
-        do i=2,lat2-1
-           mean_dz(k) = mean_dz(k) + delpsi(i,j,k)
-           mean_dd(k) = mean_dd(k) + delchi(i,j,k)
-           mean_dt(k) = mean_dt(k) + deltv (i,j,k)
- 
-           max_dz(k)=max(max_dz(k),delpsi(i,j,k))
-           max_dd(k)=max(max_dd(k),delchi(i,j,k))
-           max_dt(k)=max(max_dt(k),deltv (i,j,k))
-        end do
-     end do
-  end do
+  if (ibal) then
+    do k=1,nsig
+       do j=2,lon2-1
+          do i=2,lat2-1
+             mean_dz(k) = mean_dz(k) + delpsi(i,j,k)
+             mean_dd(k) = mean_dd(k) + delchi(i,j,k)
+             mean_dt(k) = mean_dt(k) + deltv (i,j,k)
+   
+             max_dz(k)=max(max_dz(k),delpsi(i,j,k))
+             max_dd(k)=max(max_dd(k),delchi(i,j,k))
+             max_dt(k)=max(max_dt(k),deltv (i,j,k))
+          end do
+       end do
+    end do
+  endif
   do j=2,lon2-1
      do i=2,lat2-1
         mean_dps = mean_dps + delps(i,j)
@@ -328,20 +347,22 @@ subroutine bkgvar_rewgt(sfvar,vpvar,tvar,psvar,mype)
   rmax_dps0=zero
   if (abs(max_dps0)>tiny_r_kind) rmax_dps0=one/max_dps0
 
-! Get rescaling factor for each of the variables based on factor, mean, and max
+  if (ibal) then
+!   Get rescaling factor for each of the variables based on factor, mean, and max
 !$omp parallel do schedule(dynamic,1) private(i,j,k)
-  do k=1,nsig
-     do j=1,lon2
-        do i=1,lat2
-           sfvar(i,j,k)=sfvar(i,j,k)* &          
-                (one + bkgv_rewgtfct*(delpsi(i,j,k)-mean_dzout(k))*rmax_dz0(k))
-           vpvar(i,j,k)=vpvar(i,j,k)* &
-                (one + bkgv_rewgtfct*(delchi(i,j,k)-mean_ddout(k))*rmax_dd0(k))
-           tvar(i,j,k)=tvar(i,j,k)*  &         
-                (one + bkgv_rewgtfct*(deltv (i,j,k)-mean_dtout(k))*rmax_dt0(k))
-        end do
-     end do
-  end do
+    do k=1,nsig
+       do j=1,lon2
+          do i=1,lat2
+             sfvar(i,j,k)=sfvar(i,j,k)* &          
+                  (one + bkgv_rewgtfct*(delpsi(i,j,k)-mean_dzout(k))*rmax_dz0(k))
+             vpvar(i,j,k)=vpvar(i,j,k)* &
+                  (one + bkgv_rewgtfct*(delchi(i,j,k)-mean_ddout(k))*rmax_dd0(k))
+             tvar(i,j,k)=tvar(i,j,k)*  &         
+                  (one + bkgv_rewgtfct*(deltv (i,j,k)-mean_dtout(k))*rmax_dt0(k))
+          end do
+       end do
+    end do
+  endif
   do j=1,lon2
      do i=1,lat2
         psvar(i,j)=psvar(i,j)* &          

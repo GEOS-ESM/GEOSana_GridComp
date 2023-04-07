@@ -26,6 +26,7 @@ use m_tgasNode, only: tgasNode_typecast
 use m_tgasNode, only: tgasNode_nextcast
 use m_obsdiagNode, only: obsdiagNode_set
 use m_obsdiagNode, only: obsdiagNode_get
+
 implicit none
 
 private
@@ -33,7 +34,7 @@ public :: inttgas
 
 ! Interface for other languages?
 interface inttgas
-  module procedure inttgas_
+   module procedure inttgas_
 end interface
 
 contains
@@ -47,12 +48,6 @@ subroutine inttgas_(tgashead, rval, sval)
 ! abstract:      This routine applies the observation operator (forward
 !                model) and adjoint of this operator for trace gas
 !                observations with the addition of nonlinear qc.
-
-!                This routine splits up the co and co2 arrays to allow for
-!                assimilating either or both. The solution is a little hacky,
-!                but it works for now. It is important to leave open the
-!                possibility of observation operators that depend upon multiple
-!                gases or cross-correlations between gases.
 !
 ! program history log:
 !   2014-04-19  weir     - initial code, based on carbon monoxide
@@ -71,101 +66,74 @@ subroutine inttgas_(tgashead, rval, sval)
 !
 !$$$ end documentation block
 
-  use kinds,         only: r_kind, i_kind
-  use obsmod,        only: lsaveobsens, l_do_adjoint, luse_obsdiag
-  use gridmod,       only: lat2, lon2, nsig
-  use jfunc,         only: jiter
-  use constants,     only: zero
-  use gsi_bundlemod, only: gsi_bundle, gsi_bundlegetpointer
-  use gsi_4dvar,     only: ladtest_obs
-  use tgasinfo,      only: ihave_co, ihave_co2
+  use kinds,      only: r_kind, i_kind
+  use obsmod,     only: lsaveobsens, l_do_adjoint
+  use gridmod,    only: lat2, lon2, nsig
+  use jfunc,      only: jiter
+  use constants,  only: zero, varlen => max_varname_length
+  use gsi_4dvar,  only: ladtest_obs
+  use tgasinfo,   only: ntgas, tgnames
+
+  use gsi_bundlemod,     only: gsi_bundle, gsi_bundlegetpointer
+  use gsi_chemguess_mod, only: gsi_chemguess_get
 
   implicit none
 
 ! Declare passed variables
-  class(obsNode)  , pointer, intent(in   ) :: tgashead
+  class(obsNode),     pointer, intent(in   ) :: tgashead
   type(gsi_bundle),            intent(in   ) :: sval
   type(gsi_bundle),            intent(inout) :: rval
 
 ! Declare local variables
   real(r_kind)    :: val1, valx, w1, w2, w3, w4
-  integer(i_kind) :: i, j, k, l, ij, ij1, ij2, ij3, ij4, ier, istatus
-  integer(i_kind) :: nchanl, npro
+  integer(i_kind) :: i, j, k, l, n, ij, ij1, ij2, ij3, ij4, ier, istatus
+  integer(i_kind) :: nchanl, navg
 
   character(len=256) :: obstype
 
-  real(r_kind), allocatable, dimension(:)     :: tgasak, vals, vali, val_ret
-  real(r_kind), allocatable, dimension(:,:)   :: sco, rco, sco2, rco2
-  real(r_kind), pointer,     dimension(:,:,:) :: scoptr,  rcoptr
-  real(r_kind), pointer,     dimension(:,:,:) :: sco2ptr, rco2ptr
+  real(r_kind), allocatable, dimension(:,:)   :: vals, vali, val_ret, tgasak
+  real(r_kind), allocatable, dimension(:,:,:) :: stg,    rtg
+  real(r_kind), pointer,     dimension(:,:,:) :: stgptr, rtgptr
 
   type(tgasNode), pointer :: tgasptr
 
 ! Return if no trace gas observations
   if (.not. associated(tgashead)) return
 
-! Initialize carbon monoxide arrays
-  if (ihave_co) then
+! Can't do rank-3 pointer into rank-3, therefore, allocate work space
+  allocate(stg(lat2*lon2,nsig,ntgas), rtg(lat2*lon2,nsig,ntgas))
+
+! Initialize trace gas arrays
+  do n = 1,ntgas
 !    Retrieve pointers and return if any pointer not found
-     ier = 0
+     istatus = 0
+     call gsi_bundlegetpointer(sval, trim(tgnames(n)), stgptr, ier)
+     istatus = istatus + ier
+     call gsi_bundlegetpointer(rval, trim(tgnames(n)), rtgptr, ier)
+     istatus = istatus + ier
 
-     call gsi_bundlegetpointer(sval, 'co', scoptr, istatus)
-     ier = istatus + ier
-     call gsi_bundlegetpointer(rval, 'co', rcoptr, istatus)
-     ier = istatus + ier
-
-     if (ier /= 0) return
-
-!    Can't do rank-2 pointer into rank-2, therefore, allocate work space
-     allocate(sco(lat2*lon2,nsig), rco(lat2*lon2,nsig))
+!    Probably could be a little more informative (fixme)
+     if (istatus /= 0) return
 
      do k = 1,nsig
         ij = 0
         do j = 1,lon2
            do i = 1,lat2
               ij = ij+1
-              sco(ij,k) = scoptr(i,j,k)
-              rco(ij,k) = rcoptr(i,j,k)
+              stg(ij,k,n) = stgptr(i,j,k)
+              rtg(ij,k,n) = rtgptr(i,j,k)
            end do
         end do
      end do
-  end if
-
-! Initialize carbon dioxide arrays
-  if (ihave_co2) then
-!    Retrieve pointers and return if any pointer not found
-     ier = 0
-
-     call gsi_bundlegetpointer(sval, 'co2', sco2ptr, istatus)
-     ier = istatus + ier
-     call gsi_bundlegetpointer(rval, 'co2', rco2ptr, istatus)
-     ier = istatus + ier
-
-     if (ier /= 0) return
-
-!    Can't do rank-2 pointer into rank-2, therefore, allocate work space
-     allocate(sco2(lat2*lon2,nsig), rco2(lat2*lon2,nsig))
-
-     do k = 1,nsig
-        ij = 0
-        do j = 1,lon2
-           do i = 1,lat2
-              ij = ij+1
-              sco2(ij,k) = sco2ptr(i,j,k)
-              rco2(ij,k) = rco2ptr(i,j,k)
-           end do
-        end do
-     end do
-  end if
+  end do
 
 ! Loop over trace gas observations
-  !tgasptr => tgashead
   tgasptr => tgasNode_typecast(tgashead)
   do while (associated(tgasptr))
 !    Get level and constituent info
      obstype = tgasptr%obstype
      nchanl  = tgasptr%nchanl
-     npro    = tgasptr%npro
+     navg    = tgasptr%navg
 
 !    Set location
      ij1 = tgasptr%ij(1)
@@ -178,69 +146,43 @@ subroutine inttgas_(tgashead, rval, sval)
      w3 = tgasptr%wij(3)
      w4 = tgasptr%wij(4)
 
-     allocate(tgasak(npro), vals(nsig), vali(npro), val_ret(nchanl))
+     allocate(vals(nsig,ntgas), vali(navg,ntgas), val_ret(nchanl,ntgas),       &
+              tgasak(navg,ntgas))
 
-!    Accumulate contribution from model levels
-     if (trim(obstype) == 'mopitt' .and. ihave_co) then
+!    Accumulate contribution (for all tracers) from model levels
+     do n = 1,ntgas
         do l = 1,nsig
-           vals(l) = w1*sco(ij1,l) + w2*sco(ij2,l) +   &
-                     w3*sco(ij3,l) + w4*sco(ij4,l)
+           vals(l,n) = w1*stg(ij1,l,n) + w2*stg(ij2,l,n) +                     &
+                       w3*stg(ij3,l,n) + w4*stg(ij4,l,n)
         end do
 
-        do j = 1,npro
-           vali(j) = zero
+        do j = 1,navg
+           vali(j,n) = zero
            do l = 1,nsig
-              vali(j) = vali(j) + tgasptr%avgwgt(j,l)*vals(l)
+              vali(j,n) = vali(j,n) + tgasptr%avgwgt(j,l)*vals(l,n)
            end do
         end do
-
-     else if (trim(obstype) == 'acos' .and. ihave_co2) then
-        do l = 1,nsig
-           vals(l) = w1*sco2(ij1,l) + w2*sco2(ij2,l) + &
-                     w3*sco2(ij3,l) + w4*sco2(ij4,l)
-        end do
-
-        do j = 1,npro
-           vali(j) = zero
-           do l = 1,nsig
-              vali(j) = vali(j) + tgasptr%avgwgt(j,l)*vals(l)
-           end do
-        end do
-
-     else if (trim(obstype) == 'flask') then
-         vali = zero
-         if (ihave_co) then
-            vali(1) = w1*sco(ij1,1)  + w2*sco(ij2,1) +  &
-                      w3*sco(ij3,1)  + w4*sco(ij4,1)
-         end if
-         if (ihave_co2) then
-            vali(2) = w1*sco2(ij1,1) + w2*sco2(ij2,1) + &
-                      w3*sco2(ij3,1) + w4*sco2(ij4,1)
-         end if
-     end if
+     end do
 
 !    Apply the averaging kernel
      do k = 1,nchanl
+        n = tgasptr%itgas(k)   ! index of the trace gas observed
+
         val1 = zero
-        do j = 1,npro
-           val1 = val1 + tgasptr%avgker(k,j)*vali(j)
+        do j = 1,navg
+           val1 = val1 + tgasptr%avgker(k,j)*vali(j,n)
         end do
 
-       if(luse_obsdiag) then
-         if (lsaveobsens) then
-           valx = val1 * tgasptr%err2(k) * tgasptr%raterr2(k)
-           call obsdiagNode_set(tgasptr%diags(k)%ptr,jiter=jiter, &
-             obssen = valx )
-         else
-           if (tgasptr%luse) call obsdiagNode_set(tgasptr%diags(k)%ptr,jiter=jiter, &
-             tldepart = val1 )
-         end if
-       endif
+        if (lsaveobsens) then
+           tgasptr%diags(k)%ptr%obssen(jiter) = val1 * tgasptr%err2(k)         &
+                                                     * tgasptr%raterr2(k)
+        else
+           if (tgasptr%luse) tgasptr%diags(k)%ptr%tldepart(jiter) = val1
+        end if
 
         if (l_do_adjoint) then
            if (lsaveobsens) then
-              ! valx = tgasptr%diags(k)%ptr%obssen(jiter)
-              call obsdiagNode_get(tgasptr%diags(k)%ptr,jiter=jiter,obssen=valx)
+              valx = tgasptr%diags(k)%ptr%obssen(jiter)
            else
               if (ladtest_obs) then
                  valx = val1
@@ -249,81 +191,59 @@ subroutine inttgas_(tgashead, rval, sval)
                                                 * tgasptr%raterr2(k)
               end if
            end if
-           val_ret(k) = valx
+           val_ret(k,n) = valx
         end if
      end do
 
 !    Spread values to averaging kernel contribution levels
      if (l_do_adjoint) then
-        do k = 1,npro
-           tgasak(k) = zero
+        tgasak = zero
+        do k = 1,navg
            do j = 1,nchanl
+              n = tgasptr%itgas(j)   ! index of the trace gas observed
 !             Contribution to kth obs level from jth retrieval channel
-              tgasak(k) = tgasak(k) + tgasptr%avgker(j,k)*val_ret(j)
+              tgasak(k,n) = tgasak(k,n) + tgasptr%avgker(j,k)*val_ret(j,n)
            end do
         end do
 
 !       Adjoint of interpolation
 !       Spread each obs level to interpolant gridpoints
-!       Maybe could set this up so it just checks ihave_co and ihave_co2?
-        if (trim(obstype) == 'mopitt' .and. ihave_co) then
+        do n = 1,ntgas
            do l = nsig,1,-1
-              do j = 1,npro
-                 rco(ij1,l) = rco(ij1,l) + w1*tgasptr%avgwgt(j,l)*tgasak(j)
-                 rco(ij2,l) = rco(ij2,l) + w2*tgasptr%avgwgt(j,l)*tgasak(j)
-                 rco(ij3,l) = rco(ij3,l) + w3*tgasptr%avgwgt(j,l)*tgasak(j)
-                 rco(ij4,l) = rco(ij4,l) + w4*tgasptr%avgwgt(j,l)*tgasak(j)
+              do j = 1,navg
+                 rtg(ij1,l,n) = rtg(ij1,l,n) + w1*tgasptr%avgwgt(j,l)*tgasak(j,n)
+                 rtg(ij2,l,n) = rtg(ij2,l,n) + w2*tgasptr%avgwgt(j,l)*tgasak(j,n)
+                 rtg(ij3,l,n) = rtg(ij3,l,n) + w3*tgasptr%avgwgt(j,l)*tgasak(j,n)
+                 rtg(ij4,l,n) = rtg(ij4,l,n) + w4*tgasptr%avgwgt(j,l)*tgasak(j,n)
               end do
            end do
-
-        else if (trim(obstype) == 'acos' .and. ihave_co2) then
-           do l = nsig,1,-1
-              do j = 1,npro
-                 rco2(ij1,l) = rco2(ij1,l) + w1*tgasptr%avgwgt(j,l)*tgasak(j)
-                 rco2(ij2,l) = rco2(ij2,l) + w2*tgasptr%avgwgt(j,l)*tgasak(j)
-                 rco2(ij3,l) = rco2(ij3,l) + w3*tgasptr%avgwgt(j,l)*tgasak(j)
-                 rco2(ij4,l) = rco2(ij4,l) + w4*tgasptr%avgwgt(j,l)*tgasak(j)
-              end do
-           end do
-
-        else if (trim(obstype) == 'flask') then
-           if (ihave_co) then
-              rco(ij1,1) = rco(ij1,1) + w1*tgasak(1)
-              rco(ij2,1) = rco(ij2,1) + w2*tgasak(1)
-              rco(ij3,1) = rco(ij3,1) + w3*tgasak(1)
-              rco(ij4,1) = rco(ij4,1) + w4*tgasak(1)
-           end if
-
-           if (ihave_co2) then
-              rco2(ij1,1) = rco2(ij1,1) + w1*tgasak(2)
-              rco2(ij2,1) = rco2(ij2,1) + w2*tgasak(2)
-              rco2(ij3,1) = rco2(ij3,1) + w3*tgasak(2)
-              rco2(ij4,1) = rco2(ij4,1) + w4*tgasak(2)
-           end if
-        end if
+        end do
      end if ! l_do_adjoint
 
      deallocate(tgasak, vals, vali, val_ret)
 
-     !tgasptr => tgasptr%llpoint
      tgasptr => tgasNode_nextcast(tgasptr)
-
   end do ! loop over observations
 
 ! Copy output and clean up 
-  do k = 1,nsig
-     ij = 0
-     do j = 1,lon2
-        do i = 1,lat2
-           ij = ij+1
-           if (ihave_co)  rcoptr(i,j,k)  = rco(ij,k)
-           if (ihave_co2) rco2ptr(i,j,k) = rco2(ij,k)
+  do n = 1,ntgas
+!    Retrieve pointers and return if any pointer not found
+     call gsi_bundlegetpointer(rval, trim(tgnames(n)), rtgptr, ier)
+
+     if (ier /= 0) return
+
+     do k = 1,nsig
+        ij = 0
+        do j = 1,lon2
+           do i = 1,lat2
+              ij = ij+1
+              rtgptr(i,j,k) = rtg(ij,k,n)
+           end do
         end do
      end do
   end do
 
-  if (ihave_co)  deallocate(sco,  rco)
-  if (ihave_co2) deallocate(sco2, rco2)
+  deallocate(stg, rtg)
 
   return
 end subroutine inttgas_
