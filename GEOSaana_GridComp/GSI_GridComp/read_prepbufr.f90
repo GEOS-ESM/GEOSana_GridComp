@@ -143,6 +143,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 !   2020-01-29  Sienkiewicz - allow obstypes marked as passive in convinfo to be thinned
 !   2020-10-27  sienkiewicz - update for BUFR drifting buoys, T29=564
 !   2022-09-21  Sienkiewicz - Add BUFR ship subtypes (524, 525) to ship definition
+!   2023-04-17  Sienkiewicz - Expand satwnd QI test to include GOES and JMA winds
 !
 
 !   input argument list:
