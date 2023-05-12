@@ -625,8 +625,6 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 !       Get guess surface elevation and geopotential height profile 
 !       at observation location.
-        call tintrp2a1(geop_hgtl,zges,dlat,dlon,dtime,hrdifsig,&
-             nsig,mype,nfldsig)
 
 !       For observation reported with geometric height above sea level,
 !       convert geopotential to geometric height.
