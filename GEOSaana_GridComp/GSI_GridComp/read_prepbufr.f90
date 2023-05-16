@@ -723,7 +723,6 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 
 !       For the satellite wind to get quality information and check if it will be used
 !       - add GOES and JMA KX to check reprocessed satwinds in prepbufr format
-!       if(use_prepb_satwnd .and. (kx == 243 .or. kx == 253 .or. kx ==254) ) then
         if(use_prepb_satwnd .and. (kx >= 242 .and. kx <= 256) ) then
            call ufbint(lunin,satqc,1,1,iret,satqcstr)
            if(satqc(1) <  85.0_r_double) cycle loop_report   ! QI w/o fcst (su's setup
@@ -1971,7 +1970,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  else
                     timedif=abs(t4dv-toff)
                  endif
-                 if(kx >= 253 .and. kx <= 256) then
+                 if(kx >= 242 .and. kx <= 256) then
                     call ufbint(lunin,satqc,1,1,iret,satqcstr)
                     if (ibfms(satqc(1)) satqc(1) = 0.0
                     crit1 = timedif/r6+half + four*(one-satqc(1)/r100)*r3_33
