@@ -143,6 +143,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 !   2020-01-29  Sienkiewicz - allow obstypes marked as passive in convinfo to be thinned
 !   2020-10-27  sienkiewicz - update for BUFR drifting buoys, T29=564
 !   2022-09-21  Sienkiewicz - Add BUFR ship subtypes (524, 525) to ship definition
+!   2023-05-22  Sienkiewicz - fix for ship obs with zero obs height where POB different from PMO
 !
 
 !   input argument list:
@@ -2268,6 +2269,18 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 
 !             Surface pressure
               else if(psob) then
+!
+! Substitute PMO for POB for ship obs if surface height is zero and POB and PMO disagree
+! (obs needs actual barometer height but that's not available)
+                 if ( kx == 180 and obsdat(4,k) == zero ) then
+                    it29=nint(hdr(8))
+                    if (it29 >= 522 .and. it29 <= 525 .and. .not. ibfms(obsdat(13,k))) then
+                       if (obsdat(13,k) - obsdat(1,k) > one_tenth) then
+                          plevs(k)=one_tenth*obsdat(1,k)
+                          dlnpob=log(plevs(k))  ! ln(pressure in cb)
+                       endif
+                    endif
+                 endif
 
                  poe=obserr(1,k)*one_tenth                  ! convert from mb to cb
                  if (inflate_error) poe=poe*r1_2
