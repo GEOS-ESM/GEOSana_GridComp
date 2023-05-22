@@ -104,6 +104,7 @@
                           destroy_metguess_grids
 
    ! routines from gridmod
+   use gridmod,   only : use_sp_eqspace
    use gridmod,   only : create_grid_vars,   &
                          destroy_grid_vars,  &
    ! variables for create_grid_vars
@@ -726,10 +727,12 @@ _ENTRY_(trim(Iam))
    lon0d= lon0; lat0d=lat0
    lon0 = lon0 * d2r
    lat0 = lat0 * d2r
-   dlon=(pi+pi)/nlon	! in radians
-   dlat=pi/(nlat-1)
 
-   if(GsiGridType==0) then  ! equally spaced dgrid
+!  if(GsiGridType==0) then  ! equally spaced dgrid
+   if(use_sp_eqspace) then  ! equally spaced dgrid
+
+      dlon=(pi+pi)/nlon	! in radians
+      dlat=pi/(nlat-1)
 
 
 ! Set grid longitude array used by GSI.
@@ -1368,19 +1371,18 @@ _ENTRY_(trim(Iam))
    endif
 #endif
 
+!  Set alarm
+!  ---------
+   call GSI_GridCompSetAnaTime_()
+#ifdef VERBOSE
+   call tell(Iam,"returned from GSI_GridCompSetAnaTime_()")
+#endif
+
    call GSI_GridCompGetPointers_()
    call GSI_GridCompCopyImportDyn2Internal_(L)
    call GSI_GridCompComputeVorDiv_(L)
    call GSI_GridCompCopyImportSfc2Internal_(L)
    call GSI_GridCompGetNCEPsfcFromFile_(L)
-
-!  Set alarm
-!  ---------
-
-   call GSI_GridCompSetAnaTime_()
-#ifdef VERBOSE
-   call tell(Iam,"returned from GSI_GridCompSetAnaTime_()")
-#endif
 
 !  Set observations input
 !  ----------------------
