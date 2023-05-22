@@ -1972,7 +1972,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  endif
                  if(kx >= 242 .and. kx <= 256) then
                     call ufbint(lunin,satqc,1,1,iret,satqcstr)
-                    if (ibfms(satqc(1)) satqc(1) = 0.0
+                    if (ibfms(satqc(1))) satqc(1) = 0.0
                     crit1 = timedif/r6+half + four*(one-satqc(1)/r100)*r3_33
                  else
                     crit1 = timedif/r6+half
