@@ -2276,7 +2276,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                     it29=nint(hdr(8))
                     if (it29 >= 522 .and. it29 <= 525 .and. .not. ibfms(obsdat(13,k))) then
                        if (obsdat(13,k) - obsdat(1,k) > one_tenth) then
-                          plevs(k)=one_tenth*obsdat(1,k)
+                          plevs(k)=one_tenth*obsdat(13,k)
                           dlnpob=log(plevs(k))  ! ln(pressure in cb)
                        endif
                     endif
