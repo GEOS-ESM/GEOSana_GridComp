@@ -139,7 +139,7 @@ subroutine prewgt(mype)
   ! trace gas stuff
   integer(i_kind) nrf3_o3, nrf3_no2, nrf3_so2, ireact, inrf3, hadjlevidx
   logical :: stratadj, instrat, inpbl
-  real(r_kind) :: hadjbelow,hadjabove,ihadj,minuncert,bgadj,ilev
+  real(r_kind) :: hadjbelow,hadjabove,ihadj,minuncert,maxuncert,bgadj,ilev
   ! 
   real(r_kind) wlipi,wlipih,df
   real(r_kind) samp,s2u,df2,pi2
@@ -563,6 +563,7 @@ subroutine prewgt(mype)
                     ! determine minimum uncertainty: can be different over 'potentially polluted'
                     ! area, i.e., if over land and within PBL
                     ! - Stratosphere
+                    maxuncert=1.0e9
                     if ( instrat ) then
                        minuncert = tgas_minbgstrat(ireact)
                        bgadj     = tgas_bgscalstrat(ireact)
@@ -573,6 +574,7 @@ subroutine prewgt(mype)
                           ! --- in PBL 
                           if ( inpbl ) then
                              minuncert = tgas_minbglndpbl(ireact)
+                             !maxuncert = 2.0e-9 
                              bgadj     = tgas_bgscallndpbl(ireact)
                           ! --- in free troposphere 
                           else
@@ -600,7 +602,7 @@ subroutine prewgt(mype)
                     else
                        my_corz = corz(jx,k,n)
                     endif
-                    my_corz = max(my_corz,minuncert*1.0e-9)
+                    my_corz = min(max(my_corz,minuncert*1.0e-9),maxuncert)
                     dssv(j,i,k,n) = dsv(i,k)*my_corz*bgadj*as3d(n)
                  enddo !i
               enddo !k
