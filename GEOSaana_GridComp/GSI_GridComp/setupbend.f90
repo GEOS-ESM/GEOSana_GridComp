@@ -484,8 +484,8 @@ subroutine setupbend(obsLL,odiagLL, &
 
       Tvir(1:nsig,i)      = tges(1:nsig)            ! virtual temperature
       sphm(1:nsig,i)      = qges(1:nsig)            ! specific humidity
-      hgtl(1:nsig,i)      = hges(1:nsig)            ! mid level geopotential height
-      hgti(1:nsig+1,i)    = hgesi(1:nsig+1)         ! interface level geopotential height
+      hgtl(1:nsig,i)      = hges(1:nsig) + zsges    ! mid level geopotential height
+      hgti(1:nsig+1,i)    = hgesi(1:nsig+1) + zsges ! interface level geopotential height
       prslni(1:nsig+1,i)  = prsltmp(1:nsig+1)       ! interface level log(pressure)
       prslnl(1:nsig,i)    = prstmpl(1:nsig)         !  mid level log(pressure)
 
