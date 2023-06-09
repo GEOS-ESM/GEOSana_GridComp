@@ -2272,7 +2272,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 !
 ! Substitute PMO for POB for ship obs if surface height is zero and POB and PMO disagree
 ! (obs needs actual barometer height but that's not available)
-                 if ( kx == 180 and obsdat(4,k) == zero ) then
+                 if ( kx == 180 .and. obsdat(4,k) == zero ) then
                     it29=nint(hdr(8))
                     if (it29 >= 522 .and. it29 <= 525 .and. .not. ibfms(obsdat(13,k))) then
                        if (obsdat(13,k) - obsdat(1,k) > one_tenth) then
