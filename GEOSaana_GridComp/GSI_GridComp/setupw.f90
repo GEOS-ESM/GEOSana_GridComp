@@ -625,6 +625,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 !       Get guess surface elevation and geopotential height profile 
 !       at observation location.
+        zges = zges_read
 
 !       For observation reported with geometric height above sea level,
 !       convert geopotential to geometric height.
