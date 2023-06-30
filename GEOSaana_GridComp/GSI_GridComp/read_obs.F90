@@ -324,6 +324,7 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
        end if
 
        call closbf(lnbufr)
+       close(lnbufr)
        open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
        call openbf(lnbufr,'IN',lnbufr)
        call datelen(10)
@@ -430,9 +431,12 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
                trim(subset) == 'NC005065' .or. trim(subset) == 'NC005066' .or.& 
                trim(subset) == 'NC005030' .or. trim(subset) == 'NC005031' .or.& 
                trim(subset) == 'NC005032' .or. trim(subset) == 'NC005034' .or.&
-               trim(subset) == 'NC005039' .or. trim(subset) == 'NC005091' .or.&
-               trim(subset) == 'NC005067' .or. trim(subset) == 'NC005068' .or. trim(subset) == 'NC005069' &
-               ) then
+               trim(subset) == 'NC005039' .or. &
+               trim(subset) == 'NC005090' .or. trim(subset) == 'NC005091' .or.&
+               trim(subset) == 'NC005067' .or. trim(subset) == 'NC005068' .or. trim(subset) == 'NC005069' .or.&
+               trim(subset) == 'NC005047' .or. trim(subset) == 'NC005048' .or. trim(subset) == 'NC005049' .or.&
+               trim(subset) == 'NC005081' .or. &
+               trim(subset) == 'NC005072' ) then
                lexist = .true.
                exit loop
             endif
@@ -543,6 +547,7 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
       end if
 
       call closbf(lnbufr)
+      close(lnbufr)
   end if
   if(lexist)then
       write(6,*)'read_obs_check: bufr file date is ',idate,trim(filename),' ',dtype,jsatid

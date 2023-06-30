@@ -732,8 +732,9 @@ _ENTRY_(trim(Iam))
 !  if(GsiGridType==0) then  ! equally spaced dgrid
    if(use_sp_eqspace) then  ! equally spaced dgrid
 
-     dlon=(pi+pi)/nlon	! in radians
-     dlat=pi/(nlat-1)
+      dlon=(pi+pi)/nlon	! in radians
+      dlat=pi/(nlat-1)
+
 
 ! Set grid longitude array used by GSI.
       do i=1,nlon			! from 0 to 2pi
@@ -1369,19 +1370,18 @@ _ENTRY_(trim(Iam))
    endif
 #endif
 
+!  Set alarm
+!  ---------
+   call GSI_GridCompSetAnaTime_()
+#ifdef VERBOSE
+   call tell(Iam,"returned from GSI_GridCompSetAnaTime_()")
+#endif
+
    call GSI_GridCompGetPointers_()
    call GSI_GridCompCopyImportDyn2Internal_(L)
    call GSI_GridCompComputeVorDiv_(L)
    call GSI_GridCompCopyImportSfc2Internal_(L)
    call GSI_GridCompGetNCEPsfcFromFile_(L)
-
-!  Set alarm
-!  ---------
-
-   call GSI_GridCompSetAnaTime_()
-#ifdef VERBOSE
-   call tell(Iam,"returned from GSI_GridCompSetAnaTime_()")
-#endif
 
 !  Set observations input
 !  ----------------------
