@@ -928,6 +928,7 @@ subroutine setupspd(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
            call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
            call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
            call nc_diag_metadata("Station_Elevation",       sngl(data(istnelv,i))  )
+           call nc_diag_metadata("Pressure_GSI",            sngl(presw*r100)       )
            call nc_diag_metadata("Pressure",                sngl(r1000*exp(data(ipres,i))))
            call nc_diag_metadata("Height",                  sngl(data(ihgt,i))     )
            call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
