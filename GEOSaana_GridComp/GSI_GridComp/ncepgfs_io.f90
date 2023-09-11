@@ -405,20 +405,19 @@ contains
                    ptr3d_co2 = p_co2
                 enddo
              endif
-          else
-             allocate(avefld(size(p_co2,3)))
-             call glbave(p_co2,avefld)
-             if (mype==0) then
-                write(6,'(a)') 'Mean Co2'
-                do k=1,nsig
-                   write(6,'(1p,(e10.3,1x))') avefld(k)
-                enddo
-             endif
-             deallocate(avefld)
           endif
+          allocate(avefld(size(p_co2,3)))
+          call glbave(p_co2,avefld)
+          if (mype==0) then
+             write(6,'(a)') 'Mean Co2'
+             do k=1,nsig
+                write(6,'(1p,(e10.3,1x))') avefld(k)
+             enddo
+          endif
+          deallocate(avefld)
           char_ghg='co2'
-! take comment out for printing out the interpolated tracer gas fields.
-!        call write_ghg_grid (ptr3d_co2,char_ghg)
+! take comment out for printing out final co2 field.
+!         call write_ghg_grid (p_co2,char_ghg)
        endif
     endif ! <co2>
 
