@@ -252,6 +252,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind),dimension(nobs):: dup
   real(r_kind),dimension(nsig+1)::prsitmp
   real(r_kind),dimension(nsig)::prsltmp,tges,zges,qges
+  real(r_kind),dimension(nsig)::zges_geometric
   real(r_kind),dimension(nsig)::tsentmp,zges_read,uges,vges,prsltmp2
   real(r_kind) wdirob,wdirgesin,wdirdiffmax
   real(r_kind),dimension(34)::ptabluv
@@ -587,6 +588,28 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      call tintrp31(ges_tv,sfctges,dlat,dlon,log(psges),dtime, &
           hrdifsig,mype,nfldsig)
 
+!    Convert geopotential height at layer midpoints to geometric 
+!    height using equations (17, 20, 23) in MJ Mahoney's note 
+!    "A discussion of various measures of altitude" (2001).  
+!    Available on the web at
+!    http://mtp.jpl.nasa.gov/notes/altitude/altitude.html
+!
+!    termg  = equation 17
+!    termr  = equation 21
+!    termrg = first term in the denominator of equation 23
+!    zges  = equation 23
+
+     slat = data(ilate,i)*deg2rad
+     sin2  = sin(slat)*sin(slat)
+     termg = grav_equator * &
+          ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
+     termr = semi_major_axis /(one + flattening + grav_ratio -  &
+          two*flattening*sin2)
+     termrg = (termg/grav)*termr
+     do k=1,nsig
+        zges_geometric(k) = (termr*zges_read(k)) / (termrg-zges_read(k))  ! eq (23)
+     end do
+ 
      itype=ictype(ikx)
 
 !    Type 221=pibal winds contain a mixture of wind observations reported
@@ -630,35 +653,13 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 !       Get guess surface elevation and geopotential height profile 
 !       at observation location.
-        call tintrp2a1(geop_hgtl,zges,dlat,dlon,dtime,hrdifsig,&
-             nsig,mype,nfldsig)
+        zges = zges_read
 
 !       For observation reported with geometric height above sea level,
 !       convert geopotential to geometric height.
 
         if ((itype>=223 .and. itype<=228) .or. sfc_data) then
-!          Convert geopotential height at layer midpoints to geometric 
-!          height using equations (17, 20, 23) in MJ Mahoney's note 
-!          "A discussion of various measures of altitude" (2001).  
-!          Available on the web at
-!          http://mtp.jpl.nasa.gov/notes/altitude/altitude.html
-!
-!          termg  = equation 17
-!          termr  = equation 21
-!          termrg = first term in the denominator of equation 23
-!          zges  = equation 23
-
-           slat = data(ilate,i)*deg2rad
-           sin2  = sin(slat)*sin(slat)
-           termg = grav_equator * &
-                ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
-           termr = semi_major_axis /(one + flattening + grav_ratio -  &
-                two*flattening*sin2)
-           termrg = (termg/grav)*termr
-           do k=1,nsig
-              zges(k) = (termr*zges(k)) / (termrg-zges(k))  ! eq (23)
-           end do
- 
+           zges = zges_geometric
         endif
 
 !       Given observation height, (1) adjust 10 meter wind factor if
@@ -1791,7 +1792,8 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
            call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
            call nc_diag_metadata("Station_Elevation",       sngl(data(ielev,i))    )
-           call nc_diag_metadata("Pressure",                sngl(presw*r100)       )
+           call nc_diag_metadata("diagnosed_Pressure",      sngl(presw*r100)       )
+           call nc_diag_metadata("Pressure",                sngl(r1000*exp(data(ipres,i))))
            call nc_diag_metadata("Height",                  sngl(data(ihgt,i))     )
            call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
            call nc_diag_metadata("LaunchTime",              sngl(data(idft,i))     )
@@ -1912,6 +1914,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
               call nc_diag_data2d("virtual_temperature", sngl(tges))
               call nc_diag_data2d("geopotential_height", sngl(zges_read))
+              call nc_diag_data2d("geometric_height", sngl(zges_geometric))
               call nc_diag_data2d("eastward_wind", sngl(uges))
               call nc_diag_data2d("northward_wind", sngl(vges))
               call nc_diag_data2d("air_temperature", sngl(tsentmp))

@@ -217,6 +217,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind),dimension(lat2,lon2,nsig,nfldsig):: qg
   real(r_kind),dimension(lat2,lon2,nfldsig):: qg2m
   real(r_kind),dimension(nsig):: prsltmp, tvgestmp, tsentmp
+  real(r_kind),dimension(nsig):: qsat_ges
   real(r_kind),dimension(nsig):: prsltmp2, qtmp,zges, utmp, vtmp
   real(r_kind),dimension(nsig+1):: prsitmp
   real(r_kind),dimension(34):: ptablq
@@ -512,6 +513,8 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
     call tintrp2a1(ges_tsen,tsentmp,dlat,dlon,dtime,hrdifsig,nsig,mype,nfldsig)
     ! specific humidity
     call tintrp2a1(ges_q,qtmp,dlat,dlon,dtime,hrdifsig,nsig,mype,nfldsig)
+    ! saturated_specific_humidity
+    call tintrp2a1(qg,qsat_ges,dlat,dlon,dtime,hrdifsig,nsig,mype,nfldsig)
     ! winds
     call tintrp2a1(ges_u,utmp,dlat,dlon,dtime,hrdifsig,nsig,mype,nfldsig)
     call tintrp2a1(ges_v,vtmp,dlat,dlon,dtime,hrdifsig,nsig,mype,nfldsig)
@@ -1389,6 +1392,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
               call nc_diag_data2d("virtual_temperature", sngl(tvgestmp))
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
+              call nc_diag_data2d("saturated_specific_humidity_profile", sngl(qsat_ges))
               call nc_diag_data2d("specific_humidity", sngl(qtmp))
               call nc_diag_data2d("northward_wind", sngl(utmp))
               call nc_diag_data2d("eastward_wind", sngl(vtmp))

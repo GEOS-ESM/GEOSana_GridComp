@@ -2676,7 +2676,6 @@ contains
                  call nc_diag_metadata("Forecast_unadjusted_clear",     sngl(tsim_clr(ich_diag(i))))     ! simulated Tb under clear-sky condition
                  call nc_diag_metadata("Forecast_adjusted_clear",       sngl(tsim_clr_bc(ich_diag(i))))     ! simulated Tb under clear-sky condition
                  call nc_diag_metadata("Forecast_unadjusted",           sngl(tb_obs(ich_diag(i))-tbcnob(ich_diag(i)))) ! simulated Tb with no bias correction
-                 call nc_diag_metadata("Forecast_adjusted",             sngl(tb_obs(ich_diag(i))-tbc(ich_diag(i)))     ) ! simulated Tb with bias correction
            !     call nc_diag_metadata("Bias_Correction", sngl(tbc(ich_diag(i))-tbcnob(ich_diag(i)))       ) ! bias correction
                  call nc_diag_metadata("Bias_Correction", sngl(tbcnob(ich_diag(i))-tbc(ich_diag(i)))       ) ! bias correction
                  call nc_diag_metadata("Bias_Correction_Constant", sngl(predbias(1,ich_diag(i)))           ) ! constant bias correction
