@@ -3039,6 +3039,9 @@
  avhrr3_n18               3   0.884430E-02
  avhrr3_n18               4   0.115395E-01
  avhrr3_n18               5   0.161449E-01
+ avhrr3_n19               3   0.884430E-02
+ avhrr3_n19               4   0.115395E-01
+ avhrr3_n19               5   0.161449E-01
  avhrr3_metop-b           3   0.870211E-02
  avhrr3_metop-b           4   0.101765E-01
  avhrr3_metop-b           5   0.136881E-01
