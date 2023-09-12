@@ -224,6 +224,7 @@ contains
 !   2020-02-26  todling - reset obsbin from hr to min
 !   2020-08-26  mkim    - adjusted MHS QC for all-sky
 !   2020-09-27  j.jin   - assimilate SSMI, TMI and AMSRE (gmao format) in all-sky conditions.
+!   2023-06-30  j.jin   - add a qc_flag "ierrret_ges" to flag failed cloud retrieval from simulated Tb.
 !
 !  input argument list:
 !     lunin   - unit from which to read radiance (brightness temperature, tb) obs
@@ -344,6 +345,7 @@ contains
   integer(i_kind) n,nlev,kval,ibin,ioff,ioff0,iii,ijacob,ioff1
   integer(i_kind) ii,jj,idiag,inewpc,nchanl_diag
   integer(i_kind) nadir,kraintype,ierrret
+  integer(i_kind) ierrret_ges
   integer(i_kind) ioz,ius,ivs,iwrmype
   integer(i_kind) iversion_radiag, istatus
   integer(i_kind) cor_opt,iinstr,chan_count
@@ -1035,6 +1037,7 @@ contains
         tpwc_guess_retrieval=zero
         scatp=zero
         scat=zero  
+        ierrret_ges=0
         ierrret=0
         tpwc_obs=zero
         kraintype=0
@@ -1234,6 +1237,7 @@ contains
         cld_rbc_idx=one
         if (radmod%lcloud_fwd .and. radmod%ex_biascor .and. eff_area) then
            ierrret=0
+           ierrret_ges=0
            do i=1,nchanl
               mm=ich(i)
               tsim_bc(i)=tsim(i)
@@ -1251,24 +1255,26 @@ contains
 
            if(amsua) call ret_amsua(tsim_bc,nchanl,tsavg5,zasat,clw_guess_retrieval,ierrret)
            if(gmi .or. tmi) then
-             call gmi_37pol_diff(tsim_bc(6),tsim_bc(7),tsim_clr_bc(6),tsim_clr_bc(7),clw_guess_retrieval,ierrret)
+             call gmi_37pol_diff(tsim_bc(6),tsim_bc(7),tsim_clr_bc(6),tsim_clr_bc(7),clw_guess_retrieval,ierrret_ges)
              call gmi_37pol_diff(tb_obs(6),tb_obs(7),tsim_clr_bc(6),tsim_clr_bc(7),clw_obs,ierrret)
            end if
            if(mhs) then
              call mhs_si(tb_obs(1),tb_obs(2), tsim_clr_bc(1),tsim_clr_bc(2),clw_obs,ierrret)
-             call mhs_si(tsim_bc(1),tsim_bc(2), tsim_clr_bc(1),tsim_clr_bc(2),clw_guess_retrieval,ierrret)
+             call mhs_si(tsim_bc(1),tsim_bc(2), tsim_clr_bc(1),tsim_clr_bc(2),clw_guess_retrieval,ierrret_ges)
            end if
            if(obstype == 'amsre') then
-             call gmi_37pol_diff(tsim_bc(9),tsim_bc(10),tsim_clr_bc(9),tsim_clr_bc(10),clw_guess_retrieval,ierrret)
+             call gmi_37pol_diff(tsim_bc(9),tsim_bc(10),tsim_clr_bc(9),tsim_clr_bc(10),clw_guess_retrieval,ierrret_ges)
              call gmi_37pol_diff(tb_obs(9),tb_obs(10),tsim_clr_bc(9),tsim_clr_bc(10),clw_obs,ierrret)
            endif
            if(ssmi) then
-             call gmi_37pol_diff(tsim_bc(4),tsim_bc(5),tsim_clr_bc(4),tsim_clr_bc(5),clw_guess_retrieval,ierrret)
+             call gmi_37pol_diff(tsim_bc(4),tsim_bc(5),tsim_clr_bc(4),tsim_clr_bc(5),clw_guess_retrieval,ierrret_ges)
              call gmi_37pol_diff(tb_obs(4),tb_obs(5),tsim_clr_bc(4),tsim_clr_bc(5),clw_obs,ierrret)
            endif
+           if (ierrret_ges /= 0) ierrret = ierrret_ges
            if (radmod%ex_obserr=='ex_obserr1') then
               call radiance_ex_biascor(radmod,nchanl,tsim_bc,tsavg5,zasat, &
-                       clw_guess_retrieval,clw_obs,cld_rbc_idx,ierrret)
+                       clw_guess_retrieval,clw_obs,cld_rbc_idx,ierrret_ges)
+           if (ierrret_ges /= 0) ierrret = ierrret_ges
            end if
            if (radmod%ex_obserr=='ex_obserr3') then
               if(gmi) call radiance_ex_biascor_gmi(radmod,clw_obs,clw_guess_retrieval,nchanl,cld_rbc_idx)
