@@ -1788,7 +1788,8 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            call nc_diag_metadata("Error_Input",             sngl(error_input)      )
            call nc_diag_metadata("Error_Adjust",            sngl(error_adjst)      )
 
-           call nc_diag_metadata("Wind_Reduction_Factor_at_10m", sngl(factw)       )
+           call nc_diag_metadata("Wind_Reduction_Factor_at_10m", sngl(data(iff10,i)))
+           call nc_diag_metadata("Wind_Reduction_Scaling_Factor", sngl(factw)       )
 
 
            if(itype >=240 .and. itype <=260) then
