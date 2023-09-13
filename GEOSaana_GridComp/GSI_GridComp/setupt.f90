@@ -414,7 +414,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            data(id,k)    == data(id,l) ) then
            ! Identical obs #k and #l. Not use or inflate error obs #l. 
            ! This change is made for JEDI since IODA converter treats them as one observation.
-           write(6,*) "Same observations as others. Skipped in setupt.f90"
+           !write(6,*) "Same observations as others. Skipped in setupt.f90"
            identical_obs(l) = .true.
         endif
      enddo
