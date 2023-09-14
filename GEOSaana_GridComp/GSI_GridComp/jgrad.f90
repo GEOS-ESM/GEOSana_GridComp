@@ -56,6 +56,7 @@ use intjcmod, only: intjcdfi
 use gsi_4dcouplermod, only: gsi_4dcoupler_grtests
 use xhat_vordivmod, only : xhat_vordiv_init, xhat_vordiv_calc, xhat_vordiv_clean
 use hybrid_ensemble_parameters,only : l_hyb_ens,ntlevs_ens
+use hybrid_ensemble_parameters,only : lensNdvar
 use mpl_allreducemod, only: mpl_allreduce
 use obs_sensitivity, only: evfsoi_o2_update
 
@@ -293,20 +294,23 @@ if (lupdfgs) then
    call xhat_vordiv_calc(sval)
 
 ! Overwrite guess with increment (4d-var only, for now)
+  if (miter==1) then
+      xincfile='xinc'
+  else
+      xincfile='xinc.ZZZ'
+      write(xincfile(6:8),'(i3.3)') jiter
+  endif
   if (iwrtinc>0) then
     if (mype==0) write(6,*)trim(seqcalls),': Saving increment to file'
-    if (miter==1) then
-        xincfile='xinc'
-    else
-        xincfile='xinc.ZZZ'
-        write(xincfile(6:8),'(i3.3)') jiter
-    endif
     call view_st (sval,trim(xincfile))
+    if (lensNdvar) then
+       call enNDvarctl2state (gradx,sval,'en'//xincfile)
+    endif
     if ((.not.l4densvar).and.l4dvar)then
        call inc2guess(sval)
        call write_all(iwrtinc)
        call prt_guess('increment')
-      ! NOTE: presently in 4dvar, we handle the biases in a slightly inconsistent when
+      ! NOTE: presently in 4dvar, we handle the biases in a slightly inconsistent way
       ! as when in 3dvar - that is, the state is not updated, but the biases are.
       ! This assumes GSI handles a single iteration of the outer loop at a time
       ! when doing 4dvar (that is, multiple iterations require stop-and-go).
@@ -316,6 +320,9 @@ if (lupdfgs) then
        call update_guess(sval,sbias)
     endif
   else ! Update guess (model background, bias correction) fields
+    if (lensNdvar) then
+       call enNDvarctl2state (gradx,sval,'en'//xincfile)
+     endif
      if (mype==0) write(6,*)trim(seqcalls),': Updating guess'
      call update_guess(sval,sbias)
      if(jiter == miter)call write_all(iwrtinc)

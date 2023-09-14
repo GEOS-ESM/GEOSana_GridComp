@@ -123,6 +123,8 @@ module hybrid_ensemble_isotropic
   public :: ensemble_forward_model_dual_res
   public :: ensemble_forward_model_ad
   public :: ensemble_forward_model_ad_dual_res
+  public :: enNdVar_forward_model
+  public :: enNdVar_forward_model_dual_res
   public :: sqrt_beta_s_mult
   public :: sqrt_beta_e_mult
   public :: init_sf_xy
@@ -132,6 +134,7 @@ module hybrid_ensemble_isotropic
   public :: sqrt_sf_xy_ad
   public :: get_new_alpha_beta
   public :: bkerror_a_en
+  public :: bkgcov_a_en_new_factorization
   public :: ckgcov_a_en_new_factorization
   public :: ckgcov_a_en_new_factorization_ad
   public :: hybens_grid_setup
@@ -2038,6 +2041,228 @@ end subroutine normal_new_factorization_rf_y
     return
 
   end subroutine ensemble_forward_model_dual_res
+
+  subroutine enNdVar_forward_model(cvec,a_en,imem,ibin)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    en4Dvar_forward_model  add ensemble part to anl vars
+!   prgmmr: todling          org: np22               date: 2023-05-30
+!
+! abstract: For the hybrid ensemble method, add ensemble contribution
+!             to standard analysis control variables.  (This follows,
+!             method outlined in Wang et al, MWR, 2008).
+
+! program history log:
+!   2023-05-30  todling
+!
+!   input argument list:
+!     cvec      - 
+!     a_en      - 
+!     ibin      - integer bin number for ensemble perturbations  
+! 
+!   output argument list:
+!     cvec      - 
+!
+! remarks:  
+!    need to reconcile grid in gsi_bundle w/ grid_ens/grid_anl
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+    use hybrid_ensemble_parameters, only: n_ens,pwgtflg,pwgt
+    use hybrid_ensemble_parameters, only: en_perts
+    use hybrid_ensemble_parameters, only: relax2prior
+    use constants, only: zero,one
+
+    implicit none
+    type(gsi_bundle),intent(inout) :: cvec
+    type(gsi_bundle),intent(in)    :: a_en
+    integer,intent(in)             :: imem
+    integer,intent(in)             :: ibin
+
+    character(len=*),parameter :: myname_=trim(myname)//'*enNdVar_forward_model'
+    logical :: nogood
+    integer(i_kind) :: i,j,k,im,jm,km,ic2,ic3,ipic,ipx,km_tmp
+    integer(i_kind) :: ipc3d(nc3d),ipc2d(nc2d),istatus
+    real(r_kind) :: invnorm
+
+    im=cvec%grid%im
+    jm=cvec%grid%jm
+    km=cvec%grid%km
+
+!   Check resolution consistency between static and ensemble components
+    nogood=im/=a_en%grid%im.or.jm/=a_en%grid%jm.or.km/=a_en%grid%km
+    if (nogood) then
+       write(6,*) myname_,': static&ensemble vectors have inconsistent dims'
+       call stop2(999)
+    endif
+
+!   Request ensemble-corresponding fields from control vector
+!    NOTE:  because ensemble perturbation bundle structure is same as control vector, use same ipc3d and
+!             ipc2d indices for cvec and en_perts bundles.
+    call gsi_bundlegetpointer (cvec,cvars3d,ipc3d,istatus)
+    if(istatus/=0) then
+      write(6,*) myname_,': cannot find 3d pointers'
+      call stop2(999)
+    endif
+    call gsi_bundlegetpointer (cvec,cvars2d,ipc2d,istatus)
+    if(istatus/=0) then
+      write(6,*) myname_,': cannot find 2d pointers'
+      call stop2(999)
+    endif
+ 
+    invnorm=sqrt(max(one,n_ens-one))
+    ipx=1
+    do ic3=1,nc3d
+       ipic=ipc3d(ic3)
+       cvec%r3(ipic)%q=invnorm*(relax2prior+(one-relax2prior)*a_en%r3(ipx)%q)*en_perts(imem,ibin)%r3(ipic)%qr4
+! debug
+       en_perts(imem,ibin)%r3(ipic)%qr4=cvec%r3(ipic)%q
+    enddo
+
+    do ic2=1,nc2d
+       ipic=ipc2d(ic2)
+       select case ( trim(StrUpCase(cvars2d(ic2))) )
+          case('PS')
+             if ( pwgtflg ) then
+                km_tmp = km
+             else
+                km_tmp = 1
+             endif
+             cvec%r2(ipic)%q=zero
+             do k=1,km_tmp
+                cvec%r2(ipic)%q=cvec%r2(ipic)%q+&
+                                (relax2prior+(one-relax2prior)*a_en%r3(ipx)%q(:,:,k)*pwgt(:,:,k))*&
+                                 en_perts(imem,ibin)%r2(ipic)%qr4
+             enddo
+             cvec%r2(ipic)%q=invnorm*cvec%r2(ipic)%q
+! debug
+             en_perts(imem,ibin)%r2(ipic)%qr4=cvec%r2(ipic)%q
+          case('SST')
+             cvec%r2(ipic)%q=invnorm*(relax2prior+(one-relax2prior)*a_en%r3(ipx)%q(:,:,1))*en_perts(imem,ibin)%r2(ipic)%qr4
+! debug
+             en_perts(imem,ibin)%r2(ipic)%qr4=cvec%r2(ipic)%q
+       end select
+    enddo
+    if (imem==1) then
+       if(mype==0) write(6,*)trim(myname_),': generating posterior members ', invnorm
+    endif
+    return
+
+  end subroutine enNdVar_forward_model
+
+  subroutine enNdVar_forward_model_dual_res(cvec,a_en,imem,ibin)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    enNDVar_forward_model_dual_res  use for dualres option
+!   prgmmr: todling           org: np22                date: 2023-05-30
+!
+! abstract: Copy of enNDVar_forward_model for use with dual resolution.
+
+! program history log:
+!   2023-05-30  todling - based on Parrish original forward model, but 
+!                         allow for En-ND-Var approach.
+!
+!   input argument list:
+!     cvec      -
+!     a_en      -
+!     ibin      - integer bin number for ensemble perturbations
+!
+!   output argument list:
+!     cvec      - 
+!
+! remarks:  
+!    need to reconcile grid in gsi_bundle w/ grid_ens/grid_anl
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+    use hybrid_ensemble_parameters, only: n_ens,pwgtflg,pwgt
+    use hybrid_ensemble_parameters, only: grd_ens,grd_anl,p_e2a
+    use hybrid_ensemble_parameters, only: en_perts
+    use hybrid_ensemble_parameters, only: relax2prior
+    use general_sub2grid_mod, only: general_sube2suba
+    use gridmod,only: regional
+    use constants, only: zero,one
+    implicit none
+
+    type(gsi_bundle),intent(inout) :: cvec
+    type(gsi_bundle),intent(in)    :: a_en
+    integer,intent(in)             :: imem
+    integer,intent(in)             :: ibin
+
+    character(len=*),parameter::myname_=trim(myname)//'*enNdVar_forward_model_dual_res'
+    type(gsi_grid)   :: grid_ens,grid_anl
+    type(gsi_bundle) :: work_ens
+    integer(i_kind) :: i,j,k,im,jm,km,ic2,ic3,ipic,ipx,km_tmp
+    integer(i_kind) :: ipc2d(nc2d),ipc3d(nc3d),istatus
+
+!   Request ensemble-corresponding fields from control vector
+!    NOTE:  because ensemble perturbation bundle structure is same as control vector, use same ipc3d and
+!             ipc2d indices for cvec and en_perts bundles.
+    call gsi_bundlegetpointer (cvec,cvars3d,ipc3d,istatus)
+    if(istatus/=0) then
+      write(6,*) myname_,': cannot find 3d pointers'
+      call stop2(999)
+    endif
+    call gsi_bundlegetpointer (cvec,cvars2d,ipc2d,istatus)
+    if(istatus/=0) then
+      write(6,*) myname_,': cannot find 2d pointers'
+      call stop2(999)
+    endif
+
+    call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
+    call gsi_bundlecreate (work_ens,grid_ens,'ensemble work',istatus, &
+                              names2d=cvars2d,names3d=cvars3d,bundle_kind=r_kind)
+    if(istatus/=0) then
+       write(6,*)trim(myname_),': trouble creating work_ens bundle'
+       call stop2(999)
+    endif
+
+    ipx=1
+    im=work_ens%grid%im
+    jm=work_ens%grid%jm
+    km=work_ens%grid%km
+    do ic3=1,nc3d
+       ipic=ipc3d(ic3)
+       work_ens%r3(ipic)%q=(relax2prior+(one-relax2prior)*a_en%r3(ipx)%q)*en_perts(imem,ibin)%r3(ipic)%qr4
+    enddo
+    do ic2=1,nc2d
+       ipic=ipc2d(ic2)
+       select case ( trim(StrUpCase(cvars2d(ic2))) )
+          case('PS')
+             if ( pwgtflg ) then
+                km_tmp = km
+             else
+                km_tmp = 1
+             endif
+             work_ens%r2(ipic)%q=zero
+             do k=1,km_tmp
+                work_ens%r2(ipic)%q=work_ens%r2(ipic)%q+&
+                                    (relax2prior+(one-relax2prior)*a_en%r3(ipx)%q(:,:,k))*&
+                                     en_perts(imem,ibin)%r2(ipic)%qr4*pwgt(:,:,k)
+             enddo
+          case('SST')
+             work_ens%r2(ipic)%q=(relax2prior+(one-relax2prior)*a_en%r3(ipx)%q(:,:,1))*en_perts(imem,ibin)%r2(ipic)%qr4
+       end select
+    enddo
+
+    call general_sube2suba(grd_ens,grd_anl,p_e2a,work_ens%values,cvec%values,regional)
+    call gsi_bundledestroy(work_ens,istatus)
+    if(istatus/=0) then
+    write(6,*)trim(myname_),': trouble destroying work ens bundle'
+    call stop2(999)
+    endif
+    return
+
+    if (imem==1) then
+       if(mype==0) write(6,*)trim(myname_),': generating posterior members'
+    endif
+  end subroutine enNdVar_forward_model_dual_res
 
   subroutine ensemble_forward_model_ad(cvec,a_en,ibin)
 !$$$  subprogram documentation block

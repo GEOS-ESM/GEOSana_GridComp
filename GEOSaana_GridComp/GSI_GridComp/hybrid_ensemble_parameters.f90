@@ -236,6 +236,8 @@ module hybrid_ensemble_parameters
 !   def bens_recenter        - center Bens around background/guess; default '.false.'
 !   def upd_ens_spread       - update ens spread with first guess
 !   def upd_ens_localization - update localization when upd_ens_spread=.t.
+!   def lensNdvar            - generate updated ensemble from solution of EnVar
+!   def relax2prior          - relax EnVar-derived perturbations to prior set
 !
 ! attributes:
 !   language: f90
@@ -244,6 +246,7 @@ module hybrid_ensemble_parameters
 !$$$ end documentation block
 
   use kinds, only: i_kind,r_kind,r_single
+  use constants, only: zero
   use general_sub2grid_mod, only: sub2grid_info
   use general_specmod, only: spec_vars
   use egrid2agrid_mod, only: egrid2agrid_parm
@@ -295,9 +298,12 @@ module hybrid_ensemble_parameters
   public :: bens_recenter
   public :: upd_ens_spread
   public :: upd_ens_localization
+  public :: lensNdvar
+  public :: relax2prior
 
   logical l_hyb_ens,uv_hyb_ens,q_hyb_ens,oz_univ_static,sst_staticB
   logical bens_recenter,upd_ens_spread,upd_ens_localization
+  logical lensNdvar
   logical aniso_a_en
   logical full_ensemble,pwgtflg
   logical generate_ens
@@ -316,6 +322,7 @@ module hybrid_ensemble_parameters
   integer(i_kind) i_en_perts_io
   integer(i_kind) n_ens,nlon_ens,nlat_ens,jcap_ens,jcap_ens_test
   real(r_kind) beta_s0,s_ens_h,s_ens_v,grid_ratio_ens
+  real(r_kind) relax2prior
   type(sub2grid_info),save :: grd_ens,grd_loc,grd_sploc,grd_anl,grd_e1,grd_a1
   type(spec_vars),save :: sp_ens,sp_loc
   type(egrid2agrid_parm),save :: p_e2a,p_sploc2ens
@@ -420,6 +427,11 @@ subroutine init_hybrid_ensemble_parameters
   bens_recenter=.false.      ! center ensemble cov around background/guess
   upd_ens_spread=.false.     ! redefine ens spread (for jiter>1) by recentering ens around guess 
   upd_ens_localization=.false.  ! update localization when upd_ens_spread=.t.
+
+! Options associated with deriving updated ensemble perturbations from EnVar
+  lensNdvar=.false.          ! generate an update of the ensemble perts using the EnVar solution (alpha CV)
+  relax2prior=zero           ! default: take full blunt of analysis update (this might lead to ens collapse)
+   
 
 end subroutine init_hybrid_ensemble_parameters
 

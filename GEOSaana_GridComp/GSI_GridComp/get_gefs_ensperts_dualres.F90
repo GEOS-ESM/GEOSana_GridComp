@@ -72,6 +72,7 @@ subroutine get_gefs_ensperts_dualres (tau)
   use gsi_enscouplermod, only: gsi_enscoupler_destroy_sub2grid_info
   use general_sub2grid_mod, only: sub2grid_info,general_sub2grid_create_info,general_sub2grid_destroy_info
   use m_revBens, only: revBens_ensmean_overwrite
+  use m_put_gefs_ensperts, only: ens_spread_dualres
   implicit none
 
   integer(i_kind),intent(in) :: tau
@@ -349,7 +350,7 @@ subroutine get_gefs_ensperts_dualres (tau)
 ! Convert to mean
   bar_norm = one/float(n_ens)
   sig_norm=sqrt(one/max(one,n_ens-one))
-!$omp parallel do schedule(dynamic,1) private(i,j,k,n,m,ic2,ic3,ipic,x2)
+!_$omp parallel do schedule(dynamic,1) private(i,j,k,n,m,ic2,ic3,ipic,x2)
   do m=1,ntlevs_ens
      do i=1,nelen
         en_bar(m)%values(i)=en_bar(m)%values(i)*bar_norm
@@ -359,9 +360,8 @@ subroutine get_gefs_ensperts_dualres (tau)
      endif
 
 ! Before converting to perturbations, get ensemble spread
-     !-- if (m == 1 .and. write_ens_sprd )  call ens_spread_dualres(en_bar(1),1)
-     !!! it is not clear of the next statement is thread/$omp safe.
-     if (write_ens_sprd)  call ens_spread_dualres(en_bar(m),m)
+     !!! the next statement is not thread/$omp safe.
+     if (write_ens_sprd)  call ens_spread_dualres(m,en_bar=en_bar(m))
 
 
      call gsi_bundlegetpointer(en_bar(m),'ps',x2,istatus)
@@ -470,6 +470,7 @@ subroutine get_gefs_ensperts_dualres (tau)
   return
 end subroutine get_gefs_ensperts_dualres
 
+#ifdef _KEEPTHESE_
 subroutine ens_spread_dualres(en_bar,ibin)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -802,6 +803,7 @@ subroutine write_spread_dualres(ibin,bundle)
 
   return
 end subroutine write_spread_dualres
+#endif /* _KEEPTHESE_ */
 
 subroutine general_getprs_glb(ps,tv,prs)
 ! subprogram:    getprs       get 3d pressure or 3d pressure deriv

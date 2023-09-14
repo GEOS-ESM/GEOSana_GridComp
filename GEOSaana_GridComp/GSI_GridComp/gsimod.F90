@@ -130,7 +130,7 @@
                          readin_localization,write_ens_sprd,eqspace_ensgrid,grid_ratio_ens,&
                          readin_beta,use_localization_grid,use_gfs_ens,q_hyb_ens,i_en_perts_io, &
                          l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB,&
-                         bens_recenter,upd_ens_spread,upd_ens_localization
+                         bens_recenter,upd_ens_spread,upd_ens_localization,lensNdvar,relax2prior
   use rapidrefresh_cldsurf_mod, only: init_rapidrefresh_cldsurf, &
                             dfi_radar_latent_heat_time_period,metar_impact_radius,&
                             metar_impact_radius_lowcloud,l_gsd_terrain_match_surftobs, &
@@ -553,7 +553,8 @@
 !                             resolution are key to successful assimilation of most channels.
 !                                   (NOTE: I have not actually verified this statement yet!)
 !     pblend0,pblend1 - see above comment for use_gfs_stratosphere
-!     l4densvar - logical to turn on ensemble 4dvar
+!     lens4dvar - logical to turn on ensemble 4dvar
+!     l4densvar - logical to turn on 4d ensemble var
 !     ens_nstarthr - start hour for ensemble perturbations (generally should match min_offset)
 !     lwrite4danl - logical to write out 4d analysis states if 4dvar or 4denvar mode
 !     nhr_anal - forecast hours to write out if lwrite4danal=T
@@ -977,6 +978,8 @@
 !     bens_recenter - center Bens around background/guess
 !     upd_ens_spread - update ens spread with recentering around guess 
 !     upd_ens_localization - update ens localizations (goes together w/ upd_ens_spread)
+!     lensNdvar      - generate updated ensemble perturbations from solution of EnVar
+!     relax2prior    - relax EnVar-derived perturbations to prior (input) perturbations
 !              
 !                         
   namelist/hybrid_ensemble/l_hyb_ens,uv_hyb_ens,q_hyb_ens,aniso_a_en,generate_ens,n_ens,nlon_ens,nlat_ens,jcap_ens,&
@@ -985,7 +988,7 @@
                 grid_ratio_ens, &
                 oz_univ_static,write_ens_sprd,use_localization_grid,use_gfs_ens, &
                 i_en_perts_io,l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB,&
-                bens_recenter,upd_ens_spread,upd_ens_localization
+                bens_recenter,upd_ens_spread,upd_ens_localization,lensNdvar,relax2prior
 
 ! rapidrefresh_cldsurf (options for cloud analysis and surface 
 !                             enhancement for RR appilcation  ):
@@ -1427,6 +1430,10 @@
         if(mype==0) write(6,*)'    new nvmodes_keep, npe=',nvmodes_keep,npe
      end if
   end if
+ 
+  if(.not.l_hyb_ens) then
+    lensNdvar = .false. ! non-sense otherwise
+  endif
 
   if (tlnmc_option>=2 .and. tlnmc_option<=4) then
      if (.not.l_hyb_ens) then

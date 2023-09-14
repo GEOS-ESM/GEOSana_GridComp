@@ -332,6 +332,7 @@ set (SRCS_SOLVER
   deter_sfc_mod.f90
   en_perts_io.f90
   enorm_state.f90
+  enNdVarctl2state.f90
   ensctl2model.f90
   ensctl2model_ad.f90
   ensctl2state.f90
@@ -429,6 +430,7 @@ set (SRCS_SOLVER
   m_obsNode.F90
   m_obsLList.F90
   m_obsNodeTypeManager.F90
+  m_put_gefs_ensperts.F90
   m_revBens.F90
   mod_vtrans.f90
   model_ad.F90
