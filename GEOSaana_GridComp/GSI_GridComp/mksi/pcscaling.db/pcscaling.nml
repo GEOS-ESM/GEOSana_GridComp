@@ -9,6 +9,7 @@
     2017030812  atms_npp        0    1000.
     2017080218  iasi_metop-b    0    1000.
     2020010206  cris-fsr_npp    0    1000.
+    2023051812  cris-fsr_npp    0    1000.
 
 ! Note:
 !    ichan      - ichan >0 is for a selected channel;

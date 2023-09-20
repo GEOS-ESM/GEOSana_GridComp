@@ -434,7 +434,9 @@ metop-b 20130213 000000  21001231 240000  hirs4  0                              
 metop-b 20130213 000000  20160924 240000  amsua 11        4 5 6 7 8 9 10 11 12 13 14           # active for e512a_rt-parallel testing
 metop-b 20160925 000000  21001231 240000  amsua  8              7 8 9 10 11 12 13 14           # ch 15 failure, only assimilate upper channels
 
-metop-b 20130213 000000  21001231 240000  mhs    5  1 2 3 4 5                                  # active for e512a_rt-parallel testing
+metop-b 20130213 000000  20230602 060000  mhs    5  1 2 3 4 5                                  # active for e512a_rt-parallel testing
+metop-b 20230602 120000  20230628 180000  mhs    0                                             # data outage 
+metop-b 20230629 000000  21001231 240000  mhs    5  1 2 3 4 5                                  # data back to normal
  
 metop-b 20130213 000000  20210918 060000  avhrr3 0                   #
 metop-b 20210918 120000  21001231 240000  avhrr3 2        4 5        #  MetOp-A off MetOp-B on
@@ -813,8 +815,8 @@ n20  20180217 000000  29991231 240000 cris-fsr   1                             1
 # SEVIRI
 #==============
 m09  20120213 000000  29991231 240000  seviri 0
-m09  20120213 000000  29991231 240000  seviri 2    5 6
-m10  20130121 120000  29991231 240000  seviri 2    5 6
+m09  20120213 000000  20211231 240000  seviri 2    5 6
+m10  20130121 120000  20211231 240000  seviri 2    5 6
 
 
 
