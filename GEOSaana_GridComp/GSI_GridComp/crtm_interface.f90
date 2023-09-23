@@ -580,6 +580,10 @@ subroutine init_crtm(init_pass,mype_diaghdr,mype,nchanl,nreal,isis,obstype,radmo
 ! Initialize radiative transfer
 
  sensorlist(1)=isis
+ ! A temporary solution in case that CRTM coefficient file for atms_n21 is not avaialble yet.
+ if (isis(1:8) =='atms_n21') then
+    sensorlist(1)='atms_n20-srf'
+ endif
  quiet=.not. print_verbose
  if( crtm_coeffs_path /= "" ) then
     if(init_pass .and. mype==mype_diaghdr .and. print_verbose) &
@@ -682,6 +686,10 @@ else if (channelinfo(1)%sensor_id(1:4) == 'airs' .AND. isis(1:4) == 'airs') then
 
 endif
 
+ ! A temporary solution in case that CRTM coefficient file for atms_n21 is not avaialble yet.
+ if (isis(1:8)=='atms_n21' .and. channelinfo(1)%sensor_id(1:12)=='atms_n20-srf') then
+    sensorindex = 1
+ endif
  if (sensorindex == 0 ) then
     write(6,*)myname_,':  ***WARNING*** problem with sensorindex=',isis,&
        ' --> CAN NOT PROCESS isis=',isis,'   TERMINATE PROGRAM EXECUTION found ',&
