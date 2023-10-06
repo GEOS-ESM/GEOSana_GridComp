@@ -1,6 +1,6 @@
 subroutine read_avhrr_navy(mype,val_avhrr,ithin,rmesh,jsatid,&
      gstime,infile,lunout,obstype,nread,ndata,nodata,twind,sis, &
-     mype_root,mype_sub,npe_sub,mpi_comm_sub,nobs,& 
+     mype_root,mype_sub,npe_sub,mpi_comm_sub,nobs,&
      nrec_start,dval_use)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -8,8 +8,8 @@ subroutine read_avhrr_navy(mype,val_avhrr,ithin,rmesh,jsatid,&
 !   prgmmr: li, xu           org: np23                date: 2003-03-26
 !
 ! abstract:  This routine reads BUFR format AVHRR radiance (brightness
-!            temperature) files from the U.S. Navy.  Optionally, the 
-!            data are thinned to a specified resolution using simple 
+!            temperature) files from the U.S. Navy.  Optionally, the
+!            data are thinned to a specified resolution using simple
 !            quality control checks.
 !
 !            When running the gsi in regional mode, the code only
@@ -45,7 +45,7 @@ subroutine read_avhrr_navy(mype,val_avhrr,ithin,rmesh,jsatid,&
 !                         (2) get zob, tz_tr (call skindepth and cal_tztr)
 !                         (3) interpolate NSST Variables to Obs. location (call deter_nst)
 !                         (4) add more elements (nstinfo) in data array
-!   2011-08-01  lueken  - added module use deter_sfc_mod  
+!   2011-08-01  lueken  - added module use deter_sfc_mod
 !   2012-03-05  akella  - nst now controlled via coupler
 !   2013-01-26  parrish - change from grdcrd to grdcrd1 (to allow successful debug compile on WCOSS)
 !   2015-02-23  Rancic/Thomas - add thin4d to time window logical
@@ -120,7 +120,7 @@ subroutine read_avhrr_navy(mype,val_avhrr,ithin,rmesh,jsatid,&
   real(r_kind),parameter:: tbmax=550.0_r_kind
 
 
-! Declare local variables  
+! Declare local variables
   logical outside,iuse,assim
   character(1):: cdummy
   character(8):: subset
@@ -263,7 +263,7 @@ subroutine read_avhrr_navy(mype,val_avhrr,ithin,rmesh,jsatid,&
      if(next == npe_sub)next=0
      if(next /= mype_sub)cycle
      read_loop:do while (ireadsb(lnbufr) == 0)
-  
+
         call ufbint(lnbufr,bufrf(1),9,1,iret, &
            'YEAR MNTH DAYS HOUR MINU SECO CLAT CLON SAID')
 
@@ -343,14 +343,14 @@ subroutine read_avhrr_navy(mype,val_avhrr,ithin,rmesh,jsatid,&
 !       "Score" observation.   We use this information to id "best" obs.
 
 !       Locate the observation on the analysis grid.  Get sst and land/sea/ice
-!       mask.  
+!       mask.
 
 !     isflg    - surface flag
 !                0 sea
 !                1 land
 !                2 sea ice
 !                3 snow
-!                4 mixed                          
+!                4 mixed
 
         call deter_sfc(dlat,dlon,dlat_earth,dlon_earth,t4dv,isflg,idomsfc,sfcpct, &
            ts,tsavg,vty,vfr,sty,stp,sm,sn,zz,ff10,sfcr)
@@ -358,7 +358,7 @@ subroutine read_avhrr_navy(mype,val_avhrr,ithin,rmesh,jsatid,&
         pred=zero
 
 !       Compute "score" for observation.  All scores>=0.0.  Lowest score is "best"
-        crit1 = crit1+pred + rlndsea(isflg) 
+        crit1 = crit1+pred + rlndsea(isflg)
 
         call finalcheck(dist1,crit1,itx,iuse)
 
@@ -496,6 +496,7 @@ subroutine read_avhrr_navy(mype,val_avhrr,ithin,rmesh,jsatid,&
 900 continue
   call destroygrids
   call closbf(lnbufr)
+  close(lnbufr)
 
   if(diagnostic_reg.and.ntest>0) write(6,*)'READ_AVHRR_NAVY:  ',&
      'mype,ntest,disterrmax=',mype,ntest,disterrmax

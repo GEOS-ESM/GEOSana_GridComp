@@ -369,6 +369,7 @@ contains
        if(rite) write(6,*)'RADAR_BUFR_READ_ALL:  NO RADARS KEPT IN radar_bufr_read_all, ',&
             'continue without level 2 data'
        call closbf(inbufr)
+       close(inbufr)
        return
     end if
     call mpi_reduce(num_radars,num_radars_min,1,mpi_integer4,mpi_min,0,mpi_comm_world,ierror)
@@ -456,6 +457,7 @@ contains
 ! reopen and reread the file for data this time
 
     call closbf(inbufr)
+    close(inbufr)
     open(inbufr,file=infile,form='unformatted')
     call openbf(inbufr,'IN',inbufr)
 
@@ -552,6 +554,7 @@ contains
        end do          !  end do while
     end do             !  loop over blocks
     call closbf(inbufr)
+    close(inbufr)
 
     allocate(ibins2(nthisrad,num_radars_0))
     call mpi_allreduce(ibins,ibins2,nthisrad*num_radars_0,mpi_integer4,mpi_sum,mpi_comm_world,ierror)

@@ -604,7 +604,6 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   ncount_ps=0;ncount_q=0;ncount_t=0;ncount_uv=0;ncount_pw=0
 
 ! Open, then read date from bufr data
-  call closbf(lunin)
   open(lunin,file=trim(infile),form='unformatted')
   call openbf(lunin,'IN',lunin)
   call datelen(10)
@@ -3009,10 +3008,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   if(diagnostic_reg .and. nvtest>0) write(6,*)'READ_PREPBUFR:  ',&
      'nvtest,vdisterrmax=',ntest,vdisterrmax
 
-  call closbf(lunin)
   if(print_verbose)write(6,*)'READ_PREPBUFR:  closbf(',lunin,')'
 
-  close(lunin)
 
 ! End of routine
   return

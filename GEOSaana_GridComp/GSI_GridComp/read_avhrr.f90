@@ -30,7 +30,7 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
 !   2008-10-10  derber  - modify to allow mpi_io
 !   2008-12-30  todling - memory leak fix (data_crit)
 !   2009-04-21  derber  - add ithin to call to makegrids
-!   2011-04-08  li      - (1) use nst_gsi, nstinfo, fac_dtl, fac_tsl and add NSST vars 
+!   2011-04-08  li      - (1) use nst_gsi, nstinfo, fac_dtl, fac_tsl and add NSST vars
 !                         (2) get zob, tz_tr (call skindepth and cal_tztr)
 !                         (3) interpolate NSST Variables to Obs. location (call deter_nst)
 !                         (4) add more elements (nstinfo) in data array
@@ -39,7 +39,7 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
 !   2012-03-05  akella  - nst now controlled via coupler
 !   2013-01-22  zhu     - add newpc4pred option
 !   2013-01-26  parrish - change from grdcrd to grdcrd1 (to allow successful debug compile on WCOSS)
-!   2013-02-16  akella  - only 1 processor should check for bad obs and write out data_all 
+!   2013-02-16  akella  - only 1 processor should check for bad obs and write out data_all
 !                         after call to combine_radobs. Clean up for retrieval case.
 !                         Add call to checkob. Bug fix for scoring of obs, by including newchn,
 !                         also add another ob scoring approach based on observed Tb only.
@@ -122,7 +122,7 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
   character(len=80),parameter ::  &
      headr='YEAR MNTH DAYS HOUR MINU SECO CLATH CLONH SAID FOVN SAZA SOZA CLAVR'
 
-! Declare local variables  
+! Declare local variables
   logical outside,iuse,assim
   character(len=8) :: subset
 
@@ -248,7 +248,7 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
      call rdgrbsst(file_sst,mlat_sst,mlon_sst,&
      sst_an,rlats_sst,rlons_sst,nlat_sst,nlon_sst)
   endif
-     
+
 
 
 ! Allocate arrays to hold all data for given satellite
@@ -259,7 +259,7 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
 
   open(lnbufr,file=trim(infile),form='unformatted')         ! open bufr data file
 
-! Associate the tables file with the message file, and identify the 
+! Associate the tables file with the message file, and identify the
 ! latter to BUFRLIB software
   call openbf (lnbufr,'IN',lnbufr)
 
@@ -281,7 +281,7 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
         if(ksatid /= bufsat) cycle read_loop  ! If this sat is not the one we want, read next record
         if (hdr(10) <= real(cut_spot) .or. hdr(10) > real(ngac-cut_spot)) cycle read_loop! drop starting and ending pixels
 !       if (hdr(13) /= zero ) cycle read_loop ! drop pixel with CLAVR partly cloud flag
- 
+
         iskip = 0
         do k=1,nchanl
            if(bufrf(3,ich_offset+k) < zero .or. bufrf(3,ich_offset+k) > tbmax) then
@@ -380,14 +380,14 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
 !     "Score" observation.   We use this information to id "best" obs.
 
 !     Locate the observation on the analysis grid.  Get sst and land/sea/ice
-!     mask.  
+!     mask.
 
 !     isflg    - surface flag
 !                0 sea
 !                1 land
 !                2 sea ice
 !                3 snow
-!                4 mixed                          
+!                4 mixed
 
 
         call deter_sfc(dlat,dlon,dlat_earth,dlon_earth,t4dv,isflg,idomsfc,sfcpct, &
@@ -402,9 +402,9 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
 !       avhrr gac scan has 409 positions. we drop tails: 1- 11 & 399- 409 [the two ends]
 !       here we linearly map pixels: 12- 398 to 1 - 90 scan positions
         if ( mod(hdr(10)-cut_spot,dfov) < half*dfov ) then
-           scan_pos = real(nint((hdr(10)-cut_spot)/dfov) + 1) 
+           scan_pos = real(nint((hdr(10)-cut_spot)/dfov) + 1)
         else
-           scan_pos = real(nint((hdr(10)-cut_spot)/dfov)) 
+           scan_pos = real(nint((hdr(10)-cut_spot)/dfov))
         endif
 
         if ( scan_pos > nfov ) scan_pos = nfov
@@ -427,13 +427,13 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
 !       pred   = 10.0_r_kind*max(zero,ch_win_flg)
 
 !       above commented calculation of pred uses tsavg (from bkg). There is no reason why
-!       1. we should use bkg to SCORE an ob., 2. even if we do use bkg based tsavg, 
-!       tsavg-ch_win could be misleading, if there are low clouds. 
+!       1. we should use bkg to SCORE an ob., 2. even if we do use bkg based tsavg,
+!       tsavg-ch_win could be misleading, if there are low clouds.
 !       instead we will TRY following simpler approach- so that ob with colder Tb gets a high score.
         pred   = (600.0_r_kind - bufrf(3,ich4)) * r01
 
         crit1=crit1+rlndsea(isflg)
-        crit1 = crit1+pred  
+        crit1 = crit1+pred
         call finalcheck(dist1,crit1,itx,iuse)
 
         if(.not. iuse)cycle read_loop
@@ -475,7 +475,7 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
               call gsi_nstcoupler_deter(dlat_earth,dlon_earth,t4dv,zob,tref,dtw,dtc,tz_tr)
            endif
         endif
-           
+
 !       Transfer information to work array
         data_all(1, itx) = hdr(9)                 ! satellite id (207 = NOAA-16, 208 = NOAA-17, 209 = NOAA-18)
         data_all(2, itx) = t4dv                   ! time (hours)
@@ -532,6 +532,7 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
      enddo read_loop
   enddo read_msg
   call closbf(lnbufr)
+  close(lnbufr)
 
   call combine_radobs(mype_sub,mype_root,npe_sub,mpi_comm_sub,&
      nele,itxmax,nread,ndata,data_all,score_crit,nrec)
@@ -551,7 +552,7 @@ subroutine read_avhrr(mype,val_avhrr,ithin,rmesh,jsatid,&
          super_val(itt)=super_val(itt)+val_avhrr
       end do
    end if
- 
+
 !  Write retained data to local file
    call count_obs(ndata,nele,ilat,ilon,data_all,nobs)
    write(lunout) obstype,sis,nreal,nchanl,ilat,ilon

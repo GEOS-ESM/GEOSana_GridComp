@@ -6,19 +6,19 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
 !      org:      CSU/CIRA, Data Assimilation Group
 !     date:      2015-03-12
 !
-! abstract:  This routine reads lightning data (Earth-relative location, frequency) from 
-!            file and prepares it for assimiliation in the form of lightning flash rate 
-!            (#hits km-2 hr-1).  
+! abstract:  This routine reads lightning data (Earth-relative location, frequency) from
+!            file and prepares it for assimiliation in the form of lightning flash rate
+!            (#hits km-2 hr-1).
 !
 !            Note: when running GSI in regional mode, the code only
 !            retains those observations that fall within the regional
 !            domain
 !
 ! program history log:
-!   2015-06-12  zupanski  - include the convert_to_flash_rate subroutine to convert 
-!                           lightning strike observations into lightning flash rate 
-!                           (#hits km-2 hr-1). 
-!   2015-11-18  apodaca   - include the convert_time subroutine to deal with computer 
+!   2015-06-12  zupanski  - include the convert_to_flash_rate subroutine to convert
+!                           lightning strike observations into lightning flash rate
+!                           (#hits km-2 hr-1).
+!   2015-11-18  apodaca   - include the convert_time subroutine to deal with computer
 !                           precision dependencies.
 !   2018-02-07  apodaca   - add further documentation
 !
@@ -36,7 +36,7 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
 !
 ! attributes:
 !   language: Fortran 90 and/or above
-!   machine:  
+!   machine:
 !
 !$$$
   use kinds, only: r_single,r_kind,r_double,i_kind
@@ -114,8 +114,8 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
 
 !--- data statements
   data hdstr  /'XOB YOB DHR'/
-  data oestr  /'LOE'/ 
-  data qcstr  /'LQM'/   
+  data oestr  /'LOE'/
+  data qcstr  /'LQM'/
 
   data lunin / 13 /
 
@@ -128,17 +128,16 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
 ! Open, then read date from BUFR file
 
 
-  call closbf(lunin) 
-  open(lunin,file=infile,form='unformatted') 
-  call openbf(lunin,'IN',lunin) 
-  call datelen(10) 
+  open(lunin,file=infile,form='unformatted')
+  call openbf(lunin,'IN',lunin)
+  call datelen(10)
 
 
 ! Initialization
 
-  ntb = 0 
-  nmsg = 0 
-  disterrmax=-9999.0_r_kind 
+  ntb = 0
+  nmsg = 0
+  disterrmax=-9999.0_r_kind
 
   allocate(cdata_all(nreal,maxobs),isort(maxobs))
   isort = 0
@@ -153,18 +152,18 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
 
 !                .      .    .                                       .
 ! Big loop over glmbufr file : READING THE BUFR FILE
-     
-  loop_msg: do while (ireadmg(lunin,subset,idate)== 0) 
-     nmsg = nmsg+1 
-     write(*,'(3a,i10)') 'subset=',subset,' cycle time =',idate 
+
+  loop_msg: do while (ireadmg(lunin,subset,idate)== 0)
+     nmsg = nmsg+1
+     write(*,'(3a,i10)') 'subset=',subset,' cycle time =',idate
 
 
-     loop_readsb: do while(ireadsb(lunin) == 0)  
+     loop_readsb: do while(ireadsb(lunin) == 0)
 !       use msg lookup table to decide which messages to skip
 !       use report id lookup table to only process matching reports
-        ntb = ntb+1 
+        ntb = ntb+1
 
-          
+
 !       Extract location and date information
         call ufbint(lunin,hdr,3,1,iret,hdstr)
 
@@ -173,7 +172,7 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
         if(hdr(1) < zero)hdr(1)=hdr(1)+r360
         dlon_earth=hdr(1)*deg2rad
         dlat_earth=hdr(2)*deg2rad
-                
+
         if (regional) then
 
 !-- WRF-ARW
@@ -203,10 +202,10 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
             dlon = dlon_earth
             call grdcrd1(dlat,rlats,nlat,1)
             call grdcrd1(dlon,rlons,nlon,1)
-        endif !  end global block 
+        endif !  end global block
 
         if (offtime_data) then
- 
+
 !           in time correction for observations to account for analysis
 !           time being different from obs file time.
             write(date,'( i10)') idate
@@ -223,7 +222,7 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
             idate5(4)=iadate(4)
             idate5(5)=0
             call w3fs21(idate5,minan)    !  analysis ref time in seconds relative to historic date
-           
+
 !           Add obs reference time, then subtract analysis time to get obs time relative to analysis
             time_correction=float(minobs-minan)*r60inv
         else
@@ -249,15 +248,15 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
 
 
 !       Note: An assessment of the GLM detection error is still a work in
-!       progress and at present, there are no clear metrics to assign a 
+!       progress and at present, there are no clear metrics to assign a
 !       "quality mark" for an effective quality control procedure for
 !       lightning observations from this sensor. Nonetheless, the infrastructure
-!       for passing observations errors and quality control information to other 
-!       routines within the GSI source code has been left in place. In addition, a 
+!       for passing observations errors and quality control information to other
+!       routines within the GSI source code has been left in place. In addition, a
 !       temporarty undefined value (-.9999) has been assigned to the mnemonics
-!       corresponding to these variables in the lightning BUFR file. Developments 
-!       for the calculation of observation errors and quality control (sanity checks) are 
-!       expected in future upgrades to the "GOES/GLM variational lightning 
+!       corresponding to these variables in the lightning BUFR file. Developments
+!       for the calculation of observation errors and quality control (sanity checks) are
+!       expected in future upgrades to the "GOES/GLM variational lightning
 !       assimilation package."
 
 !       Extract observation error informatiom
@@ -265,10 +264,10 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
 
         loe=obserr(1,1)
         lmerr=loe
- 
+
 !       Extract quality control information
         call ufbint(lunin,qcmark,1,1,iret,qcstr)
- 
+
         lqm=qcmark(1,1)
 
 !       Data counter
@@ -286,8 +285,8 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
            ndata = maxobs
         end if
 
-             
-!       Set usage variable              
+
+!       Set usage variable
         usage = zero
 
         if (iuse_light(nlighttype) <= 0)usage=100._r_kind
@@ -301,7 +300,7 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
            cdata_all(7,iout) =nlighttype           ! type
            cdata_all(8,iout) =lmerr                ! lightning max error
            cdata_all(9,iout) =lqm                  ! quality mark
-           cdata_all(10,iout)=loe                  ! original lightning obs error loe 
+           cdata_all(10,iout)=loe                  ! original lightning obs error loe
            cdata_all(11,iout)=usage                ! usage parameter
            cdata_all(12,iout)=dlon_earth*rad2deg   ! earth relative lon (degrees)
            cdata_all(13,iout)=dlat_earth*rad2deg   ! earth relative lat (degrees)
@@ -335,7 +334,7 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
      write(6,*) ' READ_GOESGLM: mix up in read_goesglm ,ndata,icount ',ndata,icount
      call stop2(50)
   end if
- 
+
   allocate(cdata_out(nreal,ndata))
   do i=1,ndata
      itx=iloc(i)
@@ -353,16 +352,16 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
 
   if(ndata /= 0) then
 
-      !! count flash rate data and alocate temporary domain 
+      !! count flash rate data and alocate temporary domain
       !! begin with the current number of strikes as the theoretical upper limit
-   
+
      ndata_flash_h=ndata
-  
+
      allocate(cdata_flash_h(nreal,ndata_flash_h))
 
      call convert_to_flash_rate   &
               (nreal,ndata,cdata_out,ndata_flash_h,cdata_flash_h,ndata_flash)
- 
+
      deallocate(cdata_out)
      ndata=ndata_flash
      allocate(cdata_flash(nreal,ndata))
@@ -379,7 +378,7 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
      write(lunout) cdata_flash
 
 !!!!!!!!!
-!!! Write lat, lon, time, lightning flash rate "superobs" into a file: 
+!!! Write lat, lon, time, lightning flash rate "superobs" into a file:
 !!! cdata_flash_h(2,iout),cdata_flash_h(3,iout),cdata_flash_h(4,iout), &
 !!! cdata_flash_h(6,iout)cdata_flash(4,:)
 
@@ -400,15 +399,12 @@ subroutine read_goesglm(nread,ndata,nodata,infile,obstype,lunout,twindin,sis)
   if(diagnostic_reg .and. nvtest>0) write(6,*)'READ_GOESGLM:  ',&
      'nvtest,vdisterrmax=',ntest,vdisterrmax
 
-  if (ndata == 0) then 
-     call closbf(lunin)
-     write(6,*)'READ_GOESGLM:  closbf(',lunin,')'
+  if (ndata == 0) then
+     write(6,*)'READ_GOESGLM:  closbf(',lunin,') no data'
   endif
 
 
   close(lunin)
-
-  close(55)
 
 ! End of routine
   return
@@ -430,13 +426,13 @@ subroutine convert_to_flash_rate   &
 !      org: CSU/CIRA, Data Assimilation group
 !     date: 2015-06-12
 !
-! abstract:  This subroutine does the following: 
+! abstract:  This subroutine does the following:
 !----
 !- 1- counts the number of hits surrounding a GSI analysis grid point
 !- 2- calculates the flash rate averaged over time and area (hr*km**2)
 !- 3- finds the center of mass in terms of lon,lat and glon,glat
 !- 4- assigns a center of mass to be the flash rate observation point
-!---- 
+!----
 !
 ! program history log:
 !   2015-07-01  apodaca  - several updates in the calculation of lightning flashrate
@@ -465,7 +461,7 @@ subroutine convert_to_flash_rate   &
   real(r_kind),allocatable,dimension(:) ::  lat_central
   integer(i_kind),allocatable,dimension(:) ::  ind_min
   integer(i_kind),allocatable,dimension(:) ::  lcount
-  
+
   real(r_kind)      :: rearth2
   real(r_kind)      :: dtime,darea,cosine
   real(r_kind)      :: darea_sum
@@ -476,13 +472,13 @@ subroutine convert_to_flash_rate   &
   integer(i_kind)   :: ii0,jj0
   integer(i_kind)   :: ngridh
   integer(i_kind)   :: index
-  integer(i_kind)   :: iobs,usage 
+  integer(i_kind)   :: iobs,usage
   logical           :: xflag,yflag
 
   real(r_kind)      :: xbound,ybound
   integer(i_kind)   :: nxdim,nydim
   integer(i_kind)   :: icount
-  
+
   !  Output files
 !----
 
@@ -496,7 +492,7 @@ subroutine convert_to_flash_rate   &
   rearth2=(rearth/r1000)**2  !! squared earth radius in km (need for darea calculation)
 
   if (ndata_strike>0) then
- 
+
      darea_sum=0._r_kind
      do iobs=1,ndata_strike
 
@@ -505,7 +501,7 @@ subroutine convert_to_flash_rate   &
 
         delta_lon=ges_xlon(jj0,ii0+1,1)-ges_xlon(jj0,ii0,1)
         delta_lat=ges_xlat(jj0+1,ii0,1)-ges_xlat(jj0,ii0,1)
-  
+
         lat_ref  =half*(cdata_strike(13,iobs)+cdata_strike(13,iobs-1))
 
         cosine=cos(lat_ref*deg2rad)
@@ -530,7 +526,7 @@ subroutine convert_to_flash_rate   &
 !-- WRF-ARW
 
      if (wrf_mass_regional) then
-      
+
         nxdim=lon2
         nydim=lat2
 
@@ -545,7 +541,7 @@ subroutine convert_to_flash_rate   &
      nxdim=nlon
      nydim=nlat
 
-  endif !  end global block 
+  endif !  end global block
 
 !!! Allocate new var for flash rate here (nxdim,nydim)
 ! asign zero to all points
@@ -567,7 +563,7 @@ subroutine convert_to_flash_rate   &
   lon_central(:) =zero
   lat_central(:) =zero
   gtim_central(:)=zero
-     
+
   do iobs=1,ndata_strike
 
      xx=cdata_strike(2,iobs)   !! glon
@@ -587,20 +583,20 @@ subroutine convert_to_flash_rate   &
 
         index=(jj0-1)*nxdim+ii0
         lcount(index)=lcount(index)+1
-       
+
         glon_central(index)=glon_central(index)+cdata_strike(2,iobs)
         glat_central(index)=glat_central(index)+cdata_strike(3,iobs)
-        lon_central(index)= lon_central(index)+cdata_strike(12,iobs) 
+        lon_central(index)= lon_central(index)+cdata_strike(12,iobs)
         lat_central(index)= lat_central(index)+cdata_strike(13,iobs)
 
         if (lcount(index)<2) then
             gtim_central(index)=cdata_strike(6,iobs)
         else
             call convert_time (gtim_central(index),cdata_strike(6,iobs),lcount(index))
-        end if 
+        end if
 
-     end if  !! if(xflag .AND. yflag ) 
-      
+     end if  !! if(xflag .AND. yflag )
+
   enddo !! do iobs=1,ndata_strike
 
 
@@ -657,8 +653,8 @@ subroutine convert_to_flash_rate   &
 
         if (darea>0._r_kind) then
            cdata_flash_h( 4,icount)=float(lcount(index))/(darea*dtime)
-        else 
-           cdata_flash_h( 4,icount)=0. 
+        else
+           cdata_flash_h( 4,icount)=0.
         end if
 
         cdata_flash_h( 5,icount)=cdata_strike( 5,ind_min(index))
@@ -667,7 +663,7 @@ subroutine convert_to_flash_rate   &
         cdata_flash_h( 8,icount)=cdata_strike( 8,ind_min(index))
         cdata_flash_h( 9,icount)=cdata_strike( 9,ind_min(index))
         cdata_flash_h(10,icount)=cdata_strike(10,ind_min(index))
-        cdata_flash_h(11,icount)=usage                 
+        cdata_flash_h(11,icount)=usage
         cdata_flash_h(12,icount)=lon_central(index)
         cdata_flash_h(13,icount)=lat_central(index)
 
@@ -680,9 +676,9 @@ subroutine convert_to_flash_rate   &
   deallocate(ind_min)
   deallocate(lcount)
   deallocate(gtim_central)
-  deallocate(glon_central) 
+  deallocate(glon_central)
   deallocate(glat_central)
-  deallocate(lon_central) 
+  deallocate(lon_central)
   deallocate(lat_central)
 
 !-----
@@ -696,13 +692,13 @@ subroutine convert_time (date_old,date_new,nmax)
 
 !$$$  documentation block
 !                .      .    .                                       .
-! subroutine:  convert_time      
-! prgmmr: k apodaca               date: 2015-11-18 
+! subroutine:  convert_time
+! prgmmr: k apodaca               date: 2015-11-18
 !
 ! abstract:  This subroutine performs a date conversion to deal with
-!            computer precission dependencies associated with a 10-digit 
+!            computer precission dependencies associated with a 10-digit
 !            float for the analysis date/time.
-!-- 
+!--
   use kinds, only: r_kind,i_kind
 
   implicit none
@@ -712,7 +708,7 @@ subroutine convert_time (date_old,date_new,nmax)
   real(r_kind), intent(in)  :: date_new
   integer(i_kind) :: i,sumidd
   integer(i_kind) :: idd,jdd,kdd
-  real(r_kind), allocatable :: xdate(:) 
+  real(r_kind), allocatable :: xdate(:)
   real(r_kind) :: dd,hh,ysumidd,xsumidd
   real(r_kind) :: xdd,xhh,ydate
   real(r_kind) :: xccyy
@@ -721,11 +717,11 @@ subroutine convert_time (date_old,date_new,nmax)
 
   xdate(1:nmax-1) = date_old
   xdate(nmax) = date_new
-    
+
   sumidd=0._r_kind
   do i=1,nmax
-     xccyy = INT(1.0e-8_r_kind*xdate(i))*1.0e8_r_kind 
-     xdate(i) = INT(xdate(i))-xccyy   
+     xccyy = INT(1.0e-8_r_kind*xdate(i))*1.0e8_r_kind
+     xdate(i) = INT(xdate(i))-xccyy
 
      jdd=INT(0.0001_r_kind*xdate(i))
      idd=INT(xdate(i))-jdd*10000
@@ -746,9 +742,9 @@ subroutine convert_time (date_old,date_new,nmax)
   xhh=ysumidd-float(kdd)*24._r_kind
 
   ydate=float(jdd)*10000._r_kind+xdd*100._r_kind+xhh+xccyy
-      
-  date_old=ydate 
-      
+
+  date_old=ydate
+
   deallocate(xdate)
 
 end subroutine convert_time

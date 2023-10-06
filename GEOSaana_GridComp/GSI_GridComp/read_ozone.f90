@@ -103,7 +103,6 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
   use satthin, only: radthin_time_info,tdiff2crit
   use gridmod, only: nlat,nlon,regional,tll2xy,rlats,rlons
   use constants, only: deg2rad,zero,one_tenth,r60inv,two
-  use obsmod, only: nloz_v6,nloz_v8
   use obsmod, only: time_window_max
   use gsi_4dvar, only: l4dvar,l4densvar,iwinbgn,winlen
   use radinfo, only: dec2bin
@@ -145,7 +144,6 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
 
   integer(i_kind) maxobs,nozdat,nloz
   integer(i_kind) idate,jdate,ksatid,kk,iy,iret,im,ihh,idd,lunin
-  integer(i_kind) nmind,i
   integer(i_kind) nmrecs,k,ilat,ilon,nreal,nchanl
 ! integer(i_kind) ithin,kidsat
   integer(i_kind) kidsat
@@ -417,6 +415,8 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
 !       Loop back to read next profile
      end do read_loop1
 
+     call closbf(lunin)
+     close(lunin)
 !    End of bufr ozone block
 
 ! Process GOME-2 data
@@ -576,6 +576,8 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
        
      end do obsloop
 
+     call closbf(lunin)
+     close(lunin)
 !    End of GOME bufr block
 
 
@@ -746,6 +748,8 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
 
 !       End of loop over observations
      end do read_loop2
+     call closbf(lunin)
+     close(lunin)
 
 ! End of OMI/OMPS-NM(or TC8) block
 
@@ -855,6 +859,7 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
 
 !       Reopen unit to bufr file
         call closbf(lunin)
+        close(lunin)
         open(lunin,file=trim(infile),form='unformatted')
         call openbf(lunin,'IN',lunin)
         call datelen(10)
@@ -872,7 +877,6 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
 
         do k=1,nloz
            if (iuse_oz(ipos(k)) < 0) then
-              usage1(k) = 100._r_kind
            else
               usage1(k) = zero
            endif
@@ -970,7 +974,6 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
            mlsozpc(k)=hdrmlsl(3,k)                   ! ozone mixing ratio precision in ppmv
 !       there is possibility that mlsoz in bufr is 0 or negative or larger than 100 which are not reasonable values.
            if(mlsoz(k)<1.0e-8_r_kind .or. mlsoz(k)>100.0_r_kind ) then 
-             usage1(k)=1000._r_kind
 !         for v2.2 data, if this unreasonable value happens between 215mb (lev5) and 0.02mb (lev27), throw the whole profile
 !         for v2 NRT data, if this unreasonable value happens between 68mb (lev8) and 0.2mb (lev23), throw the whole profile
 !         for v3 NRT data, if this unreasonable value happens between 261mb (lev8) and 0.1mb (lev43), throw the whole profile
@@ -983,14 +986,10 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
         do k=1,nloz
 !          pressure range
            if(mlsv==22) then
-             if(hdrmlsl(1,k)>21700._r_kind .or. hdrmlsl(1,k)<1._r_kind) usage1(k)=1000._r_kind
            else if(mlsv==20) then
-             if(hdrmlsl(1,k)>6900._r_kind .or. hdrmlsl(1,k)<10._r_kind) usage1(k)=1000._r_kind
            else if(mlsv==30) then
-             if(hdrmlsl(1,k)>26500._r_kind .or. hdrmlsl(1,k)<10._r_kind) usage1(k)=1000._r_kind
            end if
 !          only positive precision accepted
-           if(hdrmlsl(3,k)<=0._r_kind) usage1(k)=1000._r_kind
         end do
 
 !      status screening
@@ -999,28 +998,23 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
            if (abs(slats0)<30._r_kind) then
               do k=1,nloz
                  if(hdrmlsl(1,k)>10100._r_kind .and. hdrmlsl(1,k)<21700._r_kind) then
-                    if(hdrmls13 <= 1.2_r_kind) usage1(k)=1000._r_kind
                  else
-                    if(hdrmls13 <= 0.4_r_kind) usage1(k)=1000._r_kind
                  endif
               end do
            else
               if(hdrmls13 <= 0.4_r_kind) then
                  do k=1,nloz
-                    usage1(k)=1000._r_kind
                  end do
               end if
            end if
         else if(mlsv==20) then
            if(hdrmls13 <= 1.2_r_kind .or. hdrmls13 >= 3.0_r_kind) then
               do k=1,nloz
-                 usage1(k)=1000._r_kind
               end do
            end if
         else if(mlsv==30) then
            if(hdrmls13 <= 0.4_r_kind) then
               do k=1,nloz
-                 usage1(k)=1000._r_kind
               end do
            end if
         end if
@@ -1049,6 +1043,8 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
 
      end do read_loop4
 
+     call closbf(lunin)
+     close(lunin)
 !    End of MLS bufr loop
 
   endif
@@ -1087,10 +1083,6 @@ subroutine read_ozone(nread,ndata,nodata,jsatid,infile,gstime,lunout, &
      if(allocated(ipos))deallocate(ipos)
      if(allocated(usage1))deallocate(usage1)
   end if
-
-! Close unit to input data file
-  call closbf(lunin)
-  close(lunin)
 
 ! Deallocate satthin arrays
   if (obstype == 'omi' .or. obstype == 'gome' .or. obstype=='ompsnm' .or. obstype == 'ompstc8' )call destroygrids

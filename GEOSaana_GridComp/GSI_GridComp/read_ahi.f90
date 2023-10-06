@@ -181,7 +181,6 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
 
 
 ! Open bufr file.
-  call closbf(lnbufr)
   open(lnbufr,file=trim(infile),form='unformatted')
   call openbf(lnbufr,'IN',lnbufr)
   call datelen(10)
@@ -195,6 +194,8 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
   nele  = nreal   + nchanl
   allocate(data_all(nele,itxmax),nrec(itxmax))
 
+  call closbf(lnbufr)
+  close(lnbufr)
   next=0
   nrec=999999
   irec=0
@@ -428,6 +429,8 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
 
      enddo read_loop
   enddo
+  call closbf(lnbufr)
+  close(lnbufr)
 
   call combine_radobs(mype_sub,mype_root,npe_sub,mpi_comm_sub,&
      nele,itxmax,nread,ndata,data_all,score_crit,nrec)
@@ -459,7 +462,6 @@ subroutine read_ahi(mype,val_img,ithin,rmesh,jsatid,gstime,&
 ! Deallocate satthin arrays
 900 continue
   call destroygrids
-  call closbf(lnbufr)
 
   if(diagnostic_reg.and.ntest>0) write(6,*)'READ_AHI:  ',&
      'mype,ntest,disterrmax=',mype,ntest,disterrmax

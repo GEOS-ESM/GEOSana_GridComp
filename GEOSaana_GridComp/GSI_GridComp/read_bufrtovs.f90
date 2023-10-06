@@ -8,9 +8,9 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 ! subprogram:    read_bufrtovs                  read bufr tovs 1b data
 !   prgmmr: treadon          org: np23                date: 2003-09-13
 !
-! abstract:  This routine reads BUFR format TOVS 1b radiance 
-!            (brightness temperature) files.  Optionally, the data 
-!            are thinned to a specified resolution using simple 
+! abstract:  This routine reads BUFR format TOVS 1b radiance
+!            (brightness temperature) files.  Optionally, the data
+!            are thinned to a specified resolution using simple
 !            quality control checks.
 !
 !            When running the gsi in regional mode, the code only
@@ -23,15 +23,15 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 !   2004-06-16 treadon - update documentation
 !   2004-07-23 derber  - make changes to eliminate obs. earlier in thinning
 !   2004-07-29 treadon - add only to module use, add intent in/out
-!   2004-10-15 derber  - various changes to "quality" prediction used 
+!   2004-10-15 derber  - various changes to "quality" prediction used
 !                        in data selection algorithm
 !   2005-01-26 derber  - land/sea determination and weighting for data selection
 !   2005-02-10 treadon - correct spelling in runtime print message; specify
 !                        _r_kind precision for real constants
-!   2005-07-06 derber  - add mhs and hirs/4 from NOAA-18, clean up code and 
+!   2005-07-06 derber  - add mhs and hirs/4 from NOAA-18, clean up code and
 !                        modify data selection criteria
 !   2005-09-08  derber - modify to use input group time window
-!   2005-09-28  derber - modify to produce consistent surface info 
+!   2005-09-28  derber - modify to produce consistent surface info
 !   2005-10-17  treadon - add grid and earth relative obs location to output file
 !   2005-10-18  treadon - remove array obs_load and call to sumload
 !   2005-10-24  derber - use more precise MHS scan properties (step & start)
@@ -54,12 +54,12 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 !   2008-09-08  lueken  - merged ed's changes into q1fy09 code
 !   2008-10-14  derber  - properly use EARS data and use MPI_IO
 !   2009-01-02  todling - remove unused vars
-!   2009-01-09  gayno   - add option to calculate surface fields based on 
+!   2009-01-09  gayno   - add option to calculate surface fields based on
 !                         size/shape of field of view.
 !   2009-04-17  todling - zero out azimuth angle when unavailable (otherwise can't use old files)
 !   2009-04-18  woollen - improve mpi_io interface with bufrlib routines
 !   2009-04-21  derber  - add ithin to call to makegrids
-!   2009-12-20  gayno - modify for updated version of FOV surface code which 
+!   2009-12-20  gayno - modify for updated version of FOV surface code which
 !                       calculates relative antenna power for some instruments.
 !   2010-02-25  collard - changes to call to crtm_init for CRTM v2.0
 !   2010-06-29  zhu     - add newpc4pred option
@@ -82,14 +82,14 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 !   2012-03-05  akella  - nst now controlled via coupler
 !   2013-01-26  parrish - change from grdcrd to grdcrd1 (to allow successful debug compile on WCOSS)
 !   2013-12-20  zhu - change icw4crtm>0 to icw4crtm>10  (bug fix)
-!   2014-01-31  mkim - added iql4crtm for all-sky mw radiance data assimilation 
-!   2014-04-27  eliu/zhu - add thinning options for AMSU-A under allsky condition 
+!   2014-01-31  mkim - added iql4crtm for all-sky mw radiance data assimilation
+!   2014-04-27  eliu/zhu - add thinning options for AMSU-A under allsky condition
 !   2015-02-23  Rancic/Thomas - add thin4d to time window logical
 !   2015-08-20  zhu - use centralized radmod for all-sky and aerosol usages in radiance assimilation
 !   2016-04-28  jung - added logic for RARS and direct broadcast from NESDIS/UW
-!   2016-10-20  collard - fix to allow monitoring and limited assimilation of spectra when key 
+!   2016-10-20  collard - fix to allow monitoring and limited assimilation of spectra when key
 !                         channels are missing.
-!   2018-04-19  eliu - allow data selection for precipitation-affected data 
+!   2018-04-19  eliu - allow data selection for precipitation-affected data
 !   2018-05-21  j.jin   - added time-thinning. Moved the checking of thin4d into satthin.F90.
 !
 !   input argument list:
@@ -277,7 +277,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 
 !  instrument specific variables
   d1 =  0.754_r_kind
-  d2 = -2.265_r_kind 
+  d2 = -2.265_r_kind
   r01 = 0.01_r_kind
   ich1   = 1   !1
   ich2   = 2   !2
@@ -328,9 +328,9 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
            radedge_min=radedge1(i)
            radedge_max=radedge2(i)
         end if
-        exit 
+        exit
      endif
-  end do 
+  end do
 
   rato=1.1363987_r_kind
   if ( hirs ) then
@@ -501,7 +501,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
      end if
 
 !    Reopen unit to satellite bufr file
-     call closbf(lnbufr)
+
      open(lnbufr,file=trim(infile2),form='unformatted',status = 'old',iostat=ierr)
      if(ierr /= 0) cycle ears_db_loop
 
@@ -535,7 +535,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
         end if
      end if
 
-   
+
 !    Loop to read bufr file
      irecx=0
      read_subset: do while(ireadmg(lnbufr,subset,idate)>=0)
@@ -553,11 +553,11 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 !          Extract satellite id.  If not the one we want, read next record
            ksatid=nint(bfr1bhdr(1))
            if(ksatid /= kidsat) cycle read_subset
-           rsat=bfr1bhdr(1) 
+           rsat=bfr1bhdr(1)
 
 !          If msu, drop obs from first (1) and last (11) scan positions
            ifov = nint(bfr1bhdr(2))
-           if (use_edges) then 
+           if (use_edges) then
               if (msu .and. (ifov==1 .or. ifov==11)) cycle read_loop
            else if ((ifov < radedge_min .OR. ifov > radedge_max )) then
               cycle read_loop
@@ -595,7 +595,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
                  disterr=acos(cdist)*rad2deg
                  disterrmax=max(disterrmax,disterr)
               end if
-              
+
 !             Check to see if in domain
               if(outside) cycle read_loop
 
@@ -626,7 +626,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
            nread=nread+nchanl
 
            terrain = 50._r_kind
-           if(llll == 1)terrain = 0.01_r_kind*abs(bfr1bhdr(13))                   
+           if(llll == 1)terrain = 0.01_r_kind*abs(bfr1bhdr(13))
            crit0 = 0.01_r_kind + terrain
            if (llll >  1 ) crit0 = crit0 + r100 * float(llll)
            timeinflat=two
@@ -655,7 +655,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
                  (hirs  .and. ifovmod <= 28) )   lza=-lza
            end if
 
-!  Check for errors in satellite zenith angles 
+!  Check for errors in satellite zenith angles
            if(abs(lzaest-lza)*rad2deg > one) then
               write(6,*)' READ_BUFRTOVS WARNING uncertainty in lza ', &
                  lza*rad2deg,lzaest*rad2deg,sis,ifovmod,start,step
@@ -675,7 +675,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
            endif
 
 !          Read data record.  Increment data counter
-!          TMBR is actually the antenna temperature for most microwave 
+!          TMBR is actually the antenna temperature for most microwave
 !          sounders.
            if (llll == 1) then
               call ufbrep(lnbufr,data1b8,1,nchanl,iret,'TMBR')
@@ -694,13 +694,13 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 
 !          Transfer observed brightness temperature to work array.  If any
 !          temperature exceeds limits, reset observation to "bad" value
-           iskip=0 
+           iskip=0
            critical_channels_missing = .false.
            do j=1,nchanl
               if (data1b8(j) < tbmin .or. data1b8(j) > tbmax) then
                  iskip = iskip + 1
 
-!                Flag profiles where key channels are bad  
+!                Flag profiles where key channels are bad
                  if(( msu  .and.  j == ich1) .or.                                 &
                     (amsua .and. (j == ich1 .or. j == ich2 .or. j == ich3 .or.    &
                                   j == ich4 .or. j == ich6 .or. j == ich15 )) .or.&
@@ -715,15 +715,15 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
            call checkob(dist1,crit1,itx,iuse)
            if(.not. iuse)cycle read_loop
 
-!          Determine surface properties based on 
-!          sst and land/sea/ice mask   
+!          Determine surface properties based on
+!          sst and land/sea/ice mask
 !
 !          isflg    - surface flag
 !                     0 sea
 !                     1 land
 !                     2 sea ice
 !                     3 snow
-!                     4 mixed                       
+!                     4 mixed
 
 !          FOV-based surface code requires fov number.  if out-of-range, then
 !          skip this ob.
@@ -744,7 +744,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
            endif
 
 
-           crit1 = crit1 + rlndsea(isflg) 
+           crit1 = crit1 + rlndsea(isflg)
            call checkob(dist1,crit1,itx,iuse)
            if(.not. iuse)cycle read_loop
 
@@ -783,32 +783,32 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
               else if (amsua) then
 !                Remove angle dependent pattern (not mean)
                  if (adp_anglebc .and. newpc4pred) then
-                    ch1 = data1b8(ich1)-ang_rad(ichan1)*cbias(ifov,ichan1) 
-                    ch2 = data1b8(ich2)-ang_rad(ichan2)*cbias(ifov,ichan2) 
+                    ch1 = data1b8(ich1)-ang_rad(ichan1)*cbias(ifov,ichan1)
+                    ch2 = data1b8(ich2)-ang_rad(ichan2)*cbias(ifov,ichan2)
                     ch15= data1b8(ich15)-ang_rad(ichan15)*cbias(ifov,ichan15)
                  else
                     ch1 = data1b8(ich1)-ang_rad(ichan1)*cbias(ifov,ichan1)+ &
                          air_rad(ichan1)*cbias(15,ichan1)
                     ch2 = data1b8(ich2)-ang_rad(ichan2)*cbias(ifov,ichan2)+ &
-                         air_rad(ichan2)*cbias(15,ichan2)   
+                         air_rad(ichan2)*cbias(15,ichan2)
                     ch15= data1b8(ich15)-ang_rad(ichan15)*cbias(ifov,ichan15)
                  end if
                  if (isflg == 0 .and. ch1<285.0_r_kind .and. ch2<285.0_r_kind) then
                     cosza = cos(lza)
-                    d0    = 8.24_r_kind - 2.622_r_kind*cosza + 1.846_r_kind*cosza*cosza                                 
+                    d0    = 8.24_r_kind - 2.622_r_kind*cosza + 1.846_r_kind*cosza*cosza
                     qval=cosza*(d0+d1*log(285.0_r_kind-ch1)+d2*log(285.0_r_kind-ch2))
                     if (radmod%lcloud_fwd) then
                        ! no preference in selecting clouds/precipitation
-                       ! qval=zero 
-                       ! favor non-precipitating clouds                                                   
-                       qval=-113.2_r_kind+(2.41_r_kind-0.0049_r_kind*ch1)*ch1 +  &         
-                            0.454_r_kind*ch2-ch15   
+                       ! qval=zero
+                       ! favor non-precipitating clouds
+                       qval=-113.2_r_kind+(2.41_r_kind-0.0049_r_kind*ch1)*ch1 +  &
+                            0.454_r_kind*ch2-ch15
                        if (qval>=9.0_r_kind) then
                           qval=1000.0_r_kind*qval
                        else
                           qval=zero
                        end if
-                       if (radmod%lprecip) qval=zero  
+                       if (radmod%lprecip) qval=zero
                        ! favor thinner clouds
                        ! cosza = cos(lza)
                        ! d0= 8.24_r_kind - 2.622_r_kind*cosza + 1.846_r_kind*cosza*cosza
@@ -822,11 +822,11 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
                     pred  = max(zero,qval)*100.0_r_kind
                  else
                     if (adp_anglebc .and. newpc4pred) then
-                       ch3 = data1b8(ich3)-ang_rad(ichan3)*cbias(ifov,ichan3) 
-                       ch15 = data1b8(ich15)-ang_rad(ichan15)*cbias(ifov,ichan15) 
+                       ch3 = data1b8(ich3)-ang_rad(ichan3)*cbias(ifov,ichan3)
+                       ch15 = data1b8(ich15)-ang_rad(ichan15)*cbias(ifov,ichan15)
                     else
                        ch3  = data1b8(ich3)-ang_rad(ichan3)*cbias(ifov,ichan3)+ &
-                            air_rad(ichan3)*cbias(15,ichan3)   
+                            air_rad(ichan3)*cbias(15,ichan3)
                        ch15 = data1b8(ich15)-ang_rad(ichan15)*cbias(ifov,ichan15)+ &
                             air_rad(ichan15)*cbias(15,ichan15)
                     end if
@@ -834,16 +834,16 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
                     if(ch1-ch15 >= three) then
                        df2  = 5.10_r_kind +0.78_r_kind*ch1-0.96_r_kind*ch3
                        tt   = 168._r_kind-0.49_r_kind*ch15
-                       if(ch1 > 261._r_kind .or. ch1 >= tt .or. & 
+                       if(ch1 > 261._r_kind .or. ch1 >= tt .or. &
                             (ch15 <= 273._r_kind .and. df2 >= 0.6_r_kind))then
                           pred = 100._r_kind
                        end if
                     end if
                  endif
-                 
+
 !                 sval=-113.2_r_kind+(2.41_r_kind-0.0049_r_kind*ch1)*ch1 +  &
 !                 0.454_r_kind*ch2-ch15
-                 
+
               else if (amsub .or. mhs) then
                  if (newpc4pred) then
                     ch1 = data1b8(ich1)-ang_rad(ichan1)*cbias(ifov,ichan1)- &
@@ -859,7 +859,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
                  pred_water = zero
                  if(sfcpct(0) > zero)then
                     cosza = cos(lza)
-                    if(ch2 < h300)then 
+                    if(ch2 < h300)then
                        pred_water = (0.13_r_kind*(ch1+33.58_r_kind*log(h300-ch2)- &
                             341.17_r_kind))*five
                     else
@@ -869,13 +869,13 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
                  pred_not_water = 42.72_r_kind + 0.85_r_kind*ch1-ch2
                  pred = (sfcpct(0)*pred_water) + ((one-sfcpct(0))*pred_not_water)
                  pred = max(zero,pred)
-                 
+
               endif
-              
+
            end if
 
 !          Compute "score" for observation.  All scores>=0.0.  Lowest score is "best"
-           crit1 = crit1+pred 
+           crit1 = crit1+pred
            call finalcheck(dist1,crit1,itx,iuse)
            if(.not. iuse)cycle read_loop
 
@@ -892,7 +892,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 
 
 !          Load selected observation into data array
-              
+
            data_all(1 ,itx)= rsat                      ! satellite ID
            data_all(2 ,itx)= t4dv                      ! time
            data_all(3 ,itx)= dlon                      ! grid relative longitude
@@ -946,6 +946,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
         enddo read_loop
      enddo read_subset
      call closbf(lnbufr)
+     call close(lnbufr)
 
      if(llll > 1 .and. (amsua .or. amsub .or. mhs))then
         deallocate(data1b8x)
@@ -962,7 +963,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
   call combine_radobs(mype_sub,mype_root,npe_sub,mpi_comm_sub,&
      nele,itxmax,nread,ndata,data_all,score_crit,nrec)
 
-! 
+!
   if(mype_sub==mype_root)then
      do n=1,ndata
         do i=1,nchanl
@@ -988,7 +989,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 
 ! Deallocate satthin arrays
   call destroygrids
- 
+
 ! Deallocate FOV surface code arrays and nullify pointers.
   if (isfcalc == 1) call fov_cleanup
 

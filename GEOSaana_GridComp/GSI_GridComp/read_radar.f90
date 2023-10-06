@@ -342,6 +342,7 @@ subroutine read_radar(nread,ndata,nodata,infile,lunout,obstype,twind,sis,hgtl_fu
      end do loop0
 
      call closbf(lnbufr)
+     close(lnbufr)
 
 !     enddo msg_report
 
@@ -469,6 +470,7 @@ subroutine read_radar(nread,ndata,nodata,infile,lunout,obstype,twind,sis,hgtl_fu
 !    Normal exit
      end if
      call closbf(lnbufr)
+     close(lnbufr)
 
 
 !    Print vadwnd table
@@ -1247,6 +1249,7 @@ subroutine read_radar(nread,ndata,nodata,infile,lunout,obstype,twind,sis,hgtl_fu
 
 !          Close unit to bufr file
            call closbf(lnbufr)
+           close(lnbufr)
    
    
            write(6,*)'READ_RADAR:  ',trim(outmessage),' reached eof on 2.5/3 superob radar file.'
