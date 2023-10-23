@@ -818,6 +818,7 @@ sub init {
                cp ( "$DIURNAL_SATBIAS/$expid.ana.satbias.${pnymd}_${phh}z.txt", "satbias_in"   );
             } else {
                Assignfn ( "$fvwork/satbias", "satbias_in"   );
+               cp ( "$fvwork/satbias", "$fvwork/satbias_in_for_jedi");
             }
        } else {
             print " Generating satbias_in ... \n";
@@ -831,6 +832,7 @@ sub init {
                cp ( "$DIURNAL_SATBIAS/$expid.ana.satbiaspc.${pnymd}_${phh}z.txt", "satbias_pc"   );
 	   } else {
 	       Assignfn ( "$fvwork/satbiaspc", "satbias_pc"   );
+               cp ( "$fvwork/satbiaspc", "$fvwork/satbiaspc_in_for_jedi");
 	   }
 	   if($ENV{ANGLEBC} && $ENV{DIAGTAR}) {
 	       $cmd = "extract_diagtarfile.csh $fvwork/radstat";
@@ -874,6 +876,7 @@ sub init {
        }
        if ( -e "$fvwork/acftbias" ) {
 	   cp ("$fvwork/acftbias", "aircftbias_in");
+           cp ("$fvwork/acftbias", "$fvwork/aircftbias_in_for_jedi");
        } else {
           $rc_ignore = system("/bin/touch aircftbias_in");
        }
