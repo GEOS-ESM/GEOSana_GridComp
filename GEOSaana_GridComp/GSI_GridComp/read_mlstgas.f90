@@ -1,5 +1,5 @@
 subroutine read_mlstgas(nread,ndata,nodata,molec_type, dfile,dtype,lunout,gstime,twind,&
-                        sis)
+                        sis,nobs)
 
   use netcdf, only: nf90_open
   use netcdf, only: nf90_nowrite
@@ -16,6 +16,7 @@ subroutine read_mlstgas(nread,ndata,nodata,molec_type, dfile,dtype,lunout,gstime
   use kinds, only: i_kind,r_kind,r_double
   use m_extOzone, only: check
   use mpeu_util, only: perr,die
+  use mpimod, only: npe
  
   implicit none
 
@@ -28,7 +29,8 @@ subroutine read_mlstgas(nread,ndata,nodata,molec_type, dfile,dtype,lunout,gstime
   real   (kind=r_kind), intent(in):: gstime ! analysis time (minute) from reference date
   real   (kind=r_kind), intent(in):: twind  ! input group time window (hour)
   integer(kind=i_kind), intent(inout):: nread, ndata, nodata
-  character(len=*) , parameter:: myname='read_mlstgas'
+  integer(i_kind), dimension(npe), intent(inout) :: nobs
+  character(len=*) , parameter:: myname='read_mlstgas' 
 
   integer(kind=i_kind):: ier, iprof, maxobs
   integer(kind=i_kind):: nsound, nreal, nchanl, nmolecdat
@@ -114,17 +116,17 @@ subroutine read_mlstgas(nread,ndata,nodata,molec_type, dfile,dtype,lunout,gstime
   ikx = 0 
   first=.false.
   do i=1,jpch_tgas
-     if( (.not. first) .and. index(nusis_tgas(i), trim(dtype))/=0) then
+     if( (.not. first) .and. index(nusis_tgas(i), trim(sis))/=0) then
         k0=i
         first=.true.
      end if
-     if(first.and.index(nusis_tgas(i),trim(dtype))/=0) then 
+     if(first.and.index(nusis_tgas(i),trim(sis))/=0) then 
         ikx=ikx+1
         ipos(ikx)=k0+ikx-1
      end if
   end do
 
-  if (ikx/=levs) call die(myname//': inconsistent levs for '//dtype)
+  if (ikx/=levs) call die(myname//'::'//trim(molec_type)//': inconsistent levs for '//sis)
 
   nmrecs=0
   ! Allocate space and read data
@@ -216,7 +218,7 @@ subroutine read_mlstgas(nread,ndata,nodata,molec_type, dfile,dtype,lunout,gstime
         t4dv=real((nmind-iwinbgn),r_kind)*r60inv
         if (l4dvar.or.l4densvar) then
            if (t4dv<zero .OR. t4dv>winlen) then
-              write(6,*)'read_mls_molec: ', dtype,' obs time idate5=',idate5,', t4dv=',&
+              write(6,*) myname,'::',trim(molec_type),': obs time idate5=',idate5,', t4dv=',&
                    t4dv,' is outside time window, sstime=',sstime*r60inv
               cycle
            end if
@@ -224,7 +226,7 @@ subroutine read_mlstgas(nread,ndata,nodata,molec_type, dfile,dtype,lunout,gstime
            sstime=real(nmind,r_kind)
            tdiff=(sstime-gstime)*r60inv
            if(abs(tdiff) > twind)then
-              write(6,*)'read_mls_molec: ',dtype,' obs time idate5=',idate5,', tdiff=',&
+              write(6,*) myname,'::',trim(molec_type),': obs time idate5=',idate5,', tdiff=',&
                    tdiff,' is outside time window=',twind
               cycle
            end if
@@ -265,6 +267,8 @@ subroutine read_mlstgas(nread,ndata,nodata,molec_type, dfile,dtype,lunout,gstime
   nodata = ndata  * levs
 
 ! Write header record and data to output file for further processing
+! (count_obs is a subroutine from obs_para)
+  call count_obs(ndata, nmolecdat, ilat, ilon, molecout, nobs)
   write(lunout) dtype, sis, nreal, nchanl, ilat, ilon
   write(lunout) ((molecout(j,k),j=1,nmolecdat),k=1,ndata)
 
@@ -272,13 +276,11 @@ subroutine read_mlstgas(nread,ndata,nodata,molec_type, dfile,dtype,lunout,gstime
              err, usage, press)
   deallocate(ipos,molecout)
 
-
   if (ndata > maxobs) then 
-     call perr('read_mls_molec','Number of MLS obs reached maxobs = ', maxobs)
-     call perr(myname,' Number of MLS molec. obs reached maxobs = ', maxobs)
+     call perr(myname,'Number of MLS obs reached maxobs = ', maxobs)
      call perr(myname,'                           ndata = ', ndata)
      call perr(myname,'                          nodata = ', nodata)
-     call die(myname)
+     call die(myname//'::'//trim(molec_type))
   endif
 
 end subroutine read_mlstgas
