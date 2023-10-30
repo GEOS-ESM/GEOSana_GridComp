@@ -1815,22 +1815,17 @@ subroutine read_obs(ndata,mype)
 !         Process MLS trace gas data
 !         sis needs to follow the format *mls[_]gasname[_]*
           else if (ditype(i) == 'mlstgas') then
-             ibeg = index(sis, 'mls')
-             if (ibeg == 0) then
-                ibeg = 1
-             else
-                ibeg = ibeg + 3
-             end if
+             ibeg = 4
              if (sis(ibeg:ibeg) == '_') ibeg = ibeg + 1
              iend = index(sis(ibeg:len(sis)), '_')
              if (iend == 0) then
                 iend = len(trim(sis))
              else
-                iend = iend + ibeg - 1
+                iend = ibeg + iend - 2
              end if
              call read_mlstgas(nread,npuse,nouse,sis(ibeg:iend),infile,obstype,&
-                  lunout,gstime,twind,sis)
-             string='READ_MLSTGAS_' // sis(ibeg:iend)
+                  lunout,gstime,twind,sis,nobs_sub1(1,i))
+             string='READ_MLSTGAS::' // sis(ibeg:iend)
 
 !         Process precipitation             
           else if (ditype(i) == 'pcp')then
