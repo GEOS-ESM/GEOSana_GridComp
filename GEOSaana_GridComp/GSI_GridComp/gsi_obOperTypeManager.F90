@@ -365,6 +365,7 @@ function dtype2index_(dtype) result(index_)
     case("nmso2"    ); index_= iobOper_tgas
     case("omno2"    ); index_= iobOper_tgas
     case("mindsno2" ); index_= iobOper_tgas
+    case("s5pno2"   ); index_= iobOper_tgas
 
   case("aero"   ,"[aerooper]"   ); index_= iobOper_aero
     case("aod"      ); index_= iobOper_aero

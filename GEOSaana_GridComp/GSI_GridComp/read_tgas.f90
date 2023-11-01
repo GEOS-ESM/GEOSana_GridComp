@@ -104,7 +104,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
   integer(i_kind)                :: id_sza,  id_scwp,  id_albd, id_cldfrc, id_qav
   integer(i_kind)                :: id_vcds, id_tropp, id_amfs, id_rows
   real(r_kind)                   :: amf
-  real(r_kind),      allocatable :: scwtpress(:)
+  real(r_kind),      allocatable :: scwtpress(:), siga(:), sigb(:)
   real(r_kind),      allocatable :: szas1(:), cldfrcs1(:), qflags1(:), albds1(:), qav1(:)
   real(r_kind),      allocatable :: rows(:), tropp(:), vcds(:), amfs(:)
 
@@ -123,11 +123,12 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 !$$$ -- 1. ALLOCATE AND INITIALIZE VARIABLES
 !===============================================================================
 ! DOAS style NO2/SO2 obs?
-  isdoas = (obstype == 'omno2'  .or. obstype == 'omso2'  .or.                  &
-            obstype == 'mindsno2' .or. obstype == 'nmso2' )
+  isdoas = (obstype == 'omno2'    .or. obstype == 'omso2'  .or.   &
+            obstype == 'mindsno2' .or. obstype == 'nmso2'  .or.   &
+            obstype == 's5pno2'                                     )
 
 ! Check if this is an averaging-kernel obs type
-  useak = (obstype == 'tgav'   .or. obstype == 'tgaz'   .or.                   &
+  useak = (obstype == 'tgav'   .or. obstype == 'tgaz'   .or.  &
            obstype == 'acos'   .or. isdoas ) 
 
 ! Get dimension lengths
@@ -245,7 +246,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 
   if ( isdoas ) then 
      allocate(szas1(nsound), cldfrcs1(nsound), qflags1(nsound), albds1(nsound), qav1(nsound) )
-     allocate(scwtpress(navg), rows(nsound), tropp(nsound), vcds(nsound), amfs(nsound))
+     allocate(scwtpress(navg), siga(navg), sigb(navg), rows(nsound), tropp(nsound), vcds(nsound), amfs(nsound))
   endif
   id_qav = -1
 
@@ -520,11 +521,24 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
      call check(nf90_inq_varid(id_fin, 'Longitude',                     id_lon))
      call check(nf90_inq_varid(id_fin, 'SolarZenithAngle',              id_sza))
      call check(nf90_inq_varid(id_fin, 'TerrainPressure',               id_prs))
-     call check(nf90_inq_varid(id_fin, 'ScatteringWeight',              id_avgker))
      call check(nf90_inq_varid(id_fin, 'CloudRadianceFraction',         id_cldfrc))
+     if ( obstype == 's5pno2' ) then
+        call check(nf90_inq_varid(id_fin, 'averaging_kernel',           id_avgker))
+     else
+        call check(nf90_inq_varid(id_fin, 'ScatteringWeight',           id_avgker))
+     endif
      ! should change to:
      !call check(nf90_inq_varid(id_fin, 'CloudFraction',                 id_cldfrc))
-     if ( obstype == 'omso2' .or. obstype=='nmso2' ) then
+     if ( obstype == 's5pno2' ) then
+        call check(nf90_inq_varid(id_fin, 'qa_value',                      id_qav))
+        call check(nf90_inq_varid(id_fin, 'nitrogendioxide_slant_column_density', id_obs))
+        call check(nf90_inq_varid(id_fin, 'nitrogendioxide_slant_column_density_precision', id_unc))
+        call check(nf90_inq_varid(id_fin, 'surface_albedo', id_albd))
+        call check(nf90_inq_varid(id_fin, 'air_mass_factor_total', id_amfs))
+        call check(nf90_inq_varid(id_fin, 'tm5_constant_a', id_scwp))
+        call check(nf90_inq_varid(id_fin, 'tm5_constant_b', id_tropp))
+        id_bad = -1
+     elseif ( obstype == 'omso2' .or. obstype=='nmso2' ) then
         call check(nf90_inq_varid(id_fin, 'SlantColumnAmountSO2',          id_obs))
         call check(nf90_inq_varid(id_fin, 'AlgorithmFlag_SnowIce',         id_unc))
         call check(nf90_inq_varid(id_fin, 'LayerBottomPressure',           id_scwp))
@@ -566,11 +580,17 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
      call check(nf90_get_var(id_fin, id_unc,    uncerts1))
      call check(nf90_get_var(id_fin, id_prs,    psurfs))
      call check(nf90_get_var(id_fin, id_avgker, avgkers1))
-     call check(nf90_get_var(id_fin, id_scwp,   scwtpress))
      call check(nf90_get_var(id_fin, id_sza,    szas1))
      call check(nf90_get_var(id_fin, id_albd,   albds1))
      call check(nf90_get_var(id_fin, id_cldfrc, cldfrcs1))
-     call check(nf90_get_var(id_fin, id_tropp,  tropp))
+     if ( obstype == 's5pno2' ) then
+        call check(nf90_get_var(id_fin, id_amfs,  amfs))
+        call check(nf90_get_var(id_fin, id_scwp,  siga))
+        call check(nf90_get_var(id_fin, id_tropp, sigb))
+     else
+        call check(nf90_get_var(id_fin, id_tropp,  tropp))
+        call check(nf90_get_var(id_fin, id_scwp,   scwtpress))
+     endif
      if ( id_bad > 0 ) then
         call check(nf90_get_var(id_fin, id_bad,    qflags1))
      endif
@@ -599,9 +619,18 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
      ! set surface pressure to really high value to make sure that we will
      ! cover the entire GEOS profile (will be cropped in setuptgas).
      peavgs(1,:) = 1200_r_kind
+
+     ! TROPOMI SO2: calculate using sigma coordinates
+     if ( obstype == 's5pno2' ) then
+        do n = 1,nsound
+        do k = 2,navg
+           peavgs(k,n) = ( siga(k) + ( sigb(k)*psurfs(n) ) ) / 100.0 ! hPa
+        end do
+        end do
+
      ! SO2: bottom layer pressure. OMI SO2 vertical axis is GEOS-style, i.e., index 1 is top of 
      ! atmosphere
-     if ( obstype == 'omso2' .or. obstype=='nmso2' ) then
+     elseif ( obstype == 'omso2' .or. obstype=='nmso2' ) then
         do k = 2,navg
            peavgs(k,:) = scwtpress(navg-k+1)
         end do
@@ -734,6 +763,12 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
            if ( szas1(n)    > tgas_szamax(2)) lskip = .true.  ! SZA > value set in GSI_GridComp.rc 
            if ( albds1(n)   > tgas_albmax(2)) lskip = .true.  ! Surface reflectivity > 0.3
            if ( cldfrcs1(n) > tgas_cldmax(2)) lskip = .true.  ! Cloud radiance fraction > 0.3  
+        elseif ( obstype == 's5pno2' ) then
+           lskip = .false.
+           if ( szas1(n)    > tgas_szamax(2)) lskip = .true.  ! SZA > value set in GSI_GridComp.rc 
+!           if ( albds1(n)   > tgas_albmax(2)) lskip = .true.  ! Surface reflectivity > 0.3
+!           if ( cldfrcs1(n) > tgas_cldmax(2)) lskip = .true.  ! Cloud radiance fraction > 0.3  
+           if ( qav1(n)     < 0.5           ) lskip = .true.  ! qa_value 
         else
            ! - VcdQualityFlag is an even integer 
            ! - sza < 80
@@ -773,19 +808,31 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
         if ( .not. iuse ) cycle
 
         ! Convert obs to 1e15 molec cm-2
-        obses(1,n)      = obses1(n) / 1.0e15
+        if ( obstype == 's5pno2' ) then
+           obses(1,n) = obses1(n) * 6.02214e19 / 1.0e15 ! TROPOMI is mol m-2 
+        else
+           obses(1,n) = obses1(n) / 1.0e15
+        endif
+
         if ( obstype == 'omso2' .or. obstype=='nmso2' ) then
            ! flip averaging kernel to make sure that surface is index 1
            avgkers(1,:,n)  = avgkers1(navg:1:-1,n)
         else
            avgkers(1,:,n)  = avgkers1(:,n)
         endif
+        ! calculate scattering weight as averaging_kernel * amf
+        if ( obstype == 's5pno2' ) then
+           avgkers(1,:,n) = avgkers(1,:,n) * amfs(n)
+        endif
 
         ! dummy a-priori profile 
         priorpros(:,n) = -99.0
 
         ! Uncertainties
-        if ( obstype == 'omso2' .or. obstype=='nmso2' ) then
+        if ( obstype == 's5pno2' ) then
+           uncerts(1,n)   = uncerts1(n) * 6.02214e19 / 1.0e15
+
+        elseif ( obstype == 'omso2' .or. obstype=='nmso2' ) then
            ! The OMI SO2 readme document reports SCD uncertainties of ~0.2 DU
            ! if SZA < 50deg, and 0.3-0.4 DU for SZAs 50-70degrees. Translate to 1.0e15 molec/cm2 here.
            if ( szas1(n) < 50.0 ) then
@@ -932,7 +979,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
   if (nchanl  == 1)      deallocate(pchanls1, isbads1, uncerts1, avgkers1,     &
                                     priorobses1, obses1)
   if ( isdoas ) then 
-     deallocate(szas1,cldfrcs1,qflags1,albds1,scwtpress,rows,tropp,vcds,amfs,qav1)
+     deallocate(szas1,cldfrcs1,qflags1,albds1,scwtpress,siga,sigb,rows,tropp,vcds,amfs,qav1)
      if( ithin>0 ) call destroygrids
   endif
 

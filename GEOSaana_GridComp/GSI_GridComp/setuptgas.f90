@@ -209,7 +209,8 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
 
 ! Check if this is an averaging-kernel obs type
   isdoas = ( trim(obstype) == 'omno2' .or. trim(obstype) == 'mindsno2' .or. &
-             trim(obstype) == 'omso2' .or. trim(obstype) == 'nmso2' )
+             trim(obstype) == 'omso2' .or. trim(obstype) == 'nmso2'    .or. &
+             trim(obstype) == 's5pno2' )
   useak  = ( trim(obstype) == 'tgav'  .or. trim(obstype) == 'tgaz'     .or. &
              trim(obstype) == 'acos'  .or. isdoas )  
 
