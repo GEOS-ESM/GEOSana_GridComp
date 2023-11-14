@@ -362,7 +362,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   real(r_double),dimension(2,255):: maxtmint
   real(r_double),dimension(1,255):: owave
   real(r_double),dimension(1,255):: cldceilh
-  real(r_double),dimension(1):: satqc, acid
+  real(r_double),dimension(1):: satqc, acid, pmin
   real(r_double),dimension(1,1):: r_prvstg,r_sprvstg
   real(r_double),dimension(1,255):: levdat
   real(r_double),dimension(255,20):: tpc
@@ -2274,8 +2274,10 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 ! (obs needs actual barometer height but that's not available)
                  if ( kx == 180 .and. obsdat(4,k) == zero ) then
                     it29=nint(hdr(8))
-                    if (it29 >= 522 .and. it29 <= 525 .and. .not. ibfms(obsdat(13,k))) then
-                       if (obsdat(13,k) - obsdat(1,k) > one_tenth) then
+                    if (it29 >= 522 .and. it29 <= 525 .and.  &
+                           .not. ibfms(obsdat(13,k)) .and. pmq(k) < lim_qm) then
+                       call ufbint(lunin,pmin,1,,iret,' PMIN ')
+                       if (obsdat(13,k) - obsdat(1,k) > one_tenth .and. nint(pmin(1)) == 0) then
                           plevs(k)=one_tenth*obsdat(13,k)
                           dlnpob=log(plevs(k))  ! ln(pressure in cb)
                        endif
