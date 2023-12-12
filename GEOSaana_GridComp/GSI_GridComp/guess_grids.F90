@@ -144,6 +144,7 @@ module guess_grids
   public :: ges_qsat
   public :: use_compress,nsig_ext,gpstop,commgpstop,spiregpserrinf
   public :: ntguesaer,ifileaer,nfldaer,hrdifaer ! variables for external aerosol files
+  public :: no2_priorc, so2_priorc, pbltopl, troplev
 
   public :: ges_initialized
 
@@ -261,6 +262,12 @@ module guess_grids
   real(r_kind),allocatable,dimension(:,:,:,:):: ges_lnprsi! log(interface pressure)
   real(r_kind),allocatable,dimension(:,:,:,:):: ges_tsen  ! sensible temperature
   real(r_kind),allocatable,dimension(:,:,:,:):: ges_teta  ! potential temperature
+  
+  ! reactive trace gas fields
+  real(r_kind),allocatable,dimension(:,:,:,:):: no2_priorc! a-priori NO2 concentration field 
+  real(r_kind),allocatable,dimension(:,:,:,:):: so2_priorc! a-priori SO2 concentration field 
+  real(r_kind),allocatable,dimension(:,:,:)  :: pbltopl   ! PBL top level index 
+  real(r_kind),allocatable,dimension(:,:,:)  :: troplev   ! tropopause level index 
 
   real(r_kind),allocatable,dimension(:,:,:):: fact_tv      ! 1./(one+fv*ges_q) for virt to sen calc.
   real(r_kind),allocatable,dimension(:,:,:,:):: ges_qsat   ! 4d qsat array
