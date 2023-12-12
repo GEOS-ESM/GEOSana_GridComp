@@ -1,0 +1,152 @@
+VERSION: 1
+EXPID:  @EXPID 
+EXPDSC: @EXPDSC 
+EXPSRC: @EXPSRC 
+
+COLLECTIONS: 'bkg.sfc'
+             'bkg.eta'
+             'cbkg.eta'
+             'ana.eta'
+#             'gcc.inc'
+#             'gcc_inst.pred'
+             ::
+
+##################################################
+# The GRID_LABELS section must be after the main #
+#  list of COLLECTIONS for scripting purposes.   #
+##################################################
+
+GRID_LABELS: PC180x91-DC
+             PE48x288-CF
+             PC576x361-DC
+::
+
+PC180x91-DC.GRID_TYPE: LatLon
+PC180x91-DC.IM_WORLD: 180
+PC180x91-DC.JM_WORLD: 91
+PC180x91-DC.POLE: PC
+PC180x91-DC.DATELINE: DC
+PC180x91-DC.LM: 72
+
+PE48x288-CF.GRID_TYPE: Cubed-Sphere
+PE48x288-CF.IM_WORLD: 48
+PE48x288-CF.JM_WORLD: 288
+PE48x288-CF.POLE: PC
+PE48x288-CF.DATELINE: DC
+PE48x288-CF.LM: 72
+
+PC576x361-DC.GRID_TYPE: LatLon
+PC576x361-DC.IM_WORLD: 576
+PC576x361-DC.JM_WORLD: 361
+PC576x361-DC.POLE: PC
+PC576x361-DC.DATELINE: DC
+PC576x361-DC.LM: 72
+
+  geosgcm_gcc.pred.template:  '%y4%m2%d2_%h2%n2z.nc4',
+  geosgcm_gcc.pred.archive:   '%c/Y%y4',
+  geosgcm_gcc.pred.format:    'CFIO',
+  geosgcm_gcc.pred.mode:      'instantaneous' ,
+  geosgcm_gcc.pred.frequency:  010000,
+  geosgcm_gcc.pred.ref_time:   210000,
+  geosgcm_gcc.pred.grid_label: PC180x91-DC ,
+  geosgcm_gcc.pred.fields:    'SpeciesConc_O3'          , 'GEOSCHEMCHEM'  ,
+                              'SpeciesConc_NO'          , 'GEOSCHEMCHEM'  ,
+                              'SpeciesConc_NO2'         , 'GEOSCHEMCHEM'  ,
+                              'SpeciesConc_CO'          , 'GEOSCHEMCHEM'  ,
+                              'SpeciesConc_OH'          , 'GEOSCHEMCHEM'  ,
+                              'PM25'                    , 'GEOSCHEMCHEM'  ,
+                              'TotCol_SO2'              , 'GEOSCHEMCHEM'  ,
+                              'TropCol_SO2'             , 'GEOSCHEMCHEM'  ,
+                              'Met_PBLTOPL'             , 'GEOSCHEMCHEM'  , 'PBLTOPL'    ,
+                              'Met_TropLev'             , 'GEOSCHEMCHEM'  , 'TROPLEV'    ,
+                               ::
+     
+  gcc.inc.template:  '%y4%m2%d2_%h2%n2z.nc4',
+  gcc.inc.archive:   '%c/Y%y4',
+  gcc.inc.format:    'CFIO',
+  gcc.inc.mode:      'instantaneous' ,
+  gcc.inc.frequency:  001500,
+  gcc.inc.ref_time:   000000,
+  gcc.inc.grid_label: PC576x361-DC ,
+  gcc.inc.fields:    'GCC_O3PPMV'               , 'GEOSCHEMCHEM' ,
+                     'GCC_ANA_O3_INC_PPMV'      , 'GEOSCHEMCHEM' ,
+                      ::
+
+  bkg.sfc.template:  '%y4%m2%d2_%h2%n2z.nc4',
+  bkg.sfc.archive:   '%c/Y%y4',
+  bkg.sfc.format:    'CFIO',
+  bkg.sfc.mode:      'instantaneous' ,
+  bkg.sfc.deflate:    1 ,
+  bkg.sfc.frequency:  030000,
+  bkg.sfc.grid_label: PC576x361-DC ,
+  bkg.sfc.fields:     'WET1'           , 'SURFACE'    , 'GWETTOP'    ,
+                      'SNOMAS'         , 'SURFACE'    , 'SNOWDP'     ,
+                      'TSOIL1'         , 'SURFACE'    ,
+                      'U10N;V10N'      , 'SURFACE'    , 'U10M;V10M'  ,
+                      'Z0'             , 'SURFACE'    , 'Z0M'        ,
+                      ::
+
+  bkg.eta.template:  '%y4%m2%d2_%h2%n2z.nc4',
+  bkg.eta.archive:   '%c/Y%y4',
+  bkg.eta.format:    'CFIO',
+  bkg.eta.mode:      'instantaneous' ,
+  bkg.eta.deflate:    1 ,
+  bkg.eta.frequency:  030000,
+  bkg.eta.grid_label: PC576x361-DC ,
+  bkg.eta.fields:     'PHIS'           , 'AGCM'       , 'phis'       ,
+                      'PS'             , 'DYN'        , 'ps'         ,
+                      'TV'             , 'DYN'        , 'tv'         ,
+                      'TS'             , 'SURFACE'    , 'ts'         ,
+                      'FRLAND'         , 'SURFACE'    , 'frland'     ,
+                      'FRLANDICE'      , 'SURFACE'    , 'frlandice'  ,
+                      'FRLAKE'         , 'SURFACE'    , 'frlake'     ,
+                      'FROCEAN'        , 'SURFACE'    , 'frocean'    ,
+                      'FRACI'          , 'SURFACE'    , 'frseaice'   ,
+                      'Q'              , 'MOIST'      , 'sphu'       ,
+                      'GCC_O3PPMV'     , 'GEOSCHEMCHEM', 'ozone' ,
+                      ::
+
+  cbkg.eta.template:  '%y4%m2%d2_%h2%n2z.nc4',
+  cbkg.eta.archive:   '%c/Y%y4',
+  cbkg.eta.format:    'CFIO',
+  cbkg.eta.mode:      'instantaneous' ,
+  cbkg.eta.deflate:    1 ,
+  cbkg.eta.frequency:  030000,
+  cbkg.eta.grid_label: PC576x361-DC ,
+  cbkg.eta.fields:     'PHIS'            , 'AGCM'         , 'phis'       ,
+                       'PS'              , 'DYN'          , 'ps'         ,
+                       'DELP'            , 'DYN'          , 'delp'       ,
+                       'Q'               , 'MOIST'        , 'sphu'       ,
+                       'GCC_O3PPMV'      , 'GEOSCHEMCHEM' , 'ozone'      ,
+                       'SpeciesConc_NO2' , 'GEOSCHEMCHEM' , 'NO2'        ,
+                       'SpeciesConc_SO2' , 'GEOSCHEMCHEM' , 'SO2'        ,
+                       'Met_PBLTOPL'     , 'GEOSCHEMCHEM' , 'PBLTOPL'    ,
+                       'Met_TropLev'     , 'GEOSCHEMCHEM' , 'TROPLEV'    ,
+                       ::
+
+  ana.eta.template:  '%y4%m2%d2_%h2%n2z.nc4',
+  ana.eta.archive:   '%c/Y%y4',
+  ana.eta.format:    'CFIO',
+  ana.eta.deflate:    1 ,
+  ana.eta.mode:      'instantaneous' ,
+  ana.eta.frequency:  060000,
+  ana.eta.grid_label: PC576x361-DC ,
+  ana.eta.fields:     'PHIS'            , 'AGCM'         , 'phis'       ,
+                      'PS'              , 'DYN'          , 'ps'         ,
+                      'TS'              , 'SURFACE'      , 'ts'         ,
+                      'GCC_O3PPMV'      , 'GEOSCHEMCHEM' , 'ozone'      ,
+                      'SpeciesConc_NO2' , 'GEOSCHEMCHEM' , 'NO2'        ,
+                      'SpeciesConc_SO2' , 'GEOSCHEMCHEM' , 'SO2'        ,
+                      ::
+
+  gcc_inst.pred.template:  '%y4%m2%d2_%h2%n2z.nc4',
+  gcc_inst.pred.archive:   '%c/Y%y4',
+  gcc_inst.pred.format:    'CFIO',
+  gcc_inst.pred.mode:      'instantaneous' ,
+  gcc_inst.pred.frequency:  010000,
+  gcc_inst.pred.ref_time:   210000,
+  gcc_inst.pred.grid_label: PC576x361-DC ,
+  gcc_inst.pred.fields:     'SpeciesConc_O3'  , 'GEOSCHEMCHEM' ,
+                            'TropCol_O3'      , 'GEOSCHEMCHEM' , 
+                            'TotCol_O3'       , 'GEOSCHEMCHEM' , 
+                            ::
