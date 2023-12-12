@@ -79,6 +79,7 @@ module constants
   public :: qmin,qcmin,tgmin
   public :: i_missing, r_missing
   public :: tice,t_wfr,e00,rvgas,rdgas,hlv,hlf,cp_vap,c_liq,c_ice,cp_air,cv_air
+  public :: vv_to_molec
 
   public :: izero, qimin, qsmin, qgmin,qrmin
   public :: partialSnowThreshold
@@ -238,6 +239,10 @@ module constants
 ! Constant used to process ozone
 ! real(r_kind),parameter::  constoz = 604229.0_r_kind ! Where did this come from?
   real(r_kind),parameter::  constoz = 603447.6_r_kind ! ((28.9644 g/mol o3)/((47.9982 g/mol air))*1e6(mol/mol)
+
+  ! conversion factor from mol/mol to 1.0e15 molec cm-2, with pressure depth in hPa.
+  ! note: formulation uses Avocadro's number in units of 1/kmol!
+  real(r_kind),parameter :: vv_to_molec = 6.0221415E+26/(9.80665*28.9644)/1.0e15*100.0/1.0e4
 
 ! Constants used in cloud liquid water correction for AMSU-A
 ! brightness temperatures
