@@ -15,28 +15,32 @@
       CHARACTER msgtyp*8
       character*8 subset,last
       integer newtyp,jdatep,lsttyp,kx(512),nsub,ntot,nsel,nargs,n
-      character*(80) head1
+      character*(80) head1,head2
       CHARACTER (len=255) :: fin, fout, kxlist
       character*255, allocatable :: arg(:)
       real*8 hdr(14)
 
       logical opt_r, writeopt
+      logical opt_s
       integer iin
 
       LOGICAL found,writeit
 
       DATA head1
      +     / 'SID YOB XOB ELV DHR RPT TCOR TYP TSB T29 ITP SQN' /
-
+      
+      DATA head2
+     +     / 'SID YOB XOB ELV DHR RPT TCOR SAID TSB T29 ITP SQN' /
 !-----------------------------------------------------------------------
 
       fout='prepbufr.out'
       nargs =  iargc()
       if( nargs.eq.0 ) then
-         print *, 'usage: prepbykx.x {-r} infilename {-o outfilename} {-k kxlist}'
+         print *, 'usage: prepbykx.x {-r} infilename {-o outfilename} {-k kxlist} {-s}'
          stop
       end if
       opt_r = .false.
+      opt_s = .false.
       kxlist = 'kxlist'
 
       allocate (arg(nargs))
@@ -53,6 +57,7 @@
       do n=1,nargs
          if( trim(arg(n)).eq.'-o' ) fout = trim(arg(n+1))
          if( trim(arg(n)).eq.'-k' ) kxlist = trim(arg(n+1))
+         if( trim(arg(n)).eq.'-s' ) opt_s = .true.
       end do
       fin = trim(arg(iin))
       numkx=0
@@ -71,7 +76,7 @@
       do k=1,numkx
          write(*,*)'  kx(',k,') = ',kx(k)
       end do
-
+      
 !     Open the PREPBUFR files.
 
       OPEN  ( UNIT = 11, FILE = fin, FORM = 'UNFORMATTED' )
@@ -80,6 +85,7 @@
       CALL OPENBF(51,'OUT',11)
 
       CALL DATELEN(10)          ! BUFRLIB routine to use 10-digit date
+      CALL MAXOUT(70000)
 
       lsttyp=0
       NEWTYP = 0
@@ -104,7 +110,11 @@
          CALL OPENMB(51,SUBSET,JDATEP)
          DO WHILE(IREADSB(11).EQ.0)
             ntot=ntot+1
-            CALL UFBINT(11,hdr,12,1,jret,head1)
+            if (opt_s) then
+               CALL UFBINT(11,hdr,12,1,jret,head2)
+            else    
+               CALL UFBINT(11,hdr,12,1,jret,head1)
+            endif   
 !     check if hdr is in list
             do k=1,numkx
                if(nint(hdr(8)).eq.kx(k)) then
