@@ -26,7 +26,7 @@
       LOGICAL found,writeit
 
       DATA head1
-     +     / 'SID YOB XOB ELV DHR RPT TCOR TYP TSB T29 ITP SQN' /
+     +     / 'SID YOB XOB ELV DHR RPT TCOR SAID TSB T29 ITP SQN' /
 
 !-----------------------------------------------------------------------
 
@@ -80,7 +80,8 @@
       CALL OPENBF(51,'OUT',11)
 
       CALL DATELEN(10)          ! BUFRLIB routine to use 10-digit date
-
+      CALL MAXOUT(70000)       ! FOR GPSRO (Mohar)
+      
       lsttyp=0
       NEWTYP = 0
       ntot=0
