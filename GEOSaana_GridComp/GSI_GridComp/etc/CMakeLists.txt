@@ -158,6 +158,7 @@ set (R21C_files
    R21C/gmao_global_ozinfo.rc
    R21C/gsi.rc.tmpl
    R21C/gsi_sens.rc.tmpl
+   R21C/prepobs_errtable.global
    )
 install(
    FILES ${R21C_files}

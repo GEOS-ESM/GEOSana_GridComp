@@ -639,7 +639,7 @@ set (WRF_SRCS
    )
 
 set (SRCS
-  ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} prepbykx.f
+  ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} prepbykx.f prepbysaid.f
   )
 
 set (OBJS_OPENBUFR
@@ -700,6 +700,8 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
             set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "")
          elseif (${src} MATCHES prepbykx.f)
             set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${EXTENDED_SOURCE} ${FP_MODEL_STRICT} ${ALIGNCOM}")
+         elseif (${src} MATCHES prepbysaid.f)
+            set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${EXTENDED_SOURCE} ${FP_MODEL_STRICT} ${ALIGNCOM}")
          elseif (${src} MATCHES m_gsiversion.F90)
             set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BIG_ENDIAN} ${BYTERECLEN}")
          elseif (${src} MATCHES crtm_interface.f90)
@@ -718,7 +720,7 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 endif ()
 
 if (EXTENDED_SOURCE)
-  set_source_files_properties(prepbykx.f PROPERTIES COMPILE_OPTIONS ${EXTENDED_SOURCE})
+  set_source_files_properties(prepbykx.f prepbysaid.f PROPERTIES COMPILE_OPTIONS ${EXTENDED_SOURCE})
 endif ()
 
 set (SRCS_STUBS
@@ -788,4 +790,4 @@ endforeach()
 #endforeach()
 
 ecbuild_add_executable(TARGET prepbykx.x SOURCES prepbykx.f LIBS ${this})
-
+ecbuild_add_executable(TARGET prepbysaid.x SOURCES prepbysaid.f LIBS ${this})

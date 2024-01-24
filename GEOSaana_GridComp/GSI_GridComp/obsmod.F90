@@ -424,6 +424,7 @@ module obsmod
   public :: time_window_rad
   public :: perturb_fact,dtbduv_on,nsat1,obs_sub_comm,mype_diaghdr
   public :: lobsdiag_allocated
+  public :: ta2tb
   public :: nloz_v8,nloz_v6,nloz_omi,nobskeep
   public :: grids_dim,rmiss_single,nchan_total,mype_sst,mype_gps
   public :: mype_uv,mype_dw,mype_rw,mype_q,mype_tcp,mype_lag,mype_ps,mype_t
@@ -550,6 +551,7 @@ module obsmod
 
   logical ::  doradaroneob
   logical :: vr_dealisingopt, if_vterminal, if_model_dbz, inflate_obserr, if_vrobs_raw
+  logical :: ta2tb
   character(4) :: whichradar,oneobradid
   real(r_kind) :: oneoblat,oneoblon,oneobddiff,oneobvalue,oneobheight
   logical :: radar_no_thinning
@@ -686,6 +688,7 @@ contains
     l_do_adjoint=.true.     ! .true. = apply H^T when in int routines
     oberrflg  = .false.
     bflag     = .false.     ! 
+    ta2tb     = .false.     ! 
     sfcmodel  = .false.     ! .false. = do not use boundary layer model 
     dtbduv_on = .true.      ! .true. = use microwave dTb/duv in inner loop
     offtime_data = .false.  ! .false. = code fails if data files contain ref time
