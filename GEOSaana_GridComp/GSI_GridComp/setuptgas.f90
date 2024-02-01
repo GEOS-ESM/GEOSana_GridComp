@@ -567,7 +567,8 @@ if (in_curbin) then
            amftrop = sum(avgker(1,1:ipbl)*gespro(1:ipbl)) / sum(gespro(1:ipbl))
            avgker(1,:) = avgker(1,:) / amf
            ! cap averaging kernels at 1.0
-           where(avgker(1,:)>1.0) avgker(1,:) = 1.0
+           ! cakelle2, 20240116: now allow Ak's > 1.0 for doas type assimilation
+           !where(avgker(1,:)>1.0) avgker(1,:) = 1.0
 
            ! a-priori observation
            priorobs(1) = sum(priorpro)
@@ -629,8 +630,12 @@ if (in_curbin) then
         priorpro = priorpro / sclmod(1)
 
 !       Create guess corresponding to obs
-        gesobs = priorobs + matmul(avgker, gespro - priorpro)
-
+        !gesobs = priorobs + matmul(avgker, gespro - priorpro)
+        if ( isdoas ) then
+           gesobs = matmul(avgker, gespro)
+        else
+           gesobs = priorobs + matmul(avgker, gespro - priorpro)
+        endif
 
 !$$$       B. SAMPLE MEASUREMENTS: EZ, OBSPACK, MLS, ACE-FTS, ...
 !===============================================================================
