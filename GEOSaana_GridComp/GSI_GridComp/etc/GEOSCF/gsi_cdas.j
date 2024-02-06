@@ -9,7 +9,7 @@
 #SBATCH --job-name=gsi_sa
 #SBATCH --output=gsi_sa_%j
 #SBATCH --error=gsi_sa_%j
-#SBATCH --constraint=sky
+#SBATCH --constraint=cas
 #SBATCH --qos=chmdev
 #SBATCH --account=s1866
 #@BATCH_NAME -o gcm_run.o@RSTDATE
@@ -89,7 +89,8 @@ while ( ! -f $geos_done )
   /bin/ln -sf . Obsloc
 
   /bin/cp -f  $EXPDIR/GSIsa.x   .
-  /bin/cp -f  $EXPDIR/analyze/ana2inc.x .
+  #/bin/cp -f  $EXPDIR/analyze/ana2inc.x .
+  /bin/cp -f  $EXPDIR/analyze/ana2inc.py .
 #  /bin/cp -f  $EXPDIR/analyze/RC/* .
 #  /bin/cp -f  $EXPDIR/analyze/*.rc .
   /bin/cp -f  $EXPDIR/analyze/codas.rc .
@@ -266,8 +267,10 @@ while ( ! -f $geos_done )
    /bin/cp $EXPID.cbkg.eta.${nymdm}_${hourm}00z.nc4 cbkg.eta.nc4
    /bin/cp $EXPID.bkg.eta.${nymdm}_${hourm}00z.nc4   bkg.eta.nc4
    /bin/cp $EXPID.ana.eta.${nymdm}_${hourm}00z.nc4   ana.eta.nc4
-   /bin/cp ana.eta.nc4 inc.eta.nc4
-   ./ana2inc.x
+
+   #/bin/cp ana.eta.nc4 inc.eta.nc4
+   #./ana2inc.x
+   /usr/local/other/GEOSpyD/23.5.2-0_py3.11/2023-11-02/bin/python ana2inc.py -a ana.eta.nc4 -b bkg.eta.nc4 -c cbkg.eta.nc4 -o inc.eta.nc4
 
    # Copy increment file to holding directory and rename to full date stamp for proper reference
    /bin/cp ana.eta.nc4 $EXPDIR/holding/ana2inc/$EXPID.ana.eta.${nymdm}_${hourm}00z.nc4
