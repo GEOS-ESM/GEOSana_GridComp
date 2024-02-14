@@ -36,7 +36,7 @@
 #AURA OMI totoz+eff., NetCDF data
 #-------------------------
 BEGIN merra2_aura_omieff_nc => omieff.%y4%m2%d2_%h2z.nc
- 10000101_00z-30000101_18z 240000 dirac:/archive/input/gmao_ops/ops/reanalysis/omi_eff/netcdf/Y%y4/M%m2/OMIeff.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_18z 240000 /discover/nobackup/projects/gmao/input/gmao_ops/ops/reanalysis/omi_eff/netcdf/Y%y4/M%m2/OMIeff.%y4%m2%d2_%h2z.nc
 END
 
 # AURA MLS near real time (In MERRA-2 this is just MLS oz data in netCDF format, NOT genuine NRT data)
@@ -45,7 +45,7 @@ BEGIN mls_nrt_nc => mlsnc.%y4%m2%d2_%h2z.nc
 #10000101_18z-20150331_18z 240000 dirac:/archive/u/kwargan/data/MLSv4.2/NETCDF/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
 #20150601_00z-30000101_18z 240000 dirac:/archive/input/dao_ops/obs/reanalysis/mls/oz_v4/netcdf/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
 #10001011_18z-30000101_18z 240000 dirac:/archive/input/gmao_ops/ops/reanalysis/mls/oz_v4/netcdf/Y%y4/M%m2/MLS-v4.2-oz.%y4%m2%d2_%h2z.nc
- 10001011_18z-30000101_18z 240000 dirac:/archive/u/kwargan/data/MLSv5/O3/Y%y4/M%m2/MLS-v5.0-oz.%y4%m2%d2_%h2z.nc
+ 10001011_18z-30000101_18z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mls/O3/Y%y4/M%m2/MLS-v5.0-oz.%y4%m2%d2_%h2z.nc 
 END
 
 ###################################################################################################
@@ -53,37 +53,37 @@ END
 ###################################################################################################
 # MLS v5 H2O data
 BEGIN tgas_mls_h2o_nc => mls_h2o.%y4%m2%d2_%h2z.nc
- 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/H2O/Y%y4/M%m2/MLS-v5.0-h2o.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mls/H2O/Y%y4/M%m2/MLS-v5.0-h2o.%y4%m2%d2_%h2z.nc 
 END
 
 # MLS v5 N2O data
 BEGIN tgas_mls_n2o_nc => mls_n2o.%y4%m2%d2_%h2z.nc
- 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/N2O/Y%y4/M%m2/MLS-v5.0-n2o.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mls/N2O/Y%y4/M%m2/MLS-v5.0-n2o.%y4%m2%d2_%h2z.nc 
 END
 
 # MLS v5 HCl data
 BEGIN tgas_mls_hcl_nc => mls_hcl.%y4%m2%d2_%h2z.nc
- 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/HCL/Y%y4/M%m2/MLS-v5.0-hcl.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mls/HCL/Y%y4/M%m2/MLS-v5.0-hcl.%y4%m2%d2_%h2z.nc 
 END
 
 # MLS v5 HNO3 data
 BEGIN tgas_mls_hno3_nc => mls_hno3.%y4%m2%d2_%h2z.nc
- 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/HNO3/Y%y4/M%m2/MLS-v5.0-hno3.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mls/HNO3/Y%y4/M%m2/MLS-v5.0-hno3.%y4%m2%d2_%h2z.nc 
 END
 
 # MLS v5 CO data
 BEGIN tgas_mls_co_nc => mls_co.%y4%m2%d2_%h2z.nc
- 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/CO/Y%y4/M%m2/MLS-v5.0-co.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mls/CO/Y%y4/M%m2/MLS-v5.0-co.%y4%m2%d2_%h2z.nc 
 END
 
 # MLS v5 CH3Cl data
 BEGIN tgas_mls_ch3cl_nc => mls_ch3cl.%y4%m2%d2_%h2z.nc
- 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/CH3CL/Y%y4/M%m2/MLS-v5.0-ch3cl.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mls/CH3CL/Y%y4/M%m2/MLS-v5.0-ch3cl.%y4%m2%d2_%h2z.nc 
 END
 
 # MLS v5 ClO data
 BEGIN tgas_mls_clo_nc => mls_clo.%y4%m2%d2_%h2z.nc
- 10000101_00z-30000101_00z 240000 dirac:/archive/u/kwargan/data/MLSv5/CLO/Y%y4/M%m2/MLS-v5.0-clo.%y4%m2%d2_%h2z.nc
+ 10000101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mls/CLO/Y%y4/M%m2/MLS-v5.0-clo.%y4%m2%d2_%h2z.nc 
 END
 
 # SAGE III/ISS solar H2O data
@@ -113,12 +113,14 @@ END
 
 # MOPITT NIR v9r CO data
 BEGIN tgas_mopitt_nir_terra_nc => mopitt_nir.%y4%m2%d2_%h2z.nc
- 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/mopitt/nir_v9r_chunks/Y%y4/mopitt_nir_v9r.%y4%m2%d2_%h2z.nc
+ 10000101_00z-20210324_18z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mopitt/nir_v9r_chunks/Y%y4/mopitt_nir_v9r.%y4%m2%d2_%h2z.nc
+ 20210414_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mopitt/nir_v9r_chunks/Y%y4/mopitt_nir_v109r.%y4%m2%d2_%h2z.nc
 END
 
 # MOPITT TIR v9r CO data
 BEGIN tgas_mopitt_tir_terra_nc => mopitt_tir.%y4%m2%d2_%h2z.nc
- 10000101_00z-30000101_00z 240000 /discover/nobackup/bweir/mopitt/tir_v9r_chunks/Y%y4/mopitt_tir_v9r.%y4%m2%d2_%h2z.nc
+ 10000101_00z-20210324_18z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mopitt/tir_v9r_chunks/Y%y4/mopitt_tir_v9r.%y4%m2%d2_%h2z.nc
+ 20210414_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/mopitt/tir_v9r_chunks/Y%y4/mopitt_tir_v109r.%y4%m2%d2_%h2z.nc
 END
 
 # IASI METOP-A CO data
@@ -246,7 +248,7 @@ END
 
 # OMI NO2
 BEGIN tgas_omno2_no2_nc => omno2.%y4%m2%d2.t%h2z.nc
- 20180101_00z-20210430_18z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/OMNO2_003/nc/Y%y4/M%m2/OMNO2v4.%y4%m2%d2.t%h2z.nc
+ 20180101_00z-30000101_18z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/OMNO2_003/nc/Y%y4/M%m2/OMNO2v4.%y4%m2%d2.t%h2z.nc
 END
 
 # OMI SO2
