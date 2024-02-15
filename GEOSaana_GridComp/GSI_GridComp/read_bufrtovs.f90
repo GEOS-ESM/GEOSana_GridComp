@@ -517,7 +517,8 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
      call openbf(lnbufr,'IN',lnbufr)
 
      ! support multiple spc coefficient files for any given sensor
-     if(amsua .or. amsub .or. mhs)then
+!     if(amsua .or. amsub .or. mhs)then
+     if(ta2tb .and. (amsua .or. amsub .or. mhs))then
         quiet=.not.verbose
         allocate(data1b8x(nchanl))
         spc_coeff_versions = 0
