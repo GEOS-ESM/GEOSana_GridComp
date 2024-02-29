@@ -143,6 +143,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 !   2020-01-29  Sienkiewicz - allow obstypes marked as passive in convinfo to be thinned
 !   2020-10-27  sienkiewicz - update for BUFR drifting buoys, T29=564
 !   2022-09-21  Sienkiewicz - Add BUFR ship subtypes (524, 525) to ship definition
+!   2023-04-17  Sienkiewicz - Expand satwnd QI test to include GOES and JMA winds
+!   2023-05-22  Sienkiewicz - fix for ship obs with zero obs height where POB different from PMO
 !
 
 !   input argument list:
@@ -361,7 +363,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   real(r_double),dimension(2,255):: maxtmint
   real(r_double),dimension(1,255):: owave
   real(r_double),dimension(1,255):: cldceilh
-  real(r_double),dimension(1):: satqc, acid
+  real(r_double),dimension(1):: satqc, acid, pmin
   real(r_double),dimension(1,1):: r_prvstg,r_sprvstg
   real(r_double),dimension(1,255):: levdat
   real(r_double),dimension(255,20):: tpc
@@ -721,7 +723,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
         if(use_prepb_satwnd .and. (kx >= 240 .and. kx <=260 )) iobsub = hdr(2)
 
 !       For the satellite wind to get quality information and check if it will be used
-        if(use_prepb_satwnd .and. (kx == 243 .or. kx == 253 .or. kx ==254) ) then
+!       - add GOES and JMA KX to check reprocessed satwinds in prepbufr format
+        if(use_prepb_satwnd .and. (kx >= 242 .and. kx <= 256) ) then
            call ufbint(lunin,satqc,1,1,iret,satqcstr)
            if(satqc(1) <  85.0_r_double) cycle loop_report   ! QI w/o fcst (su's setup
 !!         if(satqc(2) <= 80.0_r_double) cycle loop_report   ! QI w/ fcst (old prepdata)
@@ -1968,8 +1971,9 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  else
                     timedif=abs(t4dv-toff)
                  endif
-                 if(kx == 243 .or. kx == 253 .or. kx ==254) then
+                 if(kx >= 242 .and. kx <= 256) then
                     call ufbint(lunin,satqc,1,1,iret,satqcstr)
+                    if (ibfms(satqc(1))) satqc(1) = 0.0
                     crit1 = timedif/r6+half + four*(one-satqc(1)/r100)*r3_33
                  else
                     crit1 = timedif/r6+half
@@ -2268,6 +2272,20 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 
 !             Surface pressure
               else if(psob) then
+!
+! Substitute PMO for POB for ship obs if surface height is zero and POB and PMO disagree
+! (obs needs actual barometer height but that's not available)
+                 if ( kx == 180 .and. obsdat(4,k) == zero ) then
+                    it29=nint(hdr(8))
+                    if (it29 >= 522 .and. it29 <= 525 .and.  &
+                           .not. ibfms(obsdat(13,k)) .and. pmq(k) < lim_qm) then
+                       call ufbint(lunin,pmin,1,1,iret,' PMIN ')
+                       if (obsdat(13,k) - obsdat(1,k) > one_tenth .and. nint(pmin(1)) == 0) then
+                          plevs(k)=one_tenth*obsdat(13,k)
+                          dlnpob=log(plevs(k))  ! ln(pressure in cb)
+                       endif
+                    endif
+                 endif
 
                  poe=obserr(1,k)*one_tenth                  ! convert from mb to cb
                  if (inflate_error) poe=poe*r1_2

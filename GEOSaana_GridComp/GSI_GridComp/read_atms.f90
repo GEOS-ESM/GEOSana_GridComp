@@ -76,7 +76,7 @@ subroutine read_atms(mype,val_tovs,ithin,isfcalc,&
   use satthin, only: super_val,itxmax,makegrids,destroygrids,checkob, &
       finalcheck,map2tgrid,score_crit
   use satthin, only: radthin_time_info,tdiff2crit
-  use obsmod,  only: time_window_max
+  use obsmod,  only: time_window_max,ta2tb
   use radinfo, only: iuse_rad,newchn,cbias,nusis,jpch_rad,air_rad,ang_rad, &
       use_edges,radedge1,radedge2,nusis,radstart,radstep,newpc4pred,maxscan
   use radinfo, only: adp_anglebc
@@ -374,7 +374,6 @@ subroutine read_atms(mype,val_tovs,ithin,isfcalc,&
      end if
 
 !    Reopen unit to satellite bufr file
-     call closbf(lnbufr)
      open(lnbufr,file=trim(infile2),form='unformatted',status = 'old', &
          iostat = ierr)
      if(ierr /= 0) cycle ears_db_loop
@@ -402,7 +401,6 @@ subroutine read_atms(mype,val_tovs,ithin,isfcalc,&
 
 !          inflate selection value for ears_db data
            crit0 = 0.01_r_kind
-           crit0 = zero ! shouldn't it = 0.01_r_kind?
            if ( llll > 1 ) crit0 = crit0 + r100 * float(llll)
 
            call ufbint(lnbufr,bfr1bhdr,n1bhdr,1,iret,hdr1b)
@@ -484,7 +482,11 @@ subroutine read_atms(mype,val_tovs,ithin,isfcalc,&
 !          TMBR is actually the antenna temperature for most microwave sounders but for
 !          ATMS it is stored in TMANT.
 !          ATMS is assumed not to come via EARS
-           call ufbrep(lnbufr,data1b8,1,nchanl,iret,'TMANT')
+           if (ta2tb) then
+              call ufbrep(lnbufr,data1b8,1,nchanl,iret,'TMBR')
+           else
+              call ufbrep(lnbufr,data1b8,1,nchanl,iret,'TMANT')
+           endif
 
            bt_save(1:nchanl,iob) = data1b8(1:nchanl)
 
@@ -493,6 +495,7 @@ subroutine read_atms(mype,val_tovs,ithin,isfcalc,&
         end do read_loop
      end do read_subset
      call closbf(lnbufr)
+     close(lnbufr)
   end do ears_db_loop
   deallocate(data1b8)
 

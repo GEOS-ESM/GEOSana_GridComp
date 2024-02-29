@@ -20,6 +20,7 @@ amsub_n16
 amsub_n17
 atms_npp
 atms_n20
+atms_n21
 avhrr_metop-a
 avhrr_metop-b
 avhrr_metop-c
@@ -151,9 +152,12 @@ mls55_aura
 mls_aura
 o3lev_aura
 ompslpnc_npp
+ompslpnc_n21
 ompslpuv_npp
 ompslpvis_npp
 ompsnm_npp
+ompsnm_n20
+ompsnm_n21
 ompsnmeff_npp
 ompsnp_npp
 ompsnpnc_npp
