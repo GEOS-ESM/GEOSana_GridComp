@@ -134,7 +134,9 @@ n18  20051001 000000  20071116 120000  amsua  1        14               # M2: re
 ###                                                                                             # attempt to assimilate.  This should be set
 ###                                                                                             # to inactive should an issue arise (wm)
 n18  20051101 000000  20071116 120000  amsua  1        14               # (old note)added all 14 back (see iuse-4.tbl)
-n18  20071116 180000  21001231 240000  amsua  1        14               # amsua: 9 bad, added all 14 back
+n18  20071116 180000  20230912 240000  amsua  1        14               # amsua: 9 bad, added all 14 back
+n18  20230913 000000  20231027 060000  amsua  0                         # NOAA-18 satellite will be fully transitioned to Parsons
+n18  20231027 120000  21001231 240000  amsua  1        14               # Transition complete
 
 # NOAA-19 (nn')
 #==============
@@ -169,6 +171,13 @@ metop-c 20190917 000000  21001231 240000  amsua  1     14            #
 
 
 # Downgrade & upgrade 14 to iuse=4
-npp  20111116 000000  21001231 240000  atms  1  15
-n20  20180510 000000  21001231 240000  atms  1  15
+npp  20111116 000000  20220727 240000  atms  1  15
+npp  20220728 000000  20220825 120000  atms  0
+npp  20220825 180000  20231101 120000  atms  1  15
+npp  20231101 180000  20231103 240000  atms  0    # safe mode
+npp  20231104 000000  21001231 240000  atms  1  15
+
+n20  20180510 000000  20230929 120000  atms  1  15
+n20  20230929 180000  20231006 060000  atms  0         # Safe mode.
+n20  20231006 120000  21001231 240000  atms  1  15
 
