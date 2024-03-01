@@ -199,7 +199,10 @@ sub lndiag_files {
       ($var1, $var2) = split(/miter/,$var);
       ($var1, $var2) = split(/=/,$var2);
       ($miter,$var2) = split(/,/,$var2);
-      $totiter = sprintf("%2.2d",$miter + 1);
+      # not sure why totiter is set to miter+1. I think it needs to 
+      # be totiter=miter, at least for tgas stuff (cakelle2, 3/1/24)
+      ###$totiter = sprintf("%2.2d",$miter + 1);
+      $totiter = sprintf("%2.2d",$miter + 0);
       print "setup_internal: Total number of iterations: $totiter \n";
       ($loops{"01"},$loops{"$totiter"}) = ("ges","anl");
   }
