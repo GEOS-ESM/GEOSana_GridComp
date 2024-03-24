@@ -423,6 +423,7 @@ module obsmod
   public :: lobsdiagsave,lobsdiag_forenkf,blacklst,hilbert_curve,lobskeep,time_window_max,sfcmodel,ext_sonde
   public :: time_window_rad
   public :: perturb_fact,dtbduv_on,nsat1,obs_sub_comm,mype_diaghdr
+  public :: ta2tb
   public :: lobsdiag_allocated
   public :: nloz_v8,nloz_v6,nloz_omi,nobskeep
   public :: grids_dim,rmiss_single,nchan_total,mype_sst,mype_gps
@@ -548,6 +549,7 @@ module obsmod
 
   integer(i_kind) ntilt_radarfiles
 
+  logical ::  ta2tb
   logical ::  doradaroneob
   logical :: vr_dealisingopt, if_vterminal, if_model_dbz, inflate_obserr, if_vrobs_raw
   character(4) :: whichradar,oneobradid
@@ -684,6 +686,8 @@ contains
     nobskeep=0
     lsaveobsens=.false.
     l_do_adjoint=.true.     ! .true. = apply H^T when in int routines
+    ta2tb=.false.           ! .true. = assimilation antenna temperature for
+                            !          AMSU-A, ATMS and MHS
     oberrflg  = .false.
     bflag     = .false.     ! 
     sfcmodel  = .false.     ! .false. = do not use boundary layer model 
