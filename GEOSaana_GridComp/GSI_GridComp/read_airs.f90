@@ -561,7 +561,7 @@ subroutine read_airs(mype,val_airs,ithin,isfcalc,rmesh,jsatid,gstime,&
         endif
 
         crit1 = crit1 + rlndsea(isflg)
-        call checkob(one,crit1,itx,iuse)
+        call checkob(dist1,crit1,itx,iuse)
         if(.not. iuse)cycle read_loop
 
 !       Set common predictor parameters
@@ -747,11 +747,7 @@ subroutine read_airs(mype,val_airs,ithin,isfcalc,rmesh,jsatid,gstime,&
 
 !       Compute "score" for observation.  All scores>=0.0.  Lowest score is "best"
         crit1 = crit1+pred 
-        if (pred == zero) then
-          call checkob(dist1,crit1,itx,iuse)
-        else
-          call checkob(one,crit1,itx,iuse)
-        endif
+        call checkob(dist1,crit1,itx,iuse)
         if(.not. iuse)cycle read_loop
 
 !       check for missing channels (if key channel reject)
@@ -775,11 +771,7 @@ subroutine read_airs(mype,val_airs,ithin,isfcalc,rmesh,jsatid,gstime,&
         if( iskip >= satinfo_nchan )cycle read_loop
 
 !       Map obs to grids
-        if (chsst > tsavg) then
-           call finalcheck(dist1,crit1,itx,iuse)
-        else
-           call finalcheck(one,crit1,itx,iuse)
-        endif
+        call finalcheck(dist1,crit1,itx,iuse)
         if(.not. iuse) cycle read_loop
 
 !       Replace popped AIRS channel Tb with zero
@@ -863,7 +855,6 @@ subroutine read_airs(mype,val_airs,ithin,isfcalc,rmesh,jsatid,gstime,&
   enddo read_subset
   deallocate(allchan, chan_map, bufr_chan_test)
   call closbf(lnbufr)  ! Close bufr file
-  close(lnbufr)
 
 ! If multiple tasks read input bufr file, allow each tasks to write out
 ! information it retained and then let single task merge files together
