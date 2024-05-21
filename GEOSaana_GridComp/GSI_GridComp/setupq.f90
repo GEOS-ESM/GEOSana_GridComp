@@ -163,6 +163,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use sparsearr, only: sparr2, new, size, writearray, fullarray
   use state_vectors, only: svars3d, levels, nsdim
   use convinfo, only: id_drifter, subtype_drifter
+  use hdraobmod, only: nhdq,hdqlist
 
   implicit none
 
@@ -230,6 +231,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   integer(i_kind) ier,ilon,ilat,ipres,iqob,id,itime,ikx,iqmax,iqc
   integer(i_kind) ier2,iuse,ilate,ilone,istnelv,iobshgt,istat,izz,iprvd,isprvd
   integer(i_kind) idomsfc,iderivative
+  integer(i_kind) ibb,ikk,idddd
   real(r_kind) :: delz
   type(sparr2) :: dhx_dx
   real(r_single), dimension(nsdim) :: dhx_dx_array
@@ -319,6 +321,32 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   do i=1,nobs
      muse(i)=nint(data(iuse,i)) <= jiter
   end do
+!  If HD raobs available move prepbufr version to monitor
+  if(nhdq > 0)then
+     iprev_station=0
+     do i=1,nobs
+        ikx=nint(data(ikxx,i))
+        itype=ictype(ikx)
+        if(itype == 120) then
+           rstation_id     = data(id,i)
+           read(station_id,'(i5,3x)',err=1200) idddd
+           if(idddd == iprev_station)then
+             data(iuse,i)=108._r_kind
+             muse(i) = .false.
+           else
+              stn_loop:do j=1,nhdq
+                if(idddd == hdqlist(j))then
+                   iprev_station=idddd
+                   data(iuse,i)=108._r_kind
+                   muse(i) = .false.
+                   exit stn_loop
+                end if
+              end do stn_loop
+           end if
+        end if
+1200    continue
+     end do
+  end if
 
   var_jb=zero
 
@@ -340,7 +368,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            data(ilon,k) == data(ilon,l) .and.  &
            data(ier,k) < r1000 .and. data(ier,l) < r1000 .and. &
            muse(k) .and. muse(l)
-        else
+         else
            duplogic=sngl(data(ilate,k)) == sngl(data(ilate,l)) .and.  &
            sngl(data(ilone,k)) == sngl(data(ilone,l)) .and.  &
            sngl(r1000*exp(data(ipres,k))) == sngl(r1000*exp(data(ipres,l))) .and. &
@@ -445,7 +473,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         dpres=data(ipres,i)
 
         rmaxerr=data(iqmax,i)
-         rstation_id     = data(id,i)
+        rstation_id     = data(id,i)
         error=data(ier2,i)
         prest=r10*exp(dpres)     ! in mb
         var_jb=data(ijb,i)
@@ -725,10 +753,10 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         if(njqc .and. var_jb>tiny_r_kind .and. var_jb < 10.0_r_kind .and. error >tiny_r_kind)  then
            if(exp_arg  == zero) then
               wgt=one
-           else
+        else
               wgt=ddiff*error/sqrt(two*var_jb)
               wgt=tanh(wgt)/wgt
-           endif
+        endif
            term=-two*var_jb*rat_err2*log(cosh((val)/sqrt(two*var_jb)))
            rwgt = wgt/wgtlim
            valqc = -two*term
@@ -747,7 +775,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            rwgt = wgt/wgtlim
            valqc = -two*rat_err2*term
         endif
-        
+ 
 !       Accumulate statistics for obs belonging to this task
         if(muse(i))then
            if(rwgt < one) awork(21) = awork(21)+one
@@ -983,7 +1011,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
        deallocate(cdiagbuf,rdiagbuf)
 
        if (twodvar_regional) then
-          write(7)cprvstg(1:ii),csprvstg(1:ii)
+             write(7)cprvstg(1:ii),csprvstg(1:ii)
           deallocate(cprvstg,csprvstg)
        endif
     endif
@@ -1177,7 +1205,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         endif
      end if
 
-     call nc_diag_init(diag_conv_file,append=append_diag)
+     call nc_diag_init(diag_conv_file, append=append_diag)
 
      if (.not. append_diag) then ! don't write headers on append - the module will break?
         call nc_diag_header("date_time",ianldate )
@@ -1319,8 +1347,8 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_metadata("Observation_Type",        ictype(ikx)-19         )
               call nc_diag_metadata("Observation_Subtype",     subtype_drifter        )
            else
-              call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
-              call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
+           call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
+           call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
            endif
            call nc_diag_metadata("Latitude",                sngl(data(ilate,i))    )
            call nc_diag_metadata("Longitude",               sngl(data(ilone,i))    )
@@ -1349,8 +1377,8 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            call nc_diag_metadata("Observation",                   sngl(data(iqob,i)))
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(ddiff)       )
            call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(qob-qges)    )
-           call nc_diag_metadata("Forecast_adjusted", sngl(data(iqob,i)-ddiff))
-           call nc_diag_metadata("Forecast_unadjusted", sngl(qges))
+           call nc_diag_metadata("Forecast_adjusted",             sngl(data(iqob,i)-ddiff))
+           call nc_diag_metadata("Forecast_unadjusted",           sngl(qges))
            call nc_diag_metadata("Forecast_Saturation_Spec_Hum",  sngl(qsges)       )
            if (lobsdiagsave) then
               do jj=1,miter
@@ -1378,9 +1406,9 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            if (save_jacobian) then
               call fullarray(dhx_dx, dhx_dx_array)
               call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
-              call nc_diag_data2d("Observation_Operator_Jacobian_stind", dhx_dx%st_ind)
-              call nc_diag_data2d("Observation_Operator_Jacobian_endind", dhx_dx%end_ind)
-              call nc_diag_data2d("Observation_Operator_Jacobian_val", real(dhx_dx%val,r_single))
+             call nc_diag_data2d("Observation_Operator_Jacobian_stind", dhx_dx%st_ind)
+             call nc_diag_data2d("Observation_Operator_Jacobian_endind", dhx_dx%end_ind)
+             call nc_diag_data2d("Observation_Operator_Jacobian_val", real(dhx_dx%val,r_single))
            endif
            ! geovals for JEDI UFO
            if (wrtgeovals) then
@@ -1414,7 +1442,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_metadata("Observation_Type",        ictype(ikx)-19         )
               call nc_diag_metadata("Observation_Subtype",     subtype_drifter        )
            else
-              call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
+           call nc_diag_metadata("Observation_Type",        ictype(ikx)            )
               call nc_diag_metadata("Observation_Subtype",     icsubtype(ikx)         )
            endif
            call nc_diag_metadata("Station_Elevation",       sngl(data(istnelv,i))  )

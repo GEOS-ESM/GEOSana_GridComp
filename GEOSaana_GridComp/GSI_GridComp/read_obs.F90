@@ -706,12 +706,13 @@ subroutine read_obs(ndata,mype)
            reduce_diag,nobs_sub,dval_use
     use gsi_nstcouplermod, only: nst_gsi
 !   use gsi_nstcouplermod, only: gsi_nstcoupler_set
+    use hdraobmod, only: read_hdraob,nhdt,nhdq,nhduv,nhdps,hdtlist,hdqlist,hduvlist,hdpslist,nodet,nodeq,nodeuv,nodeps
     use qcmod, only: njqc,vadwnd_l2rw_qc
     use gsi_4dvar, only: l4dvar
     use satthin, only: super_val,super_val1,superp,makegvals,getsfc,destroy_sfc
-    use mpimod, only: ierror,mpi_comm_world,mpi_sum,mpi_rtype,mpi_integer,npe,&
+    use mpimod, only: ierror,mpi_comm_world,mpi_sum,mpi_max,mpi_rtype,mpi_integer,npe,&
          setcomm
-    use constants, only: one,zero
+    use constants, only: one,zero,izero
     use converr, only: converr_read
     use converr_ps, only: converr_ps_read
     use converr_q, only: converr_q_read
@@ -836,7 +837,15 @@ subroutine read_obs(ndata,mype)
        deallocate(nrnd)
     endif
 
-
+!   Set number of high definition stations to zero
+    nhdt=izero
+    nhdq=izero
+    nhduv=izero
+    nhdps=izero
+    nodet=izero
+    nodeq=izero
+    nodeuv=izero
+    nodeps=izero
 
 !   Set data class and number of reader tasks.  Set logical flag to indicate 
 !   type type of GPS data (if present)
@@ -1260,7 +1269,12 @@ subroutine read_obs(ndata,mype)
                end if
             end do
           end if
-          if(obstype == 'rw')then
+          if(dfile(i) == 'uprair')then
+             use_prsl_full=.true.
+             use_hgtl_full = .true.
+             if(belong(i))use_hgtl_full_proc=.true.
+             if(belong(i))use_prsl_full_proc=.true.
+          else if(obstype == 'rw')then
              use_hgtl_full=.true.
              if(belong(i))use_hgtl_full_proc=.true.
            else if(obstype == 'dbz')then
@@ -1397,6 +1411,10 @@ subroutine read_obs(ndata,mype)
                   call read_fl_hdob(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
                                     prsl_full,nobs_sub1(1,i))
                   string='READ_FL_HDOB'
+                else if (index(infile,'uprair') /=0)then
+                   call read_hdraob(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
+                        prsl_full,hgtl_full,nobs_sub1(1,i),read_rec(i))
+                   string='READ_UPRAIR'
                 else
                    call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
                         prsl_full,nobs_sub1(1,i),read_rec(i))
@@ -1460,6 +1478,11 @@ subroutine read_obs(ndata,mype)
                   call read_satwnd(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
                      prsl_full,nobs_sub1(1,i))
                   string='READ_SATWND'
+!             Process high resolution radiosonde data
+                else if (index(infile,'uprair') /=0)then
+                   call read_hdraob(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
+                        prsl_full,hgtl_full,nobs_sub1(1,i),read_rec(i))
+                   string='READ_UPRAIR'
 !             Process oscat winds which seperate from prepbufr
                 elseif ( index(infile,'oscatbufr') /=0 ) then
                   call read_sfcwnd(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
@@ -1474,6 +1497,10 @@ subroutine read_obs(ndata,mype)
                   call read_fl_hdob(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
                        prsl_full,nobs_sub1(1,i))
                   string='READ_FL_HDOB'
+                else if (index(infile,'uprair') /=0)then
+                   call read_hdraob(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
+                        prsl_full,hgtl_full,nobs_sub1(1,i),read_rec(i))
+                   string='READ_UPRAIR'
                 else
                   call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
                      prsl_full,nobs_sub1(1,i),read_rec(i))
@@ -1918,6 +1945,43 @@ subroutine read_obs(ndata,mype)
     end if
     super_val1(0)=one
     deallocate(super_val)
+    nhd(1)=nhdt
+    nhd(2)=nhdq
+    nhd(3)=nhduv
+    nhd(4)=nhdps
+    nhd(5)=nodet
+    nhd(6)=nodeq
+    nhd(7)=nodeuv
+    nhd(8)=nodeps
+!   get number of high resolution stations on every processor
+    call mpi_allreduce(nhd,nhd1,8,mpi_integer,mpi_max,mpi_comm_world,ierror)
+    nhdt=nhd1(1)
+    nhdq=nhd1(2)
+    nhduv=nhd1(3)
+    nhdps=nhd1(4)
+    nodet=nhd1(5)
+    nodeq=nhd1(6)
+    nodeuv=nhd1(7)
+    nodeps=nhd1(8)
+    if(nhdt > 0)then
+      if(.not. allocated(hdtlist))allocate(hdtlist(nhdt))
+      call mpi_bcast(hdtlist,nhdt,mpi_integer,nodet,mpi_comm_world,ierror)
+    end if
+    if(nhdq > 0) then
+      if(.not. allocated(hdqlist))allocate(hdqlist(nhdq))
+      call mpi_bcast(hdqlist,nhdq,mpi_integer,nodeq,mpi_comm_world,ierror)
+    end if
+    if(nhduv > 0) then
+      if(.not. allocated(hduvlist))allocate(hduvlist(nhduv))
+      call mpi_bcast(hduvlist,nhduv,mpi_integer,nodeuv,mpi_comm_world,ierror)
+    end if
+    if(nhdps > 0)then
+      if(.not. allocated(hdpslist))allocate(hdpslist(nhduv))
+      call mpi_bcast(hdpslist,nhdps,mpi_integer,nodeps,mpi_comm_world,ierror)
+    end if
+    
+    if(mype == 0)write(6,*)'number of HD stations',nhdt,nhdq,nhduv,nhdps
+    if(mype == 0)write(6,*)'processors           ',nodet,nodeq,nodeuv,nodeps
 
 !   Collect number of gps profiles (needed later for qc)
     call mpi_allreduce(nprof_gps1,nprof_gps,1,mpi_integer,mpi_sum,mpi_comm_world,ierror)
