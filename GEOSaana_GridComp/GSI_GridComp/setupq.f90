@@ -34,7 +34,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !   2005-05-27  derber - level output change
 !   2005-07-27  derber  - add print of monitoring and reject data
 !   2005-09-28  derber  - combine with prep,spr,remove tran and clean up
-!   2005-10-06  treadon - lower huge_error to prevent overflow 
+!   2005-10-06  treadon - lower huge_error to prevent overflow
 !   2005-10-14  derber  - input grid location and fix regional lat/lon
 !   2005-10-21  su  - modify variational qc and diagonose output
 !   2005-11-03  treadon - correct error in ilone,ilate data array indices
@@ -57,7 +57,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !   2007-03-09      su - modify obs perturbation
 !   2007-03-19  tremolet - binning of observations
 !   2007-06-05  tremolet - add observation diagnostics structure
-!   2007-08-28      su - modify gross check error  
+!   2007-08-28      su - modify gross check error
 !   2008-03-24      wu - oberror tuning and perturb obs
 !   2008-05-23  safford - rm unused vars and uses
 !   2008-12-03  todling - changed handle of tail%time
@@ -68,7 +68,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !   2011-05-06  Su      - modify the observation gross check error
 !   2011-08-09  pondeca - correct bug in qcgross use
 !   2011-10-14  Hu      - add code for adjusting surface moisture observation error
-!   2011-10-14  Hu      - add code for producing pseudo-obs in PBL 
+!   2011-10-14  Hu      - add code for producing pseudo-obs in PBL
 !   2011-12-14  wu      - add code for rawinsonde level enhancement ( ext_sonde )
 !                                       layer based on surface obs Q
 !   2013-01-26  parrish - change grdcrd to grdcrd1, tintrp2a to tintrp2a1, tintrp2a11,
@@ -152,8 +152,8 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use jfunc, only: jiter,last,jiterstart,miter
   use convinfo, only: nconvtype,cermin,cermax,cgross,cvar_b,cvar_pg,ictype
   use convinfo, only: icsubtype
-  use converr_q, only: ptabl_q 
-  use converr, only: ptabl 
+  use converr_q, only: ptabl_q
+  use converr, only: ptabl
   use m_dtime, only: dtime_setup, dtime_check
   use rapidrefresh_cldsurf_mod, only: l_sfcobserror_ramp_q
   use rapidrefresh_cldsurf_mod, only: l_pbl_pseudo_surfobsq,pblh_ration,pps_press_incr, &
@@ -194,8 +194,8 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   external:: genqsat
   external:: stop2
 
-! Declare local variables  
-  
+! Declare local variables
+
   real(r_double) rstation_id
   real(r_kind) qob,qges,qsges,q2mges,q2mges_read,q2mges_water
   real(r_kind) ratio_errors,dlat,dlon,dtime,dpres,rmaxerr,error
@@ -226,7 +226,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_single),allocatable,dimension(:,:)::rdiagbufp
 
 
-  integer(i_kind) i,nchar,nreal,ii,l,jj,mm1,itemp,iip
+  integer(i_kind) i,j,nchar,nreal,ii,l,jj,mm1,itemp,iip
   integer(i_kind) jsig,itype,k,nn,ikxx,iptrb,ibin,ioff,ioff0,icat,ijb,isli
   integer(i_kind) ier,ilon,ilat,ipres,iqob,id,itime,ikx,iqmax,iqc
   integer(i_kind) ier2,iuse,ilate,ilone,istnelv,iobshgt,istat,izz,iprvd,isprvd
@@ -235,7 +235,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind) :: delz
   type(sparr2) :: dhx_dx
   real(r_single), dimension(nsdim) :: dhx_dx_array
-  integer(i_kind) :: iz, q_ind, nind, nnz
+  integer(i_kind) :: iz, q_ind, nind, nnz,iprev_station
 
   character(8) station_id
   character(8),allocatable,dimension(:):: cdiagbuf,cdiagbufp
@@ -392,7 +392,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
                  sngl(r1000*exp(data(ipres,k))) == sngl(r1000*exp(data(ipres,l))) .and. &
                  sngl(data(itime,k)) == sngl(data(itime,l)) .and. &
                  data(id,k)    == data(id,l) ) then
-                 ! Identical obs #k and #l. Not use or inflate error obs #l. 
+                 ! Identical obs #k and #l. Not use or inflate error obs #l.
                  ! This change is made for JEDI since IODA converter treats them as one observation.
                  !write(6,*) "Same observations as others. Skipped in setupq.f90"
                  muse(l) = .false.
@@ -528,9 +528,9 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
           nsig,mype,nfldsig)
 
 !   interpolate geovals to obs locations
-    ! surface geopotential height 
+    ! surface geopotential height
     call tintrp2a11(ges_z,zsges,dlat,dlon,dtime,hrdifsig, mype,nfldsig)
-    ! geopotential height 
+    ! geopotential height
     call tintrp2a1(geop_hgtl, zges, dlat, dlon, dtime, hrdifsig, nsig, mype, nfldsig)
     prsltmp2 = exp(prsltmp) ! pressure on model layers
     ! pressure on interfaces
@@ -586,7 +586,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      if((itype > 179 .and. itype < 186) .or. itype == 199) dpres=one
 
 !    Scale errors by guess saturation q
- 
+
      call tintrp31(qg,qsges,dlat,dlon,dpres,dtime,hrdifsig,&
           mype,nfldsig)
 
@@ -598,13 +598,13 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 !    Load obs error and value into local variables
      obserror = max(cermin(ikx)*r0_01,min(cermax(ikx)*r0_01,data(ier,i)))
-     qob = data(iqob,i) 
+     qob = data(iqob,i)
 
      rmaxerr=rmaxerr*qsges
      rmaxerr=max(small2,rmaxerr)
      errorx =(data(ier,i)+dprpx)*qsges
      errorx =max(small1,errorx)
-    
+
 
 !    Adjust observation error to reflect the size of the residual.
 !    If extrapolation occurred, then further adjust error according to
@@ -619,7 +619,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      endif
 
      rhgh=max(dpres-r0_001-rsig,zero)
-     
+
      if(luse(i))then
         awork(1) = awork(1) + one
         if(rlow/=zero) awork(2) = awork(2) + one
@@ -660,7 +660,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
         if(i_coastline==2 .or. i_coastline==3) then
 !     Interpolate guess th 2m to observation location and time
-           call tintrp2a11_csln(ges_q2m,q2mges_read,q2mges_water,dlat,dlon,dtime,hrdifsig,mype,nfldsig)   
+           call tintrp2a11_csln(ges_q2m,q2mges_read,q2mges_water,dlat,dlon,dtime,hrdifsig,mype,nfldsig)
            if(abs(qob-q2mges) > abs(qob-q2mges_water)) q2mges=q2mges_water
         else
            call tintrp2a11(ges_q2m,q2mges_read,dlat,dlon,dtime,hrdifsig,mype,nfldsig)
@@ -739,7 +739,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               ddiff=ddiff+data(iptrb,i)/error/ratio_errors
            endif
         else if(perturb_obs )then
-           ddiff=ddiff+data(iptrb,i)/error/ratio_errors  
+           ddiff=ddiff+data(iptrb,i)/error/ratio_errors
         endif
      endif
 
@@ -771,11 +771,11 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            valqc = -two*rat_err2*term
         else
            term = exp_arg
-           wgt  =one 
+           wgt  =one
            rwgt = wgt/wgtlim
            valqc = -two*rat_err2*term
         endif
- 
+
 !       Accumulate statistics for obs belonging to this task
         if(muse(i))then
            if(rwgt < one) awork(21) = awork(21)+one
@@ -796,7 +796,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         end if
         do k = 1,npres_print
            if(presq > ptopq(k) .and. presq <= pbotq(k))then
- 
+
               bwork(k,ikx,1,nn)  = bwork(k,ikx,1,nn)+one             ! count
               bwork(k,ikx,2,nn)  = bwork(k,ikx,2,nn)+ress            ! (o-g)
               bwork(k,ikx,3,nn)  = bwork(k,ikx,3,nn)+ressw2          ! (o-g)**2
@@ -827,10 +827,10 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !       Set (i,j,k) indices of guess gridpoint that bound obs location
         my_head%dlev= dpres
         call get_ijk(mm1,dlat,dlon,dpres,my_head%ij,my_head%wij)
-        
+
         my_head%res    = ddiff
         my_head%err2   = error**2
-        my_head%raterr2= ratio_errors**2   
+        my_head%raterr2= ratio_errors**2
         my_head%time   = dtime
         my_head%b      = cvar_b(ikx)
         my_head%pg     = cvar_pg(ikx)
@@ -863,7 +863,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            call obsdiagNode_assert(my_diag,my_head%idv,my_head%iob,my_head%ich0+1, myname,'my_diag:my_head')
            my_head%diags => my_diag
         endif
-        
+
         my_head => null()
      endif
 
@@ -888,7 +888,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
         if(binary_diag) call contents_binary_diag_(my_diag)
         if(netcdf_diag) call contents_netcdf_diag_(my_diag)
-        
+
      end if
 
 !!!!!!!!!!!!!!  PBL pseudo surface obs  !!!!!!!!!!!!!!!!
@@ -912,7 +912,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            my_head%elat= data(ilate,i)
            my_head%elon= data(ilone,i)
 
-!!! find qob 
+!!! find qob
            qob = data(iqob,i)
 
 !    Put obs pressure in correct units to get grid coord. number
@@ -929,7 +929,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !!! Set (i,j,k) indices of guess gridpoint that bound obs location
            my_head%dlev= dpres
            call get_ijk(mm1,dlat,dlon,dpres,my_head%ij,my_head%wij)
-!!! find ddiff       
+!!! find ddiff
 
 ! Compute innovations
            ddiff=diffsfc*(0.3_r_kind + 0.7_r_kind*ratio_PBL_height)
@@ -993,7 +993,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! End of loop over observations
   end do
-  
+
 ! Release memory of local guess arrays
   call final_vars_
 
@@ -1035,7 +1035,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   proceed=proceed.and.ivar>0
   call gsi_metguess_get ('var::tv', ivar, istatus )
   proceed=proceed.and.ivar>0
-  end subroutine check_vars_ 
+  end subroutine check_vars_
 
   subroutine init_vars_
 
@@ -1222,7 +1222,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
         rdiagbuf(1,ii)  = ictype(ikx)        ! observation type
         rdiagbuf(2,ii)  = icsubtype(ikx)     ! observation subtype
-    
+
         rdiagbuf(3,ii)  = data(ilate,i)      ! observation latitude (degrees)
         rdiagbuf(4,ii)  = data(ilone,i)      ! observation longitude (degrees)
         rdiagbuf(5,ii)  = data(istnelv,i)    ! station elevation (meters)
@@ -1236,7 +1236,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         if(muse(i)) then
            rdiagbuf(12,ii) = one             ! analysis usage flag (1=use, -1=not used)
         else
-           rdiagbuf(12,ii) = -one                    
+           rdiagbuf(12,ii) = -one
         endif
 
         rdiagbuf(13,ii) = rwgt               ! nonlinear qc relative weight
@@ -1253,8 +1253,8 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
         ioff=ioff0
         if (lobsdiagsave) then
-           do jj=1,miter 
-              ioff=ioff+1 
+           do jj=1,miter
+              ioff=ioff+1
               if (odiag%muse(jj)) then
                  rdiagbuf(ioff,ii) = one
               else
@@ -1298,7 +1298,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
         rdiagbufp(1,iip)  = ictype(ikx)        ! observation type
         rdiagbufp(2,iip)  = icsubtype(ikx)     ! observation subtype
-            
+
         rdiagbufp(3,iip)  = data(ilate,i)      ! observation latitude (degrees)
         rdiagbufp(4,iip)  = data(ilone,i)      ! observation longitude (degrees)
         rdiagbufp(5,iip)  = data(istnelv,i)    ! station elevation (meters)
@@ -1312,7 +1312,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         if(muse(i)) then
            rdiagbufp(12,iip) = one             ! analysis usage flag (1=use, -1=not used)
         else
-           rdiagbufp(12,iip) = -one                    
+           rdiagbufp(12,iip) = -one
         endif
 
         rdiagbufp(13,iip) = rwgt               ! nonlinear qc relative weight
@@ -1360,7 +1360,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            call nc_diag_metadata("Prep_QC_Mark",            sngl(data(iqc,i))      )
            call nc_diag_metadata("Prep_Use_Flag",           sngl(data(iuse,i))     )
            call nc_diag_metadata("Nonlinear_QC_Var_Jb",     sngl(var_jb)           )
-           call nc_diag_metadata("Nonlinear_QC_Rel_Wgt",    sngl(rwgt)             )                 
+           call nc_diag_metadata("Nonlinear_QC_Rel_Wgt",    sngl(rwgt)             )
            if(muse(i)) then
               call nc_diag_metadata("Analysis_Use_Flag",    sngl(one)              )
            else
@@ -1370,7 +1370,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
            call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
            call nc_diag_metadata("Dupobs_Factor",           sngl(sqrt(dup(i)))     )
-!          the original Error_Input and Error_Adjust saved during the reading procedure 
+!          the original Error_Input and Error_Adjust saved during the reading procedure
            call nc_diag_metadata("Error_Input",             sngl(error_input)      )
            call nc_diag_metadata("Error_Adjust",            sngl(error_adjst)      )
 
@@ -1392,14 +1392,14 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("ObsDiagSave_iuse",     obsdiag_iuse                             )
               call nc_diag_data2d("ObsDiagSave_nldepart", odiag%nldepart )
               call nc_diag_data2d("ObsDiagSave_tldepart", odiag%tldepart )
-              call nc_diag_data2d("ObsDiagSave_obssen",   odiag%obssen   )             
+              call nc_diag_data2d("ObsDiagSave_obssen",   odiag%obssen   )
            endif
 
            if (twodvar_regional) then
               call nc_diag_metadata("Dominant_Sfc_Type", data(idomsfc,i)              )
               call nc_diag_metadata("Model_Terrain",     data(izz,i)                  )
               r_prvstg            = data(iprvd,i)
-              call nc_diag_metadata("Provider_Name",     c_prvstg                     )    
+              call nc_diag_metadata("Provider_Name",     c_prvstg                     )
               r_sprvstg           = data(isprvd,i)
               call nc_diag_metadata("Subprovider_Name",  c_sprvstg                    )
            endif
@@ -1452,7 +1452,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            call nc_diag_metadata("Prep_QC_Mark",            sngl(data(iqc,i))      )
            call nc_diag_metadata("Prep_Use_Flag",           sngl(data(iuse,i))     )
            call nc_diag_metadata("Nonlinear_QC_Var_Jb",     sngl(var_jb)           )
-           call nc_diag_metadata("Nonlinear_QC_Rel_Wgt",    sngl(rwgt)             )                 
+           call nc_diag_metadata("Nonlinear_QC_Rel_Wgt",    sngl(rwgt)             )
            if(muse(i)) then
               call nc_diag_metadata("Analysis_Use_Flag",    sngl(one)              )
            else

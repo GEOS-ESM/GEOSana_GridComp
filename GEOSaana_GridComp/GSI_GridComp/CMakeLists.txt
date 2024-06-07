@@ -23,7 +23,7 @@ set (SRCS_OBSVR
   ozinfo.f90
   radinfo.f90
  )
-  
+
 set (SRCS_UTIL
   abstract_ensmod.f90
   aero_guess_at_obs_locations.f90
@@ -50,7 +50,7 @@ set (SRCS_UTIL
   general_read_fv3atm.f90
   general_read_gfsatm.f90
   general_read_nemsaero.f90
-  general_read_nmmb.f90 
+  general_read_nmmb.f90
   general_read_nmmb_radar.f90
   general_specmod.f90
   general_spectral_transforms.f90
@@ -97,7 +97,7 @@ set (SRCS_UTIL
   m_dgeevx.F90
   m_rerank.f90
   m_stats.f90
-  m_stubTimer.f90 
+  m_stubTimer.f90
   m_tick.F90
   mpeu_mpif.F90
   mpeu_util.F90
@@ -167,18 +167,18 @@ set (SRCS_UTIL
   blockIO.c
   # These files seem to be "needed" stubs
   stub_ensmod.f90
-  stub_get_pseudo_ensperts.f90 
-  stub_get_wrf_mass_ensperts.f90 
-  stub_get_wrf_nmm_ensperts.f90 
-  stub_read_wrf_mass_files.f90 
-  stub_read_wrf_mass_guess.f90 
-  stub_read_wrf_nmm_files.f90 
-  stub_read_wrf_nmm_guess.f90 
-  stub_regional_io.f90 
-  stub_wrf_binary_interface.f90 
-  stub_wrf_netcdf_interface.f90 
-  stub_wrwrfmassa.f90 
-  stub_wrwrfnmma.f90 
+  stub_get_pseudo_ensperts.f90
+  stub_get_wrf_mass_ensperts.f90
+  stub_get_wrf_nmm_ensperts.f90
+  stub_read_wrf_mass_files.f90
+  stub_read_wrf_mass_guess.f90
+  stub_read_wrf_nmm_files.f90
+  stub_read_wrf_nmm_guess.f90
+  stub_regional_io.f90
+  stub_wrf_binary_interface.f90
+  stub_wrf_netcdf_interface.f90
+  stub_wrwrfmassa.f90
+  stub_wrwrfnmma.f90
   )
 
 set (SRCS_OTHER
@@ -192,7 +192,7 @@ set (SRCS_OTHER
   class_wrf_binary_interface.f90
   class_wrf_netcdf_interface.f90
   class_wrwrfmassa.f90
-  class_wrwrfnmma.f90 
+  class_wrwrfnmma.f90
   wrf_params_mod.f90
   )
 
@@ -355,6 +355,7 @@ set (SRCS_SOLVER
   gsd_update_mod.f90
   gsimod.F90
   gsisub.F90
+  hdraobmod.f90
   hybrid_ensemble_isotropic.F90
   inc2guess.f90
   init_jcdfi.f90
@@ -644,6 +645,7 @@ set (SRCS
 
 set (OBJS_OPENBUFR
    getcount_bufr.f90
+   hdraobmod.f90
    m_extOzone.F90
    read_aerosol.f90
    read_abi.f90
@@ -740,16 +742,16 @@ set (gsiscripts
      analyzer o3analyzer gsidiags match_obcls_obsys.pl)
 
 install(
-   PROGRAMS ${gsiscripts} 
+   PROGRAMS ${gsiscripts}
    DESTINATION bin
    )
-  
+
 esma_add_library (GSI_GridComp
-   SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
+   SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS}
   DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 esma_add_library (GSI_GridComp_with_stubs
-   SRCS ${SRCS_STUBS} ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
+   SRCS ${SRCS_STUBS} ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS}
    DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 foreach (item HAVE_ESMF _SKIP_READ_OBS_CHECK_ _TIMER_ON_ _REAL8_)
@@ -764,12 +766,12 @@ endforeach()
 
 # MAT: I am not sure we can do the split libraries like GNU Make GEOS used to.
 #      As an example, obsmod.F90 (Observer) depends on constants.f90 (Util). But
-#      aircraftinfo.f90 (Util) depends on obsmod.F90 (Observer). This means 
+#      aircraftinfo.f90 (Util) depends on obsmod.F90 (Observer). This means
 #      GSI_Util depends on GSI_Observer and GSI_Observer depends on GSI_Util.
 
 #esma_add_library (GSI_Util
 #  SRCS ${SRCS_UTIL}
-#  DEPENDENCIES GSI_Observer MAPL NCEP_crtm NCEP_nemsio nc_diag_read GMAO_stoch)  
+#  DEPENDENCIES GSI_Observer MAPL NCEP_crtm NCEP_nemsio nc_diag_read GMAO_stoch)
 #
 #esma_add_library (GSI_Observer
 #  SRCS ${SRCS_OBSVR}

@@ -192,6 +192,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   integer(i_kind) ikxx,nn,ibin,ioff,ioff0
   integer(i_kind) i,j,nchar,nreal,ii,jj,k,l,mm1
   integer(i_kind) itype,isubtype 
+  integer(i_kind) msges
   integer(i_kind) ibb,ikk,idddd
 
   logical,dimension(nobs):: luse,muse
