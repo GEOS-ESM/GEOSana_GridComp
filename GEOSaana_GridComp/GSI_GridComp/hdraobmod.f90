@@ -452,7 +452,7 @@ contains
 
            if(psob)levs=1
 
-           nread = nread + nlevs
+           nread = nread + levs
 
            if(qob)then
               call ufbint(lunin,hdrtype,1,1,iret,hdtypestr)
