@@ -49,9 +49,9 @@ contains
 !   prgmmr: derber          org: np22                date: 2020-02-12
 !
 ! abstract:  This routine reads high resolution raob data found in the hdraob
-!            file.  Specific observation types read by this routine 
+!            file.  Specific observation types read by this routine
 !            include surface pressure, temperature, winds (components
-!            and speeds), and moisture.  
+!            and speeds), and moisture.
 !
 !            When running the gsi in regional mode, the code only
 !            retains those observations that fall within the regional
@@ -221,7 +221,7 @@ contains
   data missing/1.e8_r_double/
 
   logical print_verbose,descend
-  
+
   print_verbose=.false.
   if(verbose) print_verbose=.true.
   c_prvstg = '88888888'
@@ -230,7 +230,7 @@ contains
 ! Initialize variables
 
   tob = obstype == 't'
-  uvob = obstype == 'uv' 
+  uvob = obstype == 'uv'
   qob = obstype == 'q'
   psob = obstype == 'ps'
 
@@ -238,13 +238,13 @@ contains
   nreal=0
   if(tob)then
      nreal=25
-  else if(uvob) then 
+  else if(uvob) then
      nreal=26
   else if(psob) then
      nreal=20
   else if(qob) then
      nreal=26
-  else 
+  else
      write(6,*) ' illegal obs type in READ_HDRAOB ',obstype
      call stop2(94)
   end if
@@ -341,7 +341,7 @@ contains
 !       Extract type information
         if(psob .or. tob .or. qob)then
             if(.not. descend) then
-               kx=119 
+               kx=119
             else
                kx=118
                if(psob) cycle loop_report
@@ -351,7 +351,7 @@ contains
                if(levdat(1,2) > missing)then
                   kx=218
                else
-                  kx=219 
+                  kx=219
                end if
             else
                if(levdat(1,2) > missing)then
@@ -365,7 +365,7 @@ contains
         ncsave=0
         matchloop:do ncx=1,ntmatch
            nc=ntxall(ncx)
-           if (kx == ictype(nc))then 
+           if (kx == ictype(nc))then
 
               ncsave=nc
               exit matchloop
@@ -397,7 +397,7 @@ contains
 
   allocate(list_stations(ntb))
 ! loop over convinfo file entries; operate on matches
-  
+
   allocate(cdata_all(nreal,maxobs))
   cdata_all=zero
   zeps=1.0e-8_r_kind
@@ -414,7 +414,7 @@ contains
      call openbf(lunin,'IN',lunin)
      call datelen(10)
 
-!    Big loop over hdraob file	
+!    Big loop over hdraob file
 
      ntb = 0
      nmsg = 0
@@ -429,12 +429,12 @@ contains
 !          use report id lookup table to only process matching reports
            ntb = ntb+1
            nc=tab(ntb,1)
-           kx = ictype(nc) 
+           kx = ictype(nc)
            if(nc <= 0 .or. tab(ntb,2) /= kx) then
               if(nc /= 0)write(6,*) obstype,nc,(tab(ntb,i),i=1,3),ntb
               cycle loop_readsb
            end if
-                 
+
 !          Extract type, date, and location information
            call ufbint(lunin,hdr,2,1,iret,hdstr)
            igroup=hdr(1)
@@ -444,13 +444,15 @@ contains
            if(igroup < 0 .or. istation < 0 .or. id >= 100000 .or. id <= 0)then
                if(print_verbose)write(6,*) ' hdr ',hdr
                cycle loop_readsb
-           end if 
+           end if
            write(c_station_id,'(i5,3x)') id
            call ufbint(lunin,levdat,2,maxlevs,levs,levstr)
            if(levdat(1,2) > 1.e8 .and. (obstype == 'q' .or. obstype == 't'))cycle loop_readsb
            call ufbint(lunin,obsdat,8,maxlevs,levs,obstr)
 
            if(psob)levs=1
+
+           nread = nread + nlevs
 
            if(qob)then
               call ufbint(lunin,hdrtype,1,1,iret,hdtypestr)
@@ -534,7 +536,7 @@ contains
               end do
               do k=1,levs
                  obheight=levdat(2,k)
-                 if(obheight < hgtl(1))then 
+                 if(obheight < hgtl(1))then
                     plevs(k)=presl(1)
                  else if (obheight > hgtl(nsig))then
 !  Reject ob by making pressure zero
@@ -586,7 +588,7 @@ contains
               time_correction=zero
            end if
 
- 
+
 !          get observation launch time relative to analysis time
            idate5(1)=hdr2(1)
            idate5(2)=hdr2(2)
@@ -596,7 +598,7 @@ contains
            call w3fs21(idate5,minobs)    !  obs launch time in minutes relative to historic date
            rminobs=minobs
            if(hdr2(6) < missing)rminobs=rminobs+hdr2(6)*r60inv
- 
+
            timeobs=(rminobs-rminan)*r60inv
 
            t4dv=timeobs + toff
@@ -608,7 +610,7 @@ contains
 !          Extract data information on levels
 
 !          If available, get obs errors from error table
-           
+
 
 !          Set lower limits for observation errors
            terrmin=half
@@ -680,7 +682,7 @@ contains
                           endif
                        enddo
                        if( ncount_t ==1) then
-                          write(6,*) 'READ_HDRAOB,WARNING!! tob:cannot find subtype in the error,& 
+                          write(6,*) 'READ_HDRAOB,WARNING!! tob:cannot find subtype in the error,&
                                       table,itype=',itypex,icsubtype(nc)
                           write(6,*) 'read error table at column subtype as 0,error table column=',ierr_t
                        endif
@@ -730,7 +732,7 @@ contains
                           endif
                        enddo
                        if(ncount_q ==1 ) then
-                          write(6,*) 'READ_HDRAOB,WARNING!! qob:cannot find subtype in the & 
+                          write(6,*) 'READ_HDRAOB,WARNING!! qob:cannot find subtype in the &
                                      error table,itype=',itypex,icsubtype(nc)
                           write(6,*) 'read error table at column subtype as 0,error table column=',ierr_q
                        endif
@@ -850,7 +852,7 @@ contains
 
            call ufbint(lunin,hdr3,1,1,iret,hdstr3)
            stnelev=hdr3(1)
-           if(abs(hdr2(7)) > r90 .or. abs(hdr2(8)) > 720._r_kind)then 
+           if(abs(hdr2(7)) > r90 .or. abs(hdr2(8)) > 720._r_kind)then
               if(print_verbose)write(6,*) ' invalid lat,lon ',id,obstype,hdr2(7),hdr2(8)
               cycle loop_readsb
            end if
@@ -863,7 +865,7 @@ contains
                  end if
               end if
               if(obsdat(1,k) < zero .or. obsdat(1,k) > 900000._r_kind) then
-                  if(print_verbose)write(6,*) ' invalid change in time ',id,obstype,k,obsdat(1,k) 
+                  if(print_verbose)write(6,*) ' invalid change in time ',id,obstype,k,obsdat(1,k)
                   if(tob) tqm(k)=2
                   if(qob) qqm(k)=2
                   if(psob) pqm(k)=2
@@ -909,7 +911,7 @@ contains
 
 
 
-!             Set usage variable              
+!             Set usage variable
               usage = zero
               if(icuse(nc) <= 0)usage=100._r_kind
               if(pqm(k) >=lim_qm )usage=102._r_kind
@@ -952,7 +954,7 @@ contains
                  if(levs > 100 .or. plevs(1)-plevs(levs) < .01_r_kind)then
 
                    call errormod_hdraob(pqm,tqm,levs,plevs,errout,k,presl,dpres,nsig,lim_qm)
-      
+
                  else
 
                    call errormod(pqm,tqm,levs,plevs,errout,k,presl,dpres,nsig,lim_qm)
@@ -971,7 +973,7 @@ contains
                  qtflg=one
                  cdata_all(9,iout)=qtflg                   ! qtflg (virtual temperature flag)
                  cdata_all(10,iout)=tqm(k)                 ! quality mark
-                 cdata_all(11,iout)=obserr(3,k)            ! original obs error            
+                 cdata_all(11,iout)=obserr(3,k)            ! original obs error
                  cdata_all(12,iout)=usage                  ! usage parameter
                  cdata_all(13,iout)=idomsfc                ! dominate surface type
                  cdata_all(14,iout)=tsavg                  ! skin temperature
@@ -1005,8 +1007,8 @@ contains
                     end if
                  end if
 
-!             Winds 
-              else if(uvob) then 
+!             Winds
+              else if(uvob) then
                  if(obsdat(6,k) < zero .or. obsdat(6,k) > 360._r_kind) then
                     wqm(k)=12
                     usage=108._r_kind
@@ -1085,7 +1087,7 @@ contains
                  cdata_all(23,iout)=r_sprvstg              ! subprovider name
                  cdata_all(24,iout)=2                      ! cat
                  cdata_all(25,iout)=var_jb(5,k)            ! non linear qc parameter
-                 cdata_all(26,iout)=one                    ! hilbert curve weight, modified later 
+                 cdata_all(26,iout)=one                    ! hilbert curve weight, modified later
                  if(perturb_obs)then
                     cdata_all(27,iout)=ran01dom()*perturb_fact ! u perturbation
                     cdata_all(28,iout)=ran01dom()*perturb_fact ! v perturbation
@@ -1106,8 +1108,8 @@ contains
                        end if
                     end if
                  end if
- 
-!             Specific humidity 
+
+!             Specific humidity
               else if(qob) then
                  if(obsdat(8,k) < 100._r_kind .or. obsdat(8,k) > 350._r_kind) then
                     if(print_verbose)write(6,*)id,'invalid td ', k,levs,obsdat(7,k),obsdat(8,k),plevs(k)
@@ -1144,7 +1146,7 @@ contains
 !   Need to convert from td to q
                  call fpvsx_ad(obsdat(8,k),es,dummy,dummy,.false.)
                  qobcon = eps*es/(plevs(k)-omeps*es)
-                 cdata_all(1,iout)=qoe                     ! q error   
+                 cdata_all(1,iout)=qoe                     ! q error
                  cdata_all(2,iout)=dlon                    ! grid relative longitude
                  cdata_all(3,iout)=dlat                    ! grid relative latitude
                  cdata_all(4,iout)=dlnpob                  ! ln(pressure in cb)
@@ -1233,7 +1235,7 @@ contains
                  cdata_all(20,iout)=var_jb(1,k)            ! non linear qc b parameter
                  if(perturb_obs)cdata_all(21,iout)=ran01dom()*perturb_fact ! ps perturbation
                  if (twodvar_regional) &
-                    call adjust_error(cdata_all(14,iout),cdata_all(15,iout),cdata_all(11,iout),cdata_all(1,iout)) 
+                    call adjust_error(cdata_all(14,iout),cdata_all(15,iout),cdata_all(11,iout),cdata_all(1,iout))
 
                  if(usage < 100._r_kind)then
                     newstation=.true.
@@ -1282,7 +1284,7 @@ contains
   call count_obs(ndata,nreal,ilat,ilon,cdata_out,nobs)
   write(lunout) obstype,sis,nreal,nchanl,ilat,ilon,ndata
   write(lunout) cdata_out
- 
+
 
   deallocate(cdata_out)
 
