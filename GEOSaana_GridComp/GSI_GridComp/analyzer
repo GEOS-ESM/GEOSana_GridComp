@@ -181,6 +181,7 @@
 #  20May2020 Todling/JG - update CRTM coeffs to point to fix_ncep20200513 (to allow for CrIS FSR)
 #  30Nov2020 Guo/MC/MS - add program to rescale values in satbias_pc file for specified date/sis/channels
 #  28May2021 JG/MJK/RT - update CRTM coeffs to point to fix_ncep20210525 (to allow for IASI Metop-C)
+#  18May2023 Todling  - back to CRTM 2.3.0
 #-----------------------------------------------------------------------------------------------------
 
 use Env;                 # make env vars readily available
@@ -649,7 +650,8 @@ sub init {
    if ( $ENV{CRTM_COEFFS} ) {
       Assignfn( "$CRTM_COEFFS","CRTM_Coeffs");
    } else {
-      Assignfn( "$fvInput/$myetc/fix_ncep20221018/REL-2.4.0-jcsda/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
+#     Assignfn( "$fvInput/$myetc/fix_ncep20221018/REL-2.4.0-jcsda/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
+      Assignfn( "$fvInput/$myetc/fix_ncep20210525/REL-2.2.3-r60152_local-rev_5/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
    }
    Assignfn( "$fvhome/run/prepobs_errtable.global","errtable");
 

@@ -1388,9 +1388,7 @@ contains
 
   end subroutine radiance_ex_obserr_mhs
 
-
-!  subroutine radiance_ex_biascor_3(radmod,nchanl,tsim_bc,tsavg5,zasat, &
-  subroutine radiance_ex_biascor_gmi(radmod,clw_obs,clw_guess_retrieval,nchanl,cld_rbc_idx)
+  subroutine radiance_ex_biascor_gmi(radmod,tbc,nchanl,cld_rbc_idx)
 !$$$  subprogram documentation block
 !                .      .    .
 ! subprogram:    radiance_ex_biascor_gmi
@@ -1400,7 +1398,8 @@ contains
 ! abstract:  This routine include extra radiance bias correction routines.
 !
 ! program history log:
-!   2018-08-10  mkim
+!   2018-08-10  mkim 
+!   2024-03-27  mkim modified to select more samples to use in BC coefficients updates 
 !
 !   input argument list:
 !
@@ -1418,23 +1417,31 @@ contains
 
     integer(i_kind)                   ,intent(in   ) :: nchanl
     real(r_kind),dimension(nchanl)    ,intent(inout) :: cld_rbc_idx
-    real(r_kind)                      ,intent(inout) :: clw_obs
-    real(r_kind)                      ,intent(inout) :: clw_guess_retrieval
+    real(r_kind),dimension(nchanl)    ,intent(in)    :: tbc  !omgbc
     type(rad_obs_type)                ,intent(in)    :: radmod
 
     integer(i_kind) :: i
-    real(r_kind),dimension(nchanl) :: cclr
-
-    do i=1,nchanl
-       cclr(i)=radmod%cclr(i)
-    end do
 
     do i=1,nchanl
        if (radmod%lcloud4crtm(i)<0) cycle
-       if (clw_obs <= cclr(i) .and. clw_guess_retrieval <= cclr(i) .and. abs(clw_obs-clw_guess_retrieval) < 0.001_r_kind) then
-           cld_rbc_idx(i)=one   !clear/clear
+       if ( i .lt. 3 .and. abs(tbc(i)) .le. 4.0_r_kind ) then
+            cld_rbc_idx(i)=one   ! data near o-f=zero 
+       else if ( i .ge. 3 .and. i .lt. 7 .and.  abs(tbc(i)) .le. 5.0_r_kind ) then
+            cld_rbc_idx(i)=one   ! data near o-f=zero 
+       else if ( i .eq. 7 .and. abs(tbc(i)) .le. 10.0_r_kind ) then
+            cld_rbc_idx(i)=one   ! data near o-f=zero
+       else if ( i .eq. 8 .and. abs(tbc(i)) .le. 5.0_r_kind ) then
+            cld_rbc_idx(i)=one   ! data near o-f=zero
+       else if ( i .eq. 9 .and. abs(tbc(i)) .le. 15.0_r_kind ) then
+            cld_rbc_idx(i)=one   ! data near o-f=zero
+       else if ( i .eq. 10 .and. abs(tbc(i)) .le. 5.0_r_kind ) then
+            cld_rbc_idx(i)=one   ! data near o-f=zero
+       else if ( i .eq. 11 .and. abs(tbc(i)) .le. 5.0_r_kind ) then
+            cld_rbc_idx(i)=one   ! data near o-f=zero
+       else if ( i .gt. 11 .and. abs(tbc(i)) .le. 3.0_r_kind ) then
+            cld_rbc_idx(i)=one   ! data near o-f=zero
        else
-           cld_rbc_idx(i)=zero
+           cld_rbc_idx(i) = zero ! don't use data in BC coef. update
        endif
     end do
     return
