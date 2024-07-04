@@ -34,13 +34,13 @@ subroutine setupbend(obsLL,odiagLL, &
 !   2006-04-14  middlecoff - changed IF test to avoid out-of-bounds-reference on DATA
 !   2006-07-28  derber  - modify to use new inner loop obs data structure
 !   2006-07-31  kleist  - change to use ges_ps instead of lnps
-!   2006-09-20  cucurull - use geopotential heights at intermediate levels instead 
+!   2006-09-20  cucurull - use geopotential heights at intermediate levels instead
 !                          of midpoint,levels,remove psges, generalize minimization terms
 !                          to hybrid coordinate,penalize high level obs,new QC checks,
-!                          remove obs above 30 km,add b_tkges, remove dtime,  
+!                          remove obs above 30 km,add b_tkges, remove dtime,
 !                          improve obs pressure calculation for diagnostic purposes,
 !                          increase the extended atmosphere from 6 to 10 levels
-!   2006-10-20 cucurull - update QC statistical checks and representativeness error with 
+!   2006-10-20 cucurull - update QC statistical checks and representativeness error with
 !                         COSMIC data
 !                       - add information to diagnostic file
 !   2007-01-29 cucurull - remove observations below 6 km
@@ -61,14 +61,14 @@ subroutine setupbend(obsLL,odiagLL, &
 !   2008-12-03 todling  - revisited Tremolet modifications in light of newer GSI
 !                       - changed handle of tail%time
 !   2009-08-19 guo      - changed for multi-pass setup with dtime_check().
-!   2010-04-16 cucurull - substantial clean up, bugs fixes, and update according to ref    
+!   2010-04-16 cucurull - substantial clean up, bugs fixes, and update according to ref
 !   2010-04-23 cucurull - simplify loops and define repe_gps here
 !   2010-05-26 cucurull - modify ds
 !   2010-06-11 cucurull - update Statistics QC
 !   2010-05-24 guo      - remerged/reimplmented multi-pass setup in observer mode;
 !   2010-08-09 lueken   - removed n_5km variable from code.
-!   2010-08-10 treadon  - remove last check for gpshead allocate; clean up use statements, 
-!                         replace (izero,ione) with (0,1), remove _i_kind suffix from integer 
+!   2010-08-10 treadon  - remove last check for gpshead allocate; clean up use statements,
+!                         replace (izero,ione) with (0,1), remove _i_kind suffix from integer
 !                         constants
 !   2010-08-11 lcucurull - replace tpdpres with tpdpres(nobs) to fix bug in TL code
 !   2010-08-18        hu - add tell to mpeu_util declaration
@@ -98,7 +98,7 @@ subroutine setupbend(obsLL,odiagLL, &
 !   2017-02-09  guo     - Remove m_alloc, n_alloc.
 !                       . Remove my_node with corrected typecast().
 !   2020-02-26  todling - reset obsbin from hr to min
-!   2019-08-21  Shao    - add COSMIC-2, metop-c and Paz 
+!   2019-08-21  Shao    - add COSMIC-2, metop-c and Paz
 !   2020-03-18  Shao    - update observation error for COSMIC-2
 !   2020-04-13  Shao    - update the statistis QC for COSMIC-2
 !   2020-04-15  Shao    - revise profile integration (Todling: implemente as option)
@@ -107,9 +107,10 @@ subroutine setupbend(obsLL,odiagLL, &
 !   2020-08-26  Shao/Bathmann - add Jacobian QC
 !   2021-07-29  cucurull - remove Jacobian QC
 !   2021-07-29  cucurull - revert gross error check to default values
-!   2021-07-29  cucurull - fix forward operator issues identified with L127 
+!   2021-07-29  cucurull - fix forward operator issues identified with L127
 !   2021-11-16  j.jin    - fix the bug to derive and save the "interface level geopotential height, hgti",
 !                          and the "mid level log(pressure), prslnl"
+!   2023-07-17  sienkiewicz/todling - modify configuration for PlanetIQ to match Spire configuration
 !
 !   input argument list:
 !     lunin    - unit from which to read observations
@@ -229,7 +230,7 @@ subroutine setupbend(obsLL,odiagLL, &
   real(r_kind),dimension(nsig):: dbenddn,dbenddxi
   real(r_kind) pressure,hob_s,d_ref_rad,d_ref_rad_TL,hob_s_top
   real(r_kind),dimension(4) :: w4,dw4,dw4_TL
-  
+
   integer(i_kind) ier,ilon,ilat,ihgt,igps,itime,ikx,iuse, &
                   iprof,ipctc,iroc,isatid,iptid,ilate,ilone,ioff,igeoid, iclass, iqfro
   integer(i_kind) iascd,iazim,isiid,iogce
@@ -340,7 +341,7 @@ subroutine setupbend(obsLL,odiagLL, &
   iuse=13      ! index of use parameter
   ilone=14     ! index of earth relative longitude (degrees)
   ilate=15     ! index of earth relative latitude (degrees)
-  igeoid=16    ! index of geoid undulation (a value per profile, m) 
+  igeoid=16    ! index of geoid undulation (a value per profile, m)
   iclass=17    ! index of satellite classification
   isiid=18     ! index of LEO Satellite instrument
   iascd=19     ! index of ascending/descending flag
@@ -361,7 +362,7 @@ subroutine setupbend(obsLL,odiagLL, &
   ns=(r61/r63)*nsig+r18
   grids_dim=nint(ns)  ! grid points for integration of GPS bend
   ds=r10000
-  allocate(ddnj(grids_dim),grid_s(grids_dim),ref_rad_s(grids_dim)) 
+  allocate(ddnj(grids_dim),grid_s(grids_dim),ref_rad_s(grids_dim))
 
 ! Allocate arrays for output to diagnostic file
   mreal=30
@@ -369,7 +370,7 @@ subroutine setupbend(obsLL,odiagLL, &
   if (lobsdiagsave) nreal=nreal+4*miter+1
   if (save_jacobian) then
     nnz = nsig * 3         ! number of non-zero elements in dH(x)/dx profile
-    nind   = 3             ! number of dense subarrays 
+    nind   = 3             ! number of dense subarrays
     call new(dhx_dx, nnz, nind)
     nreal = nreal + size(dhx_dx)
     ! jacobian sparse array indices are the same for all obs and can be filled
@@ -418,7 +419,7 @@ subroutine setupbend(obsLL,odiagLL, &
      qcfail=.false.
      qcfail_loc=zero;qcfail_gross=zero
      qcfail_high=zero
-     toss_gps_sub=zero 
+     toss_gps_sub=zero
      dbend_loc=zero
 
   else ! (init_pass)
@@ -439,9 +440,9 @@ subroutine setupbend(obsLL,odiagLL, &
 ! A loop over all obs.
   call dtime_setup()
   loopoverobs1: &
-  do i=1,nobs ! loop over obs 
+  do i=1,nobs ! loop over obs
      dtime=data(itime,i)
-     obs_check=.false. 
+     obs_check=.false.
 
      call dtime_check(dtime, in_curbin, in_anybin)
      if(.not.in_anybin) cycle   ! not interested, not even for ibin
@@ -456,7 +457,7 @@ subroutine setupbend(obsLL,odiagLL, &
      tpdpres(i)=data(ihgt,i)
      ikx=nint(data(ikxx,i))
 
-!    Interpolate log(pres),temperature,specific humidity, 
+!    Interpolate log(pres),temperature,specific humidity,
 !    corrected geopotential heights and topography to obs location
      call tintrp2a1(ges_lnprsi,prsltmp,dlat,dlon,dtime,hrdifsig,&
           nsig+1,mype,nfldsig)
@@ -500,7 +501,7 @@ subroutine setupbend(obsLL,odiagLL, &
 !    termr  = equation 21
 !    termrg = first term in the denominator of equation 23
 !    zges   = equation 23
- 
+
      termg = grav_equator * &
              ((one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2))
      termr = semi_major_axis / (one + flattening + grav_ratio - two*flattening*sin2)
@@ -513,7 +514,7 @@ subroutine setupbend(obsLL,odiagLL, &
 
      alt=(tpdpres(i)-rocprof)*r1em3
 !$omp parallel do  schedule(dynamic,1) private(k,qmean,tmean,fact,pw,pressure,nrefges1,nrefges2,nrefges3)
-     do k=1,nsig 
+     do k=1,nsig
         zges(k) = (termr*hges(k)) / (termrg-hges(k))  ! eq (23) at interface (topo corrected)
         gp2gm(k,i)= termr/(termrg-hges(k))+((termr*hges(k))/(termrg-hges(k))**2)
         rges(k,i) = zges(k) + zsges + unprof + rocprof   ! radius r_i
@@ -561,8 +562,8 @@ subroutine setupbend(obsLL,odiagLL, &
 
      end do
      alt=(tpdpres(i)-rocprof)*r1em3
-     if (alt<= six) then 
-        do k=nsigstart,1,-1 
+     if (alt<= six) then
+        do k=nsigstart,1,-1
 !       check for model SR layer at obs location
            grad_mod=1000.0_r_kind*(nrefges(k+1,i)-nrefges(k,i))/(rges(k+1,i)-rges(k,i))
            if (abs(grad_mod)>= half*crit_grad) then  ! SR - likely, to be used in obs SR qc
@@ -580,8 +581,8 @@ subroutine setupbend(obsLL,odiagLL, &
                  bot_layer_SR=top_layer_SR
               endif
            endif
-        end do 
-     endif 
+        end do
+     endif
 
 !    locate observation in model vertical grid
      hob=tpdpres(i)
@@ -646,7 +647,7 @@ subroutine setupbend(obsLL,odiagLL, &
      if(ratio_errors(i) > tiny_r_kind)  then ! obs inside model grid
 
        if (alt <= six) then
-          if (top_layer_SR >= 1) then ! SR exists for at least one layer. Check if obs is inside 
+          if (top_layer_SR >= 1) then ! SR exists for at least one layer. Check if obs is inside
              if (tpdpres(i)==ref_rad(top_layer_SR+1)) then !obs inside model SR layer
                 qcfail(i)=.true.
              elseif (tpdpres(i) < ref_rad(top_layer_SR+1)) then !obs below model close-to-SR layer
@@ -655,7 +656,7 @@ subroutine setupbend(obsLL,odiagLL, &
                 qcfail(i)=.true.
              else !above
                 qcfail(i)=.false.
-                if(hob < top_layer_SR+1) then !correct if obs location is below non-monotonic section                                          
+                if(hob < top_layer_SR+1) then !correct if obs location is below non-monotonic section
                      hob = tpdpres(i)
                      call grdcrd1(hob,ref_rad(top_layer_SR+1),nsig-top_layer_SR-1,1)
                      data(ihgt,i) = hob+top_layer_SR
@@ -665,12 +666,12 @@ subroutine setupbend(obsLL,odiagLL, &
              endif
           endif
 
-!         check for SR in obs, will be updated in genstats. 
+!         check for SR in obs, will be updated in genstats.
           if ( data(igps,i) >= 0.03_r_kind .and. qc_layer_SR) then
              kprof = data(iprof,i)
              toss_gps_sub(kprof) = max (toss_gps_sub(kprof),data(igps,i))
           endif
-       endif 
+       endif
 
 !      get pressure (in mb), temperature and moisture at obs location
        if (lgpsbnd_revint) then
@@ -694,22 +695,22 @@ subroutine setupbend(obsLL,odiagLL, &
 
        if (.not. qcfail(i)) then ! not SR
 
-!        Modify error to account for representativeness error. 
+!        Modify error to account for representativeness error.
          repe_gps=one
 
 !        UKMET-type processing
          if((data(isatid,i)==41) .or.(data(isatid,i)==722).or. &
-            (data(isatid,i)==723).or.(data(isatid,i)==4)  .or. & 
+            (data(isatid,i)==723).or.(data(isatid,i)==4)  .or. &
             (data(isatid,i)==42) .or.(data(isatid,i)==3)  .or. &
             (data(isatid,i)==821).or.(data(isatid,i)==421).or. &
             (data(isatid,i)==440).or.(data(isatid,i)==43) .or. &
             (data(isatid,i)==5)) then
-                    
+
            if((data(ilate,i)> r40).or.(data(ilate,i)< -r40)) then
               if(alt>r12) then
                 repe_gps=0.19032_r_kind+0.287535_r_kind*alt-0.00260813_r_kind*alt**2
               else
-                repe_gps=-3.20978_r_kind+1.26964_r_kind*alt-0.0622538_r_kind*alt**2 
+                repe_gps=-3.20978_r_kind+1.26964_r_kind*alt-0.0622538_r_kind*alt**2
               endif
            else
               if(alt>r18) then
@@ -718,7 +719,7 @@ subroutine setupbend(obsLL,odiagLL, &
                 repe_gps=-2.41024_r_kind+0.806594_r_kind*alt-0.027257_r_kind*alt**2
               endif
            endif
-         else 
+         else
 !        CDAAC-type processing
            if ((data(isatid,i) > 749).and.(data(isatid,i) < 756).or.commdat) then
               if ((data(ilate,i)> r40).or.(data(ilate,i)< -r40)) then
@@ -758,11 +759,11 @@ subroutine setupbend(obsLL,odiagLL, &
 
          repe_gps=exp(repe_gps) ! one/modified error in (rad-1*1E3)
          repe_gps= r1em3*(one/abs(repe_gps)) ! modified error in rad
-         if (spire) then
+         if (spire .or. planetiq) then
              repe_gps=spiregpserrinf*repe_gps ! Inflate error for SPIRE data
          endif
          ratio_errors(i) = data(ier,i)/abs(repe_gps)
-  
+
          error(i)=one/data(ier,i) ! one/original error
          data(ier,i)=one/data(ier,i) ! one/original error
          error_adjst(i)= ratio_errors(i)* data(ier,i) !one/adjusted error
@@ -789,18 +790,18 @@ subroutine setupbend(obsLL,odiagLL, &
            xj(j,i)=ref_rad_s(j)
            hob_s=ref_rad_s(j)
            call grdcrd1(hob_s,ref_rad(1),nsig_up,1)
-           if(hob_s < top_layer_SR+1) then !correct if wrong location                                                                    
+           if(hob_s < top_layer_SR+1) then !correct if wrong location
               hob_s = ref_rad_s(j)
               call grdcrd1(hob_s,ref_rad(top_layer_SR+1),nsig_up-top_layer_SR-1,1)
               hob_s = hob_s+top_layer_SR
            endif
            dbend_loc(j,i)=hob_s  !location of x_j with respect to extended x_i
- 
+
 
            if (hob_s < rsig_up) then  !obs inside the new grid
               ihob=hob_s
 
-!             Compute refractivity and derivative at target points 
+!             Compute refractivity and derivative at target points
 !             using Lagrange interpolators
               call slagdw(ref_rad(ihob-1:ihob+2),ref_rad_s(j),&
                    q_w(:,ihob),q_w(:,ihob+1),&
@@ -831,7 +832,7 @@ subroutine setupbend(obsLL,odiagLL, &
               endif
               hob_s=ref_rad_s(j)
               call grdcrd1(hob_s,ref_rad_out,nsig_up+20,1)
-              hob_s_top=max(hob_s,hob_s_top) 
+              hob_s_top=max(hob_s,hob_s_top)
            endif !obs in new grid
          end do intloop
 
@@ -840,7 +841,7 @@ subroutine setupbend(obsLL,odiagLL, &
             data(ier,i) = zero
             ratio_errors(i) = zero
             muse(i)=.false.
-            cycle loopoverobs1 
+            cycle loopoverobs1
          endif
 
 !        bending angle (radians)
@@ -849,7 +850,7 @@ subroutine setupbend(obsLL,odiagLL, &
             ddbend=ds*ddnj(j)/ref_rad_s(j)
             dbend=dbend+two*ddbend
          end do
-         dbend=r1em6*tpdpres(i)*dbend  
+         dbend=r1em6*tpdpres(i)*dbend
 
 !        Accumulate diagnostic information
          rdiagbuf( 5,i)  = (data(igps,i)-dbend)/data(igps,i) ! incremental bending angle (x100 %)
@@ -858,10 +859,10 @@ subroutine setupbend(obsLL,odiagLL, &
 
          if (alt <= gpstop) then ! go into qc checks
 
-           if ((alt <= commgpstop) .or. (.not.commdat)) then 
+           if ((alt <= commgpstop) .or. (.not.commdat)) then
               cgrossuse=cgross(ikx)
               cermaxuse=cermax(ikx)
-              cerminuse=cermin(ikx) 
+              cerminuse=cermin(ikx)
 ! These lines introduce untested non-zero diff; comment for now (Todling)
 !!_RT         if (alt > five) then
 !!_RT            cgrossuse=cgrossuse*r400
@@ -879,11 +880,11 @@ subroutine setupbend(obsLL,odiagLL, &
                   if (luse(i)) then
                      awork(4) = awork(4)+one
                   endif
-                  qcfail_gross(i)=one 
+                  qcfail_gross(i)=one
                   data(ier,i) = zero
                   ratio_errors(i) = zero
                   muse(i)=.false.
-              else   
+              else
 !                 Statistics QC check if obs passed gross error check
                   cutoff=zero
                   if ((data(isatid,i) > 749).and.(data(isatid,i) < 756).or.commdat) then
@@ -920,13 +921,13 @@ subroutine setupbend(obsLL,odiagLL, &
                   if((alt<=nine).and.(alt>six)) cutoff=cutoff3
                   if((alt<=six).and.(alt>four)) cutoff=cutoff34
                   if(alt<=four) cutoff=cutoff4
-  
+
                   if ((data(isatid,i) > 749).and.(data(isatid,i) < 756).or.commdat) then
                      cutoff=two*cutoff*r0_01
                   else
                      cutoff=three*cutoff*r0_01
                   end if
- 
+
                   if(abs(rdiagbuf(5,i)) > cutoff) then
                      qcfail(i)=.true.
                      data(ier,i) = zero
@@ -937,7 +938,7 @@ subroutine setupbend(obsLL,odiagLL, &
             end if ! commercial data
          end if ! qc checks (only below 50km)
 
-!        Remove obs above 50 km  
+!        Remove obs above 50 km
          if((alt > gpstop) .or. (commdat .and. (alt > commgpstop))) then
            data(ier,i) = zero
            ratio_errors(i) = zero
@@ -955,12 +956,12 @@ subroutine setupbend(obsLL,odiagLL, &
          endif
 
 ! GMAO Spire - Remove data below 5km for GPS (iclass = 401); 9 km for other (GLONASS/GALILEO/etc.)
-        if((alt <= 5_r_kind) .and. (data(isatid,i)==269) .and. (data(iclass,i)==401)) then
+        if((alt <= 5_r_kind) .and. (spire .or. planetiq) .and. (data(iclass,i)==401)) then
            qcfail(i)=.true.
            data(ier,i) = zero
            ratio_errors(i) = zero
            muse(i)=.false.
-        elseif ((alt <= nine) .and. (data(isatid,i)==269) .and. (data(iclass,i)>=402)) then
+        elseif ((alt <= nine) .and. (spire .or. planetiq) .and. (data(iclass,i)>=402)) then
            qcfail(i)=.true.
            data(ier,i) = zero
            ratio_errors(i) = zero
@@ -1029,10 +1030,10 @@ subroutine setupbend(obsLL,odiagLL, &
         if (ratio_errors(i)*data(ier,i) <= tiny_r_kind) muse(i) = .false.
         ikx=nint(data(ikxx,i))
 
- 
+
         ! flags for observations that failed qc checks
         ! zero = observation is good
- 
+
         if(qcfail_gross(i) == one)   rdiagbuf(10,i) = three
         if(qcfail(i))                rdiagbuf(10,i) = four !modified in genstats due to toss_gps_sub
         if(qcfail_loc(i) == one)     rdiagbuf(10,i) = one
@@ -1061,9 +1062,9 @@ subroutine setupbend(obsLL,odiagLL, &
 
         rdiagbuf(13,i) = zero ! nonlinear qc relative weight - will be defined in genstats_gps
         rdiagbuf(14,i) = errinv_input ! original inverse gps obs error (rad**-1)
-        rdiagbuf(15,i) = errinv_adjst ! original + represent error inverse gps 
+        rdiagbuf(15,i) = errinv_adjst ! original + represent error inverse gps
                                       ! obs error (rad**-1)
-        rdiagbuf(16,i) = errinv_final ! final inverse observation error due to 
+        rdiagbuf(16,i) = errinv_final ! final inverse observation error due to
                                       ! superob factor (rad**-1) and qc
                                       ! modified in genstats_gps
      endif ! (last_pass)
@@ -1156,7 +1157,7 @@ subroutine setupbend(obsLL,odiagLL, &
         gps_alltail(ibin)%head%rdiag_extra_val(1)   = data(iclass,i)
         gps_alltail(ibin)%head%rdiag_extra_name(2)   = "Quality_Flag"
         gps_alltail(ibin)%head%rdiag_extra_val(2)   = data(iqfro,i)
-        
+
 !       Fill obs diagnostics structure
         if (luse_obsdiag) then
            call obsdiagNode_set(my_diag,wgtjo=(data(ier,i)*ratio_errors(i))**2, &
@@ -1204,7 +1205,7 @@ subroutine setupbend(obsLL,odiagLL, &
 
            allocate(my_head)
            call gpsNode_appendto(my_head,gpshead(ibin))
-           
+
            my_head%idv = is
            my_head%iob = ioid(i)
            my_head%elat= data(ilate,i)
@@ -1215,23 +1216,23 @@ subroutine setupbend(obsLL,odiagLL, &
            if (istatus/=0) write(6,*)'SETUPBEND:  allocate error for gps_point, istatus=',istatus
 
            gps_alltail(ibin)%head%mmpoint  => my_head
- 
+
 !          Inizialize some variables
            dxidt=zero; dxidp=zero; dxidq=zero
            dndt=zero; dndq=zero; dndp=zero
 
 !          Set (i,j) indices of guess gridpoint that bound obs location
            call get_ij(mm1,data(ilat,i),data(ilon,i),gps_ij,my_head%wij)
- 
+
 !$omp parallel do  schedule(dynamic,1) private(k,j,dhdt,dhdp)
            do k=1,nsig
- 
+
               my_head%ij(1,k)=gps_ij(1)+(k-1)*latlon11
               my_head%ij(2,k)=gps_ij(2)+(k-1)*latlon11
               my_head%ij(3,k)=gps_ij(3)+(k-1)*latlon11
               my_head%ij(4,k)=gps_ij(4)+(k-1)*latlon11
- 
-              dhdp=zero; dhdt=zero       
+
+              dhdp=zero; dhdt=zero
               if(k > 1) then
                  do j=2,k
                     dhdt(j-1)= rdog*(prsltmp_o(j-1,i)-prsltmp_o(j,i))
@@ -1337,7 +1338,7 @@ subroutine setupbend(obsLL,odiagLL, &
            end do
 
            my_head%jac_p(nsig+1) = zero
-   
+
            if (save_jacobian) then
               ! fill in the jacobian
               do iz = 1, nsig
@@ -1350,7 +1351,7 @@ subroutine setupbend(obsLL,odiagLL, &
               ioff = ioff + size(dhx_dx)
            endif
 
-           my_head%raterr2= ratio_errors(i)**2     
+           my_head%raterr2= ratio_errors(i)**2
            my_head%res    = data(igps,i)
            my_head%err2   = data(ier,i)**2
            my_head%time   = data(itime,i)
@@ -1399,7 +1400,7 @@ subroutine setupbend(obsLL,odiagLL, &
   proceed=proceed.and.ivar>0
   call gsi_metguess_get ('var::tv', ivar, istatus )
   proceed=proceed.and.ivar>0
-  end subroutine check_vars_ 
+  end subroutine check_vars_
 
   subroutine init_vars_
 
