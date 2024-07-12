@@ -1,0 +1,42 @@
+------------------------------------------
+[Inflating ens spread and vertical localization w.r.t. pblh obs location]
+------------------------------------------
+
+-----PROCEDURE-----
+! For inflating ens spread and modifying hybrid vertical localization length scale near PBLH obs,
+! 1) Save pblh obs grid information (global domain in ens grid) in obs_para.f90
+! 2) inflate ens spread near PBLH obs
+! 3) Modify hybrid vertical localization length scale near PBLH obs in init_rf_z in hybrid_ensemble_isotropic.f90
+
+! 1) Save pblh obs grid information (global domain in ens grid) <- disobs in obs_para.f90 
+!    - 1a) inflatation coefficient for t and q
+!          -> ges_coef_inf_ens_grid_global(ix:ixp,iy:iyp,iz,it:itp)=coef (+- 2 levels? with Gaussian dis)
+!    - 1b) vertical localization
+!          -> ges_vlocal_ens_grid_global(ix:ixp,iy:iyp,iz,1)=1.0
+!      >>> hybrid_ensemble_parameters.f90
+!      >>> hybrid_ensemble_isotropic.f90 (subroutine create_ensemble: allocate)
+!      >>> obs_para.f90 (subroutine disobs in obs_para.f90)
+! 2) Multiply ens perturbation by inflation coeff 
+!      >>> get_gefs_ensperts_dualres (it is called in load_ensemble)
+! 4) Modify hybrid vertical localization length scale near PBLH obs
+!      >>> hybrid_ensemble_isotropic.f90 (subroutine init_rf_z in hybrid_ensemble_isotropic.f90)
+
+-----CODE-----
+! 0) (Declare) hybrid_ensemble_parameters.f90
+! 1) subroutine disobs in obs_para.f90
+     - assignment of pblhobs to modify ens spread and vertical localization 
+       obs_para is called at the end of observer_set (after read_obs)
+! 2) get_gefs_ensperts_dualres.f90
+! 3) init_rf_z in hybrid_ensemble_isotropic.f90
+
+
+------------------------------------------
+Regarding compliation: CHECK read_pblri.f90
+------------------------------------------
+
+PLEASE USE 
+read_pblri.f90.v22_2_raob_3km_stn_elevation_but_not_mix_sfc_type_qc_for_raob_pblh_inf_ens_sprd_pblh_qgrad
+
+For inflating experiment, we want to have all raob stations for assimilation, 
+so we do not want to use QC regarding mixed_sfc_type. 
+(mixed_sfc_type QC will exclude a lot of interesting raob stations)

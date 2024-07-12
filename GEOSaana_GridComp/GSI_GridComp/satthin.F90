@@ -46,6 +46,7 @@ module satthin
 !   2019-07-09  todling - revisit Li''s shuffling of nst init, read and final routines
 !   2019-08-08  j.jin   - add a comment block for an example of dtype-wise time-thinning
 !                         configuration through an -info file.
+!   2023-08-02  e.yang  - add new sfc field hs_stdv_full, the model topography height stdv
 !
 ! Subroutines Included:
 !   sub makegvals      - set up for superob weighting
@@ -93,6 +94,7 @@ module satthin
 !   def isli_anl       - snow/land/ice mask mask at analysis grid resolution
 !   def sno_anl        - snow-ice mask at analysis grid resolution
 !   def zs_full        - model terrain elevation
+!   def hs_stdv_full   - model topography height stdv
 !   def score_crit     - "best" quality obs score in thinning grid box
 !   def use_all        - parameter for turning satellite thinning algorithm off
 !
@@ -153,6 +155,7 @@ module satthin
   public :: fact10_full,isli_full,soil_moi_full,veg_frac_full,soil_temp_full
   public :: isli_anl,sno_anl
   public :: checkob,score_crit,itxmax,finalcheck,zs_full_gfs,zs_full
+  public :: hs_stdv_full
 
   integer(i_kind) mlat,superp,maxthin,itxmax
   integer(i_kind) itxmax0
@@ -168,6 +171,7 @@ module satthin
   real(r_kind),   allocatable, dimension(:)     :: super_val,super_val1
   real(r_kind),   allocatable, dimension(:,:)   :: glon,hll
   real(r_kind),   allocatable, dimension(:,:)   :: zs_full
+  real(r_kind),   allocatable, dimension(:,:)   :: hs_stdv_full
 
 ! declare the dummy variables of routine read_gfssfc
   real(r_single), allocatable, dimension(:,:,:) :: fact10_full,sst_full,sno_full
@@ -498,6 +502,7 @@ contains
 !                         (1) move gsi_nstcoupler_init and gsi_nstcoupler_read from read_obs.F90 to getsfc here
 !                         (2) use sfcnst_comb from name list
 !                         (3) modify subroutine getsfc to read a sfc & nst combined file
+!   2023-08-02  e.yang  - add topography height stdv
 !
 !   input argument list:
 !      mype        - current processor
@@ -551,9 +556,11 @@ contains
     real(r_kind) :: dlon, missing
     real(r_single),allocatable,dimension(:,:)::dum,work
     integer(i_kind) mm1,i,j,k,it,il,jl,jmax,idrt,istatus
+    integer(i_kind) ier
     character(24) filename
 
     real(r_kind),dimension(:,:),pointer:: ges_z =>NULL()
+    real(r_kind),dimension(:,:),pointer:: ges_hs_stdv =>NULL()
 
     if( (ntguessig<1.or.ntguessig>nfldsig) .or. &
         (ntguessfc<1.or.ntguessfc>nfldsfc) ) then
@@ -684,7 +691,7 @@ contains
 !
 !      read NSST variables while .not. sfcnst_comb (in sigio or nemsio)
 !
-       if (nst_gsi > 0 .and. .not. sfcnst_comb) then
+       if (nst_gsi > 0 .and. .not. sfcnst_comb) then 
           call gsi_nstcoupler_read(mype_io)         ! Read NST fields (each proc needs full NST fields)
        endif
 #endif /* HAVE_ESMF */
@@ -858,6 +865,26 @@ contains
           endif
        endif
     endif                 
+
+! hs_stdv_full
+    it=ntguessig
+    call gsi_bundlegetpointer(gsi_metguess_bundle(it),'hs_stdv',ges_hs_stdv,ier)
+    !print*, 'satthin L871: gsi_bundlegetpointer ier=',ier
+    !print*, 'satthin L872: ges_hs_stdv=',ges_hs_stdv
+    if (ier==0) then
+       do j=1,lon1*lat1
+          zsm(j)=zero
+       end do
+       call strip(ges_hs_stdv,zsm)
+       call mpi_allgatherv(zsm,ijn(mm1),mpi_rtype,&
+          work1,ijn,displs_g,mpi_rtype,&
+          mpi_comm_world,ierror)
+       do k=1,iglobal
+          i=ltosi(k) ; j=ltosj(k)
+          hs_stdv_full(i,j)=work1(k)
+       end do
+    endif
+    !print*, 'satthin L886: hs_stdv_full=',hs_stdv_full
 
 !   find subdomain for isli2
     if (nlon == nlon_sfc .and. nlat == nlat_sfc) then
@@ -1194,6 +1221,7 @@ contains
 #endif /* HAVE_ESMF */
     allocate(sfc_rough_full(nlat_sfc,nlon_sfc,nfldsfc))
     allocate(zs_full(nlat,nlon))
+    allocate(hs_stdv_full(nlat,nlon))
     allocate(soil_moi_full(nlat_sfc,nlon_sfc,nfldsfc))
     allocate(soil_temp_full(nlat_sfc,nlon_sfc,nfldsfc))
     allocate(veg_frac_full(nlat_sfc,nlon_sfc,nfldsfc))
@@ -1205,7 +1233,7 @@ contains
     allocate(sst_full(nlat_sfc,nlon_sfc,nfldsfc))
 
 !   Create full horizontal nst arrays
-    if (nst_gsi > 0) call gsi_nstcoupler_init()
+    if (nst_gsi > 0) call gsi_nstcoupler_init() 
 
     return
   end subroutine create_sfc
@@ -1233,7 +1261,7 @@ contains
     use gsi_nstcouplermod, only: nst_gsi,gsi_nstcoupler_final
     implicit none
 
-    if (nst_gsi > 0) call gsi_nstcoupler_final()
+    if (nst_gsi > 0) call gsi_nstcoupler_final() 
 
     if(allocated(sst_full))deallocate(sst_full)
     if(allocated(sno_full))deallocate(sno_full)
@@ -1245,6 +1273,7 @@ contains
     if(allocated(soil_temp_full))deallocate(soil_temp_full)
     if(allocated(soil_moi_full))deallocate(soil_moi_full)
     if(allocated(zs_full))deallocate(zs_full)
+    if(allocated(hs_stdv_full))deallocate(hs_stdv_full)
     if(allocated(sfc_rough_full))deallocate(sfc_rough_full)
 #ifndef HAVE_ESMF
     if(allocated(zs_full_gfs)) deallocate(zs_full_gfs)

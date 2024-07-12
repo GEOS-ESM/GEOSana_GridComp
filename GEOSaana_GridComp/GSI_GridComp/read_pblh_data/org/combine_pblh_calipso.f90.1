@@ -1,0 +1,254 @@
+  program read_pblh_lidar_calipso
+
+! !USES:
+
+      use kinds, only: r_kind,r_double,i_kind
+      use constants, only: zero,one_tenth,one,deg2rad,rad2deg,three
+      use gridmod, only: diagnostic_reg,regional,nlon,nlat,&
+           tll2xy,txy2ll,rotate_wind_ll2xy,rotate_wind_xy2ll,&
+           rlats,rlons
+      use convinfo, only: nconvtype,ctwind, &
+           icuse,ictype,ioctype
+      use gsi_4dvar, only: l4dvar,l4densvar,time_4dvar,winlen
+      use obsmod, only: iadate,offtime_data,bmiss
+      use deter_sfc_mod, only: deter_sfc2
+      use mpimod, only: npe
+      use netcdf
+
+      implicit none
+
+!     Declare passed variables
+      character(len=225):: filename(32767),filename2(121),obstype
+      character(20):: sis
+
+!     Declare local parameters
+      real(r_kind),parameter:: r360 = 360.0_r_kind
+
+      real(r_kind),allocatable,dimension(:,:):: cdata_all
+
+      character(10) date
+      character*255 argv
+      logical first,outside,inflate_error,lexist,more_data
+      integer(i_kind) nfile, iarg, argc, iargc
+      integer(i_kind) ana_mm1, ana_dd1, ana_hh1, ana_mm0, ana_dd0, ana_hh0
+      integer(i_kind) iret,im,iy,idd,ihh,istat,i,j,k
+      integer(i_kind) ikx,nkx,kx,nreal,ilat,ilon,iout
+      integer(i_kind) kk,klon1,klat1,klonp1,klatp1
+      integer(i_kind) ntest,nchanl
+      integer(i_kind) pblhqm,maxobs,idomsfc
+!     integer(i_kind),dimension(8):: obs_time,anal_time,lobs_time
+!     real(r_kind) ltime,cenlon_tmp
+      real(r_kind) usage
+      real(r_kind) pblhob,pblhoe,pblhelev
+      real(r_kind) dlat,dlon,dlat_earth,dlon_earth
+      real(r_kind) dlat_earth_deg,dlon_earth_deg
+      real(r_kind) cdist,disterr,disterrmax,rlon00,rlat00
+      real(r_kind) :: tsavg,ff10,sfcr,zz
+      real(r_kind) dx,dy,dx1,dy1,w00,w10,w01,w11
+
+      integer(i_kind) idate5(5),minobs,minan
+      real(r_kind) time_correction,timeobs,time,toff,t4dv,zeps
+
+!     real(r_single) stationid,lat_deg,lon_deg,altitude,localtime,utctime,localday,utcday,pblh_calipso
+      real(r_kind) stationid,lat_deg,lon_deg,altitude,localtime,utctime,localday,utcday,pblh_calipso
+
+      integer(i_kind) :: ncid,ncid2(121),ierr,ierr2,dimid1,dimid2,norbits,nheights
+      integer(i_kind) :: varid1,varid2,varid3,varid4,varid5,varid6
+      integer(i_kind) :: varid7,varid8,varid9,varid10,varid11,varid12
+!     integer(i_kind) :: iyear, imonth, idate, ihour, iminute
+      real(r_kind), allocatable,dimension(:) :: lat, lon, pblh, sfc_elev, sfc_mask, liadr_data_alt
+      real(r_kind), allocatable,dimension(:) :: ryear, rmonth, rdate, rhour, rminute
+      real(r_kind), allocatable,dimension(:,:) :: ATB
+
+      integer(i_kind) :: ncount(121)
+      integer(i_kind) ana_time(121), win_time(121), obs_time
+      real(r_kind), allocatable,dimension(:,121) :: slat, slon, spblh, ssfc_elev, ssfc_mask, sliadr_data_alt
+      real(r_kind), allocatable,dimension(:,121) :: syear, smonth, sdate, shour, sminute
+      real(r_kind), allocatable,dimension(:,:,121) :: sATB
+
+      obstype = 'pblh'
+      sis = 'calipso'
+
+      ana_yy0 = 2015
+      ana_mm0 = 8
+      ana_dd0 = 21
+      ana_hh0 = 21
+      win_time(1) = ana_yy0*1000000+ana_mm0*10000+ana_dd0*100+ana_hh0
+      call add_interval(ana_mm1, ana_dd1, ana_hh1, 3, ana_mm0, ana_dd0, ana_hh0)
+      ana_time(1) = ana_yy1*1000000+ana_mm1*10000+ana_dd1*100+ana_hh1
+      do i = 2, 121
+         call add_interval(ana_mm1, ana_dd1, ana_hh1, 6, ana_mm0, ana_dd0, ana_hh0)
+         ana_mm0 = ana_mm1
+         ana_dd0 = ana_dd1
+         ana_hh0 = ana_hh1
+         win_time(i) = ana_yy0*1000000+ana_mm0*10000+ana_dd0*100+ana_hh0
+         call add_interval(ana_mm1, ana_dd1, ana_hh1, 3, ana_mm0, ana_dd0, ana_hh0)
+         ana_time(i) = ana_yy1*1000000+ana_mm1*10000+ana_dd1*100+ana_hh1
+         print*, i, win_time(i-1), ana_time(i), win_time(i)
+      end do
+
+      do i = 1, 121
+         write(filename2(i), '(A13,I10,A4)') 'calipso_pblh.', ana_time(i), '.nc4'
+         ierr2 =  NF90_CREATE(trim(filename2(i), NF90_NETCDF4, ncid2(i)) 
+         if (ierr2 /= nf90_noerr) call handle_err(ierr2,"create")
+      end do
+
+      argc =  iargc()
+      if ( argc .lt. 1 ) stop
+      iarg = 0
+      nfile = 0
+      do i = 1, 32767
+         iarg = iarg + 1
+         if ( iarg .gt. argc ) exit
+         call GetArg ( iArg, argv )
+         nfile = nfile + 1
+         filename(nfile) = argv
+      end do
+      print*, 'nfile = ', nfile
+
+      ncount = 0 
+      do k = 1, nfile
+
+!     Check if pblh file exists
+      inquire(file=trim(filename(i)),exist=lexist)
+      if (.not.lexist) cycle
+
+!     Read data
+      ierr =  NF90_OPEN(trim(infile),0,ncid)
+      if (ierr /= nf90_noerr) call handle_err(ierr,"open")
+
+      ierr = NF90_INQ_DIMID(ncid,'lat',dimid1)
+      if (ierr /= nf90_noerr) call handle_err(ierr,"lat")
+      ierr = NF90_INQ_DIMID(ncid,'Lidar_Data_Altitude',dimid2)
+      if (ierr /= nf90_noerr) call handle_err(ierr,"Lidar_Data_Altitude")
+
+      ierr = nf90_inquire_dimension(ncid, dimid1, len = norbits)
+      ierr = nf90_inquire_dimension(ncid, dimid2, len = nheights)
+      print*, 'read_pblh: norbits=', norbits, ' nheights=', nheights
+
+      allocate(lat(norbits), lon(norbits), pblh(norbits), sfc_elev(norbits))
+      allocate(sfc_mask(norbits), liadr_data_alt(nheights), ATB(norbits, nheights))
+      allocate(ryear(norbits), rmonth(norbits), rdate(norbits), rhour(norbits), rminute(norbits))
+
+!     Latitude: degrees
+      ierr = NF90_INQ_VARID(ncid,'lat',varid1)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid1,lat)
+      ierr = NF90_INQ_VARID(ncid,'lon',varid2)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid2,lon)
+      ierr = NF90_INQ_VARID(ncid,'Year',varid3)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid3,ryear)
+      ierr = NF90_INQ_VARID(ncid,'Month',varid4)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid4,rmonth)
+      ierr = NF90_INQ_VARID(ncid,'Date',varid5)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid5,rdate)
+      ierr = NF90_INQ_VARID(ncid,'Hour',varid6)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid6,rhour)
+      ierr = NF90_INQ_VARID(ncid,'Minute',varid7)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid7,rminute)
+!     PBL_Height: meters
+      ierr = NF90_INQ_VARID(ncid,'PBL_Height',varid8)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid8,pblh)
+!     SurfaceElevation: meters
+      ierr = NF90_INQ_VARID(ncid,'SurfaceElevation',varid9)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid9,sfc_elev)
+!     0=shallow ocean, 1=land, 2=coastlines, 3=shallow inland water, 4=intermittent water, 
+!     5=deep inland water, 6=continental ocean, 7=deep ocean
+      ierr = NF90_INQ_VARID(ncid,'Land_Water_Mask',varid10)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid10,sfc_mask)
+!     Lidar_Data_Altitude: km
+      ierr = NF90_INQ_VARID(ncid,'Lidar_Data_Altitude',varid11)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid11,liadr_data_alt)
+!     Total_Attenuated_Backscatter_532: km^-1 sr^-1
+      ierr = NF90_INQ_VARID(ncid,'Total_Attenuated_Backscatter_532',varid12)
+      if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid12,ATB)
+
+      ierr = NF90_CLOSE(ncid)
+      if (ierr /= nf90_noerr) call handle_err(ierr,"close")
+
+      obs_time = ryear*1000000+rmonth*10000+rdate*100+rhour
+      do i = 2, 121
+         if (obs_time>win_time(i-1) .and. obs_time<=win_time(i)) then
+            kk = i-1
+            exit
+         end if
+      end do
+
+      do i = 1, norbits
+         ncount(kk) = ncount(kk) + 1
+         ierr2 = nf90_def_dim(ncid2(kk), 'lat', 1, dimid1)
+         ierr2 = nf90_def_dim(ncid2(kk), 'Lidar_Data_Altitude', nheights, dimid2)
+
+         ierr2 = nf90_def_var(ncid2(kk), 'lat', NF90_DOUBLE, [dimid1], varid1)
+         ierr2 = nf90_def_var(ncid2(kk), 'lon', NF90_DOUBLE, [dimid1], varid2)
+         ierr2 = nf90_def_var(ncid2(kk), 'Year', NF90_DOUBLE, [dimid1], varid3)
+         ierr2 = nf90_def_var(ncid2(kk), 'Month', NF90_DOUBLE, [dimid1], varid4)
+         ierr2 = nf90_def_var(ncid2(kk), 'Date', NF90_DOUBLE, [dimid1], varid5)
+         ierr2 = nf90_def_var(ncid2(kk), 'Hour', NF90_DOUBLE, [dimid1], varid6)
+         ierr2 = nf90_def_var(ncid2(kk), 'Minute', NF90_DOUBLE, [dimid1], varid7)
+         ierr2 = nf90_def_var(ncid2(kk), 'PBL_Height', NF90_DOUBLE, [dimid1], varid8)
+         ierr2 = nf90_def_var(ncid2(kk), 'SurfaceElevation', NF90_DOUBLE, [dimid1], varid9)
+         ierr2 = nf90_def_var(ncid2(kk), 'Land_Water_Mask', NF90_DOUBLE, [dimid1], varid10)
+         ierr2 = nf90_def_var(ncid2(kk), 'Lidar_Data_Altitude', NF90_DOUBLE, [dimid2], varid11)
+         ierr2 = nf90_def_var(ncid2(kk), 'Total_Attenuated_Backscatter_532', NF90_DOUBLE, [dimid2], varid12)
+
+         ierr2 = nf90_put_att(ncid2(kk), varid1, 'units', 'degrees_north')
+         ierr2 = nf90_put_att(ncid2(kk), varid2, 'units', 'degrees_east')
+         ierr2 = nf90_put_att(ncid2(kk), varid3, '_FillValue', NaN)
+         ierr2 = nf90_put_att(ncid2(kk), varid4, '_FillValue', NaN)
+         ierr2 = nf90_put_att(ncid2(kk), varid5, '_FillValue', NaN)
+         ierr2 = nf90_put_att(ncid2(kk), varid6, '_FillValue', NaN)
+         ierr2 = nf90_put_att(ncid2(kk), varid7, '_FillValue', NaN)
+         ierr2 = nf90_put_att(ncid2(kk), varid8, '_FillValue', NaN)
+         ierr2 = nf90_put_att(ncid2(kk), varid8, 'units', 'meters')
+         ierr2 = nf90_put_att(ncid2(kk), varid9, '_FillValue', NaN)
+         ierr2 = nf90_put_att(ncid2(kk), varid9, 'units', 'meters')
+         ierr2 = nf90_put_att(ncid2(kk), varid10, '_FillValue', NaN)
+         ierr2 = nf90_put_att(ncid2(kk), varid11, '_FillValue', NaN)
+         ierr2 = nf90_put_att(ncid2(kk), varid11, 'units', 'km')
+         ierr2 = nf90_put_att(ncid2(kk), varid12, '_FillValue', NaN)
+         ierr2 = nf90_put_att(ncid2(kk), varid12, 'units', 'km^-1 sr^-1')
+
+         ierr2 = nf90_put_var(ncid2(kk), varid1, lat(i))  
+         ierr2 = nf90_put_var(ncid2(kk), varid2, lon(i))  
+         ierr2 = nf90_put_var(ncid2(kk), varid3, ryear(i))  
+         ierr2 = nf90_put_var(ncid2(kk), varid4, rmonth(i))  
+         ierr2 = nf90_put_var(ncid2(kk), varid5, rdate(i))  
+         ierr2 = nf90_put_var(ncid2(kk), varid6, rhour(i))  
+         ierr2 = nf90_put_var(ncid2(kk), varid7, rminute(i))  
+         ierr2 = nf90_put_var(ncid2(kk), varid8, pblh(i))  
+         ierr2 = nf90_put_var(ncid2(kk), varid9, sfc_elev(i))  
+         ierr2 = nf90_put_var(ncid2(kk), varid10, sfc_mask(i))  
+         ierr2 = nf90_put_var(ncid2(kk), varid11, liadr_data_alt)  
+         ierr2 = nf90_put_var(ncid2(kk), varid12, ATB(i,:))  
+      end do
+
+      print*, 'pblh=', pblh
+
+      deallocate(lat, lon, pblh, sfc_elev)
+      deallocate(sfc_mask, liadr_data_alt, ATB)
+      deallocate(ryear, rmonth, rdate, rhour, rminute)
+
+      end do ! end of nfile
+
+      do i = 1, 121
+         ierr2 = NF90_CLOSE(ncid2(i))
+      end do
+  end program read_pblh_lidar_calipso
+
+  subroutine add_interval(ana_mm1, ana_dd1, ana_hh1, interval, ana_mm0, ana_dd0, ana_hh0)
+     integer ana_mm1, ana_dd1, ana_hh1, interval, ana_mm0, ana_dd0, ana_hh0
+     ana_hh1 = ana_hh0 + interval
+     if (ana_hh1 > 24) then
+        ana_hh1 = ana_hh1 - 24
+        ana_dd1 = ana_dd0 + 1
+        if (ana_mm0 == 8 .and. ana_dd1 > 31) then
+           ana_mm1 = 9
+           ana_dd1 = 1
+        end
+        if (ana_mm0 == 9 .and. ana_dd1 > 30) then
+           ana_mm1 = 10
+           ana_dd1 = 1
+        end
+     end
+  end subroutine add_interval
+

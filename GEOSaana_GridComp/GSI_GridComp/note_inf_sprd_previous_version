@@ -1,0 +1,57 @@
+1. Inflating ens spread
+- setuppblri.f90: definition of inflation coefficient
+  -> ges_coef_inf (5 levels with Gaussian Distr.)
+  (setuppblri.f90.ens_inf_5lev_Gaussian_dist_30times)
+- hybrid_ensemble_isotropic.F90 : would decide if we will inflate ens sprd or not.
+  -> subroutine ensemble_forward_model_dual_res
+     1) regrid guess grid to ens grid
+        ges_coef_inf -> ges_coef_inf_ens_grid
+     2) inflate ens spread for T and q
+
+
+[Question 1] definition of inflation coefficient should be done before outer loop? 
+similar to the way vertical localization array was defined in disobs?
+[Question 2] ensemble_forward_model_ad_dual_res? we should add this part for ensemble inflation?
+-> unless we inflate perturbations before forward_model, it should be. However, we will inflate perturbation before forward_model/forward_model_ad, so that we don't need to add this twice.
+
+2. Vertical localization 
+
+! For modifying hybrid vertical localization length scale near PBLH obs,
+! 1) Save pblh obs grid information (subdomain in guess grid): ges_vlocal(ix:ixp,iy:iyp,iz,1)=1.0
+! 2) Regrid pblh obs grid info. from guess grid to ens grid
+! 3) Modify hybrid vertical localization length scale near PBLH obs
+! obs_para.f90:  1)
+! init_rf_z:  2), 3)
+
+- subroutine disobs in obs_para.f90: assignment of pblhobs to modify localization 
+  (ges_vlocal(ix:ixp,iy:iyp,iz,1)=1.0) 
+  obs_para is called at the end of observer_set (after read_obs)
+- init_rf_z in hybrid_ensemble_isotropic.F90: regrid ges_vlocal from guess grid to ens grid 
+
+
+
+[Questions 1] If we assign ens grid in advance, could it be possible to have subdomain? or global?
+
+
+3. Inflating ens spread and vertical localization w.r.t. pblh obs location
+
+! For inflating ens spread and modifying hybrid vertical localization length scale near PBLH obs,
+! 1) Save pblh obs grid information (global domain in ens grid) 
+!    - 1a) inflatation coefficient
+!          -> ges_coef_inf_ens_grid_global(ix:ixp,iy:iyp,iz,it:itp)=30.0 (+- 2 levels? with Gaussian dis)
+!    - 1b) vertica localization
+!          -> ges_vlocal_ens_grid_global(ix:ixp,iy:iyp,iz,1)=1.0
+!      >>> hybrid_ensemble_parameters.f90, guess_grids.f90 (do we need this?)
+!      >>> hybrid_ensemble_isotropic.f90 (subroutine create_ensemble: alloacate)
+!      >>> obs_para.f90 (subroutine disobs in obs_para.f90)
+! 2) Multiply ens perturbation by inflation coeff 
+!      >>> get_gefs_ensperts_dualres (it is called in load_ensemble)
+! 4) Modify hybrid vertical localization length scale near PBLH obs
+!      >>> hybrid_ensemble_isotropic.f90 (subroutine init_rf_z in hybrid_ensemble_isotropic.f90)
+
+! obs_para.f90:  1)
+! init_rf_z:  2), 3)
+
+- subroutine disobs in obs_para.f90: assignment of pblhobs to modify localization 
+  (ges_vlocal(ix:ixp,iy:iyp,iz,1)=1.0) 
+- ges_coef_inf is defined at obs_para?

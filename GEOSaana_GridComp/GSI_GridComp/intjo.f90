@@ -238,7 +238,10 @@ class(obOper),pointer:: it_obOper
 !$omp parallel do  schedule(dynamic,1) private(ibin,it,it_obOper)
   do ibin=1,size(sval)
     do it=1,obOper_count
+      !print*, "YEGGG_intjo, L241:obOper_count=",obOper_count,",it=",it ! obOper_count=41, it for pblrf=23
       it_obOper => obOper_create(it)
+
+      !print*, "YEGPL_intjo L244: it=",it,",obOper_typeInfo(it)=",obOper_typeInfo(it)
 
         if(.not.associated(it_obOper)) then
           call perr(myname_,'unexpected obOper, associated(it_obOper) =',associated(it_obOper))

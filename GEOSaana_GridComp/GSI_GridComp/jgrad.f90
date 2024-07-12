@@ -301,6 +301,7 @@ if (lupdfgs) then
         xincfile='xinc.ZZZ'
         write(xincfile(6:8),'(i3.3)') jiter
     endif
+    if (mype==0) print*, 'jgrad: miter=', miter, xincfile
     call view_st (sval,trim(xincfile))
     if ((.not.l4densvar).and.l4dvar)then
        call inc2guess(sval)
@@ -313,6 +314,7 @@ if (lupdfgs) then
       call update_bias_preds(twodvar_regional,sbias)
     else
        if (mype==0) write(6,*)trim(seqcalls),': Updating guess'
+       if (mype==0) print*, 'jgrad: Updating guess'
        call update_guess(sval,sbias)
     endif
   else ! Update guess (model background, bias correction) fields

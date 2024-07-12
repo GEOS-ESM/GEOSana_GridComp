@@ -267,6 +267,8 @@ module general_sub2grid_mod
 !$$$
       use kinds, only: r_single
       use mpimod, only: mpi_comm_world
+
+      !use mpi
       implicit none
 
       type(sub2grid_info),     intent(inout) :: s
@@ -442,6 +444,7 @@ module general_sub2grid_mod
          end do
       end if
       allocate(s%kbegin(0:s%npe),s%kend(0:s%npe-1))
+
       num_loc_groups=s%num_fields/npe_used
       nextra=s%num_fields-num_loc_groups*npe_used
       s%kbegin(0)=1
@@ -1417,6 +1420,7 @@ end subroutine get_iuse_pe
       integer(i_kind) iloc,iskip,i,i0,ii,j,j0,k,n,k_in,ilat,jlon,ierror,ioffset
       integer(i_long) mpi_string
 
+      !print*, "sub2grid_r_double_rank4: L1424: s%lon2,s%lat2=",s%lon2,s%lat2
 !    remove halo row
 !$omp parallel do  schedule(dynamic,1) private(k,j,j0,i0,i,ii)
       do k=1,s%num_fields
@@ -1432,7 +1436,8 @@ end subroutine get_iuse_pe
       end do
       call mpi_type_contiguous(s%inner_vars,mpi_real8,mpi_string,ierror)
       call mpi_type_commit(mpi_string,ierror)
-
+      !print*, "sub2grid: L1442, s%recvcounts,s%rdispls=",s%recvcounts,s%rdispls
+      !print*, "sub2grid: L1443, s%sendcounts,s%sdispls=",s%sendcounts,s%sdispls
       call mpi_alltoallv(sub_vars0,s%recvcounts,s%rdispls,mpi_string, &
                         work,s%sendcounts,s%sdispls,mpi_string,mpi_comm_world,ierror)
 
@@ -1623,7 +1628,6 @@ end subroutine get_iuse_pe
 
       call mpi_type_contiguous(s%inner_vars,mpi_real8,mpi_string,ierror)
       call mpi_type_commit(mpi_string,ierror)
-
       call mpi_alltoallv(temp,s%sendcounts_s,s%sdispls_s,mpi_string, &
                         sub_vars,s%recvcounts_s,s%rdispls_s,mpi_string,mpi_comm_world,ierror)
       call mpi_type_free(mpi_string,ierror)
@@ -2963,7 +2967,7 @@ end subroutine get_iuse_pe
          call g_agrid2egrid(p_e2a,grida_vars,gride_vars,se%kbegin_loc,se%kend_loc,vectorx)
       end if
       deallocate(grida_vars,vectorx)
-      call general_grid2sub_r_double_rank4(se,gride_vars,sube_vars)
+      call general_grid2sub_r_double_rank4(se,gride_vars,sube_vars) ! MPI ERROR
       deallocate(gride_vars)
 
    end subroutine general_suba2sube_r_double_rank4

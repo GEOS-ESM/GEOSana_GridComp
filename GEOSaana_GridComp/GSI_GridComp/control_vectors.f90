@@ -312,6 +312,7 @@ open(luin,file=rcname,form='formatted')
 ! and get size of table
 call gettablesize(tbname,luin,ntot,nvars)
 
+!print*, "YEGPL_control_vector, L315: nvars=",nvars ! 16
 ! Get contents of table
 allocate(utable(nvars))
 call gettable(tbname,luin,ntot,nvars,utable)
@@ -323,6 +324,7 @@ close(luin)
 ! variables participating in state vector
 
 ! Count variables first
+!print*, "YEGPL_control_vector, L327: nvars=",nvars ! 16
 nc3d=0; nc2d=0;mvars=0
 do ii=1,nvars
    read(utable(ii),*,IOSTAT=ioflag) var, ilev, itracer, aas, amp, source, funcof, bes
@@ -339,6 +341,7 @@ do ii=1,nvars
       endif
    endif
 enddo
+!print*, "YEGPL_control_vector, L325: nvars,mvars,nc2d,nc3d=",nvars,mvars,nc2d,nc3d ! 16, 2, 5, 9
 
 allocate(nrf_var(nvars),cvars3d(nc3d),cvars2d(nc2d))
 allocate(as3d(nc3d),as2d(nc2d))
@@ -349,6 +352,7 @@ allocate(an_amp0(nvars))
 
 ! want to rid code from the following ...
 nrf=nc2d+nc3d
+!print*, "YEGPL_control_vector, L352: nrf,nc2d,nc3d=",nrf,nc2d,nc3d ! 14, 5, 9
 allocate(nrf_3d(nrf),nrf2_loc(nc2d),nrf3_loc(nc3d),nmotl_loc(max(1,mvars)))
 
 ! Now load information from table
@@ -356,6 +360,7 @@ nc3d=0;nc2d=0;mvars=0
 nrf_3d=.false.
 do ii=1,nvars
    read(utable(ii),*,IOSTAT=ioflag) var, ilev, itracer, aas, amp, source, funcof, bes
+   print*, "YEGPL_control_vector, L361: ii=",ii,",var=",trim(var)
    if (ioflag/=0) then
       read(utable(ii),*) var, ilev, itracer, aas, amp, source, funcof
       bes=-one
@@ -383,6 +388,8 @@ do ii=1,nvars
       endif
    endif
    nrf_var(ii)=trim(adjustl(var))
+   print*, "YEGPL_control_vector, L391: nrf_var(ii)=",trim(nrf_var(ii))
+   ! var(ii): 10=ps,11=sst,12=stl,13=sti,14=pblri,15=pblrf,16=pblkh
    if(amp>zero) then
       an_amp0(ii)=amp
    else

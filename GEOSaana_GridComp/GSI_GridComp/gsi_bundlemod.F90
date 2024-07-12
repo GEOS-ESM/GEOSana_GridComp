@@ -1684,6 +1684,12 @@ CONTAINS
     n1d = Bundle%n1d
     n2d = Bundle%n2d
     n3d = Bundle%n3d
+    ! YEG: n1d= -1, n2d=7, n3d=13 
+    ! YEG: 2d = ps, z, z_c, z_w, dt_cool, tdel, tref <-- no pblri
+    ! YEG: 3d = u, v, div, vor, tv, q, oz, cw, ql, qi, qr, qs, pblri?
+
+    ! YEG: Control variables
+    ! YEG: 
     ipnt=-1; irank=-1; ival=-1
     do i=1,n1d
        if (trim(fldname).eq.trim(Bundle%r1(i)%shortname)) then

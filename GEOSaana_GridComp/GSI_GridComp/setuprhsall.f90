@@ -101,6 +101,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !                         polymorphic implementation using %setup().
 !   2019-03-15  Ladwig  - add option for cloud analysis in observer
 !   2019-03-28  Ladwig  - add metar cloud obs as pseudo water vapor in var analysis
+!   2022-08-22  Zhu     - add pblri,pblrf,pblkh
 !
 !   input argument list:
 !     ndata(*,1)- number of prefiles retained for further processing
@@ -166,7 +167,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   use m_rhs, only: toss_gps_sub => rhs_toss_gps
 
   use m_rhs, only: i_ps,i_uv,i_t,i_q,i_pw,i_rw,i_dw,i_gps,i_sst,i_tcp,i_lag, &
-                   i_gust,i_vis,i_pblh,i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, &
+                   i_gust,i_vis,i_pblri,i_pblrf,i_pblkh,i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, &
                    i_tcamt,i_lcbas,i_cldch,i_uwnd10m,i_vwnd10m,i_swcp,i_lwcp
   use m_rhs, only: i_dbz
   use m_rhs, only: i_light
@@ -441,6 +442,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !    Loop over data types to process (for polymorphic obOper%setup() calls)
      do is=1,ndat
 
+        !print*, 'yeg_setuprhsall L445:mype=',mype,', is=',is,'dtype(is)=',dtype(is)
         ! Skip data streams where no obOper has been implemented for now.
         ! These streams are handled in a "lazy" approach, to preserve its
         ! current behavior of the program.
@@ -455,7 +457,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 
         select case(trim(dtype(is)))
         case('gos_ctp', 'rad_ref', 'lghtn', 'larccld', 'larcglb')
-                ! Exception (1) (see above)
+                
 
           if(nsat1(is)>0)then
             read(lunin,iostat=ier) obstype,isis,nreal,nchanl
@@ -486,6 +488,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
           is_obOper => obOper_create(dtype(is))
 
           if(associated(is_obOper)) then
+
             call is_obOper%setup(lunin,mype, is, nsat1(is), init_pass,last_pass)
             call obOper_destroy(is_obOper)
 
@@ -626,7 +629,7 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !    Compute and print statistics for "conventional" data
      call statsconv(mype,&
           i_ps,i_uv,i_t,i_q,i_pw,i_rw,i_dw,i_gps,i_sst,i_tcp,i_lag, &
-          i_gust,i_vis,i_pblh,i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, &
+          i_gust,i_vis,i_pblri,i_pblrf,i_pblkh,i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, &
           i_tcamt,i_lcbas,i_cldch,i_uwnd10m,i_vwnd10m,i_swcp,i_lwcp,i_dbz, &
           size(awork1,2),bwork1,awork1,ndata)
 

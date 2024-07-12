@@ -75,7 +75,9 @@ subroutine read_files(mype)
 !
 !$$$
   use kinds, only: r_kind,r_single,i_kind,i_llong
-  use mpimod, only: mpi_rtype,mpi_comm_world,ierror,npe,mpi_itype
+  !use mpimod, only: mpi_rtype,mpi_comm_world,ierror,npe,mpi_itype
+  use mpimod, only: mpi_rtype,ierror,npe,mpi_itype ! YEG
+  use mpi
   use guess_grids, only: nfldsig,nfldsfc,nfldnst,ntguessig,ntguessfc,ntguesnst,&
        ifilesig,ifilesfc,ifilenst,hrdifsig,hrdifsfc,hrdifnst,create_gesfinfo
   use guess_grids, only: hrdifsig_all,hrdifsfc_all,hrdifnst_all

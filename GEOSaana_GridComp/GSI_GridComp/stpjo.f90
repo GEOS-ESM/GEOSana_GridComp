@@ -292,12 +292,15 @@ subroutine stpjo(dval,dbias,xval,xbias,sges,pbcjo,nstep)
 
   call setrad(xval(1))
 
+  print*, "YEGPL_stpjo L295: stpcnt (obscount*no_times? 41*7?)=",stpcnt
 !$omp parallel do  schedule(dynamic,1) private(ll,mm,ib,it_obOper)
   do mm=1,stpcnt
     ll=ll_jo(mm)
     ib=ib_jo(mm)
 
     it_obOper => obOper_create(ll)
+    print*, "YEGPL_stpjo L301: mm=",mm,",ll_jo(mm)=",ll_jo(mm),",ib_jo(mm)=",ib_jo(mm)
+    print*, "YEGPL_stpjo L303: obOper_typeInfo(ll)=",obOper_typeInfo(ll)
 
         if(.not.associated(it_obOper)) then
           call perr(myname_,'unexpected obOper, associated(it_obOper) =',associated(it_obOper))
@@ -379,10 +382,12 @@ subroutine stpjo_setup(nobs_bins)
   call init_(obOper_count,nobs_bins)
 
     stpcnt = 0
+    print*, "YEGPL_stpjo L382: obOper_count=",obOper_count
     do ll = 1, obOper_count       ! Not nobs_type anymore
 
       it_obOper => obOper_create(ll)
 
+        print*, "YEGPL_stpjo L386: ll=",ll,",obOper_typeInfo(ll)=",obOper_typeInfo(ll)
         if(.not.associated(it_obOper)) then
           call perr(myname_,'unexpected obOper, associated(it_obOper) =',associated(it_obOper))
           call perr(myname_,'                  obOper_typeInfo(ioper) =',obOper_typeInfo(ll))

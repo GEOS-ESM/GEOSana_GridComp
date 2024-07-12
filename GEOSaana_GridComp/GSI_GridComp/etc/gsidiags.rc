@@ -195,6 +195,9 @@ conv_sst
 conv_aura_t
 conv_prof_t
 conv_prof_uv
+conv_pblri
+conv_pblrf
+conv_pblkh
 ::
 
 tgaslist::

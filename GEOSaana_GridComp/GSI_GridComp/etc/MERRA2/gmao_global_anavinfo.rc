@@ -22,6 +22,9 @@ met_guess::
   dt_cool   1      -1         cool_layer_tdrop     TDROP
   tdel      1      -1         warm_layer_ttop      TDEL
   tref      1      -1         foundation_temp      TS_FOUND
+  pblri     1      -1         pblh_ri              pblri
+  pblrf     1      -1         pblh_refractivity    pblrf
+  pblkh     1      -1         pblh_diffusivity     pblkh
 ! tskin     1      ??         skin_temperature     ts
 ! frland    1      -1         fraction_land        frland
 ! frlandice 1      -1         fraction_land_ice    frlandice
@@ -114,6 +117,9 @@ state_vector::
 #co2      72      1     chem_guess   co2
  ps        1      0     met_guess    prse
  sst       1      0     met_guess    sst
+ pblri     1      0     met_guess    pblri
+ pblrf     1      0     met_guess    pblrf
+ pblkh     1      0     met_guess    pblkh
 ::
 
 control_vector::
@@ -129,6 +135,9 @@ control_vector::
  sst       1      0       1.20        -1.0     state    sst
  stl       1      0       3.0         -1.0     motley   sst
  sti       1      0       3.0         -1.0     motley   sst
+ pblri     1      0       1.0         -1.0     motley   pblri
+ pblrf     1      0       1.0         -1.0     motley   pblrf
+ pblkh     1      0       1.0         -1.0     motley   pblkh
 ::
 
 #correlated_observations::

@@ -73,6 +73,7 @@ subroutine prewgt(mype)
 !   2014-08-02  zhu     - set up new background error variance and correlation lengths of cw 
 !                         for all-sky radiance assimilation
 !   2020-07-14  todling- add adjustozhscl as optional
+!   2021-10-10  zhu     - add handling of pbl*
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -127,6 +128,7 @@ subroutine prewgt(mype)
   integer(i_kind) nf2p,istatus
   integer(i_kind),dimension(0:40):: iblend
   integer(i_kind) nrf3_sf,nrf3_q,nrf3_vp,nrf3_t,nrf3_oz,nrf2_ps,nrf2_sst,nrf3_cw
+  integer(i_kind) nrf2_pblri,nrf2_pblrf,nrf2_pblkh
   integer(i_kind),allocatable,dimension(:) :: nrf3_loc,nrf2_loc
 
   real(r_kind) wlipi,wlipih,df
@@ -205,6 +207,10 @@ subroutine prewgt(mype)
   nrf3_cw   = getindex(cvars3d,'cw')
   nrf2_ps   = getindex(cvars2d,'ps')
   nrf2_sst  = getindex(cvars2d,'sst')
+  nrf2_pblri = getindex(cvars2d,'pblri')
+  nrf2_pblrf = getindex(cvars2d,'pblrf')
+  nrf2_pblkh = getindex(cvars2d,'pblkh')
+!  print*, "yeg_prewgt, L213: nrf2_pblri, nrf2_pblrf, nrf2_pblkh=",nrf2_pblri, nrf2_pblrf, nrf2_pblkh (2,3,4)
 ! nrf2_stl  = getindex(cvarsmd,'stl')
 ! nrf2_sti  = getindex(cvarsmd,'sti')
 
@@ -326,6 +332,24 @@ subroutine prewgt(mype)
      end do
   endif
 
+! pbl height
+  if(nrf2_pblri>0) then
+     do i=1,nlat
+        hwllp(i,nrf2_pblri)=hwllinp(i,nrf2_pblri)
+     end do
+  endif
+  if(nrf2_pblrf>0) then
+     !print*, "YEG_prewgt,L342:nrf2_pblrf=",nrf2_pblrf
+     do i=1,nlat
+        hwllp(i,nrf2_pblrf)=hwllinp(i,nrf2_pblrf)
+        !print*, "YEG_prewgt,L344:i=",i,",hwllp(i,nrf2_pblrf)=",hwllp(i,nrf2_pblrf)
+     end do
+  endif
+  if(nrf2_pblkh>0) then
+     do i=1,nlat
+        hwllp(i,nrf2_pblkh)=hwllinp(i,nrf2_pblkh)
+     end do
+  endif
 
 ! sea surface temperature, convert from km to m
 ! also calculate a minimum horizontal length scale for
@@ -498,6 +522,12 @@ subroutine prewgt(mype)
               dssvs(j,i,n)=psvar(j,i)*as2d(n)             ! surface pressure
            end do
         end do
+     else if (n==nrf2_pblri .or. n==nrf2_pblrf .or. n==nrf2_pblkh) then
+        do j=1,lat2
+           do i=1,lon2
+              dssvs(j,i,n)=dssvs(j,i,n)*as2d(n)
+           end do
+        end do
      else if (n==nrf2_sst) then
         do j=1,lat2         
            do i=1,lon2
@@ -603,6 +633,7 @@ subroutine prewgt(mype)
 !!!$omp parallel do  schedule(dynamic,1) private(k,k1,j,ii,iii,jjj,i,n,nn,factx,fact1,fact2)
   do k=1,nnnn1o
      k1=levs_id(k)
+     !print*, "YEG_prewgt L636: k,k1=",k,k1 ! k1=1-10,19, 50,57,71, 72
      if (k1==0) then
         do j=1,nlon
            do i=2,nlat-1
@@ -611,6 +642,7 @@ subroutine prewgt(mype)
         end do
      else 
         n=nvar_id(k)
+        !print*, "YEG_prewgt L645: k,n=",k,n ! n=1-16
         nn=-1
         do ii=1,nc3d
            if (nrf3_loc(ii)==n) then
@@ -624,29 +656,41 @@ subroutine prewgt(mype)
            end if
         end do
 
+        ! ii=12-14: nrf_var(ii)=pblri, pblrf, pblkh
+        ! ii=15,16: nrf_var(ii)=stl, sti
+        !print*, "YEG_prewgt L659:nrf=",nrf
+        !print*, "YEG_prewgt L660:n=",n ! 1-16
         if (nn==-1) then
            do ii=1,nc2d
+              !print*, "YEG_prewgt L661:ii=",ii,", nrf2_loc(ii)=",nrf2_loc(ii) ! ii=1,2,3,4,5, nrf2=10,11,12,13,14
+              !ii = 4, 5, nrf2_loc(ii)=13,14 <-- pblrf, pblkh
               if (nrf2_loc(ii)==n .or. n>nrf) then
-                 nn=ii
-                 if (n>nrf) nn=n-nc3d
+                 nn=ii ! ii=1,2,3,4,5?
+                 !print*, "YEG_prewgt L664:nn=",nn,", nrf2_loc(ii)=",nrf2_loc(ii) ! nn=1,2,3,4,5 , nrf2=10,11,12,13,14
+                 if (n>nrf) nn=n-nc3d ! n>14 --> n=15,16 -> nn: 15 or 16 - 9 = 6 or 7
                  if (nn==nrf2_sst) then
+                    !print*, "YEG_prewgt L672:nrf2_sst=nn=",nn
                     do j=1,nlon
                        do i=2,nlat-1
                           factx(i,j)=s2u/hsst(i,j)
                        end do
                     end do
                  else if (nn>nc2d) then 
+                    !print*, "YEG_prewgt L673: nn>nc2d, nn=",nn,", nc2d=",nc2d,",nrf2_loc(ii)=",nrf2_loc(ii)
+                    !nn=6, 7 , nc2d = 5, nrf2_loc=10 ! sti or stl
                     do j=1,nlon
                        do i=2,nlat-1
                           factx(i,j)=two*s2u/minhsst
                        end do
                     end do
                  else  
+                    !print*, "YEG_prewgt L679:else1 nn=",nn,", nrf2_loc(ii)=",nrf2_loc(ii) ! n=1,3, nrf2_loc=10,14
                     do j=1,nlon
                        do i=2,nlat-1
                           factx(i,j)=s2u/hwllp(i,nn)
                        end do
                     end do
+                    !print*, "YEG_prewgt L685:else2 hwllp(2,nn)=",hwllp(2,nn),",factx(2,2)=",factx(2,2)
                  end if
                  exit
               end if

@@ -2,6 +2,8 @@
 
 add_subdirectory(mksi)
 add_subdirectory(etc)
+add_subdirectory(read_pblh_data)
+add_subdirectory(raob_pblh_from_diag)
 
 set (GSIGC_SRCS
   GSI_GridCompMod.F90
@@ -216,7 +218,9 @@ set (SRCS_OBSNODES
   gsi_obOper.F90
   gsi_obOperTypeManager.F90
   gsi_ozOper.F90
-  gsi_pblhOper.F90
+  gsi_pblriOper.F90
+  gsi_pblrfOper.F90
+  gsi_pblkhOper.F90
   gsi_pcpOper.F90
   gsi_pm10Oper.F90
   gsi_pm2_5Oper.F90
@@ -255,7 +259,9 @@ set (SRCS_OBSNODES
   m_mxtmNode.F90
   m_o3lNode.F90
   m_ozNode.F90
-  m_pblhNode.F90
+  m_pblriNode.F90
+  m_pblrfNode.F90
+  m_pblkhNode.F90
   m_pcpNode.F90
   m_pm10Node.F90
   m_pm2_5Node.F90
@@ -376,7 +382,9 @@ set (SRCS_SOLVER
   intmitm.f90
   intmxtm.f90
   intoz.f90
-  intpblh.f90
+  intpblri.f90
+  intpblrf.f90
+  intpblkh.f90
   intpcp.f90
   intpm10.f90
   intpm2_5.f90
@@ -492,7 +500,9 @@ set (SRCS_SOLVER
   read_NASA_LaRC_cloud.f90
   read_obs.F90
   read_ozone.f90
-  read_pblh.f90
+  read_pblri.f90
+  read_pblrf.f90
+  read_pblkh.f90
   read_pcp.f90
   read_prepbufr.f90
   read_radar.f90
@@ -528,7 +538,9 @@ set (SRCS_SOLVER
   setupmxtm.f90
   setuppmsl.f90
   setupoz.f90
-  setuppblh.f90
+  setuppblri.f90
+  setuppblrf.f90
+  setuppblkh.f90
   setuppcp.f90
   setuppm10.f90
   setuppm2_5.f90
@@ -582,7 +594,9 @@ set (SRCS_SOLVER
   stpmitm.f90
   stpmxtm.f90
   stppmsl.f90
-  stppblh.f90
+  stppblri.f90
+  stppblrf.f90
+  stppblkh.f90
   stppcp.f90
   stppm10.f90
   stppm2_5.f90
@@ -673,7 +687,9 @@ set (OBJS_OPENBUFR
    read_nasa_larc.f90
    read_NASA_LaRC_cloud.f90
    read_ozone.f90
-   read_pblh.f90
+   read_pblri.f90
+   read_pblrf.f90
+   read_pblkh.f90
    read_pcp.f90
    read_prepbufr.f90
    read_radar.f90
@@ -746,10 +762,12 @@ install(
 esma_add_library (GSI_GridComp
    SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
   DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
+  #DEPENDENCIES GEOSgsi_Coupler MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 esma_add_library (GSI_GridComp_with_stubs
    SRCS ${SRCS_STUBS} ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
    DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
+   #DEPENDENCIES GEOSgsi_Coupler MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 foreach (item HAVE_ESMF _SKIP_READ_OBS_CHECK_ _TIMER_ON_ _REAL8_)
    target_compile_definitions (GSI_GridComp PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${item}>)

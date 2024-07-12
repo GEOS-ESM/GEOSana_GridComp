@@ -1,6 +1,6 @@
 subroutine statsconv(mype,&
      i_ps,i_uv,i_t,i_q,i_pw,i_rw,i_dw,i_gps,i_sst,i_tcp,i_lag, &
-     i_gust,i_vis,i_pblh,i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, & 
+     i_gust,i_vis,i_pblri,i_pblrf,i_pblkh,i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, & 
      i_tcamt,i_lcbas,i_cldch,i_uwnd10m,i_vwnd10m,&
      i_swcp,i_lwcp,i_dbz,i_ref,bwork,awork,ndata)
 !$$$  subprogram documentation block
@@ -44,6 +44,7 @@ subroutine statsconv(mype,&
 !   2015-07-10  pondeca - add cldch
 !   2016-05-05  pondeca - add uwnd10m, vwnd10m
 !   2017-05-12  Y. Wang and X. Wang - add dbz, POC: xuguang.wang@ou.edu
+!   2022-08-22  Zhu - add pblri,pblrf,pblkh
 !
 !   input argument list:
 !     mype     - mpi task number
@@ -60,7 +61,9 @@ subroutine statsconv(mype,&
 !     i_lag    - index in awork array holding lag info
 !     i_gust   - index in awork array holding gust info
 !     i_vis    - index in awork array holding vis info
-!     i_pblh   - index in awork array holding pblh info
+!     i_pblri   - index in awork array holding pblh info
+!     i_pblrf   - index in awork array holding pblh info
+!     i_pblkh   - index in awork array holding pblh info
 !     i_wspd10m- index in awork array holding wspd10m info
 !     i_td2m   - index in awork array holding td2m info
 !     i_mxtm   - index in awork array holding mxtm info
@@ -92,13 +95,13 @@ subroutine statsconv(mype,&
   use constants, only: zero,three,five
   use obsmod, only: iout_sst,iout_pw,iout_t,iout_rw,iout_dw,&
        iout_uv,iout_gps,iout_ps,iout_q,iout_tcp,iout_lag,&
-       iout_gust,iout_vis,iout_pblh,iout_wspd10m,iout_td2m,& 
+       iout_gust,iout_vis,iout_pblri,iout_pblrf,iout_pblkh,iout_wspd10m,iout_td2m,& 
        iout_mxtm,iout_mitm,iout_pmsl,iout_howv,iout_tcamt,iout_lcbas,iout_cldch,&
        iout_uwnd10m,iout_vwnd10m,&
        iout_dbz,iout_swcp,iout_lwcp,&
        mype_dw,mype_rw,mype_sst,mype_gps,mype_uv,mype_ps,&
        mype_t,mype_pw,mype_q,mype_tcp,ndat,dtype,mype_lag,mype_gust,&
-       mype_vis,mype_pblh,mype_wspd10m,mype_td2m,mype_mxtm,mype_mitm,&
+       mype_vis,mype_pblri,mype_pblrf,mype_pblkh,mype_wspd10m,mype_td2m,mype_mxtm,mype_mitm,&
        mype_pmsl,mype_howv,mype_tcamt,mype_lcbas,mype_cldch,mype_uwnd10m,mype_vwnd10m,&
        mype_dbz,mype_swcp,mype_lwcp
   use qcmod, only: npres_print,ptop,pbot,ptopq,pbotq
@@ -109,7 +112,7 @@ subroutine statsconv(mype,&
 
 ! Declare passed variables
   integer(i_kind)                                  ,intent(in   ) :: mype,i_ps,i_uv,&
-       i_t,i_q,i_pw,i_rw,i_dw,i_gps,i_sst,i_tcp,i_lag,i_gust,i_vis,i_pblh,&
+       i_t,i_q,i_pw,i_rw,i_dw,i_gps,i_sst,i_tcp,i_lag,i_gust,i_vis,i_pblri,i_pblrf,i_pblkh,&
        i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv,i_tcamt,i_lcbas,&
        i_cldch,i_uwnd10m,i_vwnd10m,i_swcp,i_lwcp,i_dbz,i_ref
   real(r_kind),dimension(7*nsig+100,i_ref)     ,intent(in   ) :: awork
@@ -120,7 +123,7 @@ subroutine statsconv(mype,&
   character(100) mesage
 
   integer(i_kind) numgrspw,numsst,nsuperp,nump,nhitopo,ntoodif
-  integer(i_kind) numgrsq,numhgh,numgust,numvis,numpblh,numwspd10m,numuwnd10m,numvwnd10m
+  integer(i_kind) numgrsq,numhgh,numgust,numvis,numpblri,numpblrf,numpblkh,numwspd10m,numuwnd10m,numvwnd10m
   integer(i_kind) numtd2m,nummxtm,nummitm,numpmsl,numhowv,numtcamt,numlcbas,numcldch
   integer(i_kind) numgrsswcp,numgrslwcp
   integer(i_kind) ntot,numlow,k,numssm,i,j
@@ -577,43 +580,123 @@ subroutine statsconv(mype,&
      close(iout_vis)
   end if
 
-! Summary report for conventional pblh
-  if(mype==mype_pblh) then
+! Summary report for conventional pblri
+  if(mype==mype_pblri) then
      if(first)then
-        open(iout_pblh)
+        open(iout_pblri)
      else
-        open(iout_pblh,position='append')
+        open(iout_pblri,position='append')
      end if
 
-     numpblh=nint(awork(5,i_pblh))
+     numpblri=nint(awork(5,i_pblri))
      pw=zero ; pw3=zero
      nread=0
      nkeep=0
      do i=1,ndat
-        if(dtype(i)== 'pblh')then
+        if(dtype(i)== 'pblri')then
            nread=nread+ndata(i,2)
            nkeep=nkeep+ndata(i,3)
         end if
      end do
      if(nkeep > 0)then
-        mesage='current fit of conventional pblh data, ranges in  m$'
+        mesage='current fit of conventional pblri data, ranges in  m$'
         do j=1,nconvtype
-           pflag(j)=trim(ioctype(j)) == 'pblh'
+           pflag(j)=trim(ioctype(j)) == 'pblri'
+           !print*, 'STATSCONV,yeg, mype=',mype,',mype_pblri=',mype_pblri,',i_pblri=',i_pblri,',iout_pblri=',iout_pblri
+           print*, 'j=',j,',ioctype(j)=',ioctype(j),',pflag(j)=',pflag(j)
         end do
-        call dtast(bwork,1,pbotall,ptopall,mesage,jiter,iout_pblh,pflag)
+        call dtast(bwork,1,pbotall,ptopall,mesage,jiter,iout_pblri,pflag)
 
-        numgross=nint(awork(6,i_pblh))
-        numfailqc=nint(awork(21,i_pblh))
-        if(numpblh > 0)then
-           pw=awork(4,i_pblh)/numpblh
-           pw3=awork(22,i_pblh)/numpblh
+        numgross=nint(awork(6,i_pblri))
+        numfailqc=nint(awork(21,i_pblri))
+        if(numpblri > 0)then
+           pw=awork(4,i_pblri)/numpblri
+           pw3=awork(22,i_pblri)/numpblri
         end if
-        write(iout_pblh,925) 'pblh',numgross,numfailqc
+        write(iout_pblri,925) 'pblri',numgross,numfailqc
      end if
-     write(iout_pblh,950) 'pblh',jiter,nread,nkeep,numpblh
-     write(iout_pblh,951) 'pblh',awork(4,i_pblh),awork(22,i_pblh),pw,pw3
+     write(iout_pblri,950) 'pblri',jiter,nread,nkeep,numpblri
+     write(iout_pblri,951) 'pblri',awork(4,i_pblri),awork(22,i_pblri),pw,pw3
 
-     close(iout_pblh)
+     close(iout_pblri)
+  end if
+
+! Summary report for conventional pblrf
+  if(mype==mype_pblrf) then
+     if(first)then
+        open(iout_pblrf)
+     else
+        open(iout_pblrf,position='append')
+     end if
+
+     numpblrf=nint(awork(5,i_pblrf))
+     pw=zero ; pw3=zero
+     nread=0
+     nkeep=0
+     do i=1,ndat
+        if(dtype(i)== 'pblrf')then
+           nread=nread+ndata(i,2)
+           nkeep=nkeep+ndata(i,3)
+        end if
+     end do
+     if(nkeep > 0)then
+        mesage='current fit of conventional pblrf data, ranges in  m$'
+        do j=1,nconvtype
+           pflag(j)=trim(ioctype(j)) == 'pblrf'
+        end do
+        call dtast(bwork,1,pbotall,ptopall,mesage,jiter,iout_pblrf,pflag)
+
+        numgross=nint(awork(6,i_pblrf))
+        numfailqc=nint(awork(21,i_pblrf))
+        if(numpblrf > 0)then
+           pw=awork(4,i_pblrf)/numpblrf
+           pw3=awork(22,i_pblrf)/numpblrf
+        end if
+        write(iout_pblrf,925) 'pblrf',numgross,numfailqc
+     end if
+     write(iout_pblrf,950) 'pblrf',jiter,nread,nkeep,numpblrf
+     write(iout_pblrf,951) 'pblrf',awork(4,i_pblrf),awork(22,i_pblrf),pw,pw3
+
+     close(iout_pblrf)
+  end if
+
+! Summary report for conventional pblkh
+  if(mype==mype_pblkh) then
+     if(first)then
+        open(iout_pblkh)
+     else
+        open(iout_pblkh,position='append')
+     end if
+
+     numpblkh=nint(awork(5,i_pblkh))
+     pw=zero ; pw3=zero
+     nread=0
+     nkeep=0
+     do i=1,ndat
+        if(dtype(i)== 'pblkh')then
+           nread=nread+ndata(i,2)
+           nkeep=nkeep+ndata(i,3)
+        end if
+     end do
+     if(nkeep > 0)then
+        mesage='current fit of conventional pblkh data, ranges in  m$'
+        do j=1,nconvtype
+           pflag(j)=trim(ioctype(j)) == 'pblkh'
+        end do
+        call dtast(bwork,1,pbotall,ptopall,mesage,jiter,iout_pblkh,pflag)
+
+        numgross=nint(awork(6,i_pblkh))
+        numfailqc=nint(awork(21,i_pblkh))
+        if(numpblkh > 0)then
+           pw=awork(4,i_pblkh)/numpblkh
+           pw3=awork(22,i_pblkh)/numpblkh
+        end if
+        write(iout_pblkh,925) 'pblkh',numgross,numfailqc
+     end if
+     write(iout_pblkh,950) 'pblkh',jiter,nread,nkeep,numpblkh
+     write(iout_pblkh,951) 'pblkh',awork(4,i_pblkh),awork(22,i_pblkh),pw,pw3
+
+     close(iout_pblkh)
   end if
 
 ! Summary report for conventional wspd10m

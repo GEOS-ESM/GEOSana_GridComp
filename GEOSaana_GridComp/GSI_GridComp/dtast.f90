@@ -129,7 +129,7 @@ subroutine dtast(work1,nlev,pbot,ptop,mesage,jiter,iout,pflag)
               if (trim(ioctype(i))=='vis' .or. trim(ioctype(i))=='cldch') then
                  write(iout,901) jiter,trim(ioctype(i)),typx(nn),ictype(i),icsubtype(i),count(nlev,i,nn),biasx(1),rmsx(1),ratx(1),qcratx(1)
                  vis_or_cldch=.true.
-                else
+              else
                  write(iout,701) jiter,trim(ioctype(i)),typx(nn),ictype(i),icsubtype(i),count(nlev,i,nn),biasx(1),rmsx(1),ratx(1),qcratx(1)
               endif
            end if

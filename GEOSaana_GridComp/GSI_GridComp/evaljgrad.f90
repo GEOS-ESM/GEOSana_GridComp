@@ -304,6 +304,7 @@ if (lupdfgs) then
    call xhat_vordiv_calc(sval)
    if (iwrtinc>0) then
       if (nprt>=1.and.mype==0) write(6,*)trim(seqcalls),': evaljgrad: Setting increment for output'
+      if (mype==0) print*, 'evaljgrad : Save increment'
       call inc2guess(sval)
       if (miter==1) then
           xincfile='xinc'
@@ -320,6 +321,7 @@ if (lupdfgs) then
       call update_bias_preds(twodvar_regional,sbias)
    else
       if (nprt>=1.and.mype==0) write(6,*)trim(seqcalls),': evaljgrad: Updating guess'
+      if (mype==0) print*, 'evaljgrad : call update_guess'
       call update_guess(sval,sbias)
       if(jiter == miter)call write_all(-1)
    endif

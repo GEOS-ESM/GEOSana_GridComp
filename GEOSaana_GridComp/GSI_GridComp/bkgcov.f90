@@ -56,12 +56,16 @@ subroutine bkgcov(cstate)
   nlevs=s2g_raf%nlevs_loc
   n3d=cstate%n3d
 
+  !print*, "YEG_bkgcov, L59: nlevs=",nlevs ! 1 or 0
+  !print*, "YEG_bkgcov, L60: n3d=",n3d ! 9
 ! Multiply by background error variances, and break up skin temp
 ! into components
+  !print*, "YEGBKG_bkgcov, L64: calling 1st bkgvar(cstate,0)"
   call bkgvar(cstate,0)
 
 ! Apply vertical smoother
 !$omp parallel do  schedule(dynamic,1) private(n,ptr3d,istatus)
+  !print*, "YEGPL_bkgcov, L69: n3d=",n3d ! 9
   do n=1,n3d
      call gsi_bundlegetpointer ( cstate,cstate%r3(n)%shortname,ptr3d,istatus )
      call frfhvo(ptr3d,n)
@@ -85,6 +89,7 @@ subroutine bkgcov(cstate)
 
 ! Multiply by background error variances, and combine sst,sldnt, and sicet
 ! into skin temperature field
+  !print*, "YEGBKG_bkgcov, L92: calling 2nd bkgvar(cstate,1)"
   call bkgvar(cstate,1)
 
   return

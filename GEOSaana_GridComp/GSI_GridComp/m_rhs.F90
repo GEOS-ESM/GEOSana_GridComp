@@ -20,6 +20,7 @@ module m_rhs
 !                         rhs_alloc().
 !   2021-05-13 j guo    - replaced i_co entry with i_tgas to support new tgas
 !                         modules.
+!   2022-08-06 zhu      - add pblri,pblrf,pblkh
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -67,7 +68,9 @@ module m_rhs
   public:: i_tgas
   public:: i_gust
   public:: i_vis
-  public:: i_pblh
+  public:: i_pblri
+  public:: i_pblrf
+  public:: i_pblkh
   public:: i_wspd10m
   public:: i_td2m
   public:: i_mxtm
@@ -133,7 +136,9 @@ module m_rhs
     enumerator:: i_tgas
     enumerator:: i_gust
     enumerator:: i_vis
-    enumerator:: i_pblh
+    enumerator:: i_pblri
+    enumerator:: i_pblrf
+    enumerator:: i_pblkh
     enumerator:: i_wspd10m
     enumerator:: i_td2m
     enumerator:: i_mxtm

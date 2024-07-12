@@ -37,6 +37,14 @@ subroutine get_gefs_ensperts_dualres (tau)
 !   2016-07-01  mahajan - use GSI ensemble coupler
 !   2018-02-15  wu      - add code for fv3_regional option 
 !   2019-03-13  eliu    - add precipitation component 
+!   2022-08-10  zhu     - add treatment of pblh_staticB
+!   2023-11-15  eyang   - add inflating ens perturbation of t and q near pblh obs
+!   2023-11-28  eyang   - consider different inflation coefficients for t and q
+!   2023-11-29  eyang   - add InfEnsprdPBLH option to decide if inflating ens spread or not
+!   2024-01-18  eyang   - fix the error calculating ens perts of pblh
+!   2024-01-21  eyang   - split pblh_staticB to pblri_staticB, pblrf_staticB, and pblkh_staticB
+!   2024-02-08  eyang   - add zero_en_perts_pblrf_land
+!   2024-03-01  zhu     - apply zero_en_perts_pblrf_land to pblkh too 
 !
 !   input argument list:
 !
@@ -51,7 +59,9 @@ subroutine get_gefs_ensperts_dualres (tau)
   use mpeu_util, only: die
   use gridmod, only: idsl5
   use hybrid_ensemble_parameters, only: n_ens,write_ens_sprd,oz_univ_static,ntlevs_ens
-  use hybrid_ensemble_parameters, only: sst_staticB
+  !use hybrid_ensemble_parameters, only: sst_staticB,pblh_staticB
+  use hybrid_ensemble_parameters, only: sst_staticB,pblri_staticB,pblrf_staticB,pblkh_staticB
+  use hybrid_ensemble_parameters, only: zero_en_perts_pblrf_land
   use hybrid_ensemble_parameters, only: bens_recenter
   use hybrid_ensemble_parameters, only: en_perts,ps_bar,nelen
   use constants,only: zero,zero_single,half,fv,rd_over_cp,one,qcmin
@@ -59,6 +69,11 @@ subroutine get_gefs_ensperts_dualres (tau)
   use kinds, only: r_kind,i_kind,r_single
   use hybrid_ensemble_parameters, only: grd_ens,q_hyb_ens
   use hybrid_ensemble_parameters, only: beta_s0,beta_s,beta_e
+  use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_t
+  use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_q
+  use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_t1
+  use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_q1
+  use hybrid_ensemble_parameters, only: InfEnsprdPBLH
   use control_vectors, only: cvars2d,cvars3d,nc2d,nc3d
   use control_vectors, only: be2d,be3d
   use gsi_bundlemod, only: gsi_bundlecreate
@@ -68,10 +83,14 @@ subroutine get_gefs_ensperts_dualres (tau)
   use gsi_bundlemod, only: gsi_bundledestroy
   use gsi_bundlemod, only: gsi_gridcreate
   use gsi_enscouplermod, only: gsi_enscoupler_get_user_nens
+  use gsi_enscouplermod, only: gsi_enscoupler_get_user_nens_frocean
   use gsi_enscouplermod, only: gsi_enscoupler_create_sub2grid_info
   use gsi_enscouplermod, only: gsi_enscoupler_destroy_sub2grid_info
   use general_sub2grid_mod, only: sub2grid_info,general_sub2grid_create_info,general_sub2grid_destroy_info
   use m_revBens, only: revBens_ensmean_overwrite
+  ! inflating ens spread (to check)
+  use constants, only: deg2rad,rad2deg,zero ! Find index of obs on ens grid
+  use gsi_enscouplermod, only: gsi_enscoupler_localization_grid
   implicit none
 
   integer(i_kind),intent(in) :: tau
@@ -84,10 +103,14 @@ subroutine get_gefs_ensperts_dualres (tau)
   real(r_kind),pointer,dimension(:,:):: p2
   real(r_single),pointer,dimension(:,:,:):: w3
   real(r_single),pointer,dimension(:,:):: w2
+  real(r_kind),pointer,dimension(:,:):: o2
+  real(r_kind),pointer,dimension(:,:):: l2
   real(r_kind),pointer,dimension(:,:,:):: x3
   real(r_kind),pointer,dimension(:,:):: x2
   type(gsi_bundle),allocatable,dimension(:) :: en_read
   type(gsi_bundle),allocatable,dimension(:) :: en_bar
+  type(gsi_bundle),allocatable,dimension(:) :: en_frocean
+  character(len=10),dimension(2) :: evars2d_frocean  ! 2-d fields for frocean and frland
 ! type(gsi_grid)  :: grid_ens
   real(r_kind) bar_norm,sig_norm,kapr,kap1,rh
   real(r_kind),allocatable,dimension(:,:):: sst2
@@ -97,10 +120,19 @@ subroutine get_gefs_ensperts_dualres (tau)
   integer(i_kind) istatus,iret,i,ic2,ic3,j,k,n,mm1,iderivative,im,jm,km,m,ipic
   integer(i_kind) ipc3d(nc3d),ipc2d(nc2d)
   integer(i_kind) ier
-! integer(i_kind) il,jl
+  integer(i_kind) il,jl
   logical ice,hydrometeor 
   type(sub2grid_info) :: grd_tmp
 
+! inflating ens spread
+  real(r_kind) rlats_ens_local(grd_ens%nlat)
+  real(r_kind) rlons_ens_local(grd_ens%nlon)
+
+  if (mype==0) then
+     print*, 'get_gefs_ensperts_dualres, im, lat2=', en_perts(1,1)%grid%im, grd_ens%lat2
+     print*, 'get_gefs_ensperts_dualres, jm, lon2=', en_perts(1,1)%grid%jm, grd_ens%lon2
+     print*, 'get_gefs_ensperts_dualres, km, nsig=', en_perts(1,1)%grid%km, grd_ens%nsig
+  end if
 ! Create perturbations grid and get variable names from perturbations
   if(en_perts(1,1)%grid%im/=grd_ens%lat2.or. &
      en_perts(1,1)%grid%jm/=grd_ens%lon2.or. &
@@ -145,10 +177,21 @@ subroutine get_gefs_ensperts_dualres (tau)
 
   ! Allocate bundle used for reading members
   allocate(en_read(n_ens))
+  if (mype==0) write(6,*) 'en_read cvars2d=', cvars2d
   do n=1,n_ens
      call gsi_bundlecreate(en_read(n),en_perts(1,1)%grid,'ensemble member',istatus,names2d=cvars2d,names3d=cvars3d)
      if ( istatus /= 0 ) &
         call die('get_gefs_ensperts_dualres',': trouble creating en_read bundle, istatus =',istatus)
+  end do
+
+  ! Allocate bundle to hold frocean from one ensemble member
+  allocate(en_frocean(ntlevs_ens))
+  evars2d_frocean(1)='frocean'
+  evars2d_frocean(2)='frland'
+  do m=1,ntlevs_ens
+     call gsi_bundlecreate(en_frocean(m),en_perts(1,1)%grid,'ensemble',istatus,names2d=evars2d_frocean)
+     if ( istatus /= 0 ) &
+        call die('get_gefs_ensperts_dualres',': trouble creating en_frocean bundle, istatus =',istatus)
   end do
 
   allocate(sst2(im,jm))
@@ -161,6 +204,7 @@ subroutine get_gefs_ensperts_dualres (tau)
      en_bar(m)%values=zero
 
      call gsi_enscoupler_get_user_Nens(grd_tmp,n_ens,m,tau,en_read,iret)
+     call gsi_enscoupler_get_user_Nens_frocean(grd_tmp,1,m,tau,en_frocean,iret)
 
      ! Check read return code.  Revert to static B if read error detected
      if ( iret /= 0 ) then
@@ -224,6 +268,8 @@ subroutine get_gefs_ensperts_dualres (tau)
                         trim(cvars3d(ic3))=='qs' .or. trim(cvars3d(ic3))=='qg' .or. &
                         trim(cvars3d(ic3))=='qh'
 
+
+          ! n: n_ens, m: ntime
           call gsi_bundlegetpointer(en_read(n),trim(cvars3d(ic3)),p3,istatus)
           if(istatus/=0) then
              write(6,*)' error retrieving pointer to ',trim(cvars3d(ic3)),' from read in member ',m
@@ -305,13 +351,72 @@ subroutine get_gefs_ensperts_dualres (tau)
              call stop2(999)
           end if
 
+!!$omp parallel do schedule(dynamic,1) private(i,j)
+!          do j=1,jm
+!             do i=1,im
+!                w2(i,j)=p2(i,j)
+!                x2(i,j)=x2(i,j)+p2(i,j)
+!             end do
+!          end do
+
+          !if (.not. pblh_staticB) then
+          if ((trim(cvars2d(ic2))=='pblri' .or. trim(cvars2d(ic2))=='pblrf' .or. trim(cvars2d(ic2))=='pblkh')) then
+             !if (.not. pblh_staticB) then
+             if ((.not. pblri_staticB .and. trim(cvars2d(ic2))=='pblri') .or. &
+                 (.not. pblrf_staticB .and. trim(cvars2d(ic2))=='pblrf') .or. &
+                 (.not. pblkh_staticB .and. trim(cvars2d(ic2))=='pblkh') ) then
 !$omp parallel do schedule(dynamic,1) private(i,j)
-          do j=1,jm
-             do i=1,im
-                w2(i,j)=p2(i,j)
-                x2(i,j)=x2(i,j)+p2(i,j)
+                do j=1,jm
+                   do i=1,im
+                         
+                      ! Make en_perts of pblrf zero over land
+                      ! for pblrf and zero_en_perts_pblrf_land==.true.
+                      if ((trim(cvars2d(ic2))=='pblrf' .or. trim(cvars2d(ic2))=='pblkh') .and. zero_en_perts_pblrf_land) then
+                         call gsi_bundlegetpointer(en_frocean(1),'frocean',o2,istatus)
+                         call gsi_bundlegetpointer(en_frocean(1),'frland',l2,istatus)
+                         !print*, 'frocean: s2(i,j),i,j=',s2(i,j),i,j
+                         if (o2(i,j)<0.9) then ! not ocean
+                            w2(i,j)=zero
+                            x2(i,j)=zero
+                            !print*, 'frocean<0.9,w2,x2=',s2(i,j),w2(i,j),x2(i,j)
+                         else
+                            w2(i,j)=max(1.0_r_kind,p2(i,j))
+                            x2(i,j)=x2(i,j)+max(1.0_r_kind,p2(i,j))
+                            !print*, 'frocn>0.9,o2,l2=',o2(i,j),l2(i,j)
+                            !print*, 'frocn>0.9,w2,x2=',w2(i,j),x2(i,j)
+                            !print*, 'p2,i,j=',p2(i,j),i,j
+                         end if
+                      else
+                         ! Please change 0.1 to 1.0 after checking the value
+                         !w2(i,j) = log(max(1.0_r_kind,p2(i,j)))
+                         !x2(i,j)=x2(i,j)+log(max(1.0_r_kind,p2(i,j)))
+                         w2(i,j)=max(1.0_r_kind,p2(i,j))
+                         x2(i,j)=x2(i,j)+max(1.0_r_kind,p2(i,j))
+                      end if
+
+                   end do
+                end do
+             else
+                w2 = zero
+                x2 = zero
+                cycle
+             end if
+
+          else ! for other 2d variables
+!$omp parallel do schedule(dynamic,1) private(i,j)
+             do j=1,jm
+                do i=1,im
+                   w2(i,j)=p2(i,j)
+                   x2(i,j)=x2(i,j)+p2(i,j)
+                end do
              end do
-          end do
+          end if
+
+!          if (pblh_staticB.and.(trim(cvars2d(ic2))=='pblri' .or. trim(cvars2d(ic2))=='pblrf' .or. trim(cvars2d(ic2))=='pblkh')) then
+!             w2 = zero
+!             x2 = zero
+!             cycle
+!          end if
 
           if (sst_staticB.and.trim(cvars2d(ic2))=='sst') then
              w2 = zero
@@ -384,12 +489,28 @@ subroutine get_gefs_ensperts_dualres (tau)
 !       rank-2 fields
         do ic2=1,nc2d
            ipic=ipc2d(ic2)
+           !if(trim(cvars2d(ic2)) == 'pblri' .or. trim(cvars2d(ic2)) == 'PBLRI')then
+           !   print*, "yeggg_gefs_eper_ri, en_perts(n,m)=",en_perts(n,m)%r2(ipic)%qr4
+           !   print*, "yeggg_gefs_eper_ri, en_bar(m)=",en_bar(m)%r2(ipic)%q
+           !end if
+           !if(trim(cvars2d(ic2)) == 'pblrf' .or. trim(cvars2d(ic2)) == 'PBLRF')then
+           !   print*, "yeggg_gefs_eper_rf, en_perts(n,m)=",en_perts(n,m)%r2(ipic)%qr4
+           !   print*, "yeggg_gefs_eper_rf, en_bar(m)=",en_bar(m)%r2(ipic)%q
+           !end if
+           !if(trim(cvars2d(ic2)) == 'ps' .or. trim(cvars2d(ic2)) == 'PS')then
+              !print*, "yeggg_gefs_eper_ps, en_perts(n,m)=",en_perts(n,m)%r2(ipic)%qr4
+              !print*, "yeggg_gefs_eper_ps, en_bar(m)=",en_bar(m)%r2(ipic)%q
+           !end if
            if (be2d(ipic)<zero) cycle
            en_perts(n,m)%r2(ipic)%qr4 = be2d(ipic)*en_perts(n,m)%r2(ipic)%qr4
         end do
 !       rank-3 fields
         do ic3=1,nc3d
            ipic=ipc3d(ic3)
+           !if(trim(cvars3d(ic3)) == 't' .or. trim(cvars3d(ic3)) == 'T')then
+              !print*, "yeggg_gefs_eper_t, en_perts(n,m)=",en_perts(n,m)%r3(ipic)%qr4
+              !print*, "yeggg_gefs_eper_t, en_bar(m)=",en_bar(m)%r3(ipic)%q
+           !end if
            if (be3d(ipic)<zero) cycle
            en_perts(n,m)%r3(ipic)%qr4 = be3d(ipic)*en_perts(n,m)%r3(ipic)%qr4
         end do
@@ -412,7 +533,66 @@ subroutine get_gefs_ensperts_dualres (tau)
            en_perts(n,m)%valuesr4(i)=en_perts(n,m)%valuesr4(i)*sig_norm
         end do
      end do
-    end do
+
+     ! write ens spread before inflation
+     if (write_ens_sprd)  call ens_spread_dualres_new(m,'org')
+
+  end do
+
+!----------------------------------------------------------
+! Inflating ensemble perturbation of t and q near pblh obs
+!----------------------------------------------------------
+  if (InfEnsprdPBLH) then
+     call gsi_enscoupler_localization_grid (rlats_ens_local,rlons_ens_local)
+!$omp parallel do schedule(dynamic,1) private(i,j,k,n,m,ic3,ipic,il,jl)
+     ! WRITE OUT ENS SPREAD FILE BEFORE INFLATION
+     do m=1,ntlevs_ens ! ntime
+        do n=1,n_ens 
+   !       rank-3 fields
+           do ic3=1,nc3d
+              ipic=ipc3d(ic3)
+
+              if(trim(cvars3d(ic3)) == 't' .or. trim(cvars3d(ic3)) == 'q')then
+              !if(trim(cvars3d(ic3)) == 't')then
+
+                 do k=1,km
+                    do j=1,jm
+                       jl=j+grd_ens%jstart(mm1)-2 ! global domain index
+                       jl=min0(max0(1,jl),grd_ens%nlon)
+                       do i=1,im
+                          il=i+grd_ens%istart(mm1)-2 ! global domain index
+                          il=min0(max0(1,il),grd_ens%nlat)
+
+                          ! Inflate ens perturbation for t and q with different inflation coefficients (T: 5, RH: 10)
+                          if(trim(cvars3d(ic3)) == 't') then
+                             en_perts(n,m)%r3(ipic)%qr4(i,j,k) = en_perts(n,m)%r3(ipic)%qr4(i,j,k)*ges_coef_inf_ens_grid_global_t1(il,jl,k,m)
+                          else if(trim(cvars3d(ic3)) == 'q')then
+                             en_perts(n,m)%r3(ipic)%qr4(i,j,k) = en_perts(n,m)%r3(ipic)%qr4(i,j,k)*ges_coef_inf_ens_grid_global_q1(il,jl,k,m)
+                          end if
+
+                          ! FOR RH Max/Min Check
+                          if(.not. q_hyb_ens) then
+                             if(trim(cvars3d(ic3)) == 'q' .or. trim(cvars3d(ic3)) == 'Q')then
+                                en_perts(n,m)%r3(ipic)%qr4(i,j,k) = en_perts(n,m)%r3(ipic)%qr4(i,j,k)*1/sig_norm
+                             
+                                en_perts(n,m)%r3(ipic)%qr4(i,j,k) = min(en_perts(n,m)%r3(ipic)%qr4(i,j,k),1._r_single)
+                                en_perts(n,m)%r3(ipic)%qr4(i,j,k) = max(en_perts(n,m)%r3(ipic)%qr4(i,j,k),-1._r_single)
+                            
+                                en_perts(n,m)%r3(ipic)%qr4(i,j,k) = en_perts(n,m)%r3(ipic)%qr4(i,j,k)*sig_norm
+                             end if
+                          end if
+                       end do
+                    end do
+                 end do
+
+              end if
+
+           end do
+        end do
+        ! WRITE OUT ENS SPREAD FILE AFTER INFLATION
+        if (write_ens_sprd)  call ens_spread_dualres_new(m,'inf')
+     end do
+  end if
 
 !  since initial version is ignoring sst perturbations, skip following code for now.  revisit
 !   later--creating general_read_gfssfc, analogous to general_read_gfsatm above.
@@ -622,6 +802,162 @@ subroutine ens_spread_dualres(en_bar,ibin)
   return
 end subroutine ens_spread_dualres
 
+subroutine ens_spread_dualres_new(ibin,fn)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    ens_spread_dualres  output ensemble spread for diagnostics
+!   prgmmr: kleist           org: np22                date: 2010-01-05
+!
+! abstract: compute ensemble spread on ensemble grid, interpolate to analysis grid
+!             and write out for diagnostic purposes.
+!
+!
+! program history log:
+!   2010-01-05  kleist, initial documentation
+!   2010-02-28  parrish - make changes to allow dual resolution capability
+!   2011-03-19  parrish - add pseudo-bundle capability
+!   2011-11-01  kleist  - 4d capability for ensemble/hybrid
+!   2019-07-10  todling - truly handling 4d output; and upd to out all ens c-variables
+!   2020-05-12  todling - fix normalization from 1/M to 1/(M-1)
+!
+!   input argument list:
+!     en_bar - ensemble mean
+!
+!   output argument list:
+!
+! NOTE: The update made by Dave to handle dual resolution leads to non-positive
+!       spreads - the interpolation routines are not quarantee to preserve 
+!       positiveness (Todling). A better version of this routine would
+!       interpolate the errors (x(m)-xbar) and then proceed to calculate the
+!       spreads; but it would be more costly.
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+  use mpimod, only: mype
+  use kinds, only: r_single,r_kind,i_kind
+  use hybrid_ensemble_parameters, only: n_ens,grd_ens,grd_anl,p_e2a,uv_hyb_ens
+  use hybrid_ensemble_parameters, only: en_perts,nelen
+  use general_sub2grid_mod, only: sub2grid_info,general_sub2grid_create_info,general_sube2suba
+  use constants, only:  zero,two,half,one
+  use control_vectors, only: cvars2d,cvars3d,nc2d,nc3d
+  use control_vectors, only: be2d,be3d
+  use mpeu_util, only: getindex   
+  use gsi_bundlemod, only: gsi_bundlecreate
+  use gsi_bundlemod, only: gsi_grid
+  use gsi_bundlemod, only: gsi_bundle
+  use gsi_bundlemod, only: gsi_bundlegetpointer
+  use gsi_bundlemod, only: gsi_bundledestroy
+  use gsi_bundlemod, only: gsi_gridcreate
+  implicit none
+
+  !type(gsi_bundle),intent(in):: en_bar
+  integer(i_kind),intent(in):: ibin
+  character(len=3),intent(in):: fn
+
+  type(gsi_bundle):: sube,suba
+  type(gsi_grid):: grid_ens,grid_anl
+  real(r_kind) sp_norm
+  type(sub2grid_info)::se,sa
+
+  integer(i_kind) i,n,ic3,k,ipic
+  logical regional
+  integer(i_kind) ipc3d(nc3d),ipc2d(nc2d)
+  integer(i_kind) num_fields,inner_vars,istatus
+  logical,allocatable::vector(:)
+
+!      create simple regular grid
+  call gsi_gridcreate(grid_anl,grd_anl%lat2,grd_anl%lon2,grd_anl%nsig)
+  call gsi_gridcreate(grid_ens,grd_ens%lat2,grd_ens%lon2,grd_ens%nsig)
+
+! create two internal bundles, one on analysis grid and one on ensemble grid
+
+  call gsi_bundlecreate (suba,grid_anl,'ensemble work',istatus, &
+                                 names2d=cvars2d,names3d=cvars3d)
+  if(istatus/=0) then
+     write(6,*)' ens_spread_dualres: trouble creating bundle_anl bundle'
+     call stop2(999)
+  endif
+  call gsi_bundlecreate (sube,grid_ens,'ensemble work ens',istatus, &
+                            names2d=cvars2d,names3d=cvars3d)
+  if(istatus/=0) then
+     write(6,*)' ens_spread_dualres: trouble creating bundle_ens bundle'
+     call stop2(999)
+  endif
+
+  sp_norm=(one/max(one,n_ens-one))
+
+  sube%values=zero
+  ! en_perts <- (x-x_bar)/sqrt(Nens-1)
+  do n=1,n_ens
+     do i=1,nelen
+        sube%values(i)=sube%values(i) &
+           +(en_perts(n,ibin)%valuesr4(i))*(en_perts(n,ibin)%valuesr4(i))
+     end do
+  end do
+  !sube <- SUM ( (x-x_bar)^2/(Nens-1) )
+  do i=1,nelen
+    sube%values(i) = sqrt(sube%values(i))
+    !sube%values(i) = sqrt(sp_norm*sube%values(i))
+  end do
+
+  ! sube <- sqrt { sum ( (x-x_bar)^2 / (Nens-1) ) }
+
+! apply anavinfo factors
+  call gsi_bundlegetpointer (sube,cvars3d,ipc3d,istatus)
+  if(istatus/=0) then
+    write(6,*) ' ens_spread_dualres',': cannot find 3d pointers'
+    call stop2(999)
+  endif
+  call gsi_bundlegetpointer (sube,cvars2d,ipc2d,istatus)
+  if(istatus/=0) then
+    write(6,*) ' ens_spread_dualres',': cannot find 2d pointers'
+    call stop2(999)
+  endif
+  do n=1,nc2d
+     ipic=ipc2d(n)
+     if (be2d(ipic)<zero) cycle
+     sube%r2(ipic)%q = be2d(ipic)*sube%r2(ipic)%q
+  end do
+  do n=1,nc3d
+     ipic=ipc3d(n)
+     if (be3d(ipic)<zero) cycle
+     sube%r3(ipic)%q = be3d(ipic)*sube%r3(ipic)%q
+  end do
+
+  if(grd_ens%latlon1n == grd_anl%latlon1n) then
+     do i=1,nelen
+        suba%values(i)=sube%values(i)
+     end do
+  else
+     regional=.false.
+     inner_vars=1
+     num_fields=max(0,nc3d)*grd_ens%nsig+max(0,nc2d)
+     allocate(vector(num_fields))
+     vector=.false.
+     do ic3=1,nc3d
+        if(trim(cvars3d(ic3))=='sf'.or.trim(cvars3d(ic3))=='vp') then !  RTodling: this is not meaningful
+                                                                      !            since are dealing w/ spread
+                                                                      !            not the physical u/v
+           do k=1,grd_ens%nsig
+              vector((ic3-1)*grd_ens%nsig+k)=uv_hyb_ens
+           end do
+        end if
+     end do
+     call general_sub2grid_create_info(se,inner_vars,grd_ens%nlat,grd_ens%nlon,grd_ens%nsig,num_fields, &
+                                       regional,vector)
+     call general_sub2grid_create_info(sa,inner_vars,grd_anl%nlat,grd_anl%nlon,grd_anl%nsig,num_fields, &
+                                       regional,vector)
+     deallocate(vector)
+     call general_sube2suba(se,sa,p_e2a,sube%values,suba%values,regional)
+  end if
+
+  call write_spread_dualres_new(ibin,suba,fn)
+
+  return
+end subroutine ens_spread_dualres_new
 
 subroutine write_spread_dualres(ibin,bundle)
 !$$$  subprogram documentation block
@@ -802,6 +1138,187 @@ subroutine write_spread_dualres(ibin,bundle)
 
   return
 end subroutine write_spread_dualres
+
+subroutine write_spread_dualres_new(ibin,bundle,fname)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    write_spread_dualres   write ensemble spread for diagnostics
+!   prgmmr: kleist           org: np22                date: 2010-01-05
+!
+! abstract: write ensemble spread (previously interpolated to analysis grid)
+!             for diagnostic purposes.
+!
+!
+! program history log:
+!   2010-01-05  kleist, initial documentation
+!   2010-02-28  parrish - make changes to allow dual resolution capability
+!   2018-04-01  eliu - add hydrometeors 
+!   2019-07-10  todling - generalize to write out all variables in the ensemble
+!                       - also allows for print out of different time bins
+!   2021-10-08  todling - name wind vars correctly in file when ens uses wind vectors
+!
+!   input argument list:
+!     bundle -  spread bundle
+!
+!   output argument list:
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$ end documentation block
+  use mpimod, only: mype
+  use mpeu_util, only: die
+  use mpimod, only: mpi_rtype,mpi_itype,mpi_comm_world
+  use kinds, only: r_kind,i_kind,r_single
+  use guess_grids, only: get_ref_gesprs 
+  use gridmod, only: rlats
+  use hybrid_ensemble_parameters, only: grd_anl,uv_hyb_ens
+  use gsi_bundlemod, only: gsi_grid
+  use gsi_bundlemod, only: gsi_bundle
+  use gsi_bundlemod, only: gsi_bundlegetpointer
+  use control_vectors, only: cvars2d,cvars3d,nc2d,nc3d
+  use constants, only: zero
+  use jfunc, only: miter,jiter ! should really pass as argument
+  use m_revBens, only: spread2d,spread3d
+  implicit none
+
+  integer(i_kind), intent(in) :: ibin
+  character(len=3), intent(in) :: fname
+  type(gsi_bundle):: bundle
+
+! local variables
+  character(255):: grdfile,grdctl,var
+
+  real(r_kind),allocatable,dimension(:,:,:):: work8_3d
+  real(r_kind),allocatable,dimension(:,:):: work8_2d
+
+  real(r_single),allocatable,dimension(:,:,:):: work4_3d
+  real(r_single),allocatable,dimension(:,:):: work4_2d
+
+  real(r_single),allocatable,dimension(:,:):: cosrlats2d
+
+  real(r_kind),pointer,dimension(:,:,:):: ptr3d
+  real(r_kind),pointer,dimension(:,:):: ptr2d
+
+  integer(i_kind) iret,i,j,k,n,mem2d,mem3d,num3d,lu,istat,ifailed
+  real(r_kind),dimension(grd_anl%nsig+1) :: prs
+
+  character(len=*),parameter :: myname='write_spread_dualres'
+
+! Initial memory used by 2d and 3d grids
+  mem2d = 4*grd_anl%nlat*grd_anl%nlon
+  mem3d = 4*grd_anl%nlat*grd_anl%nlon*grd_anl%nsig
+  num3d=11
+
+  allocate(work8_3d(grd_anl%nlat,grd_anl%nlon,grd_anl%nsig))
+  allocate(work8_2d(grd_anl%nlat,grd_anl%nlon))
+  allocate(work4_3d(grd_anl%nlon,grd_anl%nlat,grd_anl%nsig))
+  allocate(work4_2d(grd_anl%nlon,grd_anl%nlat))
+
+  if (mype==0) then
+    write(grdfile,'(3a,2(i3.3,a))') 'ens_spread_',fname,'_',ibin, '.iter' ,jiter, '.grd'
+    call baopenwt(22,trim(grdfile),iret)
+    write(6,*)'WRITE_SPREAD_DUALRES:  open 22 to ',trim(grdfile),' with iret=',iret
+  endif
+
+  if(mype==0) allocate(cosrlats2d(grd_anl%nlon,grd_anl%nlat))
+
+! Process 3d arrays
+  ifailed=0
+  do n=1,nc3d
+    call gsi_bundlegetpointer(bundle,cvars3d(n),ptr3d,istat)
+    work8_3d=zero
+    do k=1,grd_anl%nsig
+      call gather_stuff2(ptr3d(1,1,k),work8_3d(1,1,k),mype,0)
+    end do
+    if (mype==0) then
+      do i=1,grd_anl%nlat
+         cosrlats2d(:,i) = cos(rlats(i))
+      enddo
+      if(any(cosrlats2d<zero)) ifailed=1
+      spread3d(:,n,ibin,jiter)=zero
+      do k=1,grd_anl%nsig
+        do j=1,grd_anl%nlon
+          do i=1,grd_anl%nlat
+            work4_3d(j,i,k) =work8_3d(i,j,k)
+          end do
+        end do
+        spread3d(k,n,ibin,jiter)=sqrt(sum(cosrlats2d*work4_3d(:,:,k)*work4_3d(:,:,k))/(grd_anl%nlon*grd_anl%nlat)) ! not quite the proper grid weight
+      end do
+      call wryte(22,mem3d,work4_3d)
+      write(6,*)'WRITE_SPREAD_DUALRES FOR VARIABLE ',trim(cvars3d(n))
+    endif
+  end do
+  call mpi_bcast(ifailed,1,mpi_itype,0,mpi_comm_world,istat)
+  call mpi_bcast(spread3d(1,1,ibin,jiter),grd_anl%nsig*nc3d,mpi_rtype,0,mpi_comm_world,istat)
+  if(ifailed/=0) then
+     call die(myname,': fishy cos(lat), aborting',ifailed)
+  endif
+
+! Process 2d array
+  do n=1,nc2d
+    call gsi_bundlegetpointer(bundle,cvars2d(n),ptr2d,istat)
+    work8_2d=zero
+    call gather_stuff2(ptr2d,work8_2d,mype,0)
+    if (mype==0) then
+       spread2d(n,ibin,jiter)=zero
+       do j=1,grd_anl%nlon
+          do i=1,grd_anl%nlat
+             work4_2d(j,i)=work8_2d(i,j)
+          end do
+       end do
+       spread2d(n,ibin,jiter)=sqrt(sum(cosrlats2d*work4_2d*work4_2d)/(grd_anl%nlon*grd_anl%nlat)) ! not quite the proper grid weight
+       call wryte(22,mem2d,work4_2d)
+       write(6,*)'WRITE_SPREAD_DUALRES FOR VARIABLE ',trim(cvars2d(n))
+    endif
+  end do
+  call mpi_bcast(spread2d(1,ibin,jiter),nc2d,mpi_rtype,0,mpi_comm_world,istat)
+
+  if(mype==0) deallocate(cosrlats2d)
+
+! Close byte-addressable binary file for grads
+  if (mype==0) then
+     call baclose(22,iret)
+     write(6,*)'WRITE_SPREAD_DUALRES:  close 22 with iret=',iret
+  end if
+
+! Get reference pressure levels for grads purposes
+  call get_ref_gesprs(prs)
+
+! Write out a corresponding grads control file
+  if (mype==0) then
+     write(grdctl,'(3a,2(i3.3,a))') 'ens_spread_',fname,'_',ibin,  '.iter' ,jiter, '.ctl'
+     open(newunit=lu,file=trim(grdctl),form='formatted')
+     write(lu,'(2a)') 'DSET  ^', trim(grdfile)
+     write(lu,'(2a)') 'TITLE ', 'gsi ensemble spread'
+     write(lu,'(a,2x,e13.6)') 'UNDEF', 1.E+15 ! any other preference for this?
+     write(lu,'(a,2x,i4,2x,a,2x,f5.1,2x,f9.6)') 'XDEF',grd_anl%nlon, 'LINEAR',   0.0, 360./grd_anl%nlon
+     write(lu,'(a,2x,i4,2x,a,2x,f5.1,2x,f9.6)') 'YDEF',grd_anl%nlat, 'LINEAR', -90.0, 180./(grd_anl%nlat-1.)
+     write(lu,'(a,2x,i4,2x,a,100(1x,f10.5))')      'ZDEF',grd_anl%nsig, 'LEVELS', prs(1:grd_anl%nsig)
+     write(lu,'(a,2x,i4,2x,a)')   'TDEF', 1, 'LINEAR 12:00Z04JUL1776 6hr' ! any date suffices
+     write(lu,'(a,2x,i4)')        'VARS',nc3d+nc2d
+     do n=1,nc3d
+        var = trim(cvars3d(n))
+        if (uv_hyb_ens .and. trim(var)=='sf') var='u'
+        if (uv_hyb_ens .and. trim(var)=='vp') var='v'
+        write(lu,'(a,1x,2(i4,1x),a)') trim(var),grd_anl%nsig,0,trim(var)
+     enddo
+     do n=1,nc2d
+        write(lu,'(a,1x,2(i4,1x),a)') trim(cvars2d(n)),    1,0,trim(cvars2d(n))
+     enddo
+     write(lu,'(a)') 'ENDVARS'
+     close(lu)
+  endif
+
+! clean up
+  deallocate(work4_2d)
+  deallocate(work4_3d)
+  deallocate(work8_2d)
+  deallocate(work8_3d)
+
+  return
+end subroutine write_spread_dualres_new
 
 subroutine general_getprs_glb(ps,tv,prs)
 ! subprogram:    getprs       get 3d pressure or 3d pressure deriv

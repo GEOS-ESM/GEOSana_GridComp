@@ -60,7 +60,7 @@ subroutine bkerror(gradx,grady)
   use jfunc, only: set_sqrt_2dsize
   use constants, only:  zero
   use control_vectors, only: control_vector,assignment(=)
-  use control_vectors, only: mvars,nrf,nrf_var,nrf_3d
+  use control_vectors, only: mvars,nrf,nrf_var,nrf_3d,nvars
   use timermod, only: timer_ini,timer_fnl
   use gsi_bundlemod, only: gsi_bundlegetpointer,gsi_bundlemerge,gsi_bundle,gsi_bundledup,gsi_bundledestroy
   use general_sub2grid_mod, only: general_sub2grid,general_grid2sub
@@ -165,12 +165,14 @@ subroutine bkerror(gradx,grady)
      if(dobal) call balance(p_t,p_ps,p_st,p_vp,fpsproj,fut2ps)
 
 !    Transfer step part of mbundle back to grady%step(ii)
-     do i=1,nrf
+     do i=1,nrf 
         if(nrf_3d(i)) then
            call gsi_bundlegetpointer(mbundle,trim(nrf_var(i)),rank3a,istatus)
            call gsi_bundlegetpointer(grady%step(ii),trim(nrf_var(i)),rank3b,istatus)
            rank3b=rank3a
         else
+           ! ps, sst, stl, sti, pblri, pblrf, pblkh
+           ! don't need to update stl and sti
            call gsi_bundlegetpointer(mbundle,trim(nrf_var(i)),rank2a,istatus)
            call gsi_bundlegetpointer(grady%step(ii),trim(nrf_var(i)),rank2b,istatus)
            rank2b=rank2a

@@ -14,6 +14,7 @@ subroutine ensctl2state(xhat,mval,eval)
 !   2014-12-03  derber   - introduce parallel regions for optimization
 !   2017-05-12  Y. Wang and X. Wang - add w as state variable for rw DA, POC: xuguang.wang@ou.edu
 !   2019-07-11  Todling - check on w and dw on the fly
+!   2021-10-10  zhu - add pbl*
 !
 !   input argument list:
 !     xhat - Control variable
@@ -77,7 +78,7 @@ character(len=4), parameter :: mysvars(nsvars) = (/  &  ! vars from ST needed he
 logical :: ls_u,ls_v,ls_prse,ls_q,ls_tsen,ls_ql,ls_qi
 logical :: ls_qr,ls_qs,ls_qg,ls_qh
 logical :: ls_w,ls_dw
-real(r_kind),pointer,dimension(:,:)   :: sv_ps,sv_sst
+real(r_kind),pointer,dimension(:,:)   :: sv_ps,sv_sst,sv_pblri,sv_pblrf,sv_pblkh
 real(r_kind),pointer,dimension(:,:,:) :: sv_u,sv_v,sv_prse,sv_q,sv_tsen,sv_tv,sv_oz
 real(r_kind),pointer,dimension(:,:,:) :: sv_rank3,sv_w,sv_dw
 
@@ -231,6 +232,12 @@ do jj=1,ntlevs_ens
 !  Get pointers to required state variables
    call gsi_bundlegetpointer (eval(jj),'oz'  ,sv_oz , istatus)
    call gsi_bundlegetpointer (eval(jj),'sst' ,sv_sst, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblri' ,sv_pblri, istatus)
+   if (istatus.ne.0) then
+      print*, "yeg_ensctl2state: error get pointer pblri in eval(jj)"
+   end if
+   call gsi_bundlegetpointer (eval(jj),'pblrf' ,sv_pblrf, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblkh' ,sv_pblkh, istatus)
    if(ls_w)then
      call gsi_bundlegetpointer (eval(jj),'w' ,sv_w, istatus)
      if(ls_dw.and.nems_nmmb_regional)then
@@ -240,6 +247,12 @@ do jj=1,ntlevs_ens
 !  Copy variables
    call gsi_bundlegetvar ( wbundle_c, 'oz' , sv_oz,  istatus )
    call gsi_bundlegetvar ( wbundle_c, 'sst', sv_sst, istatus )
+   call gsi_bundlegetvar ( wbundle_c, 'pblri', sv_pblri, istatus )
+   if (istatus.ne.0) then
+      print*, "yeg_ensctl2state: error get var pblri in wbundle_c"
+   end if
+   call gsi_bundlegetvar ( wbundle_c, 'pblrf', sv_pblrf, istatus )
+   call gsi_bundlegetvar ( wbundle_c, 'pblkh', sv_pblkh, istatus )
    if(lc_w)then
       call gsi_bundlegetvar ( wbundle_c, 'w' , sv_w,  istatus )
       if(lc_dw.and.nems_nmmb_regional)then

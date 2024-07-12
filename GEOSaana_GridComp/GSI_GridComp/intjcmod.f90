@@ -324,7 +324,8 @@ subroutine intlimp(rval,sval)
 
 ! Declare local variables
   integer(i_kind) i,j,ier,istatus
-  real(r_kind) pblh
+  !real(r_kind) pblh
+  real(r_kind) pblri
   real(r_kind),pointer,dimension(:,:) :: sp=>NULL()
   real(r_kind),pointer,dimension(:,:) :: rp=>NULL()
 
@@ -333,17 +334,22 @@ subroutine intlimp(rval,sval)
 ! Retrieve pointers
 ! Simply return if any pointer not found
   ier=0
-  call gsi_bundlegetpointer(sval,'pblh',sp,istatus);ier=istatus+ier
-  call gsi_bundlegetpointer(rval,'pblh',rp,istatus);ier=istatus+ier
+  !call gsi_bundlegetpointer(sval,'pblh',sp,istatus);ier=istatus+ier
+  !call gsi_bundlegetpointer(rval,'pblh',rp,istatus);ier=istatus+ier
+  call gsi_bundlegetpointer(sval,'pblri',sp,istatus);ier=istatus+ier
+  call gsi_bundlegetpointer(rval,'pblri',rp,istatus);ier=istatus+ier
   if(ier/=0)return
  
   do j = 2,lon1+1
      do i = 2,lat1+1
-        pblh = pgues(i,j) + sp(i,j)
+        pblri = pgues(i,j) + sp(i,j)
+        !pblh = pgues(i,j) + sp(i,j)
            
 !       Lower constraint limit
-        if (pblh < zero) then
-           rp(i,j) = rp(i,j) + factp*pblh/(pgues(i,j)*pgues(i,j))
+        if (pblri < zero) then
+           rp(i,j) = rp(i,j) + factp*pblri/(pgues(i,j)*pgues(i,j))
+        !if (pblh < zero) then
+        !   rp(i,j) = rp(i,j) + factp*pblh/(pgues(i,j)*pgues(i,j))
         end if
      end do
   end do

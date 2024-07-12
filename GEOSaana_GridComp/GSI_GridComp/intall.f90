@@ -265,7 +265,7 @@ subroutine intall(sval,sbias,rval,rbias)
      if (getindex(svars2d,'vis')>0) call intlimv(rval(1),sval(1))
 
 ! RHS for pblh constraint
-     if (getindex(svars2d,'pblh')>0) call intlimp(rval(1),sval(1))
+     !if (getindex(svars2d,'pblh')>0) call intlimp(rval(1),sval(1))
 
 ! RHS for wspd10m constraint
      if (getindex(svars2d,'wspd10m')>0) call intlimw10m(rval(1),sval(1))

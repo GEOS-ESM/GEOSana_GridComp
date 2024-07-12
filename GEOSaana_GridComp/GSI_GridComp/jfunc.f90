@@ -132,6 +132,7 @@ module jfunc
   public :: switch_on_derivatives,jiterend,jiterstart,jiter,iter,niter,miter
   public :: diurnalbc,bcoption,biascor,nval2d,xhatsave,first
   public :: factqmax,factqmin,clip_supersaturation,last,yhatsave,nvals_len,nval_levs,iout_iter,nclen
+  public :: iout_iter_q
   public :: factql,factqi,factqr,factqs,factqg  
   public :: niter_no_qc,print_diag_pcg,lgschmidt,penorig,gnormorig,iguess
   public :: factg,factv,factp,factl,R_option,factw10m,facthowv,factcldch,diag_precon,step_start
@@ -142,6 +143,7 @@ module jfunc
   logical clip_supersaturation,R_option
   logical pseudo_q2
   integer(i_kind) iout_iter,miter,iguess,nclen,qoption,cwoption
+  integer(i_kind) iout_iter_q
   integer(i_kind) jiter,jiterstart,jiterend,iter
   integer(i_kind) nvals_len,nvals_levs
   integer(i_kind) nval_len,nval_lenz,nval_levs
@@ -217,6 +219,7 @@ contains
     facthowv=zero
     factcldch=zero
     iout_iter=220
+    iout_iter_q=100
     miter=1
     qoption=1
     cwoption=0

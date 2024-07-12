@@ -109,14 +109,22 @@ subroutine bkgvar(cvec,iflg)
   stl=zero
   sti=zero
 
+!  print*, "YEG_bkgvar, L112: cvec%n2d=",cvec%n2d ! 7 ps, sst, pblri, pblrf, pblkh, stl, sti
 ! Surface fields
 !     !$omp parallel do  schedule(dynamic,1) private(n,i,j,ptr2d,istatus)
   do n=1,cvec%n2d
      call gsi_bundlegetpointer(cvec,cvec%r2(n)%shortname,ptr2d,istatus)
+!     print*, "YEG_bkgvar, L116: n=",n,",cvec%r2(n)%shortname=",trim(cvec%r2(n)%shortname)
      if(n/=i_sst.and.n/=i_stl.and.n/=i_sti) then
         do i=1,lon2
            do j=1,lat2
+              
               ptr2d(j,i)=ptr2d(j,i)*dssvs(j,i,n)
+              !if (n==4 .and. ptr2d(j,i)/=0) then 
+                 !print*, "YEG_bkgvar, L119: j,i=",j,i,",n=",n ! n=4 for pblrf, why ptr2d is zero for pblrf??
+                 !print*, "YEG_bkgvar, L125: j,i=",j,i,",n=",n,",ptr2d(j,i)=",ptr2d(j,i),",dssvs(j,i,n)=",dssvs(j,i,n)
+              !endif
+
            end do
         end do
      elseif(i_sst>0) then
