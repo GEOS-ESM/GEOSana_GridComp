@@ -60,6 +60,9 @@ subroutine tpause(mype,method)
   real(r_kind),parameter:: r20=20.0_r_kind
   real(r_kind),parameter:: r40=40.0_r_kind
   real(r_kind),parameter:: r1e5=1.0e5_r_kind
+  
+  logical,parameter :: tpause_debug =.true. 
+ 
 
 ! Declare local variables
   logical t_method,pvoz_capable
@@ -82,6 +85,7 @@ subroutine tpause(mype,method)
   real(r_kind),dimension(:,:,:),pointer :: ges_tv_nt=>NULL()
   real(r_kind),dimension(:,:,:),pointer :: ges_oz_nt=>NULL()
   real(r_kind),dimension(:,:,:),pointer :: ges_vor_nt=>NULL()
+  real(r_kind),dimension(:,:,:),pointer :: ges_div_nt=>NULL()
 
 !================================================================================
 ! Set local constants
@@ -206,6 +210,11 @@ subroutine tpause(mype,method)
            tropprs(i,j) = trop_pvoz(i,j)
         end do
      end do
+
+     if (tpause_debug) then
+        call gsi_bundlegetpointer (gsi_metguess_bundle(nt),'div',ges_div_nt,istatus)
+        call write_bkgvars_grid(ges_div_nt,ges_vor_nt,ges_oz_nt,tropprs,'tpause',mype)
+     endif
 
 ! End of tropopause location method blocks     
   endif

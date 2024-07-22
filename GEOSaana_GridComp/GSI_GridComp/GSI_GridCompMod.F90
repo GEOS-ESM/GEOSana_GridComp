@@ -1,7 +1,5 @@
 #include "MAPL_ErrLog.h" 
-#ifdef _REAL8_
-#define _GMAO_FVGSI_
-#endif
+!#define _GMAO_FVGSI_
 !#define PRINT_STATES
 !#define SFCverbose
 !#define UPAverbose
@@ -2194,6 +2192,7 @@ _ENTRY_(trim(Iam))
    use compact_diffs, only: uv2vordiv
    use xhat_vordivmod, only: xhat_vordiv_calc2
 #endif /* _GMAO_FVGSI_ */
+   use mpeu_util, only: die
 
    implicit none
 
@@ -2288,13 +2287,18 @@ _ENTRY_(trim(Iam))
    VERIFY_(STATUS)
 
 #else /* _GMAO_FVGSI_ */
+   if(IamRoot) print *,trim(Iam),': Using GSI-based div/vor procedure'
    if(.not.cdiff_created()) call create_cdiff_coefs()
    if(.not.cdiff_initialized()) call inisph(rearth,rlats(2),wgtlats(2),nlon,nlat-2)
    ier=0
+   call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'div', ges_div_nnn, istatus );ier=ier+istatus
+   call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'vor', ges_vor_nnn, istatus );ier=ier+istatus
    call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'u', ges_u_it, istatus );ier=ier+istatus
    call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'v', ges_v_it, istatus );ier=ier+istatus
    if(ier==0) then
       call xhat_vordiv_calc2 (ges_u_it,ges_v_it,ges_vor_nnn,ges_div_nnn)
+   else
+      call die(Iam,': unable to calculate vor/div',99)
    endif
 !!   call destroy_cdiff_coefs
 #endif /* _GMAO_FVGSI_ */
