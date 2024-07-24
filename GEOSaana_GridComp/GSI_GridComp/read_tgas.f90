@@ -39,7 +39,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
                        nf90_inquire_dimension, nf90_inq_varid, nf90_get_var,   &
                        nf90_close
   use mpimod,    only: npe
-  use tgasinfo,  only: tgas_szamax,tgas_albmax,tgas_cldmax
+  use tgasinfo,  only: tgas_szamax,tgas_albmax,tgas_cldmax,tgas_minsigobs
   ! thinning
   use satthin,   only: makegrids,map2tgrid,destroygrids,finalcheck,itxmax
 
@@ -651,7 +651,6 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 
   call check(nf90_close(id_fin))
 
-
 !$$$ -- 3. FILL & WRITE OUTPUT ARRAY
 !===============================================================================
   nsound = min(nsound, maxobs)
@@ -748,28 +747,29 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
         ! check data quality: 
         if ( obstype == 'omso2' ) then
            lskip = .false.
-           if ( rows(n)<5. .or. rows(n)>55. ) lskip = .true.  ! rows 5-55 (1-based)
-           if ( uncerts1(n) /= 0.0          ) lskip = .true.  ! non-zero SnowIce flag
-           if ( qflags1(n)  /= 0.0          ) lskip = .true.  ! RowAnomaly flag
-           if ( tropp(n)    /= 0.0          ) lskip = .true.  ! SAA flag
-           if ( szas1(n)    > tgas_szamax(2)) lskip = .true.  ! SZA > value set in GSI_GridComp.rc 
-           if ( albds1(n)   > tgas_albmax(2)) lskip = .true.  ! Surface reflectivity > 0.3
-           if ( cldfrcs1(n) > tgas_cldmax(2)) lskip = .true.  ! Cloud radiance fraction > 0.3  
+           if ( obses1(n) + tgas_minsigobs(2)*1.e15_r_kind < zero ) lskip = .true.  ! Remove large negative values
+           if ( rows(n)<5.  .or. rows(n)>55.    ) lskip = .true.  ! rows 5-55 (1-based)
+           if ( uncerts1(n) /= 0.0              ) lskip = .true.  ! non-zero SnowIce flag
+           if ( qflags1(n)  /= 0.0              ) lskip = .true.  ! RowAnomaly flag
+           if ( tropp(n)    /= 0.0              ) lskip = .true.  ! SAA flag
+           if ( szas1(n)    > tgas_szamax(2)    ) lskip = .true.  ! SZA > value set in GSI_GridComp.rc 
+           if ( albds1(n)   > tgas_albmax(2)    ) lskip = .true.  ! Surface reflectivity > 0.3
+           if ( cldfrcs1(n) > tgas_cldmax(2)    ) lskip = .true.  ! Cloud radiance fraction > 0.3  
         elseif ( obstype == 'nmso2' ) then
            lskip = .false.
-           if ( rows(n)<2. .or. rows(n)>33. ) lskip = .true.
-           !if ( uncerts1(n) /= 0.0          ) lskip = .true.  ! non-zero SnowIce flag
-           if ( tropp(n)    /= 0.0          ) lskip = .true.  ! SAA flag
-           if ( szas1(n)    > tgas_szamax(2)) lskip = .true.  ! SZA > value set in GSI_GridComp.rc 
-           if ( albds1(n)   > tgas_albmax(2)) lskip = .true.  ! Surface reflectivity > 0.3
-           if ( cldfrcs1(n) > tgas_cldmax(2)) lskip = .true.  ! Cloud radiance fraction > 0.3  
+           if ( obses1(n) + tgas_minsigobs(2)*1.0e15_r_kind < zero ) lskip = .true.  ! Remove large negative values
+           if ( rows(n)<2. .or. rows(n)>33.     ) lskip = .true.
+           !if ( uncerts1(n) /= 0.0             ) lskip = .true.  ! non-zero SnowIce flag
+           if ( tropp(n)    /= 0.0              ) lskip = .true.  ! SAA flag
+           if ( szas1(n)    > tgas_szamax(2)    ) lskip = .true.  ! SZA > value set in GSI_GridComp.rc 
+           if ( albds1(n)   > tgas_albmax(2)    ) lskip = .true.  ! Surface reflectivity > 0.3
+           if ( cldfrcs1(n) > tgas_cldmax(2)    ) lskip = .true.  ! Cloud radiance fraction > 0.3  
         elseif ( obstype == 's5pno2' ) then
            lskip = .false.
+!           if ( obses1(n) + tgas_minsigobs(2) < zero ) lskip = .true.  ! Remove large negative values
            if ( szas1(n)    > tgas_szamax(2)) lskip = .true.  ! SZA > value set in GSI_GridComp.rc 
-!           if ( albds1(n)   > tgas_albmax(2)) lskip = .true.  ! Surface reflectivity > 0.3
-!           if ( cldfrcs1(n) > tgas_cldmax(2)) lskip = .true.  ! Cloud radiance fraction > 0.3  
            if ( qav1(n)     < 0.5           ) lskip = .true.  ! qa_value 
-        else
+        else ! MINDS NO2
            ! - VcdQualityFlag is an even integer 
            ! - sza < 80
            ! - reflectivity (albedo) < 0.3
@@ -778,11 +778,10 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
            iflag = int(qflags1(n))
            if ( IAND ( iflag, 1 ) .eq. 0    ) lskip = .false.
            if ( rows(n)<5. .or. rows(n)>55. ) lskip = .true.  ! rows 5-55 (1-based)
-           if ( szas1(n)    > tgas_szamax(1)) lskip = .true.
-           if ( albds1(n)   > tgas_albmax(1)) lskip = .true.
-           if ( cldfrcs1(n) > tgas_cldmax(1)) lskip = .true.
-           !if ( albds1(n)   > 300.          ) lskip = .true.
-           !if ( cldfrcs1(n) > 500.          ) lskip = .true.
+           if ( obses1(n) + tgas_minsigobs(1)*1.0e15_r_kind < zero ) lskip = .true.  ! Remove large negative values
+           if ( szas1(n)    >  tgas_szamax(1)    ) lskip = .true.
+           if ( albds1(n)   >  tgas_albmax(1)    ) lskip = .true.
+           if ( cldfrcs1(n) >  tgas_cldmax(1)    ) lskip = .true.
            ! for TROPOMI, skip values with a qa_value <= 0.75
            if ( id_qav > 0 ) then
               if ( qav1(n) <= 0.75 ) lskip = .true.
@@ -830,21 +829,21 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 
         ! Uncertainties
         if ( obstype == 's5pno2' ) then
-           uncerts(1,n)   = uncerts1(n) * 6.02214e19 / 1.0e15
+           uncerts(1,n)   = uncerts1(n) * 6.02214e19 / 1.0e15 + abs(obses(1,n)) * 0.30
 
         elseif ( obstype == 'omso2' .or. obstype=='nmso2' ) then
            ! The OMI SO2 readme document reports SCD uncertainties of ~0.2 DU
            ! if SZA < 50deg, and 0.3-0.4 DU for SZAs 50-70degrees. Translate to 1.0e15 molec/cm2 here.
            if ( szas1(n) < 50.0 ) then
-              uncerts(1,n)  = 5.374   ! 0.2 DU = 5.374e15 molec/cm2 
+              uncerts(1,n)  = 5.374 + abs(obses(1,n)) * 0.50   ! 0.2 DU = 5.374e15 molec/cm2 
            else
-              uncerts(1,n)  = 10.748  ! 0.4 DU = 10.748e15 molec/cm2
+              uncerts(1,n)  = 10.748 + abs(obses(1,n)) * 0.50  ! 0.4 DU = 10.748e15 molec/cm2
            endif
         else
            ! Pass SCD uncertainties. Will derive VCD uncertainties from this 
-           uncerts(1,n)   = uncerts1(n) / 1.0e15
+           uncerts(1,n)   = uncerts1(n) / 1.0e15 + abs(obses(1,n)) * 0.30 
         endif
-
+     
      endif
 
 !    Write record to output file

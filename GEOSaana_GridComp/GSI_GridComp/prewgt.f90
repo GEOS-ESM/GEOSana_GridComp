@@ -563,7 +563,7 @@ subroutine prewgt(mype)
                     ! determine minimum uncertainty: can be different over 'potentially polluted'
                     ! area, i.e., if over land and within PBL
                     ! - Stratosphere
-                    maxuncert=1.0e9
+                    maxuncert=25e-9
                     if ( instrat ) then
                        minuncert = tgas_minbgstrat(ireact)
                        bgadj     = tgas_bgscalstrat(ireact)
