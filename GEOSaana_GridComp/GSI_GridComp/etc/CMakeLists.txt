@@ -154,6 +154,7 @@ set (R21C_files
    R21C/gmao_global_cloudy_radiance_info.rc
    R21C/gmao_global_convinfo.rc
    R21C/gmao_global_satinfo.rc
+   R21C/gmao_global_scaninfo.rc
    R21C/gmao_global_tlapmean.rc
    R21C/gmao_global_ozinfo.rc
    R21C/gsi.rc.tmpl
