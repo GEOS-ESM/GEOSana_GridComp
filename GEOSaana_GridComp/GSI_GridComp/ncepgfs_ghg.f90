@@ -209,7 +209,11 @@ module ncepgfs_ghg
 
       if ( mype == 0 ) then
          write(6,*) ' - Using prescribed co2 global mean value=',co2_glb,&
-            'for Julian Day',julday
+            'for Julian Day',julday, ' on date: ', 10000*iyear+100*month+idd
+      endif
+      if (co2_glb<0.0_r_kind) then
+        write(6,*) ' - Non-sense Co2 value, aborting ...'
+        call stop2(999)
       endif
 
       return
@@ -335,9 +339,6 @@ module ncepgfs_ghg
       if ( mype == 0 ) then
         write(6,*) 'ncep_ghg: CO2 data ',  &
                     'data used for year, month,i,j:',iyear,month,i,j
-        do k=1,nlev
-            write(6,*) ' Level = ',k,' CO2 = ',co2_Tintrp(i,j,k)
-        enddo
       endif
 
 ! Interpolate the co2_Tintrp into a subdomain's grid

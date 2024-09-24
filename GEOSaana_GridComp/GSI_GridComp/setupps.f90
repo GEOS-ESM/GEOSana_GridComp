@@ -176,6 +176,8 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   real(r_kind) ratio_errors,error,dhgt,ddiff,dtemp
   real(r_kind) val2,ress,ressw2,val,valqc
   real(r_kind) cg_ps,wgross,wnotgross,wgt,arg,exp_arg,term,rat_err2,qcgross
+  real(r_kind),dimension(nobs)::dup_ij
+  real(r_kind),dimension(nsig,nobs):: dup_kx_vector
   real(r_kind),dimension(nobs):: dup
   real(r_kind),dimension(nsig):: prsltmp
   real(r_kind),dimension(nsig):: zges, prsltmp2, tvgestmp, tsentmp, qtmp, utmp, vtmp
@@ -192,6 +194,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   integer(i_kind) msges
 
   logical,dimension(nobs):: luse,muse
+  logical,dimension(nobs):: identical_obs
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical proceed
  
@@ -285,6 +288,12 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   hr_offset=min_offset/60.0_r_kind
 !  Check for duplicate observations at same location
   dup=one
+  dup_kx_vector = -999
+  dup_ij=one
+  do k=1,nobs
+     dup_kx_vector(1,k)=ictype(nint(data(ikxx,k)))  ! save its kx at the 1st slot
+  enddo
+  identical_obs = .false.
   do k=1,nobs
      do l=k+1,nobs
         if(data(ilat,k) == data(ilat,l) .and. &
@@ -298,9 +307,25 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
                   muse(k)=.false.
               endif
            else
+              if(sngl(data(ilate,k)) == sngl(data(ilate,l)) .and.  &
+                 sngl(data(ilone,k)) == sngl(data(ilone,l)) .and.  &
+                 sngl(data(itime,k)) == sngl(data(itime,l)) .and. &
+                 data(id,k)    == data(id,l) ) then
+                 ! Identical obs #k and #l. Not use or inflate error obs #l. 
+                 ! This change is made for JEDI since IODA converter treats them as one observation.
+                 !write(6,*) "Same observations as others. Skipped in setupps.f90"
+                 muse(l) = .false.
+                 identical_obs(l) = .true.
+                 cycle
+              endif
+
               tfact=min(one,abs(data(itime,k)-data(itime,l))/dfact1)
               dup(k)=dup(k)+one-tfact*tfact*(one-dfact)
               dup(l)=dup(l)+one-tfact*tfact*(one-dfact)
+              dup_ij(k)=dup_ij(k)+one
+              dup_ij(l)=dup_ij(l)+one
+              dup_kx_vector(nint(dup_ij(k)),k)=ictype(nint(data(ikxx,l)))  ! save the kx of the other obs.
+              dup_kx_vector(nint(dup_ij(l)),l)=ictype(nint(data(ikxx,k)))  ! save the kx of the other obs.
            endif
         end if
      end do
@@ -328,6 +353,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
 
   call dtime_setup()
   do i = 1,nobs
+     if(identical_obs(i)) cycle
      isli = -1
      dtime=data(itime,i)
      call dtime_check(dtime, in_curbin, in_anybin)
@@ -1001,10 +1027,11 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
            else
               call nc_diag_metadata("Analysis_Use_Flag",    sngl(-one)             )              
            endif
+           call nc_diag_metadata("Errinv_Input",            sngl(1./(data(ier2,i)*r10)/r100) )  ! 1/Pa
 
-           call nc_diag_metadata("Errinv_Input",            sngl(errinv_input/r100)     )
            call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst/r100)     )
            call nc_diag_metadata("Errinv_Final",            sngl(errinv_final/r100)     )
+           call nc_diag_metadata("Dupobs_Factor",           sngl(sqrt(dup(i)))          )
            call nc_diag_metadata("Error_Input",             sngl(error_input*r1000)     )  ! Pa
            call nc_diag_metadata("Error_Adjust",            sngl(error_adjst*r1000)     )  ! Pa
 
@@ -1066,6 +1093,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
            call nc_diag_metadata("landmask", sngl(landfrac))
            call nc_diag_metadata("Wind_Reduction_Factor_at_10m", sngl(factw))
+           call nc_diag_data2d("dup_kx_vector", sngl(dup_kx_vector(:,i)))
 
 
   end subroutine contents_netcdf_diag_
