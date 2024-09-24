@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- add ability to convert antenna to brigtness temperature
 - bugfix: update calculation of div/vor
 - merge of 5.30.3 with 5.40.0 and 5.29.5-p7
 - add offline RO bufr handling program
