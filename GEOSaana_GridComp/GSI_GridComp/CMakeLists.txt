@@ -1,6 +1,6 @@
 #esma_set_this ()
 
-add_subdirectory(mksi)
+esma_add_subdirectory(mksi)
 add_subdirectory(etc)
 
 set (GSIGC_SRCS
