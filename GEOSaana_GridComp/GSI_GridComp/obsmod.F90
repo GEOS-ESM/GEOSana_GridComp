@@ -389,6 +389,8 @@ module obsmod
 !                        includes cwm for both swcp and lwcp or not
 !   def lgpsbnd_revint - namelist logical determining whether or not to use
 !                        revised integration of bending angle profiles
+!   def saberTbot      - pressure level below which to ignore SABER-T
+!   def saberTtop      - pressure level above which to ignore SABER-T
 !
 ! attributes:
 !   langauge: f90
@@ -446,6 +448,7 @@ module obsmod
   public :: use_limit,lrun_subdirs
   public :: l_foreaft_thin,luse_obsdiag
   public :: lgpsbnd_revint
+  public :: saberTbot, saberTtop
 
   ! ==== DBZ DA ===
   public :: ntilt_radarfiles
@@ -559,6 +562,7 @@ module obsmod
   real(r_kind) ::static_gsi_nopcp_dbz
   real(r_kind) ::rmesh_dbz,zmesh_dbz
   real(r_kind) ::rmesh_vr,zmesh_vr
+  real(r_kind) ::saberTbot,saberTtop
 
   logical :: debugmode
   real(r_kind) :: minobrangevr,maxobrangevr,mintiltvr,maxtiltvr
@@ -667,6 +671,10 @@ contains
     mintiltvr=0.0_r_kind
     maxtiltvr=20.0_r_kind
     missing_to_nopcp=.false.
+
+!   Default for SABER use set to ignore all
+    saberTbot =    0.0_r_kind ! mb
+    saberTtop = 1000.0_r_kind ! mb
 
 !   Set logical flag
     perturb_obs = .false.   ! .true. = perturb observations
