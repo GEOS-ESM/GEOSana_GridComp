@@ -19,6 +19,7 @@
      dtbduv_on,time_window_max,offtime_data,init_directories,oberror_tune,ext_sonde, &
      blacklst,init_obsmod_vars,lobsdiagsave,lobskeep,lobserver,hilbert_curve,&
      lread_obs_save,lread_obs_skip,time_window_rad,lgpsbnd_revint
+  use obsmod, only: saberTbot,saberTtop
   use gsi_dbzOper, only: diag_radardbz
 
   use obsmod, only: doradaroneob,oneoblat,oneoblon,oneobheight,oneobvalue,oneobddiff,oneobradid,&
@@ -642,7 +643,7 @@
        minobrangevr, maxtiltdbz, mintiltvr,mintiltdbz,if_vterminal,if_vrobs_raw,&
        if_model_dbz,imp_physics,lupp,netcdf_diag,binary_diag,l_wcp_cwm,diag_version,&
        cao_check,lcalc_gfdl_cfrac,tau_fcst,evfsoi_order,lupdqc,lqcoef,lgpsbnd_revint,&
-       wrtgeovals
+       wrtgeovals,saberTbot,saberTtop
 
 ! GRIDOPTS (grid setup variables,including regional specific variables):
 !     jcap     - spectral resolution
