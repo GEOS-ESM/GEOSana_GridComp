@@ -33,6 +33,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
        lobsdiagsave,nobskeep,lobsdiag_allocated,time_offset
   use obsmod, only: dplat
   use obsmod, only: wrtgeovals
+  use obsmod, only: saberTbot,saberTtop
   use m_obsNode, only: obsNode
   use m_tNode, only: tNode
   use m_tNode, only: tNode_appendto
@@ -849,6 +850,14 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         if( regional .and. prest > pt_ll )then
            dpres=rsig
         else
+           ratio_errors=zero
+        endif
+     endif
+
+! Select SABER-T observations within given slab
+     if(itype ==294 ) then
+        if(prest>saberTtop .or. prest<saberTbot) then
+           error=zero
            ratio_errors=zero
         endif
      endif
