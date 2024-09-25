@@ -511,6 +511,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
      end if
 
 !    Reopen unit to satellite bufr file
+     close(lnbufr)
      open(lnbufr,file=trim(infile2),form='unformatted',status = 'old',iostat=ierr)
      if(ierr /= 0) cycle ears_db_loop
 
@@ -681,7 +682,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
            if(.not. iuse)cycle read_loop
 
 !          Extract satellite antenna corrections version number
-           if (llll > 1) then
+           if (ta2tb .and. llll > 1) then
               sacv = nint(bfr1bhdr(14))
               if (sacv > spc_coeff_versions) then
                  write(6,*) 'READ_BUFRTOVS WARNING sacv greater than spc_coeff_versions'
