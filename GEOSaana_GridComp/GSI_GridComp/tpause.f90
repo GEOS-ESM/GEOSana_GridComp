@@ -61,7 +61,7 @@ subroutine tpause(mype,method)
   real(r_kind),parameter:: r40=40.0_r_kind
   real(r_kind),parameter:: r1e5=1.0e5_r_kind
 
-  logical, parameter :: tpause_debug = .true.
+  logical, parameter :: tpause_debug = .false.
 
 ! Declare local variables
   logical t_method,pvoz_capable
