@@ -143,6 +143,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 !   2020-01-29  Sienkiewicz - allow obstypes marked as passive in convinfo to be thinned
 !   2020-10-27  sienkiewicz - update for BUFR drifting buoys, T29=564
 !   2022-09-21  Sienkiewicz - Add BUFR ship subtypes (524, 525) to ship definition
+!   2023-04-17  Sienkiewicz - Expand satwnd QI test to include GOES and JMA winds
 !   2023-05-22  Sienkiewicz - fix for ship obs with zero obs height where POB different from PMO
 !
 
@@ -722,7 +723,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
         if(use_prepb_satwnd .and. (kx >= 240 .and. kx <=260 )) iobsub = hdr(2)
 
 !       For the satellite wind to get quality information and check if it will be used
-        if(use_prepb_satwnd .and. (kx == 243 .or. kx == 253 .or. kx ==254) ) then
+!       - add GOES and JMA KX to check reprocessed satwinds in prepbufr format
+        if(use_prepb_satwnd .and. (kx >= 242 .and. kx <= 256) ) then
            call ufbint(lunin,satqc,1,1,iret,satqcstr)
            if(satqc(1) <  85.0_r_double) cycle loop_report   ! QI w/o fcst (su's setup
 !!         if(satqc(2) <= 80.0_r_double) cycle loop_report   ! QI w/ fcst (old prepdata)
@@ -1969,8 +1971,9 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  else
                     timedif=abs(t4dv-toff)
                  endif
-                 if(kx == 243 .or. kx == 253 .or. kx ==254) then
+                 if(kx >= 242 .and. kx <= 256) then
                     call ufbint(lunin,satqc,1,1,iret,satqcstr)
+                    if (ibfms(satqc(1))) satqc(1) = 0.0
                     crit1 = timedif/r6+half + four*(one-satqc(1)/r100)*r3_33
                  else
                     crit1 = timedif/r6+half
