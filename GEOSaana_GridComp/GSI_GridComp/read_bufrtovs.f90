@@ -241,7 +241,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 
   logical :: spc_coeff_found
   integer(i_kind) :: spc_coeff_versions
-  character(len=80) :: spc_filename
+  character(len=256) :: spc_filename
   type(ACCoeff_type),dimension(3) :: accoeff_sets
 
 !**************************************************************************
@@ -511,6 +511,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
      end if
 
 !    Reopen unit to satellite bufr file
+     call closbf(lnbufr)
      close(lnbufr)
      open(lnbufr,file=trim(infile2),form='unformatted',status = 'old',iostat=ierr)
      if(ierr /= 0) cycle ears_db_loop
@@ -525,7 +526,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
         spc_coeff_found = .true.
         do while (spc_coeff_found)
            if (spc_coeff_versions == 0) then
-              sensorlist(1)=sis
+              sensorlist(1)=trim(sis)
            else
               i = spc_coeff_versions+1
               write(sensorlist(1),'(a,a,i1)') trim(sis),'_v',i
@@ -540,8 +541,8 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 
            if (.NOT. spc_coeff_found) then
               if (spc_coeff_versions == 0) then
-                 write(6,*)'READ_BUFRTOVS:  ***ERROR*** crtm_spccoeff_load error_status=',error_status,&
-                    '   TERMINATE PROGRAM EXECUTION'
+                 write(6,*)'READ_BUFRTOVS:  ***ERROR*** crtm_spccoeff_load error_status=',spc_coeff_found,&
+                    ' possibly missing ', trim(spc_filename),'  TERMINATE PROGRAM EXECUTION'
                  call stop2(71)
               else
                  write(6,*)'READ_BUFRTOVS:  ', spc_coeff_versions, ' versions of SpcCoeff found for ', trim(sis)
@@ -583,7 +584,6 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 
      end if
 
-   
 !    Loop to read bufr file
      irecx=0
      read_subset: do while(ireadmg(lnbufr,subset,idate)>=0)
@@ -683,7 +683,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
            if(.not. iuse)cycle read_loop
 
 !          Extract satellite antenna corrections version number
-           if (ta2tb .and. llll > 1) then
+           if (llll > 1) then
               sacv = nint(bfr1bhdr(14))
               if (sacv > spc_coeff_versions) then
                  write(6,*) 'READ_BUFRTOVS WARNING sacv greater than spc_coeff_versions'
@@ -744,7 +744,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 
               if (llll == 1) then
                  call ufbrep(lnbufr,data1b8,1,nchanl,iret,'TMBR')
-                 if ( amsua .and. &
+                 if ( (amsua .or. amsub .or. mhs) .and. &
                       .not.(jsatid == 'n15' .or. jsatid == 'n16') )then
                     ! convert antenna temperature to brightness temperature,
                     ! unless the satellite is n15 or n16, because tranamsua
