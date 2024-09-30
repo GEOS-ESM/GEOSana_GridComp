@@ -752,8 +752,8 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
                     ! for it to use
                     data1b8x=data1b8
                     data1b4=data1b8
-                    !call apply_antcorr(accoeff_sets(spc_coeff_versions),ifov,data1b4)
-                    call apply_antcorr(accoeff_sets(1),ifov,data1b4)
+                    call apply_antcorr(accoeff_sets(spc_coeff_versions),ifov,data1b4)
+                    !call apply_antcorr(accoeff_sets(1),ifov,data1b4)
                     data1b8=data1b4
                     do j=1,nchanl
                        if(data1b8x(j) > r1000) data1b8(j) = 1000000._r_kind
