@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add CrIS-FSR N21
 - revert obs errors for CrIS-Npp and N20 to what they
   were in x0049.
+- add fix to read_bufrtovs to handle ta2tb=.true. when
+  there are multiple versions of SpcCoeff.bin file for 
+  single instrument/platform
 
 ### Fixed
 
