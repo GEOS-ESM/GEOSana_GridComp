@@ -593,18 +593,18 @@ contains
      obstype,nchanl,' --> ',jc
   if(jc == 0 .or. toss)then 
      if(jc == 0 .and. mype == 0) then
-        write(6,*)'SETUPRAD: No channels found for ', obstype,isis
+        write(6,*)'SETUPRAD: No channels found for ', trim(obstype),trim(isis)
      end if
      if (toss .and. mype == 0) then
         write(6,*)'SETUPRAD: all obs var > 1e4.  do not use ',&
-           'data from satellite is=',isis
+           'data from satellite is=',trim(isis)
      endif
 
      if(nobs >0)read(lunin)                    
      return
   endif
 
-  if ( mype == 0 .and. .not.l_may_be_passive) write(6,*)mype,'setuprad: passive obs',is,isis
+  if ( mype == 0 .and. .not.l_may_be_passive) write(6,*)mype,'setuprad: passive obs',is,trim(isis)
 
 !  Logic to turn off print of reading coefficients if not first interation or not mype_diaghdr or not init_pass
   iwrmype=-99
@@ -703,7 +703,7 @@ contains
            endif
         enddo
         if (no85GHz .and. mype == 0) write(6,*) &
-           'SETUPRAD: using no85GHZ workaround for SSM/I ',isis
+           'SETUPRAD: using no85GHZ workaround for SSM/I ',trim(isis)
      endif
   endif
 
