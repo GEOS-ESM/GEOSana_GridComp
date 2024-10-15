@@ -593,18 +593,18 @@ contains
      obstype,nchanl,' --> ',jc
   if(jc == 0 .or. toss)then 
      if(jc == 0 .and. mype == 0) then
-        write(6,*)'SETUPRAD: No channels found for ', obstype,isis
+        write(6,*)'SETUPRAD: No channels found for ', trim(obstype),trim(isis)
      end if
      if (toss .and. mype == 0) then
         write(6,*)'SETUPRAD: all obs var > 1e4.  do not use ',&
-           'data from satellite is=',isis
+           'data from satellite is=',trim(isis)
      endif
 
      if(nobs >0)read(lunin)                    
      return
   endif
 
-  if ( mype == 0 .and. .not.l_may_be_passive) write(6,*)mype,'setuprad: passive obs',is,isis
+  if ( mype == 0 .and. .not.l_may_be_passive) write(6,*)mype,'setuprad: passive obs',is,trim(isis)
 
 !  Logic to turn off print of reading coefficients if not first interation or not mype_diaghdr or not init_pass
   iwrmype=-99
@@ -703,7 +703,7 @@ contains
            endif
         enddo
         if (no85GHz .and. mype == 0) write(6,*) &
-           'SETUPRAD: using no85GHZ workaround for SSM/I ',isis
+           'SETUPRAD: using no85GHZ workaround for SSM/I ',trim(isis)
      endif
   endif
 
@@ -2682,6 +2682,7 @@ contains
                  call nc_diag_metadata("Forecast_unadjusted_clear",     sngl(tsim_clr(ich_diag(i))))     ! simulated Tb under clear-sky condition
                  call nc_diag_metadata("Forecast_adjusted_clear",       sngl(tsim_clr_bc(ich_diag(i))))     ! simulated Tb under clear-sky condition
                  call nc_diag_metadata("Forecast_unadjusted",           sngl(tb_obs(ich_diag(i))-tbcnob(ich_diag(i)))) ! simulated Tb with no bias correction
+                 call nc_diag_metadata("Forecast_adjusted",             sngl(tb_obs(ich_diag(i))-tbc(ich_diag(i)))     ) ! simulated Tb with bias correction
            !     call nc_diag_metadata("Bias_Correction", sngl(tbc(ich_diag(i))-tbcnob(ich_diag(i)))       ) ! bias correction
                  call nc_diag_metadata("Bias_Correction", sngl(tbcnob(ich_diag(i))-tbc(ich_diag(i)))       ) ! bias correction
                  call nc_diag_metadata("Bias_Correction_Constant", sngl(predbias(1,ich_diag(i)))           ) ! constant bias correction

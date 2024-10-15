@@ -639,7 +639,7 @@ set (WRF_SRCS
    )
 
 set (SRCS
-  ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} prepbykx.f prepbysaid.f
+  ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} prepbykx.f prepbysaid.f test_dec2bin.f90
   )
 
 
@@ -703,6 +703,8 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
             set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${EXTENDED_SOURCE} ${FP_MODEL_STRICT} ${ALIGNCOM}")
          elseif (${src} MATCHES prepbysaid.f)
             set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${EXTENDED_SOURCE} ${FP_MODEL_STRICT} ${ALIGNCOM}")
+         elseif (${src} MATCHES test_dec2bin.f90)
+            set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${EXTENDED_SOURCE} ${FP_MODEL_STRICT} ${ALIGNCOM}")
          elseif (${src} MATCHES m_gsiversion.F90)
             set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BIG_ENDIAN} ${BYTERECLEN}")
          elseif (${src} MATCHES crtm_interface.f90)
@@ -721,7 +723,7 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 endif ()
 
 if (EXTENDED_SOURCE)
-  set_source_files_properties(prepbykx.f prepbysaid.f PROPERTIES COMPILE_OPTIONS ${EXTENDED_SOURCE})
+  set_source_files_properties(prepbykx.f prepbysaid.f test_dec2bin.f90 PROPERTIES COMPILE_OPTIONS ${EXTENDED_SOURCE})
 endif ()
 
 set (SRCS_STUBS
@@ -749,11 +751,11 @@ install(
   
 esma_add_library (GSI_GridComp
    SRCS ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
-  DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
+  DEPENDENCIES MAPL crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 esma_add_library (GSI_GridComp_with_stubs
    SRCS ${SRCS_STUBS} ${SRCS_UTIL} ${SRCS_OBSVR} ${SRCS_OTHER} ${SRCS_SOLVER} ${GSIGC_SRCS} 
-   DEPENDENCIES MAPL NCEP_crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
+   DEPENDENCIES MAPL crtm NCEP_w3_r8i4 NCEP_bufr_r8i4 NCEP_sigio NCEP_gfsio NCEP_nemsio nc_diag_read nc_diag_write NCEP_sfcio GMAO_hermes GMAO_transf)
 
 foreach (item HAVE_ESMF _SKIP_READ_OBS_CHECK_ _TIMER_ON_ _REAL8_)
    target_compile_definitions (GSI_GridComp PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${item}>)
@@ -772,7 +774,7 @@ endforeach()
 
 #esma_add_library (GSI_Util
 #  SRCS ${SRCS_UTIL}
-#  DEPENDENCIES GSI_Observer MAPL NCEP_crtm NCEP_nemsio nc_diag_read GMAO_stoch)  
+#  DEPENDENCIES GSI_Observer MAPL crtm NCEP_nemsio nc_diag_read GMAO_stoch)  
 #
 #esma_add_library (GSI_Observer
 #  SRCS ${SRCS_OBSVR}
@@ -792,3 +794,4 @@ endforeach()
 
 ecbuild_add_executable(TARGET prepbykx.x SOURCES prepbykx.f LIBS ${this})
 ecbuild_add_executable(TARGET prepbysaid.x SOURCES prepbysaid.f LIBS ${this})
+ecbuild_add_executable(TARGET test_dec2bin.x SOURCES test_dec2bin.f90 LIBS ${this})

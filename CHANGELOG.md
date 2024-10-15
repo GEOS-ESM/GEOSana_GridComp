@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add fix to read_bufrtovs to handle ta2tb=.true. when
   there are multiple versions of SpcCoeff.bin file for 
   single instrument/platform
+- update to use CRTM v2.4.1-jedi-1
 
 ### Fixed
 
