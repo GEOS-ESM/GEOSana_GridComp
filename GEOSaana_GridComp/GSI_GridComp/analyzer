@@ -658,11 +658,25 @@ sub init {
 # NOTE: for a while, when using GSI, will need both because of spectral transforms
 # --------------------------------------------------------------------------------
     if ( $doTRANSF ) {
-       if (-e "$fvInput/$myetc/newncepsfc.${jcap}" ) {
-          Assignfn( "$fvInput/$myetc/newncepsfc.${jcap}", "ncepsfc");
+       if ( ! -e $rcname ) {die ">>>> ERROR <<< cannot find $rcname" };
+       my $nveg = `nmlread.py $rcname GRIDOPTS nvege_type`; chomp($nveg);
+       print " this value: $nveg \n";
+       if ( $nveg == 13 ) {
+         if (-e "$fvInput/$myetc/newncepsfc.${jcap}" ) {
+            Assignfn( "$fvInput/$myetc/newncepsfc.${jcap}", "ncepsfc");
+         } else {
+            print "WARNING, analyzer: jcap inconsistent with available NCEP SFC file, reset to 254\n";
+            Assignfn( "$fvInput/$myetc/newncepsfc.254", "ncepsfc");
+         }
        } else {
-          print "WARNING, analyzer: jcap inconsistent with available NCEP SFC file, reset to 254\n";
-          Assignfn( "$fvInput/$myetc/newncepsfc.254", "ncepsfc");
+         my $mylat = `nmlread.py $rcname GRIDOPTS NLAT`; chomp($mylat);
+         my $mylon = `nmlread.py $rcname GRIDOPTS NLON`; chomp($mylon);
+         print "analyzer: NCEPSFC /discover/nobackup/projects/gmao/dadev/rtodling/TEST/GSIFIXSFC/JEDI/jedi.crtmsrf.${mylon}x${mylat}.nc4 \n";
+         if (-e "/discover/nobackup/projects/gmao/dadev/rtodling/TEST/GSIFIXSFC/JEDI/jedi.crtmsrf.${mylon}x${mylat}.nc4" ) {
+            Assignfn( "/discover/nobackup/projects/gmao/dadev/rtodling/TEST/GSIFIXSFC/JEDI/jedi.crtmsrf.${mylon}x${mylat}.nc4", "ncepsfc");
+         } else {
+           die ">>>> ERROR <<< cannot find jedi.crtmsrf.${mylon}x${mylat}.nc4";
+         }
        }
     }
 
@@ -1329,10 +1343,14 @@ sub ana {
           if ( $stg4hyb && ($stg4hyb ne "/dev/null") ) {
              print "satbias_out to $stg4hyb \n";
              cp("satbias_out","$stg4hyb/$expid.ana.satbias.${nymd}_${hh}z.txt");
-#	     if ( $NEWRADBC && -e satbias_pc.out ) {
-#		 print "satbias_pc.out to $stg4hyb \n";
-#		 cp ("satbias_pc.out", "$stg4hyb/$expid.ana.satbias_pc.${nymd}_${hh}z.txt");
-#	     }
+ 	     if ( $NEWRADBC && -e satbias_pc.out ) {
+ 		 print "satbias_pc.out to $stg4hyb \n";
+ 		 cp ("satbias_pc.out", "$stg4hyb/$expid.ana.satbias_pc.${nymd}_${hh}z.txt");
+ 	     }
+ 	     if ( ($doABC > 0) && -e aircftbias_out ) {
+ 		print "aircftbias_out to $stg4hyb \n";
+                cp("aircftbias_out","$stg4hyb/$expid.ana.acftbias.${nymd}_${hh}z.txt");
+             }
           }
        }
 

@@ -411,6 +411,7 @@ set (SRCS_SOLVER
   logcldch_to_cldch.f90
   logvis_to_vis.f90
   m_nc_berror.f90
+  m_nc_ncepsfc.f90
   m_berror_stats.f90
   m_berror_stats_reg.f90
   m_cvgridLookup.F90

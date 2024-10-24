@@ -130,6 +130,7 @@
                                      ! (buffer points on ends)
                          ak5,bk5,ck5, & ! coefficients for hybrid vertical coordinate
                          idvc5,    & ! vertical coordinate identifier
+                         nvege_type, & ! veg-type choice
    ! spectral transform grid info
                          sp_a
 
@@ -1823,7 +1824,6 @@ _ENTRY_(trim(Iam))
          where ( du002p /= MAPL_UNDEF )
                  du002p = du002p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
-         print *, 'DEBUG doing the right thing ...'
       endif
       if(associated(du003p)) then
          where ( du003p /= MAPL_UNDEF )
@@ -2566,6 +2566,9 @@ _ENTRY_(trim(Iam))
 
    use sfcio_module
    use mpeu_util, only: die
+   use m_nc_ncepsfc, only: nc_ncepsfc_read
+   use m_nc_ncepsfc, only: nc_ncepsfc_vars
+   use m_nc_ncepsfc, only: nc_ncepsfc_vars_final
    implicit none
 
    integer, intent(in) :: lit ! logical index of first guess time level to copy
@@ -2575,6 +2578,12 @@ _ENTRY_(trim(Iam))
 !   17Mar2016  Todling  Revisit handling of extra surface fields: use sfcio;
 !                       add option to set veg-type to constant for sensitivity
 !                       evalulation.
+!   22Oct2024  Todling  In an attempt to minimize differences between GSI and JEDI
+!                       this routine provides the means to read an nc4 file with
+!                       the three surface fields in question that are consistent 
+!                       with the data used in JEDI. Notice: this implies that
+!                       a lat-lon file (at GSI''s resolution) has been created
+!                       from the cubed files used in JEDI.
 !
 !EOPI
 !-------------------------------------------------------------------------
@@ -2594,14 +2603,19 @@ _ENTRY_(trim(Iam))
    type(sfcio_head):: head
    type(sfcio_data):: data
 
+   type(nc_ncepsfc_vars) :: sfcvars
+
    character(len=*), parameter    :: &
             IAm='GSI_GridCompGetNCEPsfcFromFile_'
 
    character(len=ESMF_MAXSTR) :: opt
    integer(i_kind) :: it,nn,iret
    integer(i_kind) :: iset_veg_type
+   real(r_single) :: rvege
    logical :: wrt_ncep_sfc_grd
    logical :: use_sfcio
+   logical :: use_sfcnc
+   logical :: bypass_interp
 
 ! start
 
@@ -2618,12 +2632,13 @@ _ENTRY_(trim(Iam))
    endif
    call ESMF_ConfigGetAttribute( CF, opt, label ='USE_SFCIO4NCEP_SFC:', default="YES", rc = STATUS )
    VERIFY_(STATUS)
-   use_sfcio=.true.
-   if ( trim(opt) == "YES" ) then
-      if(IamRoot) print *,trim(Iam),': using SFCIO to read NCEP surface fields'
+   use_sfcnc=nvege_type==20 ! wired for now
+   if ( use_sfcnc ) then
+      if(IamRoot) print *,trim(Iam),': read NCEP surface fields from nc4 file with 20-veg'
    else
-      use_sfcio=.false.
-      if(IamRoot) print *,trim(Iam),': NOT using SFCIO to read NCEP surface fields'
+     use_sfcio=.false.
+     if (trim(opt) == 'YES') use_sfcio=.true.
+     if(IamRoot) print *,trim(Iam),': read NCEP surface fields using SFCIO: ', use_sfcio
    endif
 
    if(lit > nfldsfc) then
@@ -2640,6 +2655,7 @@ _ENTRY_(trim(Iam))
 !
    if(IamRoot) then
 
+      bypass_interp=.false.
       if (wrt_ncep_sfc_grd) then
          call baopenwt(36,'ncepsfc.grd',iret)
       endif
@@ -2660,11 +2676,26 @@ _ENTRY_(trim(Iam))
             print*, trim(Iam), ', Veg-type reset by request to: ',iset_veg_type
          endif
       else
-         open(34,file='ncepsfc', form='unformatted')
-         read (34) 
-         read(34) yhour,igdate,glon,glat2,version
-         close(34)
-         glat=glat2+2 
+         if (use_sfcnc) then
+           yhour=0
+           igdate=1776074
+           call nc_ncepsfc_read('ncepsfc',sfcvars,STATUS)
+           VERIFY_(status)
+           if(sfcvars%nveg/=nvege_type) then
+             status=99
+             VERIFY_(STATUS)
+           endif
+           glon =size(sfcvars%vfrac,1)
+           glat2=size(sfcvars%vfrac,2)
+           bypass_interp= (glat2==nlat).and.(glon==nlon)
+           print*, trim(Iam), ', sfc-file-handling bypassing interpolation: ', bypass_interp
+         else
+           open(34,file='ncepsfc', form='unformatted')
+           read (34) 
+           read(34) yhour,igdate,glon,glat2,version
+           close(34)
+           glat=glat2+2 
+         endif
       endif
       print *,trim(Iam),': ncepsfc hour/date  : ',yhour,' / ',igdate
       print *,trim(Iam),': ncepsfc fields dims, version: ',glon,' x ',glat2, ' v', version
@@ -2680,9 +2711,13 @@ _ENTRY_(trim(Iam))
       VERIFY_(STATUS)
 
       if (.not.use_sfcio ) then
-         call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
-                             STATUS, jrec=12, fld=sfcbuf)
-         VERIFY_(STATUS)
+         if (use_sfcnc) then
+           vfrbuf=sfcvars%vfrac
+         else
+           call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
+                               STATUS, jrec=12, fld=sfcbuf)
+           VERIFY_(STATUS)
+         endif
       else
          if (associated(data%vfrac)) then
             sfcbuf=data%vfrac
@@ -2690,12 +2725,15 @@ _ENTRY_(trim(Iam))
             call die(Iam,' vfrac not found in NCEP input file', 99)
          endif
       endif
-      call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
-      call GSI_GridCompFlipLons_(sfcbufpp)
-      call hinterp2 ( sfcbufpp ,glon, glat   , &
-                      vfrbuf, nlon, nlat, 1, &
-                      UNDEF_SSI_)
+      if (.not.bypass_interp) then
+        call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
+        call GSI_GridCompFlipLons_(sfcbufpp)
+        call hinterp2 ( sfcbufpp ,glon, glat   , &
+                        vfrbuf, nlon, nlat, 1, &
+                        UNDEF_SSI_)
+      endif
       call GSI_GridCompFlipLons_(vfrbuf)
+
       where(vfrbuf<0.0)
         vfrbuf=0.0
       end where
@@ -2707,9 +2745,13 @@ _ENTRY_(trim(Iam))
       endif
 
       if (.not.use_sfcio ) then
-         call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
-                             STATUS, jrec=15, fld=sfcbuf)
-         VERIFY_(STATUS)
+         if (use_sfcnc) then
+           vtybuf=sfcvars%vtype
+         else
+           call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
+                               STATUS, jrec=15, fld=sfcbuf)
+           VERIFY_(STATUS)
+        endif
       else
          if (associated(data%vtype)) then
             sfcbuf=data%vtype
@@ -2717,23 +2759,30 @@ _ENTRY_(trim(Iam))
             call die(Iam,' vtype not found in NCEP input file', 99)
          endif
       endif
-      call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
-      call GSI_GridCompFlipLons_(sfcbufpp)
-      call hinterp2 ( sfcbufpp ,glon, glat   , &
-                      vtybuf, nlon, nlat, 1, &
-                      UNDEF_SSI_)
+      if (.not.bypass_interp) then
+        call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
+        call GSI_GridCompFlipLons_(sfcbufpp)
+        call hinterp2 ( sfcbufpp ,glon, glat   , &
+                        vtybuf, nlon, nlat, 1, &
+                        UNDEF_SSI_)
+      endif
       call GSI_GridCompFlipLons_(vtybuf)
       vtybuf=real(nint(vtybuf),r_single) 
-      where(vtybuf <  0.0_r_single) vtybuf =  0.0_r_single
-      where(vtybuf > 13.0_r_single) vtybuf = 13.0_r_single
+      rvege = float(nvege_type-1)
+      where(vtybuf <  0.0_r_single) vtybuf = 0.0_r_single
+      where(vtybuf >         rvege) vtybuf = rvege
       if (wrt_ncep_sfc_grd) then
          call wryte(36,4*nlat*nlon,vtybuf)
       endif
 
       if (.not.use_sfcio ) then
-         call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
-                             STATUS, jrec=16, fld=sfcbuf)
-         VERIFY_(STATUS)
+         if (use_sfcnc) then
+           stybuf=sfcvars%stype
+         else
+           call ncep_rwsurf_ ( .false., 'ncepsfc', glat2, glon, &
+                               STATUS, jrec=16, fld=sfcbuf)
+           VERIFY_(STATUS)
+         endif
       else
          if (associated(data%stype)) then
             sfcbuf=data%stype
@@ -2741,11 +2790,13 @@ _ENTRY_(trim(Iam))
             call die(Iam,' stype not found in NCEP input file', 99)
          endif
       endif
-      call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
-      call GSI_GridCompFlipLons_(sfcbufpp)
-      call hinterp2 ( sfcbufpp ,glon, glat   , &
-                      stybuf, nlon, nlat, 1, &
-                      UNDEF_SSI_)
+      if (.not.bypass_interp) then
+        call GSI_GridCompSP2NP_(sfcbufpp,sfcbuf)
+        call GSI_GridCompFlipLons_(sfcbufpp)
+        call hinterp2 ( sfcbufpp ,glon, glat   , &
+                        stybuf, nlon, nlat, 1, &
+                        UNDEF_SSI_)
+      endif
       call GSI_GridCompFlipLons_(stybuf)
       stybuf=real(nint(stybuf),r_single)
       where(stybuf <  0.0_r_single) stybuf = 0.0_r_single
@@ -2753,6 +2804,9 @@ _ENTRY_(trim(Iam))
       if (wrt_ncep_sfc_grd) then
          call wryte(36,4*nlat*nlon,stybuf)
          call baclose(36,iret) 
+      endif
+      if (use_sfcnc) then
+        call nc_ncepsfc_vars_final(sfcvars)
       endif
 
       deallocate(sfcbuf, sfcbufpp, stat=STATUS)
@@ -2810,7 +2864,7 @@ _ENTRY_(trim(Iam))
 #endif
 
    end subroutine GSI_GridCompGetNCEPsfcFromFile_
-   
+
 !-------------------------------------------------------------------------
 !    NOAA/NCEP, National Centers for Environmental Prediction GSI        !
 !-------------------------------------------------------------------------
@@ -3421,10 +3475,14 @@ _ENTRY_(trim(Iam))
      character(len=*),intent(in ) :: myname
      integer         ,intent(out) :: rc
      character(len=*), parameter :: IAm='GSI_GridComp.getnexttoken1_'
+     logical :: tableEnd
 
      token=""
-     call ESMF_ConfigNextLine(cf, rc=rc)
-       if(rc/=0) return           ! end-of-file is expected.  No error message is produced.
+     call ESMF_ConfigNextLine(cf, tableEnd=tableEnd, rc=rc)
+       if(tableEnd) then          ! end-of-file is expected.  No error message is produced.
+         rc=-1	! end-of-table is expected.  No error message is produced
+         return
+       endif
 
      call ESMF_ConfigGetAttribute(cf, token, rc=rc)
        if(rc/=0) then
@@ -3432,7 +3490,6 @@ _ENTRY_(trim(Iam))
          call MAPL_Abort()
        endif
 
-     if(token=='::') rc=-1	! end-of-table is expected.  No error message is produced
    end subroutine getnexttoken1_
 
    subroutine getnexttoken2_(cf,token,myname)
