@@ -177,7 +177,7 @@ metop-c 20240621 000000  21001231 240000  amsua  0                   # Noisy cha
 
 # Downgrade & upgrade 14 to iuse=4
 
-$ Copying NPP ATMS outages from active channels table
+# Copying NPP ATMS outages from active channels table
 npp  20111116 000000  20210803 120000  atms  1  15
 npp  20210803 180000  20210805 240000  atms  0
 npp  20210806 000000  20220726 120000  atms  1  15
