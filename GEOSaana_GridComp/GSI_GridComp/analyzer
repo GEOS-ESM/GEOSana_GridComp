@@ -671,9 +671,9 @@ sub init {
        } else {
          my $mylat = `nmlread.py $rcname GRIDOPTS NLAT`; chomp($mylat);
          my $mylon = `nmlread.py $rcname GRIDOPTS NLON`; chomp($mylon);
-         print "analyzer: NCEPSFC /discover/nobackup/projects/gmao/dadev/rtodling/TEST/GSIFIXSFC/JEDI/jedi.crtmsrf.${mylon}x${mylat}.nc4 \n";
-         if (-e "/discover/nobackup/projects/gmao/dadev/rtodling/TEST/GSIFIXSFC/JEDI/jedi.crtmsrf.${mylon}x${mylat}.nc4" ) {
-            Assignfn( "/discover/nobackup/projects/gmao/dadev/rtodling/TEST/GSIFIXSFC/JEDI/jedi.crtmsrf.${mylon}x${mylat}.nc4", "ncepsfc");
+         print "analyzer: NCEPSFC $fvInput/$myetc/veg20/jedi.crtmsrf.${mylon}x${mylat}.nc4 \n";
+         if (-e "$fvInput/$myetc/veg20/jedi.crtmsrf.${mylon}x${mylat}.nc4" ) {
+            Assignfn( "$fvInput/$myetc/veg20/jedi.crtmsrf.${mylon}x${mylat}.nc4", "ncepsfc");
          } else {
            die ">>>> ERROR <<< cannot find jedi.crtmsrf.${mylon}x${mylat}.nc4";
          }
