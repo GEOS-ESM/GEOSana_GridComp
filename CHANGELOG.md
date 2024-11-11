@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add ability to handle nvege_type=20 - no longer doing
   fishy interpolation.
 
+- Revise sources of OMPS-LP; fix handling of multiple 
+  sources of OMPS-LP in source code.
+
 ### Fixed
 
 ### Removed
