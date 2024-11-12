@@ -159,13 +159,13 @@ subroutine read_ncepsfc_ (fname,sfcvar,rc, myid,root)
      call check_( nf90_inq_varid(ncid, trim(cvars2dx(nv)), varid), rc, mype_, root_ )
      call check_( nf90_get_var(ncid, varid, data_in(:,:,1)), rc, mype_, root_ )
      if(trim(cvars2dx(nv))=="vfrac"     ) then
-        sfcvar%vfrac = transpose(data_in(:,:,1))
+        sfcvar%vfrac = data_in(:,:,1)
      endif
      if(trim(cvars2dx(nv))=="vtype" ) then 
-        sfcvar%vtype = transpose(data_in(:,:,1))
+        sfcvar%vtype = data_in(:,:,1)
      endif
      if(trim(cvars2dx(nv))=="stype" ) then 
-        sfcvar%stype = transpose(data_in(:,:,1))
+        sfcvar%stype = data_in(:,:,1)
      endif
   enddo
   deallocate(data_in)
@@ -266,13 +266,13 @@ subroutine write_ncepsfc_ (fname,sfcvar,plevs,lats,lons,rc, myid,root)
   allocate(data_out(nlon,nlat,1))
   do nv = 1, nv2dx
      if(trim(cvars2dx(nv))=="vfrac" ) then
-        data_out(:,:,1) = transpose(sfcvar%vfrac)
+        data_out(:,:,1) = sfcvar%vfrac
      endif
      if(trim(cvars2dx(nv))=="vtype" ) then 
-        data_out(:,:,1) = transpose(sfcvar%vtype)
+        data_out(:,:,1) = sfcvar%vtype
      endif
      if(trim(cvars2dx(nv))=="stype" ) then 
-        data_out(:,:,1) = transpose(sfcvar%stype)
+        data_out(:,:,1) = sfcvar%stype
      endif
      call check_( nf90_put_var(ncid, varid2dx(nv), data_out(:,:,1)), rc, mype_, root_ )
   enddo
@@ -302,7 +302,7 @@ subroutine init_ncepsfc_vars_(vr,nlon,nlat)
   vr%nlat=nlat
 
 ! allocate arrays
-  allocate(vr%vfrac(nlat,nlon),vr%vtype(nlat,nlon),vr%stype(nlat,nlon))
+  allocate(vr%vfrac(nlon,nlat),vr%vtype(nlon,nlat),vr%stype(nlon,nlat))
   vr%initialized=.true.
   end subroutine init_ncepsfc_vars_
 

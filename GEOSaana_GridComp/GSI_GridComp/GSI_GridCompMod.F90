@@ -2609,6 +2609,7 @@ _ENTRY_(trim(Iam))
             IAm='GSI_GridCompGetNCEPsfcFromFile_'
 
    character(len=ESMF_MAXSTR) :: opt
+   character(len=20) :: fname
    integer(i_kind) :: it,nn,iret
    integer(i_kind) :: iset_veg_type
    real(r_single) :: rvege
@@ -2656,9 +2657,6 @@ _ENTRY_(trim(Iam))
    if(IamRoot) then
 
       bypass_interp=.false.
-      if (wrt_ncep_sfc_grd) then
-         call baopenwt(36,'ncepsfc.grd',iret)
-      endif
       ! NCEP surface fields are defined on a Gaussian grid...
       if (use_sfcio) then
          print *,trim(Iam),': Using sfcio to read NCEP surface file (as BC)'
@@ -2679,6 +2677,7 @@ _ENTRY_(trim(Iam))
          if (use_sfcnc) then
            yhour=0
            igdate=1776074
+           version=1776 ! just give it a number
            call nc_ncepsfc_read('ncepsfc',sfcvars,STATUS)
            VERIFY_(status)
            if(sfcvars%nveg/=nvege_type) then
@@ -2740,9 +2739,6 @@ _ENTRY_(trim(Iam))
       where(vfrbuf>1.0)
         vfrbuf=1.0
       end where
-      if (wrt_ncep_sfc_grd) then
-         call wryte(36,4*nlat*nlon,vfrbuf)
-      endif
 
       if (.not.use_sfcio ) then
          if (use_sfcnc) then
@@ -2767,12 +2763,11 @@ _ENTRY_(trim(Iam))
                         UNDEF_SSI_)
       endif
       call GSI_GridCompFlipLons_(vtybuf)
-      vtybuf=real(nint(vtybuf),r_single) 
-      rvege = float(nvege_type-1)
-      where(vtybuf <  0.0_r_single) vtybuf = 0.0_r_single
-      where(vtybuf >         rvege) vtybuf = rvege
-      if (wrt_ncep_sfc_grd) then
-         call wryte(36,4*nlat*nlon,vtybuf)
+      if (.not.bypass_interp) then
+        vtybuf=real(nint(vtybuf),r_single) 
+        rvege = float(nvege_type-1)
+        where(vtybuf <  0.0_r_single) vtybuf = 0.0_r_single
+        where(vtybuf >         rvege) vtybuf = rvege
       endif
 
       if (.not.use_sfcio ) then
@@ -2801,10 +2796,6 @@ _ENTRY_(trim(Iam))
       stybuf=real(nint(stybuf),r_single)
       where(stybuf <  0.0_r_single) stybuf = 0.0_r_single
       where(stybuf >  9.0_r_single) stybuf = 9.0_r_single
-      if (wrt_ncep_sfc_grd) then
-         call wryte(36,4*nlat*nlon,stybuf)
-         call baclose(36,iret) 
-      endif
       if (use_sfcnc) then
         call nc_ncepsfc_vars_final(sfcvars)
       endif
@@ -2862,6 +2853,15 @@ _ENTRY_(trim(Iam))
    call guess_grids_stats('GCveg_type',  veg_type (:,:,it), mype)
    call guess_grids_stats('GCveg_frac',  veg_frac (:,:,it), mype)
 #endif
+
+!  Show what surface fields look like
+!  ----------------------------------
+   if (wrt_ncep_sfc_grd) then
+     write(fname,'(a,i2.2)') 'gsi_crtmsfc_', it
+     call write_crtmsfc_grid(soil_type(:,:,it),&
+                             veg_type (:,:,it),&
+                             veg_frac (:,:,it),trim(fname),mype)
+   endif
 
    end subroutine GSI_GridCompGetNCEPsfcFromFile_
 
