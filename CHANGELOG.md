@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - update to use CRTM v2.4.1-jedi-1
 - Revise sources of OMPS-LP; fix handling of multiple 
   sources of OMPS-LP in source code.
+- minor bug fix in gsi_sens.rc.tmpl for CrIS/N21 dsis
 
 
 ### Fixed
