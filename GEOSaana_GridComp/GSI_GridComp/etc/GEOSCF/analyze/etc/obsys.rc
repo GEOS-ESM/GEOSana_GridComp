@@ -248,12 +248,12 @@ END
 
 # OMI NO2
 BEGIN tgas_omno2_no2_nc => omno2.%y4%m2%d2.t%h2z.nc
- 20180101_00z-30000101_18z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/OMNO2_003/nc/Y%y4/M%m2/OMNO2v4.%y4%m2%d2.t%h2z.nc
+ 20180101_00z-30000101_18z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/omi_2024/OMNO2/nc/Y%y4/M%m2/OMNO2v4.%y4%m2%d2.t%h2z.nc
 END
 
 # OMI SO2
 BEGIN tgas_omso2_so2_nc => omso2.%y4%m2%d2.t%h2z.nc
- 20180101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/geos_cf_dev/obs/OMSO2/nc/Y%y4/M%m2/OMSO2v2.%y4%m2%d2.t%h2z.nc
+ 20180101_00z-30000101_00z 240000 /discover/nobackup/projects/gmao/r21cchem/data/codas/omi_2024/OMSO2/nc/Y%y4/M%m2/OMSO2v2.%y4%m2%d2.t%h2z.nc
 END
 
 # OMPS SO2

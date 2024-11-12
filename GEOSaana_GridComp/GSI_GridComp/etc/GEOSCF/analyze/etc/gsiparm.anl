@@ -1,7 +1,7 @@
  &SETUP
-   miter=5,niter(1)=100,niter(2)=100,niter(3)=100,niter(4)=100,niter(5)=100,
-   niter_no_qc(1)=999,niter_no_qc(2)=999,niter_no_qc(3)=999,niter_no_qc(4)=999,niter_no_qc(5)=999,
-   write_diag(1)=.true.,write_diag(2)=.false.,write_diag(3)=.false.,write_diag(3)=.false.,write_diag(4)=.false.,write_diag(5)=.true.,
+   miter=3,niter(1)=100,niter(2)=100,niter(3)=100,
+   niter_no_qc(1)=999,niter_no_qc(2)=999,niter_no_qc(3)=999,
+   write_diag(1)=.true.,write_diag(2)=.false.,write_diag(3)=.true.,
    gencode=82,qoption=1,
    factqmin=0.005,factqmax=0.005,deltim=300,
 !--gencode=82,qoption=1,
@@ -16,9 +16,9 @@
    netcdf_diag=.true.,wrtgeovals=.false.,
    use_compress=.true.,nsig_ext=13,gpstop=30.,
    use_sp_eqspace=.true.,
-!  lbicg=.true.,lcongrad=.false.,ltlint=.true.,
+   lbicg=.true.,lcongrad=.false.,ltlint=.true.,
 !  iorthomax=10,
-   lsqrtb=.true.,lcongrad=.false.,ltlint=.true.,
+!  lsqrtb=.true.,lcongrad=.false.,ltlint=.true.,
    adp_anglebc=.true.,angord=4,
  /
  &GRIDOPTS
@@ -98,7 +98,7 @@ OBS_INPUT::
 !  tocos5pnc      tgaz        s5p         tropomi_co_s5p        1.0     0      0        tgas_tropomi_co_s5p_nc
 !  tohchos5pnc    tgav        s5p         tropomi_hcho_s5p      1.0     0      0        tgas_tropomi_hcho_s5p_nc
 !  toso2s5pnc     tgaz        s5p         tropomi_so2_s5p       1.0     0      0        tgas_tropomi_so2_s5p_nc
-!!  tono2s5pnc     tgav        s5p         tropomi_no2_s5p       1.0     0      0        tgas_tropomi_no2_s5p_nc
+!  tono2s5pnc     tgaz        s5p         tropomi_no2_s5p       1.0     0      0        tgas_tropomi_no2_s5p_nc
 !  too3s5pnc      tgaz        s5p         tropomi_o3_s5p        1.0     0      0        tgas_tropomi_o3_s5p_nc
 !  tpsch4airnc    tgav        airs        tropess_ch4_airs      1.0     0      0        tgas_tropess_ch4_airs_nc
 !  tpsch4crsnc    tgav        cris-s      tropess_ch4_cris-s    1.0     0      0        tgas_tropess_ch4_cris-s_nc
@@ -117,22 +117,21 @@ OBS_INPUT::
 !  tpso3cr1nc     tgav        cris-1      tropess_o3_cris-1     1.0     0      0        tgas_tropess_o3_cris-1_nc
    omieffnc       omieff      aura        omieff_aura           1.0     6      0        merra2_aura_omieff_nc
    mlsnc          mls55       aura        mls55_aura            1.0     0      0        mls_nrt_nc
-   mlsh2onc       mlstgas     aura        mlsh2o_aura           1.0     0      0        tgas_mls_h2o_nc
-   mlsn2onc       mlstgas     aura        mlsn2o_aura           1.0     0      0        tgas_mls_n2o_nc
-   mlshclnc       mlstgas     aura        mlshcl_aura           1.0     0      0        tgas_mls_hcl_nc
-   mlshno3nc      mlstgas     aura        mlshno3_aura          1.0     0      0        tgas_mls_hno3_nc
-   mlsch3clnc     mlstgas     aura        mlsch3cl_aura         1.0     0      0        tgas_mls_ch3cl_nc
-   mlsconc        mlstgas     aura        mlsco_aura            1.0     0      0        tgas_mls_co_nc
-   mlsclonc       mlstgas     aura        mlsclo_aura           1.0     0      0        tgas_mls_clo_nc
-   omso2nc        omso2       aura        omso2_aura            1.0     8      0        tgas_omso2_so2_nc
-   nmso2nc        nmso2       npp         nmso2_npp             1.0     8      0        tgas_nmso2_nc
-!!   omno2nc        omno2       aura        omno2_aura            1.0     8      0        tgas_omno2_no2_nc
-   s5pno2nc       s5pno2      s5p         s5pno2_s5p            1.0     8      0        tgas_s5pno2_nc
+!   mlsh2onc       mlstgas     aura        mlsh2o_aura           1.0     0      0        tgas_mls_h2o_nc
+!   mlsn2onc       mlstgas     aura        mlsn2o_aura           1.0     0      0        tgas_mls_n2o_nc
+!   mlshclnc       mlstgas     aura        mlshcl_aura           1.0     0      0        tgas_mls_hcl_nc
+!   mlshno3nc      mlstgas     aura        mlshno3_aura          1.0     0      0        tgas_mls_hno3_nc
+!  mlsconc        mlstgas     aura        mlsco_aura            1.0     0      0        tgas_mls_co_nc
+!  mlsclonc       mlstgas     aura        mlsclo_aura           1.0     0      0        tgas_mls_clo_nc
+!  mlsch3clnc     mlstgas     aura        mlsch3cl_aura         1.0     0      0        tgas_mls_ch3cl_nc
 !  sage3sh2oinc   tgez        iss         sage3s_h2o_iss        1.0     0      0        tgas_sage3s_h2o_iss_nc
 !  sage3so3inc    tgez        iss         sage3s_o3_iss         1.0     0      0        tgas_sage3s_o3_iss_nc
 !  sage3lo3inc    tgez        iss         sage3l_o3_iss         1.0     0      0        tgas_sage3l_o3_iss_nc
 !  sage2sh2onc    tgez        erbs        sage2s_h2o            1.0     0      0        tgas_sage2s_h2o_nc
 !  sage2so3nc     tgez        erbs        sage2s_o3             1.0     0      0        tgas_sage2s_o3_nc
+   omso2nc        omso2       aura        omso2_aura            1.0     8      0        tgas_omso2_so2_nc
+!   nmso2nc        nmso2       npp         nmso2_npp             1.0     8      0        tgas_nmso2_nc
+   omno2nc        omno2       aura        omno2_aura            1.0     8      0        tgas_omno2_no2_nc
 !   omimndno2nc    mindsno2    aura        omi_minds_no2         1.0     8      0        omi_minds_no2_nc
 !   trpmndno2nc    mindsno2    s5p         tropmi_minds_no2      1.0     8      0        tropmi_minds_no2_nc
 !   gommndno2nc    mindsno2    ers2        gome_minds_no2        1.0     8      0        gome_minds_no2_nc

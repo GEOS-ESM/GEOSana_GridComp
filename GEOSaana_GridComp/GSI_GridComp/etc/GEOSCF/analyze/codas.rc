@@ -27,16 +27,10 @@ BACKGROUND:
 #   GROUP: GEOS-CHEM 
 #   'O3'      , 'GEOSCHEMCHEM' , 'ANA' , 1 ,  2 , 1.0      , 0.20     , 'ozone'
 #   'CO'      , 'GEOSCHEMCHEM' , 'ANA' , 1 , -1 , 1.0      , 0.20     , 'carbon_monoxide'
+#   'NO2'     , 'GEOSCHEMCHEM' , 'ANA' , 1 , -1 , 1.0      , 0.20     , 'nitrogen_dioxide'
     'OZ'      , 'GEOSCHEMCHEM' , 'ANA' , 1 ,  2 , 1.0e-6   , 0.20     , 'ozone'
     'NO2'     , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.25     , 'nitrogen_dioxide'
-    'SO2g'    , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.5      , 'sulfur_dioxide'
-    'H2O'     , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.06     , 'water_vapor'
-    'HCL'     , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.10     , 'hydrochloric_acid'
-    'HNO3'    , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.10     , 'nitric_acid'
-    'N2O'     , 'GEOSCHEMCHEM' , 'ANA' , 1 , -1 , 1.0      , 8.e-9    , 'nitrous_oxide'
-    'CLO'     , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.10     , 'chlorine_monoxide'
-    'CH3CL'   , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 0.10     , 'methyl_chloride'
-    'CO'      , 'GEOSCHEMCHEM' , 'ANA' , 1 , -1 , 1.0      , 1.50     , 'carbon_monoxide'
+    'SO2g'    , 'GEOSCHEMCHEM' , 'ANA' , 2 , -1 , 1.0      , 3.00      , 'sulfur_dioxide'
 
 #   GROUP: CARBON
 #   'CO'      , 'GOCART'       , 'ANA' , 1 , -1 , 1.0      , 1.50     , 'carbon_monoxide'
