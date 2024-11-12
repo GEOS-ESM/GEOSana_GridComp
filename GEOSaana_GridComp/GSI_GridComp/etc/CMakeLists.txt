@@ -167,4 +167,7 @@ install (
    DESTINATION bin
    )
 
-
+install(
+   DIRECTORY "GEOSCF/"
+   DESTINATION etc/gsi/GEOSCF/
+   )
