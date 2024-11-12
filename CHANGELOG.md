@@ -21,7 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add fix to read_bufrtovs to handle ta2tb=.true. when
   there are multiple versions of SpcCoeff.bin file for 
   single instrument/platform
+- add ability to handle nvege_type=20 - no longer doing
+  fishy interpolation.
 - update to use CRTM v2.4.1-jedi-1
+- Revise sources of OMPS-LP; fix handling of multiple 
+  sources of OMPS-LP in source code.
+
 
 ### Fixed
 
