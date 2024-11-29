@@ -325,7 +325,10 @@ n15  20110328 120000  20110328 240000  amsub  0		 					# amsub: scan motor faile
 
 n15  19981001 180000  20000707 240000  avhrr3 2        4 5     
 n15  20000708 000000  20010220 240000  avhrr3 0                                                 # Noisy or no data
-n15  20010221 000000  20120215 240000  avhrr3 2        4 5
+n15  20010221 000000  20050428 060000  avhrr3 2        4 5
+n15  20050428 120000  20050515 180000  avhrr3 0                                                 # passive mode due to change in BT characteristics.
+n15  20050516 000000  20120215 240000  avhrr3 2        4 5 
+
 
 # NOAA-16 (nl)
 #=============
@@ -373,7 +376,9 @@ n17  20031028 000000  20031030 240000  amsua  0							# amsua: antenna anomaly
 n17  20020715 000000  20091222 120000  amsub  5  1 2 3 4 5					# 
 n17  20091222 180000  20130420 240000  amsub  0     			      	                # amsub: ch3-5 noisy; turn off all 
 
-n17  20021101 180000  20100930 240000  avhrr3 2        4 5
+n17  20021101 180000  20050428 060000  avhrr3 2        4 5
+n17  20050428 120000  20050515 180000  avhrr3 0                                                 # passive mode due to change in BT characteristics change
+n17  20050516 000000  20100930 240000  avhrr3 2        4 5
 
 # NOAA-18 (nn)
 #=============
