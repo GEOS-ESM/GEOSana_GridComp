@@ -395,7 +395,7 @@ subroutine read_(dfile,dtype,dplat,dsis, &      ! intent(in), keys for type mana
         allocate(p_out(nreal+nchan,maxobs))
         p_out(:,:)=RMISS
  
-        call ozlev_ncRead_(dfile,dtype, p_out,nread,npuse,nouse, gstime,twind)
+        call ozlev_ncRead_(dfile,dtype, dsis, p_out,nread,npuse,nouse, gstime,twind)
  
      end select
 
@@ -843,7 +843,7 @@ subroutine ozlev_ncInquire_( nreal,nchan,ilat,ilon, maxrec)
 end subroutine ozlev_ncInquire_
 
 !..................................................................................
-subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
+subroutine ozlev_ncread_(dfile,dtype,dsis,ozout,nmrecs,ndata,nodata, gstime,twind)
 !..................................................................................
   use netcdf, only: nf90_open
   use netcdf, only: nf90_nowrite
@@ -865,6 +865,7 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
   implicit none
   character(len=*), intent(in):: dfile   ! obs_input filename
   character(len=*), intent(in):: dtype   ! obs_input dtype
+  character(len=*), intent(in):: dsis    ! obs_input dsis
 
   real   (kind=r_kind), dimension(:,:), intent(out):: ozout
   integer(kind=i_kind), intent(out):: nmrecs ! count of records read
@@ -956,17 +957,17 @@ subroutine ozlev_ncread_(dfile,dtype,ozout,nmrecs,ndata,nodata, gstime,twind)
      ikx = 0 
      first=.false.
      do i=1,jpch_oz
-        if( (.not. first) .and. index(nusis_oz(i), trim(dtype))/=0) then
+        if( (.not. first) .and. index(nusis_oz(i), trim(dsis))/=0) then
            k0=i
            first=.true.
         end if
-        if(first.and.index(nusis_oz(i),trim(dtype))/=0) then 
+        if(first.and.index(nusis_oz(i),trim(dsis))/=0) then 
            ikx=ikx+1
            ipos(ikx)=k0+ikx-1
         end if
      end do
     
-     if (ikx/=levs) call die(myname_//': inconsistent levs for '//dtype)
+     if (ikx/=levs) call die(myname_//': inconsistent levs for '//dsis)
      
      nmrecs=0
      ! Allocate space and read data
