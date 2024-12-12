@@ -851,7 +851,7 @@ contains
             do k=1,nsig
                tmp(k)=qvp(nsig-k+1)/(1_r_kind-qvp(nsig-k+1))
             end do
-            call nc_diag_data2d("humidity_mixing_ratio", tmp(1:nsig))  ! kg/kg  
+            call nc_diag_data2d("water_vapor_mixing_ratio_wrt_dry_air", tmp(1:nsig))  ! kg/kg  
      
             do k=1,nsig
                tmp(k)=rh(nsig-k+1)
