@@ -808,11 +808,11 @@ subroutine contents_netcdf_diag_
 
 !          geovals
            call nc_diag_metadata("surface_altitude",           sngl(gps_allptr%rdiag(9)) )
-           call nc_diag_metadata("surface_geopotential_height",sngl(gps_allptr%rdiag(9)) )
+           call nc_diag_metadata("geopotential_height_at_surface",sngl(gps_allptr%rdiag(9)) )
            if (wrtgeovals) then
               call nc_diag_data2d("air_temperature",              sngl(gps_allptr%tsenges) )
               call nc_diag_data2d("virtual_temperature",          sngl(gps_allptr%tvirges) )
-              call nc_diag_data2d("specific_humidity",            sngl(gps_allptr%sphmges) )
+              call nc_diag_data2d("water_vapor_mixing_ratio_wrt_moist_air", sngl(gps_allptr%sphmges) )
               call nc_diag_data2d("geopotential_height",          sngl(gps_allptr%hgtlges) )
               call nc_diag_data2d("geopotential_height_levels",   sngl(gps_allptr%hgtiges) )
               call nc_diag_data2d("atmosphere_pressure_coordinate_interface",  sngl(gps_allptr%prsiges) )

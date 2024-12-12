@@ -1384,16 +1384,16 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            endif
            ! geovals for JEDI UFO
            if (wrtgeovals) then
-              call nc_diag_metadata("surface_geopotential_height", sngl(zsges))
-              call nc_diag_metadata("surface_pressure", sngl(psges*r1000))
-              call nc_diag_metadata("surface_temperature", sngl(sfctges))
+              call nc_diag_metadata("geopotential_height_at_surface", sngl(zsges))
+              call nc_diag_metadata("air_pressure_at_surface", sngl(psges*r1000))
+              call nc_diag_metadata("air_temperature_at_2m", sngl(sfctges))
               call nc_diag_data2d("geopotential_height", sngl(zges))
               call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp2*r1000))
               call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
               call nc_diag_data2d("virtual_temperature", sngl(tvgestmp))
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
               call nc_diag_data2d("saturated_specific_humidity_profile", sngl(qsat_ges))
-              call nc_diag_data2d("specific_humidity", sngl(qtmp))
+              call nc_diag_data2d("water_vapor_mixing_ratio_wrt_moist_air", sngl(qtmp))
               call nc_diag_data2d("northward_wind", sngl(utmp))
               call nc_diag_data2d("eastward_wind", sngl(vtmp))
               call nc_diag_data2d("dup_kx_vector", sngl(dup_kx_vector(:,i)))

@@ -471,24 +471,27 @@ subroutine setupbend(obsLL,odiagLL, &
           nsig,mype,nfldsig)
      call tintrp2a11(ges_z,zsges,dlat,dlon,dtime,hrdifsig,&
           mype,nfldsig)
- !    Interpolate mid-level log(pres),mid-level geopotential height,
- !    and air temperature for JEDI
+ !   Interpolate mid-level log(pres),mid-level geopotential height,
+ !   and air temperature for JEDI
      call tintrp2a1(ges_tsen,  Tsen(1:nsig,i),  dlat,dlon,dtime,hrdifsig, &
           nsig, mype,nfldsig)
      call tintrp2a1(ges_lnprsl,prstmpl(1:nsig),dlat,dlon,dtime,hrdifsig,&
           nsig, mype,nfldsig)
+
+! GeoVals stuff:
+     Tvir(1:nsig,i)      = tges(1:nsig)            ! virtual temperature
+     sphm(1:nsig,i)      = qges(1:nsig)            ! specific humidity
+     hgtl(1:nsig,i)      = hges(1:nsig) + zsges    ! mid level geopotential height
+     hgti(1:nsig+1,i)    = hgesi(1:nsig+1) + zsges ! interface level geopotential height
+     prslni(1:nsig+1,i)  = prsltmp(1:nsig+1)       ! interface level log(pressure)
+     prslnl(1:nsig,i)    = prstmpl(1:nsig)         !  mid level log(pressure)
+
      if (lgpsbnd_revint) then
         prsltmp_o(1:nsig,i)=prstmpl(1:nsig) ! needed in minimization
      else
+        hges(1:nsig) = hgesi(1:nsig)
         prsltmp_o(1:nsig,i)=prsltmp(1:nsig) ! needed in minimization
      endif
-
-      Tvir(1:nsig,i)      = tges(1:nsig)            ! virtual temperature
-      sphm(1:nsig,i)      = qges(1:nsig)            ! specific humidity
-      hgtl(1:nsig,i)      = hges(1:nsig) + zsges    ! mid level geopotential height
-      hgti(1:nsig+1,i)    = hgesi(1:nsig+1) + zsges ! interface level geopotential height
-      prslni(1:nsig+1,i)  = prsltmp(1:nsig+1)       ! interface level log(pressure)
-      prslnl(1:nsig,i)    = prstmpl(1:nsig)         !  mid level log(pressure)
 
 ! Compute refractivity index-radius product at interface
 !

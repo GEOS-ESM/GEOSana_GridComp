@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+12Dec2024:
+- updates GeoVals falling the Oct 2024 JEDI variable name change code sprint.
+- bug fix in setupbend to allow running old flavor of pressure/integration option.
+- add operationally-named class for OMPS-LP from NPP has been added to gsi.rc.tmpl and gsi_sens.rc.tmpl
+
+------------------------------------------------------
 - add ability to convert antenna to brigtness temperature
 - bugfix: update calculation of div/vor
 - merge of 5.30.3 with 5.40.0 and 5.29.5-p7
