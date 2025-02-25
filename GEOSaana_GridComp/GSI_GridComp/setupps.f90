@@ -1086,8 +1086,8 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
               call nc_diag_data2d("virtual_temperature", sngl(tvgestmp))
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
               call nc_diag_data2d("water_vapor_mixing_ratio_wrt_moist_air", sngl(qtmp))
-              call nc_diag_data2d("northward_wind", sngl(utmp))
-              call nc_diag_data2d("eastward_wind", sngl(vtmp))
+              call nc_diag_data2d("northward_wind", sngl(vtmp))
+              call nc_diag_data2d("eastward_wind", sngl(utmp))
               call nc_diag_metadata("air_temperature_at_2m", sngl(tges))
            endif
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
