@@ -825,6 +825,7 @@ contains
                 end do
                 if(ppb<=etabl(itypex,33,1)) k1=5
                 k2=k1+1
+                ediff = etabl(itypex,k2,1)-etabl(itypex,k1,1)
                 if (abs(ediff) > tiny_r_kind) then
                    del = (ppb-etabl(itypex,k1,1))/ediff
                 else
