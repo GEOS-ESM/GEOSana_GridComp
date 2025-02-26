@@ -28,11 +28,11 @@ database configuration:
 
   iuse meaning							tag		data source
    -2 do not use                                             everything		"satinfo.tmpl"
-   -1 monitor if diagnostics produced                        available		"avaiabale_channels.tbl"
+   -1 monitor if diagnostics produced                        available		"available_channels.tbl"
     1 use data with complete quality control                 active		"active_channels.tbl"
     2 use data with no airmass bias correction               obcClass-2		"iuseClass-2_channels.tbl"
-    3 use data with no angle dependent bias correction       obcClass-3		"iuseClass-2_channels.tbl"
-    4 use data with no bias correction                       obcClass-4		"iuseClass-2_channels.tbl"
+    3 use data with no angle dependent bias correction       obcClass-3		"iuseClass-3_channels.tbl"
+    4 use data with no bias correction                       obcClass-4		"iuseClass-4_channels.tbl"
     0 monitor and use in QC only                             monitor		"monitor_channels.tbl"
 
 For additional information about the namelist/setup/, please consult setup.nml
