@@ -181,6 +181,7 @@
 #  20May2020 Todling/JG - update CRTM coeffs to point to fix_ncep20200513 (to allow for CrIS FSR)
 #  30Nov2020 Guo/MC/MS - add program to rescale values in satbias_pc file for specified date/sis/channels
 #  28May2021 JG/MJK/RT - update CRTM coeffs to point to fix_ncep20210525 (to allow for IASI Metop-C)
+#  09Oct2021 Todling - CRTM coeffs now in sync with those used in GMAO-JEDI: JEDI-CRTM-2.4.1j1-GMAO
 #-----------------------------------------------------------------------------------------------------
 
 use Env;                 # make env vars readily available
@@ -649,7 +650,7 @@ sub init {
    if ( $ENV{CRTM_COEFFS} ) {
       Assignfn( "$CRTM_COEFFS","CRTM_Coeffs");
    } else {
-      Assignfn( "$fvInput/$myetc/fix_ncep20221018/REL-2.4.0-jcsda/CRTM_Coeffs/Little_Endian","CRTM_Coeffs");
+      Assignfn( "$fvInput/$myetc/JEDI-CRTM-2.4.1j1-GMAO/Little_Endian","CRTM_Coeffs");
    }
    Assignfn( "$fvhome/run/prepobs_errtable.global","errtable");
 
@@ -657,11 +658,25 @@ sub init {
 # NOTE: for a while, when using GSI, will need both because of spectral transforms
 # --------------------------------------------------------------------------------
     if ( $doTRANSF ) {
-       if (-e "$fvInput/$myetc/newncepsfc.${jcap}" ) {
-          Assignfn( "$fvInput/$myetc/newncepsfc.${jcap}", "ncepsfc");
+       if ( ! -e $rcname ) {die ">>>> ERROR <<< cannot find $rcname" };
+       my $nveg = `nmlread.py $rcname GRIDOPTS nvege_type`; chomp($nveg);
+       print " this value: $nveg \n";
+       if ( $nveg == 13 ) {
+         if (-e "$fvInput/$myetc/newncepsfc.${jcap}" ) {
+            Assignfn( "$fvInput/$myetc/newncepsfc.${jcap}", "ncepsfc");
+         } else {
+            print "WARNING, analyzer: jcap inconsistent with available NCEP SFC file, reset to 254\n";
+            Assignfn( "$fvInput/$myetc/newncepsfc.254", "ncepsfc");
+         }
        } else {
-          print "WARNING, analyzer: jcap inconsistent with available NCEP SFC file, reset to 254\n";
-          Assignfn( "$fvInput/$myetc/newncepsfc.254", "ncepsfc");
+         my $mylat = `nmlread.py $rcname GRIDOPTS NLAT`; chomp($mylat);
+         my $mylon = `nmlread.py $rcname GRIDOPTS NLON`; chomp($mylon);
+         print "analyzer: NCEPSFC $fvInput/$myetc/veg20/jedi.crtmsrf.${mylon}x${mylat}.nc4 \n";
+         if (-e "$fvInput/$myetc/veg20/jedi.crtmsrf.${mylon}x${mylat}.nc4" ) {
+            Assignfn( "$fvInput/$myetc/veg20/jedi.crtmsrf.${mylon}x${mylat}.nc4", "ncepsfc");
+         } else {
+           die ">>>> ERROR <<< cannot find jedi.crtmsrf.${mylon}x${mylat}.nc4";
+         }
        }
     }
 
@@ -1328,10 +1343,14 @@ sub ana {
           if ( $stg4hyb && ($stg4hyb ne "/dev/null") ) {
              print "satbias_out to $stg4hyb \n";
              cp("satbias_out","$stg4hyb/$expid.ana.satbias.${nymd}_${hh}z.txt");
-#	     if ( $NEWRADBC && -e satbias_pc.out ) {
-#		 print "satbias_pc.out to $stg4hyb \n";
-#		 cp ("satbias_pc.out", "$stg4hyb/$expid.ana.satbias_pc.${nymd}_${hh}z.txt");
-#	     }
+ 	     if ( $NEWRADBC && -e satbias_pc.out ) {
+ 		 print "satbias_pc.out to $stg4hyb \n";
+ 		 cp ("satbias_pc.out", "$stg4hyb/$expid.ana.satbias_pc.${nymd}_${hh}z.txt");
+ 	     }
+ 	     if ( ($doABC > 0) && -e aircftbias_out ) {
+ 		print "aircftbias_out to $stg4hyb \n";
+                cp("aircftbias_out","$stg4hyb/$expid.ana.acftbias.${nymd}_${hh}z.txt");
+             }
           }
        }
 

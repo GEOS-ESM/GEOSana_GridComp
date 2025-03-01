@@ -1942,18 +1942,18 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("v_Observation_Operator_Jacobian_val", real(dhx_dx_v%val,r_single))
            endif
            if (wrtgeovals) then
-              call nc_diag_metadata("surface_pressure",sngl(psges*r1000))
-              call nc_diag_metadata("surface_geopotential_height",sngl(zsges))
-              call nc_diag_metadata("surface_temperature", sngl(sfctges))
+              call nc_diag_metadata("air_pressure_at_surface",sngl(psges*r1000))
+              call nc_diag_metadata("geopotential_height_at_surface",sngl(zsges))
+              call nc_diag_metadata("air_temperature_at_2m", sngl(sfctges))
               call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp2*r1000))
               call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
               call nc_diag_data2d("virtual_temperature", sngl(tges))
               call nc_diag_data2d("geopotential_height", sngl(zges_read))
-              call nc_diag_data2d("geometric_height", sngl(zges_geometric))
+              call nc_diag_data2d("height_above_mean_sea_level", sngl(zges_geometric))
               call nc_diag_data2d("eastward_wind", sngl(uges))
               call nc_diag_data2d("northward_wind", sngl(vges))
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
-              call nc_diag_data2d("specific_humidity", sngl(qges))
+              call nc_diag_data2d("water_vapor_mixing_ratio_wrt_moist_air", sngl(qges))
               call nc_diag_data2d("dup_kx_vector", sngl(dup_kx_vector(:,i)))
            endif
            call nc_diag_metadata("Dominant_Sfc_Type", sngl(data(idomsfc,i))           )

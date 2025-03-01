@@ -32,6 +32,7 @@ avhrr_n19
 cris_npp
 cris-fsr_npp
 cris-fsr_n20
+cris-fsr_n21
 gmi_gpm
 goes_n08
 goes_n10
@@ -152,9 +153,12 @@ mls55_aura
 mls_aura
 o3lev_aura
 ompslpnc_npp
+ompslpnc_n21
 ompslpuv_npp
 ompslpvis_npp
 ompsnm_npp
+ompsnm_n20
+ompsnm_n21
 ompsnmeff_npp
 ompsnp_npp
 ompsnpnc_npp

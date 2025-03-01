@@ -225,6 +225,7 @@ contains
 !   2020-08-26  mkim    - adjusted MHS QC for all-sky
 !   2020-09-27  j.jin   - assimilate SSMI, TMI and AMSRE (gmao format) in all-sky conditions.
 !   2023-06-30  j.jin   - add a qc_flag "ierrret_ges" to flag failed cloud retrieval from simulated Tb.
+!   2024-03-27  mkim    - changed the way to select all-sky GMI observations to use in BC coefficients updates 
 !
 !  input argument list:
 !     lunin   - unit from which to read radiance (brightness temperature, tb) obs
@@ -593,18 +594,18 @@ contains
      obstype,nchanl,' --> ',jc
   if(jc == 0 .or. toss)then 
      if(jc == 0 .and. mype == 0) then
-        write(6,*)'SETUPRAD: No channels found for ', obstype,isis
+        write(6,*)'SETUPRAD: No channels found for ', trim(obstype),trim(isis)
      end if
      if (toss .and. mype == 0) then
         write(6,*)'SETUPRAD: all obs var > 1e4.  do not use ',&
-           'data from satellite is=',isis
+           'data from satellite is=',trim(isis)
      endif
 
      if(nobs >0)read(lunin)                    
      return
   endif
 
-  if ( mype == 0 .and. .not.l_may_be_passive) write(6,*)mype,'setuprad: passive obs',is,isis
+  if ( mype == 0 .and. .not.l_may_be_passive) write(6,*)mype,'setuprad: passive obs',is,trim(isis)
 
 !  Logic to turn off print of reading coefficients if not first interation or not mype_diaghdr or not init_pass
   iwrmype=-99
@@ -703,7 +704,7 @@ contains
            endif
         enddo
         if (no85GHz .and. mype == 0) write(6,*) &
-           'SETUPRAD: using no85GHZ workaround for SSM/I ',isis
+           'SETUPRAD: using no85GHZ workaround for SSM/I ',trim(isis)
      endif
   endif
 
@@ -1277,7 +1278,7 @@ contains
            if (ierrret_ges /= 0) ierrret = ierrret_ges
            end if
            if (radmod%ex_obserr=='ex_obserr3') then
-              if(gmi) call radiance_ex_biascor_gmi(radmod,clw_obs,clw_guess_retrieval,nchanl,cld_rbc_idx)
+              if(gmi) call radiance_ex_biascor_gmi(radmod,tbc,nchanl,cld_rbc_idx)
               if(mhs) call radiance_ex_biascor_mhs(radmod,tbc,nchanl,cld_rbc_idx) 
            end if
 
@@ -1296,29 +1297,6 @@ contains
                 varinv(1:nchanl)=zero
                 id_qc(1:nchanl) = ifail_cloud_qc
              endif
-           endif
-
-!          additional bias predictor for all-sky GMI 
-           if (gmi) then
-              do i=1,nchanl
-                pred(6,i) = zero
-                pred(7,i) = zero
-                clw_avg = half*(clw_obs+clw_guess_retrieval)
-                if (i > 3 .and. clw_obs > 0.05_r_kind .and. clw_guess_retrieval > 0.05_r_kind .and. &
-                  abs(clw_obs-clw_guess_retrieval) < 0.005_r_kind .and. clw_avg < 0.5_r_kind) cld_rbc_idx2(i) = one
-                if (i < 5 .and. clw_obs > 0.2_r_kind .and. clw_guess_retrieval > 0.2_r_kind .and. &
-                  abs(clw_obs-clw_guess_retrieval) < 0.005_r_kind .and. clw_avg < 0.5_r_kind) cld_rbc_idx2(i) = one
-
-                if( i > 3 .and. clw_obs > 0.05_r_kind .and. clw_guess_retrieval > 0.05_r_kind .and. cld_rbc_idx(i) == zero) then
-                   pred(6,i) = clw_avg*clw_avg
-                   pred(7,i) = clw_avg
-                   tbc(i)=tbc(i) - pred(6,i)*predchan(6,i) - pred(7,i)*predchan(7,i)  !obs-ges with bias correction
-                else if( i < 5 .and. clw_obs > 0.2_r_kind .and. clw_guess_retrieval > 0.2_r_kind .and. cld_rbc_idx(i) == zero) then
-                   pred(6,i) = clw_avg*clw_avg
-                   pred(7,i) = clw_avg
-                   tbc(i)=tbc(i) - pred(6,i)*predchan(6,i) - pred(7,i)*predchan(7,i)  !obs-ges with bias correction
-                endif
-              enddo
            endif
 
         end if ! radmod%lcloud_fwd .and. radmod%ex_biascor
@@ -2682,6 +2660,7 @@ contains
                  call nc_diag_metadata("Forecast_unadjusted_clear",     sngl(tsim_clr(ich_diag(i))))     ! simulated Tb under clear-sky condition
                  call nc_diag_metadata("Forecast_adjusted_clear",       sngl(tsim_clr_bc(ich_diag(i))))     ! simulated Tb under clear-sky condition
                  call nc_diag_metadata("Forecast_unadjusted",           sngl(tb_obs(ich_diag(i))-tbcnob(ich_diag(i)))) ! simulated Tb with no bias correction
+                 call nc_diag_metadata("Forecast_adjusted",             sngl(tb_obs(ich_diag(i))-tbc(ich_diag(i)))     ) ! simulated Tb with bias correction
            !     call nc_diag_metadata("Bias_Correction", sngl(tbc(ich_diag(i))-tbcnob(ich_diag(i)))       ) ! bias correction
                  call nc_diag_metadata("Bias_Correction", sngl(tbcnob(ich_diag(i))-tbc(ich_diag(i)))       ) ! bias correction
                  call nc_diag_metadata("Bias_Correction_Constant", sngl(predbias(1,ich_diag(i)))           ) ! constant bias correction

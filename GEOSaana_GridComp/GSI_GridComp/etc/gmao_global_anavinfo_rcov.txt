@@ -1,6 +1,6 @@
 
 correlated_observations::
-! Notes: 
+! Notes:
 ! (1) method:
 !     -1 - leave as is (ie, default R)
 !      0 - diag of estimated R only
@@ -15,6 +15,11 @@ correlated_observations::
  cris-fsr_n20  2   0.1719     1.5325   ice    cris-fsr_108_v5_rcov.bin
  cris-fsr_n20  2   0.1719     1.5325   snow   cris-fsr_108_v5_rcov.bin
  cris-fsr_n20  2   0.1719     1.5325   mixed  cris-fsr_108_v5_rcov.bin
+ cris-fsr_n21  2   0.1719     1.5325   sea    cris-fsr_108_v5_rcov.bin
+ cris-fsr_n21  2   0.1719     1.5325   land   cris-fsr_108_v5_rcov.bin
+ cris-fsr_n21  2   0.1719     1.5325   ice    cris-fsr_108_v5_rcov.bin
+ cris-fsr_n21  2   0.1719     1.5325   snow   cris-fsr_108_v5_rcov.bin
+ cris-fsr_n21  2   0.1719     1.5325   mixed  cris-fsr_108_v5_rcov.bin
  cris-fsr_npp  2   0.1719     1.5325   sea    cris-fsr_108_v5_rcov.bin
  cris-fsr_npp  2   0.1719     1.5325   land   cris-fsr_108_v5_rcov.bin
  cris-fsr_npp  2   0.1719     1.5325   ice    cris-fsr_108_v5_rcov.bin

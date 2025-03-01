@@ -58,16 +58,16 @@
  &OBSQC
    dfact=0.75,dfact1=3.0,noiqc=.false.,oberrflg=.true.,c_varqc=0.02,blacklst=.true.,
    use_poq7=.true.,qc_noirjaco3=.false.,qc_satwnds=.false.,cld_det_dec2bin=.true.,
-   half_goesr_err=.false.,
+   half_goesr_err=.false.,max_tail=15000,
 !  tcp_ermin=0.75,tcp_ermax=0.75,
    >>>AIRCFT_BIAS<<<
  /
  &OBS_INPUT
-   dmesh(1)=145.0,dmesh(2)=150.0,dmesh(3)=180.0,time_window_max=3.0, 
+   dmesh(1)=145.0,dmesh(2)=150.0,dmesh(3)=180.0,time_window_max=3.0,
  /
 OBS_INPUT::
 !  dfile          dtype       dplat       dsis                  dval    dthin  dsfcalc  obsclass
-   prepbufr       ps          null        ps                    0.0     0      0        ncep_prep_bufr 
+   prepbufr       ps          null        ps                    0.0     0      0        ncep_prep_bufr
    prepbufr       t           null        t                     0.0     0      0        ncep_prep_bufr
    prepbufr_profl t           null        t                     0.0     0      0        ncep_acftpfl_bufr
    prepbufr       q           null        q                     0.0     0      0        ncep_prep_bufr

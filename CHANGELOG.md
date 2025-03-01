@@ -1,0 +1,43 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+### Changed
+
+12Dec2024:
+- updates GeoVals falling the Oct 2024 JEDI variable name change code sprint.
+- bug fix in setupbend to allow running old flavor of pressure/integration option.
+- add operationally-named class for OMPS-LP from NPP has been added to gsi.rc.tmpl and gsi_sens.rc.tmpl
+
+------------------------------------------------------
+- add ability to convert antenna to brigtness temperature
+- bugfix: update calculation of div/vor
+- merge of 5.30.3 with 5.40.0 and 5.29.5-p7
+- add offline RO bufr handling program
+- add CrIS-FSR N21
+- revert obs errors for CrIS-Npp and N20 to what they
+  were in x0049.
+- add fix to read_bufrtovs to handle ta2tb=.true. when
+  there are multiple versions of SpcCoeff.bin file for 
+  single instrument/platform
+- add ability to handle nvege_type=20 - no longer doing
+  fishy interpolation.
+- update to use CRTM v2.4.1-jedi-1
+- Revise sources of OMPS-LP; fix handling of multiple 
+  sources of OMPS-LP in source code.
+- minor bug fix in gsi_sens.rc.tmpl for CrIS/N21 dsis
+
+
+### Fixed
+
+### Removed
+
+### Deprecated
+

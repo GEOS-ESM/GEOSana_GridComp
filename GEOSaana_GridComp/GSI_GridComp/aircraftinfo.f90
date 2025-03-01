@@ -55,19 +55,19 @@ module aircraftinfo
   logical :: aircraft_t_bc_ext ! logical to turn off or on the externally supplied aircraft bias correction
   logical :: cleanup_tail ! logical to remove tail number no longer used
   logical :: upd_aircraft ! indicator if update bias at 06Z & 18Z
-  
-  integer(i_kind), parameter :: max_tail=15000  ! max tail numbers
+
+  integer(i_kind) max_tail        ! max tail numbers
   integer(i_kind) npredt          ! predictor number
   integer(i_kind) ntail           ! total tail number
   integer(i_kind) ntail_update    ! new total tail number
-  integer(i_kind) mype_airobst    ! processor reading in aircraft profile data 
+  integer(i_kind) mype_airobst    ! processor reading in aircraft profile data
   integer(i_kind) nsort           ! used in sorting tail number
-  
-  character(len=10),dimension(max_tail):: taillist  ! tail number
-  character(len=1),dimension(max_tail):: itail_sort ! used in sorting tail number
-  integer(i_kind),dimension(max_tail):: idx_tail    ! index of tail
-  integer(i_kind),dimension(max_tail):: idx_sort    ! used in sorting tail number
-  integer(i_kind),dimension(max_tail):: timelist    ! time stamp
+
+  character(len=10),allocatable,dimension(:):: taillist  ! tail number
+  character(len=1),allocatable,dimension(:):: itail_sort ! used in sorting tail number
+  integer(i_kind),allocatable,dimension(:):: idx_tail    ! index of tail
+  integer(i_kind),allocatable,dimension(:):: idx_sort    ! used in sorting tail number
+  integer(i_kind),allocatable,dimension(:):: timelist    ! time stamp
   real(r_kind):: biaspredt                          ! berror var for temperature bias correction coefficients
   real(r_kind):: upd_pred_t                         ! =1 update bias; =0 no update
   real(r_kind):: hdist_aircraft                     ! horizontal distance threshold for errormod_aircraft
@@ -94,6 +94,8 @@ contains
 ! program history log:
 !   2013-05-17  Zhu
 !   2014-03-04  Sienkiewicz - added aircraft_t_bc_ext option
+!   2024-12-10  Sienkiewicz - arrays dimensioned by 'max_tail' changed to
+!                  allocatable arrays so 'max_tail' can be set via a namelist
 !
 !   input argument list:
 !
@@ -115,13 +117,15 @@ contains
     aircraft_t_bc = .false.   ! .true.=turn on bias correction
     aircraft_t_bc_pof = .false.   ! .true.=turn on bias correction
     aircraft_t_bc_ext = .false.   ! .true.=turn on bias correction
-    cleanup_tail = .false.    ! no removal of tail number 
+    cleanup_tail = .false.    ! no removal of tail number
     mype_airobst = 0
 
     upd_aircraft=.true.
     upd_pred_t=one
 
     hdist_aircraft=60000.0_r_kind
+
+    max_tail = 20000
 
   end subroutine init_aircraft
 
@@ -176,7 +180,7 @@ contains
     if(verbose .and. mype == 0)print_verbose=.true.
 !   Determine number of entries in aircraft bias file
     inquire(file='aircftbias_in',exist=pcexist)
-    if (.not. pcexist) then 
+    if (.not. pcexist) then
        write(6,*)'AIRCRAFTINFO_READ:  ***ERROR*** aircftbias_in not found'
        call stop2(340)
     end if
@@ -204,7 +208,7 @@ contains
        write(6,120) ntail
 120    format('AIRCRAFTINFO_READ:  ntail=',1x,i6)
     endif
-    if (ntail > max_tail) then 
+    if (ntail > max_tail) then
        write(6,*)'AIRCRAFTINFO_READ:  ***ERROR*** ntail exceeds max_tail'
        write(6,*)'AIRCRAFTINFO_READ:  stop program execution'
        call stop2(340)
@@ -220,6 +224,9 @@ contains
     varA_t = zero
     ostats_t = zero_quad
     rstats_t = zero_quad
+
+    allocate(taillist(max_tail),itail_sort(max_tail),idx_tail(max_tail), &
+             idx_sort(max_tail),timelist(max_tail))
 
     j=0
     do k=1,nlines
@@ -241,7 +248,7 @@ contains
 110 format(a10,1x,i5,9(1x,f12.6),1x,i8)
 
 !   Do not update aircraft temperature bias at 6Z and 18Z
-    if (.not. upd_aircraft) then 
+    if (.not. upd_aircraft) then
        anal_time = iadate(4)
        if (anal_time==6 .or. anal_time==18) upd_pred_t = zero
        if (mype==0) print*, 'aircraft_info anal_time upd_pred_t=', anal_time, upd_pred_t
@@ -258,7 +265,7 @@ contains
           itail_sort(isort) = cb
           idx_sort(isort) = k
           cb0 = cb
-       end if 
+       end if
     end do
     nsort = isort
     if (mype==0) print*, 'nsort = ', nsort
@@ -279,6 +286,8 @@ contains
 !
 ! program history log:
 !   2013-05-17  Yanqiu Zhu
+!   2024-12-10  Sienkiewicz - arrays dimensioned by 'max_tail' changed to
+!                  allocatable arrays so 'max_tail' can be set via a namelist
 !
 !   input argument list:
 !
@@ -327,13 +336,13 @@ contains
     end do
     do i=1,ntail_update
        csort(i) = taillist(i)
-    end do 
+    end do
 !   cleanup tailnumber in the aircraft bias file
     obsolete = 0
     if (cleanup_tail) then
        iyyyymm = iadate(1)*100+iadate(2)
        do i=1,ntail_update
-          if (abs(iyyyymm-timelist(i))>=100) then 
+          if (abs(iyyyymm-timelist(i))>=100) then
              csort(i) = 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz'
              obsolete = obsolete+1
           end if
@@ -349,6 +358,7 @@ contains
     end do
 
     close(lunout)
+    deallocate(taillist,itail_sort,idx_tail,idx_sort,timelist)
     deallocate(predt)
     deallocate(ostats_t,rstats_t,varA_t)
 
@@ -420,7 +430,7 @@ contains
       l = n/2 + 1
       ir = n
 
-      do 
+      do
          if(l.gt.1) then
             l = l - 1
             indxt = indx(l)
@@ -439,7 +449,7 @@ contains
          i = l
          j = l * 2
 
-         do 
+         do
             if(j.le.ir)  then
               if(j.lt.ir)  then
                 if(carrin(indx(j)).lt.carrin(indx(j+1)))  j = j + 1

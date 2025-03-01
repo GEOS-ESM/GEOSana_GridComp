@@ -437,9 +437,8 @@ subroutine prewgt(mype)
 ! Reweight the variances based on flow dependence if flag set
   if (bkgv_flowdep) then
       call bkgvar_rewgt(sfvar,vpvar,tvar,psvar,mype)
-  else
-      if (bkgv_write) call write_bkgvars_grid(sfvar,vpvar,tvar,psvar,mype)
   endif
+  if (bkgv_write) call write_bkgvars_grid(sfvar,vpvar,tvar,psvar,'bkgvar_prewgt',mype)
 
 ! vertical length scales
 !!!$omp parallel do  schedule(dynamic,1) private(i,n,k,j,jx,ix,loc,dsv)

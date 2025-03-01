@@ -33,6 +33,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
        lobsdiagsave,nobskeep,lobsdiag_allocated,time_offset
   use obsmod, only: dplat
   use obsmod, only: wrtgeovals
+  use obsmod, only: saberTbot,saberTtop
   use m_obsNode, only: obsNode
   use m_tNode, only: tNode
   use m_tNode, only: tNode_appendto
@@ -877,6 +878,14 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         if( regional .and. prest > pt_ll )then
            dpres=rsig
         else
+           ratio_errors=zero
+        endif
+     endif
+
+! Select SABER-T observations within given slab
+     if(itype ==294 ) then
+        if(prest>saberTtop .or. prest<saberTbot) then
+           error=zero
            ratio_errors=zero
         endif
      endif
@@ -1799,16 +1808,15 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
     endif
     ! geovals for JEDI UFO
     if (wrtgeovals) then
-       call nc_diag_metadata("surface_temperature", sngl(sfctges))
-       call nc_diag_metadata("surface_geopotential_height",sngl(zsges))
-       call nc_diag_metadata("surface_pressure",sngl(psges*r1000))
-       call nc_diag_metadata("surface_temperature", sngl(sfctges))
+       call nc_diag_metadata("air_temperature_at_2m", sngl(sfctges))
+       call nc_diag_metadata("geopotential_height_at_surface",sngl(zsges))
+       call nc_diag_metadata("air_pressure_at_surface",sngl(psges*r1000))
        call nc_diag_data2d("geopotential_height", sngl(zges))
        call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp3*r1000))
        call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
        call nc_diag_data2d("virtual_temperature", sngl(tvgestmp))
        call nc_diag_data2d("air_temperature", sngl(tsentmp))
-       call nc_diag_data2d("specific_humidity", sngl(qgestmp))
+       call nc_diag_data2d("water_vapor_mixing_ratio_wrt_moist_air", sngl(qgestmp))
        call nc_diag_data2d("eastward_wind", sngl(ugestmp))
        call nc_diag_data2d("northward_wind", sngl(vgestmp))
        call nc_diag_data2d("dup_kx_vector", sngl(dup_kx_vector(:,i)))

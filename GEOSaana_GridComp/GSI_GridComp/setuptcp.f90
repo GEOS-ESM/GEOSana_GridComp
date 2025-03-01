@@ -722,7 +722,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
            if (wrtgeovals) then
              call nc_diag_data2d("virtual_temperature", tvges)
              call nc_diag_metadata("surface_air_pressure", psges )
-             call nc_diag_metadata("surface_geopotential_height", zsges )
+             call nc_diag_metadata("geopotential_height_at_surface", zsges )
            endif
 
   end subroutine contents_netcdf_diag_

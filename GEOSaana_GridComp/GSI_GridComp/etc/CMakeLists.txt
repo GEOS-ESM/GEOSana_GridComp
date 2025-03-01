@@ -152,10 +152,14 @@ install(
 # Handle GEOS-R21C settings in a similar way as MERRA2
 set (R21C_files
    R21C/gmao_global_cloudy_radiance_info.rc
+   R21C/gmao_global_convinfo.rc
    R21C/gmao_global_satinfo.rc
+   R21C/gmao_global_scaninfo.rc
    R21C/gmao_global_tlapmean.rc
+   R21C/gmao_global_ozinfo.rc
    R21C/gsi.rc.tmpl
    R21C/gsi_sens.rc.tmpl
+   R21C/prepobs_errtable.global
    )
 install(
    FILES ${R21C_files}

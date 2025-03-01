@@ -148,6 +148,7 @@ implicit none
 
 !  Read in a single ensemble member
    if(l4densvar) then
+      ida(:)=0
       ida(1:3)=ibdate(1:3)
       ida(5:6)=ibdate(4:5)
       jda(:)=0
@@ -322,6 +323,7 @@ implicit none
 
 !  Read in ensemble members
    if(l4densvar) then
+      ida(:) = 0
       ida(1:3)=ibdate(1:3)
       ida(5:6)=ibdate(4:5)
       jda(:)=0
