@@ -117,6 +117,7 @@ install(
 set (GEOSIT_files
    GEOSIT/gmao_global_cloudy_radiance_info.rc
    GEOSIT/gmao_global_satinfo.rc
+   GEOSIT/gmao_global_convinfo.rc
    GEOSIT/gsi.rc.tmpl
    GEOSIT/gsi_sens.rc.tmpl
    )
