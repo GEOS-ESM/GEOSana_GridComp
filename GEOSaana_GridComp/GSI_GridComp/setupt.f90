@@ -86,6 +86,8 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use sparsearr, only: sparr2, new, size, writearray, fullarray
   use convinfo, only: id_drifter, subtype_drifter
 
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
+
   implicit none
 
   type(obsLList ),target,dimension(:),intent(inout):: obsLL
@@ -876,6 +878,9 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            ddiff = ddiff - predbias(j) 
         end do
      end if
+
+! Adjust omb residual with FSI weight
+     if (fsi_weight) call fsi_apply_weight(ddiff,'t',itype,data(ilate,i),data(ilone,i),prest)
 
 ! If requested, setup for single obs test.
      if (oneobtest) then

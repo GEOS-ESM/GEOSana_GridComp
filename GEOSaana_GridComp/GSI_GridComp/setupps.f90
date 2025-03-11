@@ -141,6 +141,8 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   use rapidrefresh_cldsurf_mod, only: l_closeobs
   use convinfo, only: id_drifter, subtype_drifter
 
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
+
   implicit none
 
 ! Declare passed variables
@@ -539,6 +541,9 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
 
 ! Compute innovations
      ddiff=pob-pges  ! in cb
+
+! Adjust omb residual with FSI weight
+     if (fsi_weight) call fsi_apply_weight(ddiff,'ps',itype,data(ilate,i),data(ilone,i),1000.0_r_kind)
 
 ! Oberror Tuning and Perturb Obs
      if(muse(i)) then

@@ -164,6 +164,8 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use state_vectors, only: svars3d, levels, nsdim
   use convinfo, only: id_drifter, subtype_drifter
 
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
+
   implicit none
 
 ! Declare passed variables
@@ -657,6 +659,9 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 ! Compute innovations
 
      ddiff=qob-qges
+
+! Adjust omb residual with FSI weight
+     if (fsi_weight) call fsi_apply_weight(ddiff,'q',itype,data(ilate,i),data(ilone,i),presq)
 !
 !    If requested, setup for single obs test.
      if (oneobtest) then
