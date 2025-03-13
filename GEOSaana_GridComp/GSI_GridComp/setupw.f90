@@ -73,6 +73,8 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use sparsearr, only: sparr2, new, size, writearray, fullarray
   use convinfo, only: id_drifter, subtype_drifter
 
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
+
   implicit none
   
   type(obsLList ),target,dimension(:),intent(inout):: obsLL
@@ -897,6 +899,13 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      dudiff=uob-ugesin
      dvdiff=vob-vgesin
      spdb=sqrt(uob**2+vob**2)-sqrt(ugesin**2+vgesin**2)
+
+     ! Adjust omb residual with FSI weight
+     if (fsi_weight) then
+        call fsi_apply_weight(dudiff,  'u',itype,data(ilate,i),data(ilone,i),presw)
+        call fsi_apply_weight(dvdiff,  'v',itype,data(ilate,i),data(ilone,i),presw)
+        call fsi_apply_weight(  spdb,'spd',itype,data(ilate,i),data(ilone,i),presw)
+     endif
 
 ! QC PBL profiler  227 and 223, 224
      if(itype==227 .or. itype==223 .or. itype==224 .or. itype==228 .or. itype==229) then

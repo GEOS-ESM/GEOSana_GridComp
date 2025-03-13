@@ -141,6 +141,8 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   use rapidrefresh_cldsurf_mod, only: l_closeobs
   use convinfo, only: id_drifter, subtype_drifter
 
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
+
   implicit none
 
 ! Declare passed variables
@@ -539,6 +541,9 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
 
 ! Compute innovations
      ddiff=pob-pges  ! in cb
+
+! Adjust omb residual with FSI weight
+     if (fsi_weight) call fsi_apply_weight(ddiff,'ps',itype,data(ilate,i),data(ilone,i),1000.0_r_kind)
 
 ! Oberror Tuning and Perturb Obs
      if(muse(i)) then
@@ -1086,8 +1091,8 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
               call nc_diag_data2d("virtual_temperature", sngl(tvgestmp))
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
               call nc_diag_data2d("water_vapor_mixing_ratio_wrt_moist_air", sngl(qtmp))
-              call nc_diag_data2d("northward_wind", sngl(utmp))
-              call nc_diag_data2d("eastward_wind", sngl(vtmp))
+              call nc_diag_data2d("northward_wind", sngl(vtmp))
+              call nc_diag_data2d("eastward_wind", sngl(utmp))
               call nc_diag_metadata("air_temperature_at_2m", sngl(tges))
            endif
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
