@@ -165,6 +165,8 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use convinfo, only: id_drifter, subtype_drifter
   use hdraobmod, only: nhdq,hdqlist
 
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
+
   implicit none
 
 ! Declare passed variables
@@ -685,6 +687,9 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 ! Compute innovations
 
      ddiff=qob-qges
+
+! Adjust omb residual with FSI weight
+     if (fsi_weight) call fsi_apply_weight(ddiff,'q',itype,data(ilate,i),data(ilone,i),presq)
 !
 !    If requested, setup for single obs test.
      if (oneobtest) then
@@ -1422,8 +1427,8 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
               call nc_diag_data2d("saturated_specific_humidity_profile", sngl(qsat_ges))
               call nc_diag_data2d("water_vapor_mixing_ratio_wrt_moist_air", sngl(qtmp))
-              call nc_diag_data2d("northward_wind", sngl(utmp))
-              call nc_diag_data2d("eastward_wind", sngl(vtmp))
+              call nc_diag_data2d("northward_wind", sngl(vtmp))
+              call nc_diag_data2d("eastward_wind", sngl(utmp))
               call nc_diag_data2d("dup_kx_vector", sngl(dup_kx_vector(:,i)))
            endif
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))

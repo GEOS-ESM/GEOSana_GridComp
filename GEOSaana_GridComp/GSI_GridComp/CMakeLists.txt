@@ -19,6 +19,7 @@ set (SRCS_OBSVR
   converr_uv.f90
   convinfo.f90
   correlated_obsmod.F90
+  m_fsi_weight.F90
   obsmod.F90
   ozinfo.f90
   radinfo.f90

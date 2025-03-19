@@ -316,6 +316,7 @@ contains
   use radiance_mod, only: rad_obs_type,radiance_obstype_search,radiance_ex_obserr,radiance_ex_biascor
   use sparsearr, only: sparr2, new, writearray, size, fullarray
   use radiance_mod, only: radiance_ex_obserr_gmi,radiance_ex_biascor_gmi, radiance_ex_obserr_mhs, radiance_ex_biascor_mhs
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
 
   implicit none
 
@@ -1831,6 +1832,11 @@ contains
 
               m = ich(i)
               if(luse(n))then
+
+                 ! Adjust omb residual with FSI weight
+                 if (fsi_weight) call fsi_apply_weight(tbc(i),trim(dplat(is)),trim(obstype), &
+                                                       ich(i),cenlat,cenlon)
+
                  drad    = tbc0(i)   
                  dradnob = tbcnob(i)
                  varrad  = tbc(i)*varinv(i)

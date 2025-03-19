@@ -184,6 +184,9 @@ subroutine setupbend(obsLL,odiagLL, &
   use gsi_bundlemod, only : gsi_bundlegetpointer
   use gsi_metguess_mod, only : gsi_metguess_get,gsi_metguess_bundle
   use sparsearr, only: sparr2, new, size, writearray
+
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
+
   implicit none
 
 ! Declare passed variables
@@ -859,6 +862,9 @@ subroutine setupbend(obsLL,odiagLL, &
          rdiagbuf( 5,i)  = (data(igps,i)-dbend)/data(igps,i) ! incremental bending angle (x100 %)
 
          data(igps,i)=data(igps,i)-dbend !innovation vector
+
+! Adjust omb residual with FSI weight
+         if (fsi_weight) call fsi_apply_weight(data(igps,i),'gps',nint(data(isatid,i)),data(ilate,i),data(ilone,i),ten*exp(dpressure))
 
          if (alt <= gpstop) then ! go into qc checks
 

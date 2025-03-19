@@ -16,7 +16,7 @@
    id_drifter=.true.,
    id_ship=.false.,
    tzr_qc=1,
-   ta2tb=.false.,
+   ta2tb=.true.,
    oneobtest=.false.,retrieval=.false.,
    biascor=-0.10,bcoption=0,diurnalbc=1.0,
    crtm_coeffs_path="CRTM_Coeffs/",
@@ -44,7 +44,7 @@
  &GRIDOPTS
    JCAP=@JCAP,NLAT=@GSINLAT,NLON=@GSINLON,nsig=@NSIG,
    regional=.false.,
-   nvege_type=13,
+   nvege_type=20,
  /
  &BKGERR
    vs=0.6,
@@ -158,7 +158,7 @@ OBS_INPUT::
 !  mlsozbufr      o3lev       aura        o3lev_aura            0.0     0      0        test
 !  ompslpgnc      ompslpnc    npp         ompslpnc_npp          1.0     0      0        ompslpnc_nc
 ! NOTE: careful not to have both npp_ompslp_nc and r21c_npp_ompslp_nc in obsclass
-   ompslpnppnc    ompslpnc    npp         ompslpnc_npp          1.0     0      0        npp_ompslp_nc
+!  ompslpnppnc    ompslpnc    npp         ompslpnc_npp          1.0     0      0        npp_ompslp_nc
    ompslpnppnc    ompslpnc    npp         ompslpnc_npp          1.0     0      0        r21c_npp_ompslp_nc
    ompslpn21nc    ompslpnc    n21         ompslpnc_n21          1.0     0      0        m2scr_n21_ompslp_nc
    ompslpuvnc     ompslpuv    npp         ompslpuv_npp          1.0     0      0        ompslpuv_nc
@@ -249,6 +249,9 @@ OBS_INPUT::
  /
  &NST
  nst_gsi=3,
+ /
+ &FSI
+ fsi_weight=.false.,
  /
  &PADVECT
  advpert=.false.,
