@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+02Apr2025:
+- Revisions to original FSI implemetation:
+   o apply it every outer iteration
+   o leave original omf alone
+
 12Mar2025:
 - add FSI knob (off by default)
 - set ta2tb as true by default (in main config files)
