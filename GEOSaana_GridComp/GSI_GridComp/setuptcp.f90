@@ -31,6 +31,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
 !   2017-02-09  guo     - Remove m_alloc, n_alloc.
 !                       . Remove my_node with corrected typecast().
 !   2020-02-26  todling - reset obsbin from hr to min
+!   2025-03-25  sienkiewicz - make sure ratio_errors is defined before use (prior to oberror_tune code)
 !
 !   input argument list:
 !
@@ -308,6 +309,13 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
         dhx_dx%val(1) = one
      endif
 
+! observational error adjustment
+     drdp = pges*(g_over_rd*abs(rdelz)*drbx/(tges**2))
+
+!  find adjustment to observational error (in terms of ratio)
+     ratio_errors=error/(error+drdp)
+     error=one/error
+
 ! Compute innovations
      ddiff=pob-pges  ! in cb
 
@@ -322,13 +330,6 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
         endif
      endif
 
-! observational error adjustment
-     drdp = pges*(g_over_rd*abs(rdelz)*drbx/(tges**2))
-
-!  find adjustment to observational error (in terms of ratio)
-     ratio_errors=error/(error+drdp)
-     error=one/error
-
 !    Gross error checks
      obserror = min(r10/max(ratio_errors*error,tiny_r_kind),huge_r_kind)
      obserrlm = max(cermin(ikx),min(cermax(ikx),obserror))
@@ -339,7 +340,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
         error = zero
         ratio_errors = zero
      else
-! No duplicate check 
+! No duplicate check
      end if
 
      if (ratio_errors*error <= tiny_r_kind) muse(i)=.false.
@@ -367,7 +368,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
            rwgt = wgt/wgtlim
         endif
         valqc = -two*rat_err2*term
- 
+
 
         if (muse(i)) then
 !          Accumulate statistics for obs used belonging to this task
@@ -417,7 +418,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
         my_head%res      = ddiff
         my_head%err2     = error**2
         my_head%raterr2  = ratio_errors**2
-        my_head%time     = dtime      
+        my_head%time     = dtime
         my_head%b        = cvar_b(ikx)
         my_head%pg       = cvar_pg(ikx)
         my_head%luse     = luse(i)
@@ -493,7 +494,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
   proceed=proceed.and.ivar>0
   call gsi_metguess_get ('var::tv', ivar, istatus )
   proceed=proceed.and.ivar>0
-  end subroutine check_vars_ 
+  end subroutine check_vars_
 
   subroutine init_vars_
 
@@ -677,17 +678,17 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
            call nc_diag_metadata("Time",                    sngl(dtime-time_offset))
            call nc_diag_metadata("Prep_QC_Mark",            sngl(one)              )
            call nc_diag_metadata("Prep_Use_Flag",           sngl(one)              )
-           call nc_diag_metadata("Nonlinear_QC_Rel_Wgt",    sngl(rwgt)             )                 
+           call nc_diag_metadata("Nonlinear_QC_Rel_Wgt",    sngl(rwgt)             )
            if(muse(i)) then
               call nc_diag_metadata("Analysis_Use_Flag",    sngl(one)              )
            else
-              call nc_diag_metadata("Analysis_Use_Flag",    sngl(-one)             )              
+              call nc_diag_metadata("Analysis_Use_Flag",    sngl(-one)             )
            endif
 
            call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)     )
            call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
            call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
-!          the original Error_Input and Error_Adjust saved during the reading procedure 
+!          the original Error_Input and Error_Adjust saved during the reading procedure
            call nc_diag_metadata("Error_Input",             sngl(error_input*r10)  )  ! mb
            call nc_diag_metadata("Error_Adjust",            sngl(error_adjst*r10)  )  ! mb
 
@@ -704,11 +705,11 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
                        obsdiag_iuse(jj) = -one
                  endif
               enddo
-   
+
               call nc_diag_data2d("ObsDiagSave_iuse",     obsdiag_iuse                             )
               call nc_diag_data2d("ObsDiagSave_nldepart", odiag%nldepart )
               call nc_diag_data2d("ObsDiagSave_tldepart", odiag%tldepart )
-              call nc_diag_data2d("ObsDiagSave_obssen",   odiag%obssen   )             
+              call nc_diag_data2d("ObsDiagSave_obssen",   odiag%obssen   )
            endif
 
           if (save_jacobian) then

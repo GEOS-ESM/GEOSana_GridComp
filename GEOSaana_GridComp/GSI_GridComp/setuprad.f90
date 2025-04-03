@@ -420,6 +420,7 @@ contains
   real(r_kind) :: clw_guess,clw_guess_retrieval,ciw_guess,rain_guess,snow_guess,clw_avg
   real(r_kind) :: tpwc_guess
   real(r_kind) :: tnoise_save
+  real(r_kind) :: sfactor
   real(r_kind),dimension(:), allocatable :: rsqrtinv
   real(r_kind),dimension(:), allocatable :: rinvdiag
   real(r_kind) :: ice_temperature_0
@@ -1833,10 +1834,6 @@ contains
               m = ich(i)
               if(luse(n))then
 
-                 ! Adjust omb residual with FSI weight
-                 if (fsi_weight) call fsi_apply_weight(tbc(i),trim(dplat(is)),trim(obstype), &
-                                                       ich(i),cenlat,cenlon)
-
                  drad    = tbc0(i)   
                  dradnob = tbcnob(i)
                  varrad  = tbc(i)*varinv(i)
@@ -1954,7 +1951,14 @@ contains
 
                     iii=iii+1
 
-                    my_head%res(iii)= tbc(ii)                   !  evecs(R)*[obs-ges innovation]
+                    ! Adjustment to omb residual following FSI
+                    if (fsi_weight .and. jiter==jiterstart) then
+                       call fsi_apply_weight(sfactor,trim(dplat(is)),trim(obstype), &
+                                             ich(ii),cenlat,cenlon)
+                       my_head%res(iii)= sfactor*tbc(ii)        !  evecs(R)*[obs-ges innovation]
+                    else
+                       my_head%res(iii)= tbc(ii)                !  evecs(R)*[obs-ges innovation]
+                    endif 
                     my_head%err2(iii)= err2(ii)                 !  1/eigenvalue(R)
                     my_head%raterr2(iii)=raterr2(ii)            !  inflation factor 
                     my_head%icx(iii)= m                         ! channel index
