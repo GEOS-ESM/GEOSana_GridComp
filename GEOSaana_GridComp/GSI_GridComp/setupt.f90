@@ -293,6 +293,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   character(8),allocatable,dimension(:):: cprvstg,csprvstg
   character(8) c_prvstg,c_sprvstg
   real(r_double) r_prvstg,r_sprvstg
+  real(r_kind) :: sfactor
 
   logical,dimension(nobs):: luse,muse
   logical,dimension(nobs):: identical_obs
@@ -879,9 +880,6 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         end do
      end if
 
-! Adjust omb residual with FSI weight
-     if (fsi_weight) call fsi_apply_weight(ddiff,'t',itype,data(ilate,i),data(ilone,i),prest)
-
 ! If requested, setup for single obs test.
      if (oneobtest) then
         ddiff = maginnov
@@ -1067,7 +1065,13 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         my_head%dlev= dpres
         call get_ijk(mm1,dlat,dlon,dpres,my_head%ij,my_head%wij)
 
-        my_head%res     = ddiff
+        if (fsi_weight .and. jiter==jiterstart) then
+          ! Adjustment to omb residual following FSI
+          call fsi_apply_weight(sfactor,'t',itype,data(ilate,i),data(ilone,i),prest)
+          my_head%res     = sfactor*ddiff
+        else
+          my_head%res     = ddiff
+        endif
         my_head%err2    = error**2
         my_head%raterr2 = ratio_errors**2      
         my_head%time    = dtime

@@ -1,5 +1,6 @@
 module m_fsi_weight
 use kinds, only: i_kind,r_kind
+use constants, only: one
 use mpimod, only: mype
 use mpeu_util, only: gettablesize
 use mpeu_util, only: gettable
@@ -163,9 +164,9 @@ subroutine fsi_type_clean_(this)
  deallocate(this%criterium)
 end subroutine fsi_type_clean_
 
-subroutine apply_lev_weight_(res,var,kx,lat,lon,lev)
+subroutine apply_lev_weight_(sfactor,var,kx,lat,lon,lev)
 implicit none
-real(r_kind), intent(inout) :: res
+real(r_kind), intent(inout) :: sfactor
 character(len=*), intent(in) :: var
 real(r_kind), intent(in) :: lat,lon
 real(r_kind), intent(in) :: lev ! mb
@@ -173,13 +174,12 @@ integer, intent(in) :: kx
 !
 logical :: done
 integer :: ii,iiall
-real(r_kind) :: sfactor
 character(len=4) :: criterium
 
 ! if not intialized, nothing to do ...
 if(.not. initialized_ ) return
 
-sfactor = 1.0_r_kind
+sfactor = one
 iiall=-1
 done=.false.
 do ii=1,fsi%ncri
@@ -194,6 +194,7 @@ do ii=1,fsi%ncri
            criterium = fsi%criterium(ii)
            sfactor = fsi%sfactor(ii)
            done = .true.
+!          print *, 'DEBUG_RT: ', trim(var), kx, sfactor
            exit
        endif
      endif
@@ -213,16 +214,11 @@ if (.not. done) then
   endif
 endif
 
-if (sfactor /= 1.0_r_kind) then
-  !print *, 'DEBUG_RT ', trim(criterium), ' ', trim(var), ' ', sfactor, lev
-  res = sfactor * res
-endif
-
 end subroutine apply_lev_weight_
 
-subroutine apply_chn_weight_(res,dplat,obstype,ich,lat,lon)
+subroutine apply_chn_weight_(sfactor,dplat,obstype,ich,lat,lon)
 implicit none
-real(r_kind),     intent(inout) :: res
+real(r_kind),     intent(inout) :: sfactor
 character(len=*), intent(in) :: dplat ! metop-c - not yet implemented
 character(len=*), intent(in) :: obstype ! iasi - not yet implemented
 real(r_kind),     intent(in) :: lat,lon
@@ -230,13 +226,12 @@ integer(i_kind),  intent(in) :: ich
 !
 logical :: done
 integer :: ii,iirad
-real(r_kind) :: sfactor
 character(len=4) :: criterium
 
 ! if not intialized, nothing to do ...
 if(.not. initialized_ ) return
 
-sfactor = 1.0_r_kind
+sfactor = one
 iirad=-1
 done=.false.
 do ii=1,fsi%ncri
@@ -266,11 +261,6 @@ if (.not. done) then
         done = .true.
     endif
   endif
-endif
-
-if (sfactor /= 1.0_r_kind) then
-  !print *, 'DEBUG_RT ', trim(criterium), ' ', trim(var), ' ', sfactor, lev
-  res = sfactor * res
 endif
 
 end subroutine apply_chn_weight_

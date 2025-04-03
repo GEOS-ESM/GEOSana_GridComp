@@ -292,6 +292,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_single), dimension(nsdim) :: dhx_dx_array
   integer(i_kind) :: iz, u_ind, v_ind, nnz, nind
   real(r_kind) :: delz
+  real(r_kind) :: sfactor
   logical z_height,sfc_data
   logical,dimension(nobs):: luse,muse
   logical,dimension(nobs):: identical_obs
@@ -900,13 +901,6 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      dvdiff=vob-vgesin
      spdb=sqrt(uob**2+vob**2)-sqrt(ugesin**2+vgesin**2)
 
-     ! Adjust omb residual with FSI weight
-     if (fsi_weight) then
-        call fsi_apply_weight(dudiff,  'u',itype,data(ilate,i),data(ilone,i),presw)
-        call fsi_apply_weight(dvdiff,  'v',itype,data(ilate,i),data(ilone,i),presw)
-        call fsi_apply_weight(  spdb,'spd',itype,data(ilate,i),data(ilone,i),presw)
-     endif
-
 ! QC PBL profiler  227 and 223, 224
      if(itype==227 .or. itype==223 .or. itype==224 .or. itype==228 .or. itype==229) then
         if(abs(uob) < 1.0_r_kind .and. abs(vob) <1.0_r_kind )  then
@@ -1310,8 +1304,15 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            my_head%wij(j)=factw*my_head%wij(j)
         end do
 
-        my_head%ures=dudiff
-        my_head%vres=dvdiff
+        if (fsi_weight .and. jiter==jiterstart) then
+          ! Adjustment to omb residual following FSI
+          call fsi_apply_weight(sfactor,'wnd',itype,data(ilate,i),data(ilone,i),presw)
+          my_head%ures=sfactor*dudiff
+          my_head%vres=sfactor*dvdiff
+        else
+          my_head%ures=dudiff
+          my_head%vres=dvdiff
+        endif
         my_head%err2=error**2
         my_head%raterr2=ratio_errors **2  
         my_head%time = dtime
