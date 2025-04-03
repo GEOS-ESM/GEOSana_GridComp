@@ -297,6 +297,10 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
          kidsat=270
        else if(jsatid == 'g17' .or. jsatid == 'g17_prep')then
          kidsat=271
+       else if(jsatid == 'g18' .or. jsatid == 'g18_prep')then
+         kidsat=272
+       else if(jsatid == 'g19' .or. jsatid == 'g19_prep')then
+         kidsat=273
        else if(jsatid == 'n05')then
          kidsat=705
        else if(jsatid == 'n06')then
