@@ -208,6 +208,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   character(8) c_prvstg,c_sprvstg
   real(r_double) r_prvstg,r_sprvstg
   real(r_kind) :: hr_offset
+  real(r_kind) :: sfactor
 
   logical:: in_curbin, in_anybin, save_jacobian
   type(psNode),pointer:: my_head
@@ -563,9 +564,6 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
 ! Compute innovations
      ddiff=pob-pges  ! in cb
 
-! Adjust omb residual with FSI weight
-     if (fsi_weight) call fsi_apply_weight(ddiff,'ps',itype,data(ilate,i),data(ilone,i),1000.0_r_kind)
-
 ! Oberror Tuning and Perturb Obs
      if(muse(i)) then
         if(oberror_tune )then
@@ -698,7 +696,13 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
 !       Set (i,j) indices of guess gridpoint that bound obs location
         call get_ij(mm1,dlat,dlon,my_head%ij,my_head%wij)
 
-        my_head%res      = ddiff
+        if (fsi_weight .and. jiter==jiterstart) then
+          ! Adjustment to omb residual following FSI
+          call fsi_apply_weight(sfactor,'ps',itype,data(ilate,i),data(ilone,i),1000.0_r_kind)
+          my_head%res      = sfactor*ddiff
+        else
+          my_head%res      = ddiff
+        endif
         my_head%err2     = error**2
         my_head%raterr2  = ratio_errors**2     
         my_head%time     = dtime
