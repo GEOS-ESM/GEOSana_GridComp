@@ -316,6 +316,7 @@ contains
   use radiance_mod, only: rad_obs_type,radiance_obstype_search,radiance_ex_obserr,radiance_ex_biascor
   use sparsearr, only: sparr2, new, writearray, size, fullarray
   use radiance_mod, only: radiance_ex_obserr_gmi,radiance_ex_biascor_gmi, radiance_ex_obserr_mhs, radiance_ex_biascor_mhs
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
 
   implicit none
 
@@ -419,6 +420,7 @@ contains
   real(r_kind) :: clw_guess,clw_guess_retrieval,ciw_guess,rain_guess,snow_guess,clw_avg
   real(r_kind) :: tpwc_guess
   real(r_kind) :: tnoise_save
+  real(r_kind) :: sfactor
   real(r_kind),dimension(:), allocatable :: rsqrtinv
   real(r_kind),dimension(:), allocatable :: rinvdiag
   real(r_kind) :: ice_temperature_0
@@ -1831,6 +1833,7 @@ contains
 
               m = ich(i)
               if(luse(n))then
+
                  drad    = tbc0(i)   
                  dradnob = tbcnob(i)
                  varrad  = tbc(i)*varinv(i)
@@ -1948,7 +1951,14 @@ contains
 
                     iii=iii+1
 
-                    my_head%res(iii)= tbc(ii)                   !  evecs(R)*[obs-ges innovation]
+                    ! Adjustment to omb residual following FSI
+                    if (fsi_weight .and. jiter==jiterstart) then
+                       call fsi_apply_weight(sfactor,trim(dplat(is)),trim(obstype), &
+                                             ich(ii),cenlat,cenlon)
+                       my_head%res(iii)= sfactor*tbc(ii)        !  evecs(R)*[obs-ges innovation]
+                    else
+                       my_head%res(iii)= tbc(ii)                !  evecs(R)*[obs-ges innovation]
+                    endif 
                     my_head%err2(iii)= err2(ii)                 !  1/eigenvalue(R)
                     my_head%raterr2(iii)=raterr2(ii)            !  inflation factor 
                     my_head%icx(iii)= m                         ! channel index

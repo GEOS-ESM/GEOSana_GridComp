@@ -184,6 +184,9 @@ subroutine setupbend(obsLL,odiagLL, &
   use gsi_bundlemod, only : gsi_bundlegetpointer
   use gsi_metguess_mod, only : gsi_metguess_get,gsi_metguess_bundle
   use sparsearr, only: sparr2, new, size, writearray
+
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
+
   implicit none
 
 ! Declare passed variables
@@ -257,6 +260,7 @@ subroutine setupbend(obsLL,odiagLL, &
   real(r_kind),dimension(nsig+nsig_ext+20) :: ref_rad_out
   real(r_kind) :: dlat,dlon,rocprof,unprof,dtime,dpressure,trefges,qrefges
   real(r_kind) :: dbetan,dbetaxi,rdog,alt
+  real(r_kind) :: sfactor
   real(r_kind),dimension(nsig):: tges,qges,qges_o
   real(r_kind),dimension(nobs):: tpdpres
 
@@ -1355,7 +1359,13 @@ subroutine setupbend(obsLL,odiagLL, &
            endif
 
            my_head%raterr2= ratio_errors(i)**2
-           my_head%res    = data(igps,i)
+           if (fsi_weight .and. jiter==jiterstart) then
+             ! Adjustment of omb residual following FSI
+             call fsi_apply_weight(sfactor,'gps',nint(data(isatid,i)),data(ilate,i),data(ilone,i),ten*exp(dpressure))
+             my_head%res    = sfactor*data(igps,i)
+           else
+             my_head%res    = data(igps,i)
+           endif
            my_head%err2   = data(ier,i)**2
            my_head%time   = data(itime,i)
            my_head%b      = cvar_b(ikx)

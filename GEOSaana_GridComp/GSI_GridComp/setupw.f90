@@ -73,6 +73,8 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use sparsearr, only: sparr2, new, size, writearray, fullarray
   use convinfo, only: id_drifter, subtype_drifter
 
+  use m_fsi_weight, only: fsi_weight,fsi_apply_weight
+
   implicit none
   
   type(obsLList ),target,dimension(:),intent(inout):: obsLL
@@ -290,6 +292,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_single), dimension(nsdim) :: dhx_dx_array
   integer(i_kind) :: iz, u_ind, v_ind, nnz, nind
   real(r_kind) :: delz
+  real(r_kind) :: sfactor
   logical z_height,sfc_data
   logical,dimension(nobs):: luse,muse
   logical,dimension(nobs):: identical_obs
@@ -1301,8 +1304,15 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            my_head%wij(j)=factw*my_head%wij(j)
         end do
 
-        my_head%ures=dudiff
-        my_head%vres=dvdiff
+        if (fsi_weight .and. jiter==jiterstart) then
+          ! Adjustment to omb residual following FSI
+          call fsi_apply_weight(sfactor,'wnd',itype,data(ilate,i),data(ilone,i),presw)
+          my_head%ures=sfactor*dudiff
+          my_head%vres=sfactor*dvdiff
+        else
+          my_head%ures=dudiff
+          my_head%vres=dvdiff
+        endif
         my_head%err2=error**2
         my_head%raterr2=ratio_errors **2  
         my_head%time = dtime

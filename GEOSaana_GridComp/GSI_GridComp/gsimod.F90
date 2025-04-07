@@ -168,6 +168,7 @@
   use gsi_nstcouplermod, only: nst_gsi,nstinfo,zsea1,zsea2,fac_dtl,fac_tsl
   use ncepnems_io, only: init_nems,imp_physics,lupp
   use wrf_vars_mod, only: init_wrf_vars
+  use m_fsi_weight, only: fsi_init
 
   implicit none
 
@@ -1242,6 +1243,7 @@
   call init_gfs_stratosphere
   call set_fgrid2agrid
   call gsi_nstcoupler_init_nml
+  call fsi_init
  if(mype==0) write(6,*)' at 0 in gsimod, use_gfs_stratosphere,nems_nmmb_regional = ', &
                        use_gfs_stratosphere,nems_nmmb_regional
 
