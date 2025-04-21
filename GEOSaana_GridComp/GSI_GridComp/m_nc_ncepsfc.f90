@@ -170,7 +170,7 @@ subroutine read_ncepsfc_ (fname,sfcvar,rc, myid,root)
   enddo
   deallocate(data_in)
 
-  sfcvar%nveg = nint(maxval(sfcvar%vtype))+1
+  sfcvar%nveg = nint(maxval(sfcvar%vtype))
 
 ! Close the file, freeing all resources.
   call check_( nf90_close(ncid), rc, mype_, root_ )
