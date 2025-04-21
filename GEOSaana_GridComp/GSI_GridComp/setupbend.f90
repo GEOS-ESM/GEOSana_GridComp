@@ -1359,7 +1359,7 @@ subroutine setupbend(obsLL,odiagLL, &
            endif
 
            my_head%raterr2= ratio_errors(i)**2
-           if (fsi_weight .and. jiter==jiterstart) then
+           if (fsi_weight) then
              ! Adjustment of omb residual following FSI
              call fsi_apply_weight(sfactor,'gps',nint(data(isatid,i)),data(ilate,i),data(ilone,i),ten*exp(dpressure))
              my_head%res    = sfactor*data(igps,i)
