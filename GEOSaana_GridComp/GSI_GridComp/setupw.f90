@@ -1304,7 +1304,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            my_head%wij(j)=factw*my_head%wij(j)
         end do
 
-        if (fsi_weight .and. jiter==jiterstart) then
+        if (fsi_weight) then
           ! Adjustment to omb residual following FSI
           call fsi_apply_weight(sfactor,'wnd',itype,data(ilate,i),data(ilone,i),presw)
           my_head%ures=sfactor*dudiff

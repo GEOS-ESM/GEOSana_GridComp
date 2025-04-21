@@ -1952,7 +1952,7 @@ contains
                     iii=iii+1
 
                     ! Adjustment to omb residual following FSI
-                    if (fsi_weight .and. jiter==jiterstart) then
+                    if (fsi_weight) then
                        call fsi_apply_weight(sfactor,trim(dplat(is)),trim(obstype), &
                                              ich(ii),cenlat,cenlon)
                        my_head%res(iii)= sfactor*tbc(ii)        !  evecs(R)*[obs-ges innovation]
@@ -2722,6 +2722,7 @@ contains
                  call nc_diag_metadata("Emissivity",                            sngl(emissivity(ich_diag(i)))     )           ! surface emissivity
                  call nc_diag_metadata("Weighted_Lapse_Rate",                   sngl(tlapchn(ich_diag(i)))        )           ! stability index
                  call nc_diag_metadata("dTb_dTs",                               sngl(ts(ich_diag(i)))             )           ! d(Tb)/d(Ts)
+                 call nc_diag_metadata("ascending_flag",                        sngl(node)                        )           !  ascending/decending flag
 
                  call nc_diag_metadata("BC_Constant",                           sngl(predbias(1,ich_diag(i)))      )             ! constant bias correction term
                  call nc_diag_metadata("BC_Scan_Angle",                         sngl(predbias(2,ich_diag(i)))      )             ! scan angle bias correction term
