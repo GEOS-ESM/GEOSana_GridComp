@@ -831,7 +831,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         my_head%dlev= dpres
         call get_ijk(mm1,dlat,dlon,dpres,my_head%ij,my_head%wij)
 
-        if (fsi_weight .and. jiter==jiterstart) then
+        if (fsi_weight) then
           ! Adjustment to omb residual following FSI
           call fsi_apply_weight(sfactor,'q',itype,data(ilate,i),data(ilone,i),presq)
           my_head%res    = sfactor*ddiff

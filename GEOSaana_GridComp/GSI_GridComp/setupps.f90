@@ -696,7 +696,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
 !       Set (i,j) indices of guess gridpoint that bound obs location
         call get_ij(mm1,dlat,dlon,my_head%ij,my_head%wij)
 
-        if (fsi_weight .and. jiter==jiterstart) then
+        if (fsi_weight) then
           ! Adjustment to omb residual following FSI
           call fsi_apply_weight(sfactor,'ps',itype,data(ilate,i),data(ilone,i),1000.0_r_kind)
           my_head%res      = sfactor*ddiff

@@ -2819,9 +2819,17 @@ subroutine qc_avhrr(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,   &
   integer(i_kind) :: i,k,kk,lcloud
   integer(i_kind), dimension(nchanl) :: irday
   real(r_kind) :: dtz,ts_ave,xindx,tzchks
+  real(r_kind), dimension(nchanl) :: deltb
 
 
   irday = 1
+  deltb(1) = 0.60
+  deltb(2) = 0.68
+  deltb(3) = 0.72
+  if (nchanl>3) then
+    write(6,*)'nchanl for AVHRR data set>3: STOP'
+    stop 999
+  endif
 
 ! Reduce weight given to obs for shortwave ir if
 ! solar zenith angle tiny_r_kind
@@ -2933,7 +2941,7 @@ subroutine qc_avhrr(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,   &
 
   do i=1,nchanl
        cld_qc: do k=1,lcloud
-        if(abs(cld*dtb(i,k)) > tnoise(i))then
+        if(abs(cld*dtb(i,k)) > deltb(i))then
 !          QC4 in statsrad
            if(luse)aivals(11,is)   = aivals(11,is) + one
            varinv(i) = zero
@@ -2961,7 +2969,7 @@ subroutine qc_avhrr(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,   &
         dts=min(three,dts)
      end if
      do i=1,nchanl
-        if(abs(dts*ts(i)) > tnoise(i))then
+        if(abs(dts*ts(i)) > deltb(i))then
 !          QC3 in statsrad
            if(luse .and. varinv(i) > zero) &
            aivals(10,is)   = aivals(10,is) + one
