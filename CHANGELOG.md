@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+29Apr2025:
+- add settings to allow proper comparison with JEDI.
+
 02Apr2025:
 - Revisions to original FSI implemetation:
    o apply it every outer iteration
