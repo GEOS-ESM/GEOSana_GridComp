@@ -92,6 +92,8 @@ set (etc_other_files
    gsi.rc.tmpl
    gsi_sens.rc.tmpl
    gsidiags.rc
+   jedi_gsi.rc.tmpl
+   jedi_gsi_sens.rc.tmpl
    obs.rc.tmpl
    )
 install (
