@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+16May2025:
+ - revise handling of OMPS-LP for 5.42.x FPP/FP
+
 29Apr2025:
 - add settings to allow proper comparison with JEDI.
 
