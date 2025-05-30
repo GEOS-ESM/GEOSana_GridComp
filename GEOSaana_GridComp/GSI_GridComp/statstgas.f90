@@ -80,6 +80,7 @@ subroutine statstgas(stats_tgas, ndata)
         if (trim(vname_tgas(jj)) == 'hno3')  sclnat = 1.e+09_r_kind
         if (trim(vname_tgas(jj)) == 'hcl')   sclnat = 1.e+09_r_kind
         if (trim(vname_tgas(jj)) == 'clo')   sclnat = 1.e+09_r_kind
+        if (trim(vname_tgas(jj)) == 'ch3cl') sclnat = 1.e+12_r_kind
      end if
 
      stats_tgas( 3,jj) = stats_tgas( 3,jj) * sclnat

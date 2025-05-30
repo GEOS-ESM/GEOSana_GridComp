@@ -142,7 +142,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   real(r_kind),    dimension(nchanl) :: pchanl, gross, sclstd, sclmod
   real(r_kind),    dimension(nchanl) :: priorobs, gesobs, uncert, error
   real(r_kind),    dimension(nsig+1) :: pemod, zemod, peuse
-  real(r_kind),    dimension(nsig)   :: geslmod, qvmod, dpmod, plmod, pluse
+  real(r_kind),    dimension(nsig)   :: geslmod, qvmod, pluse
   integer(i_kind), dimension(nchanl) :: isbad
 
   real(r_kind),    dimension(nreal+nchanl,nobs) :: tgasdata
@@ -151,7 +151,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
 
   integer(i_kind), allocatable, dimension(:)     :: itgas
   real(r_kind),    allocatable, dimension(:)     :: peavg, grdpe, priorpro
-  real(r_kind),    allocatable, dimension(:)     :: peges, dpges
+  real(r_kind),    allocatable, dimension(:)     :: peges, dpges, zeges
   real(r_kind),    allocatable, dimension(:)     :: gespro, grdpch
   real(r_kind),    allocatable, dimension(:,:)   :: avgker, avgwgt
   real(r_single),  allocatable, dimension(:,:,:) :: rdiagbuf
@@ -316,7 +316,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
 
   if (useak) then
      allocate(peavg(nedge), grdpe(nedge), priorpro(navg))
-     allocate(peges(nedge), dpges(nedge-1))
+     allocate(peges(nedge), dpges(nedge-1), zeges(nedge))
   else
      allocate(grdpch(nchanl))
   end if
@@ -381,23 +381,21 @@ if (in_curbin) then
 !    Interpolate guess edge pressure (ges_pe) to obs time and place (pemod)
      call tintrp2a1(ges_pe, pemod, grdlat, grdlon, grdtime, hrdifsig,          &
                     nsig+1, mype, nfldsig)
-
-!    Convert pemod units from kPa to hPa
-     pemod = pemod * 10._r_kind
-     dpmod =  abs(pemod(2:nsig+1) - pemod(1:nsig))
-     plmod = 0.5*(pemod(2:nsig+1) + pemod(1:nsig))
-
 !    The same for edge geopotential heights (ges_ze) and water vapor (ges_qv)
      call tintrp2a1(ges_ze, zemod, grdlat, grdlon, grdtime, hrdifsig,          &
                     nsig+1, mype, nfldsig)
      call tintrp2a1(ges_qv, qvmod, grdlat, grdlon, grdtime, hrdifsig,          &
                     nsig,   mype, nfldsig)
 
-!    Hack to use geometric height (m) instead of pressure for
-!    tgez, tgaz, and NOAA ObsPack data
+!    Convert pemod units from kPa to hPa
+     pemod = pemod * 10._r_kind
+
+!    Hack to use geometric height (m) instead of pressure for tgez, tgaz,
+!    and NOAA ObsPack data
      peuse = pemod
-     if (obstype == 'tgez' .or. obstype == 'tgaz') peuse = zemod
-     if (obstype == 'tgop'                       ) peuse = zemod
+     if (obstype == 'tgez' .or. obstype == 'tgaz' .or. obstype == 'tgop') then
+        peuse = zemod
+     end if
      pluse = 0.5*(peuse(2:nsig+1) + peuse(1:nsig))
 
      if (ldebugob) then
@@ -408,6 +406,8 @@ if (in_curbin) then
         print *, pemod
         print *, 'peuse      = '
         print *, peuse
+        print *, 'qvmod      = '
+        print *, qvmod
      end if
 
 !    Read pressure, qcflag, and uncertainty for each channel
@@ -478,6 +478,12 @@ if (in_curbin) then
            call die(myname)
         end if
 
+!       Exit if we're not assimilating this variable
+        if (itg < 0 .or. ntgas < itg) then
+           if (mype == 0) write(0,*) myname // ': not analyzing  ', vname
+           call final_vars_
+           return
+        end if
         ges = ges_tgas(:,:,:,:,itg)
 
 !       Transform when input units are log-based
@@ -495,6 +501,11 @@ if (in_curbin) then
         if (vunit /= 'molm2') then
            call zavgtgas_(pemod, geslmod, grdpe, gespro, avgwgt)
 
+           if (ldebugob) then
+              print *, 'geslmod    = '
+              print *, geslmod
+           end if
+
 !       b. Partial columns in mol/m2 (fix hard-coded constants below)
         else
 !          Undry profile because pressures are total-air
@@ -505,7 +516,7 @@ if (in_curbin) then
               avgwgt(k,:) = avgwgt(k,:) * (1.0 - qvmod)
            end do
 
-!          Compute total-air subcolumns (dpges) and convert to mol/m2
+!          Compute model/guess pressure and height on averaging kernel grid
            do k = 1,nedge
 !             Copying what's in tintrp31
               iz  = grdpe(k)
@@ -514,9 +525,25 @@ if (in_curbin) then
 
               delz = grdpe(k) - float(iz)
               peges(k) = pemod(iz)*(1.0 - delz) + pemod(izp)*delz
+              zeges(k) = zemod(iz)*(1.0 - delz) + zemod(izp)*delz
            end do
-           dpges = abs(peges(2:nedge) - peges(1:nedge-1))
-!          Should be MAPL_GRAV and MAPL_MOLMW or something close
+
+!          Rebalance model pressure thickness if on height grid, otherwise
+!          use provided pressure thickness
+           if (obstype == 'tgez' .or. obstype == 'tgaz') then
+              dpges = abs(peges(2:nedge) - peges(1:nedge-1))
+
+              do k = 1,nedge-1
+                 if (0 < dpges(k)) then
+                    dpges(k) = dpges(k) * abs(peavg(k+1) - peavg(k))           &
+                                        / abs(zeges(k+1) - zeges(k))
+                 end if
+              end do
+           else
+              dpges = abs(peavg(2:nedge) - peavg(1:nedge-1))
+           end if
+
+!          Convert to mol/m2 (should use MAPL_GRAV and MAPL_MOLMW ***FIXME***)
            dpges = 1.0E+5/(9.80665*28.965) * dpges
 
 !          For now assuming navg = nedge - 1
@@ -527,16 +554,14 @@ if (in_curbin) then
            end do
 
            if (ldebugob) then
-              print *, 'dpmod      = '
-              print *, dpmod
-              print *, 'qvmod      = '
-              print *, qvmod
-              print *, 'geslmod    = '
-              print *, geslmod
               print *, 'peges      = '
               print *, peges
               print *, 'dpges      = '
               print *, dpges
+              print *, 'zeges      = '
+              print *, zeges
+              print *, 'geslmod    = '
+              print *, geslmod
            end if
         end if
 
@@ -608,6 +633,7 @@ if (in_curbin) then
      end if
 
 !    Account for log-space of background in averaging kernel
+!    interpreted as Jacobian of obs operator
      do k = 1,nchanl
         vunit = trim(vunit_tgas(ipos(k)))
         if (vunit == 'ln' .or. vunit == 'log') then
@@ -948,7 +974,7 @@ end if ! (in_curbin)
   deallocate(itgas, gespro, avgker, avgwgt)
   if (useak) then
      deallocate(peavg, grdpe, priorpro)
-     deallocate(peges, dpges)
+     deallocate(peges, dpges, zeges)
   else
      deallocate(grdpch)
   end if

@@ -88,17 +88,22 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 
   real(r_kind),      allocatable :: satlats(:), satlons(:)
   real(r_kind),      allocatable :: pchnom(:), pchanls(:,:), uncerts(:,:)
-  real(r_kind),      allocatable :: psurfs(:), peavgs(:,:), avgkers(:,:,:)
+  real(r_kind),      allocatable :: psurfs(:), penom(:), peavgs(:,:)
   real(r_kind),      allocatable :: priorobses(:,:), priorpros(:,:)
+  real(r_kind),      allocatable :: avgkers(:,:,:)
   real(r_kind),      allocatable :: obses(:,:), tgasout(:,:)
 
   real(r_kind),      allocatable :: pchanls1(:), uncerts1(:)
   real(r_kind),      allocatable :: avgkers1(:,:), priorobses1(:), obses1(:)
 
-! tgez = Point obs on a vertical grid of altitudes
+! Obstypes
+! --------
 ! tgev = Point obs on a vertical grid of pressures
-! tgaz = Avg kernel obs on a vertical grid of altitudes
+! tgez = Point obs on a vertical grid of altitudes (geometric)
+!
 ! tgav = Avg kernel obs on a vertical grid of pressures
+! tgaz = Avg kernel obs on a vertical grid of altitudes (geometric)
+!
 ! tgop = ObsPack (specialized, may remove)
 
 !$$$ -- 1. ALLOCATE AND INITIALIZE VARIABLES
@@ -139,12 +144,12 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
         nchanl = 1
      end if
 
-!    Try to get number of edges, if not, set to navg + 1
+!    Try to get number of edges, if not, set to navg
      istat = nf90_inq_dimid(id_fin, 'nedge', id_nedge)
      if (istat == nf90_noerr) then
         call check(nf90_inquire_dimension(id_fin, id_nedge, len=nedge))
      else
-        nedge = navg + 1
+        nedge = navg
      end if
 
      nreal = 6 + 3*nchanl + nedge + (navg + navg*nchanl + nchanl)
@@ -194,7 +199,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 ! Fill with negative so we don't accidentally misuse
   pchanls = -999.
 
-  if (useak) allocate(psurfs(nsound), peavgs(nedge,nsound),                    &
+  if (useak) allocate(psurfs(nsound), penom(nedge), peavgs(nedge,nsound),      &
                       avgkers(nchanl,navg,nsound), priorobses(nchanl,nsound),  &
                       priorpros(navg,nsound))
 
@@ -236,9 +241,14 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
 !    A variable defining the vertical grid must exist.  It depends on obstype,
 !    can be fixed, can be altitudes (tgez) or pressures (tgev), and can
 !    support averaging kernels (tgaz/tgav).
-     if (obstype == 'tgez') then
-        call check(nf90_inq_varid(id_fin, 'zchanl', id_prs))
-!       Assume it is the nominal grid, if not, try to read as per sounding
+     if (obstype == 'tgev' .or. obstype == 'tgez') then
+        if (obstype == 'tgev') then
+           call check(nf90_inq_varid(id_fin, 'pchanl', id_prs))
+        else
+           call check(nf90_inq_varid(id_fin, 'zchanl', id_prs))
+        end if
+
+!       Assume it is nominal grid, if not, read as per sounding (reversed below)
         istat = nf90_get_var(id_fin, id_prs, pchnom)
         if (istat == nf90_noerr) then
            do n = 1,nsound
@@ -248,25 +258,21 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
            call check(nf90_get_var(id_fin, id_prs, pchanls))
         end if
 
-     else if (obstype == 'tgev') then
-        call check(nf90_inq_varid(id_fin, 'pchanl', id_prs))
-!       Assume it is the nominal grid, if not, try to read as per sounding
-        istat = nf90_get_var(id_fin, id_prs, pchnom)
-        if (istat == nf90_noerr) then
-           do n = 1,nsound
-              pchanls(:,n) = pchnom
-           end do
+     else if (obstype == 'tgav' .or. obstype == 'tgaz') then
+        if (obstype == 'tgav') then
+           call check(nf90_inq_varid(id_fin, 'peavg', id_prs))
         else
-           call check(nf90_get_var(id_fin, id_prs, pchanls))
+           call check(nf90_inq_varid(id_fin, 'zeavg', id_prs))
         end if
 
-     else if (obstype == 'tgav') then
-        call check(nf90_inq_varid(id_fin, 'peavg', id_prs))
-        call check(nf90_get_var(id_fin, id_prs, peavgs))
-
-     else if (obstype == 'tgaz') then
-        call check(nf90_inq_varid(id_fin, 'zeavg', id_prs))
-        call check(nf90_get_var(id_fin, id_prs, peavgs))
+!       Assume it is per sounding, if not, read as nominal grid
+        istat = nf90_get_var(id_fin, id_prs, peavgs)
+        if (istat /= nf90_noerr) then
+           call check(nf90_get_var(id_fin, id_prs, penom))
+           do n = 1,nsound
+              peavgs(:,n) = penom
+           end do
+        end if
      end if
 
 !    Optional prior profile, always has same form
@@ -655,7 +661,7 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
   deallocate(idates, itimes, iyears, imons, idays, ihours, imints, isecs)
   deallocate(satlats, satlons, pchnom, pchanls, isbads, uncerts, obses)
 
-  if (useak) deallocate(psurfs, peavgs, avgkers, priorobses, priorpros)
+  if (useak) deallocate(psurfs, penom, peavgs, avgkers, priorobses, priorpros)
 
   if (obstype == 'acos') deallocate(imodes, istypes)
   if (nchanl  == 1)      deallocate(pchanls1, isbads1, uncerts1, avgkers1,     &
