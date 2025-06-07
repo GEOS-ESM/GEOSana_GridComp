@@ -355,6 +355,7 @@ set (SRCS_SOLVER
   gsd_update_mod.f90
   gsimod.F90
   gsisub.F90
+  hdraobmod.f90
   hybrid_ensemble_isotropic.F90
   inc2guess.f90
   init_jcdfi.f90
@@ -643,6 +644,7 @@ set (SRCS
 
 set (OBJS_OPENBUFR
    getcount_bufr.f90
+   hdraobmod.f90
    m_extOzone.F90
    read_aerosol.f90
    read_abi.f90
@@ -707,6 +709,20 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
             set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${BIG_ENDIAN} ${BYTERECLEN} ${TRACEBACK} ${FOPT1}")
          elseif (${src} MATCHES read_diag.f90)
             set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${BIG_ENDIAN} ${BYTERECLEN} ${TRACEBACK} ${FOPT0}")
+	 #elseif (${src} MATCHES setupt.f90)
+	 #   set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BIG_ENDIAN} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM} -g -traceback -debug all")
+	 #elseif (${src} MATCHES setupq.f90)
+	 #set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BIG_ENDIAN} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM} -g -traceback -debug all")
+	 #elseif (${src} MATCHES setupw.f90)
+	 #set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BIG_ENDIAN} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM} -g -traceback -debug all")
+	 #elseif (${src} MATCHES setupps.f90)
+	 #set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BIG_ENDIAN} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM} -g -traceback -debug all")
+	 #elseif (${src} MATCHES read_prepbufr.f90)
+	 #set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM} -g -traceback -debug all")
+	 #elseif (${src} MATCHES read_obs.F90)
+	 #set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM} -g -traceback -debug all")
+	 #elseif (${src} MATCHES hdraobmod.f90)
+	 #   set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM} -g -check all -traceback -debug all")
          elseif (${src} IN_LIST OBJS_OPENBUFR)
             set_source_files_properties (${src} PROPERTIES COMPILE_FLAGS "${GEOS_Fortran_Release_Flags} ${common_Fortran_flags} ${BYTERECLEN} ${FP_MODEL_STRICT} ${ALIGNCOM}")
          else ()

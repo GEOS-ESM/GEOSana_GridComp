@@ -35,6 +35,7 @@
   use obsmod, only: netcdf_diag, binary_diag
   use obsmod, only: l_wcp_cwm
   use obsmod, only: wrtgeovals
+  use obsmod, only: thin_flg,superob_flg,smooth_flg,filter_window,pbqc4hd
   use aircraftinfo, only: init_aircraft,hdist_aircraft,aircraft_t_bc_pof,aircraft_t_bc, &
                           aircraft_t_bc_ext,biaspredt,upd_aircraft,cleanup_tail
   use obs_sensitivity, only: lobsensfc,lobsensincr,lobsensjb,lsensrecompute, &
@@ -855,7 +856,8 @@
        tcp_ermin,tcp_ermax,qc_noirjaco3,qc_noirjaco3_pole,qc_satwnds,njqc,vqc,&
        aircraft_t_bc_pof,aircraft_t_bc,aircraft_t_bc_ext,biaspredt,upd_aircraft,cleanup_tail,&
        hdist_aircraft,buddycheck_t,buddydiag_save,vadwnd_l2rw_qc,  &
-       pvis,pcldch,scale_cv,estvisoe,estcldchoe,vis_thres,cldch_thres,cld_det_dec2bin,half_goesr_err
+       pvis,pcldch,scale_cv,estvisoe,estcldchoe,vis_thres,cldch_thres,cld_det_dec2bin,half_goesr_err, &
+       thin_flg,superob_flg,smooth_flg,filter_window,pbqc4hd
 
 ! OBS_INPUT (controls input data):
 !      dmesh(max(dthin))- thinning mesh for each group

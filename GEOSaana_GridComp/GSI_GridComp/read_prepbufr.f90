@@ -1,3 +1,22 @@
+module prepbufrmod
+
+  use kinds, only: r_single,r_kind,r_double,i_kind
+  
+  implicit none 
+     
+! set default as private
+  private
+! set subroutines and functions to public
+  public :: read_prepbufr 
+  public :: pbqct,pbqcq,pbqcuv,pbqcps
+  public :: npbt,npbq,npbuv,npbps
+  public :: pbnodet,pbnodeq,pbnodeuv,pbnodeps
+   
+  integer(i_kind),allocatable,dimension(:,:):: pbqct,pbqcq,pbqcuv,pbqcps
+  integer(i_kind):: pbnodet,pbnodeq,pbnodeuv,pbnodeps
+  integer(i_kind):: npbt,npbq,npbuv,npbps
+contains        
+
 subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
      prsl_full,nobs,nrec_start)
 !$$$  subprogram documentation block
@@ -165,7 +184,6 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 !   machine:  ibm RS/6000 SP
 !
 !$$$
-  use kinds, only: r_single,r_kind,r_double,i_kind
   use constants, only: zero,one_tenth,one,deg2rad,fv,t0c,half,&
       three,four,rad2deg,tiny_r_kind,huge_r_kind,huge_i_kind,&
       r60inv,r10,r100,r2000
@@ -180,7 +198,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
       use_prepb_satwnd
   use convinfo, only: id_drifter,id_ship
 
-  use obsmod, only: iadate,oberrflg,perturb_obs,perturb_fact,ran01dom,hilbert_curve
+  use obsmod, only: iadate,oberrflg,perturb_obs,perturb_fact,ran01dom,hilbert_curve,pbqc4hd
   use obsmod, only: blacklst,offtime_data,bmiss,ext_sonde,time_offset
   use aircraftinfo, only: aircraft_t_bc,aircraft_t_bc_pof,ntail,taillist,idx_tail,npredt,predt, &
       aircraft_t_bc_ext,ntail_update,max_tail,nsort,itail_sort,idx_sort,timelist
@@ -206,6 +224,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   use sfcobsqc,only: init_gsd_sfcuselist,apply_gsd_sfcuselist,destroy_gsd_sfcuselist                       
   use hilbertcurve,only: init_hilbertcurve, accum_hilbertcurve, &
                          apply_hilbertcurve,destroy_hilbertcurve
+  use mpimod, only: mype
   use ndfdgrids,only: init_ndfdgrid,destroy_ndfdgrid,relocsfcob,adjust_error
   use jfunc, only: tsensible
   use deter_sfc_mod, only: deter_sfc_type,deter_sfc2
@@ -263,6 +282,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   logical patch_fog
   logical aircraftset,aircraftobs,aircraftobst,aircrafttype
   logical acft_profl_file
+  logical newstation !hdraob
   logical,allocatable,dimension(:,:):: lmsg           ! set true when convinfo entry id found in a message
 
   character(40) drift,hdstr,qcstr,oestr,sststr,satqcstr,levstr,hdstr2
@@ -282,6 +302,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   character(1) cdummy
   logical lhilbert
 
+  integer(i_kind) nstations,idddd,ilev,n !hdraob
   integer(i_kind) ireadmg,ireadsb,icntpnt,icntpnt2,icount,iiout
   integer(i_kind) lunin,i,maxobs,j,idomsfc,it29,nmsgmax,mxtb
   integer(i_kind) kk,klon1,klat1,klonp1,klatp1
@@ -312,6 +333,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   integer(i_kind),dimension(nconvtype+1)::ntx
   integer(i_kind),allocatable,dimension(:):: isort,iloc,nrep
   integer(i_kind),allocatable,dimension(:,:):: tab
+  integer(i_kind),allocatable,dimension(:,:):: pbqc ! hdraob
+
   integer(i_kind) ibfms,thisobtype_usage
   integer(i_kind) iwmo,ios
   integer(i_kind) ntime,itime 
@@ -341,6 +364,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   real(r_kind),dimension(255):: tvflg
   real(r_kind),allocatable,dimension(:):: presl_thin
   real(r_kind),allocatable,dimension(:,:):: cdata_all,cdata_out
+
+
   real(r_kind) :: zob,tref,dtw,dtc,tz_tr
   real(r_kind) :: tempvis,visout
   real(r_kind) :: tempcldch,cldchout
@@ -504,6 +529,8 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
      write(6,*) ' illegal obs type in READ_PREPBUFR ',obstype
      call stop2(94)
   end if
+
+  nstations=0 ! hdraob 
 
 !  Set qc limits based on noiqc flag
   if (noiqc) then
@@ -796,6 +823,12 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   if(tob .and. print_verbose) write(6,*)'READ_PREPBUFR: time offset is ',toff,' hours.'
 !------------------------------------------------------------------------
 
+! allocate temporary array for PB QC 
+  if((pbqc4hd).and.(tob.or.qob.or.uvob).and.(.not.acft_profl_file))allocate(pbqc(nsig+1,ntb));pbqc=0 
+  if((pbqc4hd).and.(psob).and.(.not.acft_profl_file))allocate(pbqc(2,ntb));pbqc=0
+  
+
+
 ! Obtain program code (VTCD) associated with "VIRTMP" step
   call ufbqcd(lunin,'VIRTMP',vtcd)
 
@@ -818,6 +851,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   if (lhilbert) call init_hilbertcurve(maxobs)
 
   if (twodvar_regional) call init_ndfdgrid 
+
 
 ! loop over convinfo file entries; operate on matches
   
@@ -1098,6 +1132,12 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
            if (sfctype) then
               call ufbint(lunin,r_prvstg,1,1,iret,prvstr)
               call ufbint(lunin,r_sprvstg,1,1,iret,sprvstr)
+           else if(kx == 120 .and. tob .or. qob .or. psob)then
+              c_prvstg=cspval
+              c_sprvstg='PREP'
+           else if(kx == 220 .and. uvob)then
+              c_prvstg=cspval
+              c_sprvstg='PREP'
            else
               c_prvstg=cspval
               c_sprvstg=cspval
@@ -2095,6 +2135,37 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  if (twodvar_regional) &
                     call adjust_error(cdata_all(17,iout),cdata_all(18,iout),cdata_all(11,iout),cdata_all(1,iout))
 
+                 if((kx == 120).and.(pbqc4hd))then !find highest model layer QM in profile, write to array for propagation
+                    read(c_station_id,'(i5,3x)',err=1201) idddd
+                    write(6,*) 'station integer id: ',idddd
+                    if(usage < 100._r_kind)then
+                       newstation=.true.
+                       do i=1,nstations
+                          if(pbqc(1,i) == idddd) then
+                             newstation=.false.
+                             exit
+                          end if
+                       end do
+                       if(newstation)then
+                          nstations=nstations+1;i=nstations
+                          pbqc(1,nstations) = idddd 
+                       end if
+                    end if
+                    !find model pressure level
+                    ilev=minloc(abs(presl-plevs(k)),DIM=1)
+                    !ilev=nsig
+                    !do n=1,nsig
+                    !  if(plevs(k) < presl(n))ilev=n
+                    !end do 
+                    write(6,*)'station model layer: ',ilev,' at pressure (cb): ',plevs(k)
+                    !if model level QM is higher than last pass, set to higher QM
+                    if(tqm(k)>pbqc(ilev+1,i))then
+                        write(6,*)'highest tqm found: ',tqm(k),' at model level: ',ilev
+                        pbqc(ilev+1,i)=tqm(k) 
+                    end if 
+1201                continue
+                 end if
+
                  ! No additions to cdata_all should be placed below this check
                  if(mreal/=nreal) then
                     call die(myname,': no match of mreal/nreal for t ',999)
@@ -2227,6 +2298,33 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                     mreal=mreal+1;cdata_all(mreal,iout)=ran01dom()*perturb_fact ! u perturbation
                     mreal=mreal+1;cdata_all(mreal,iout)=ran01dom()*perturb_fact ! v perturbation
                  endif
+                 if((kx == 220).and.(pbqc4hd))then !find highest model layer QM in profile, write to array for propagation
+                    read(c_station_id,'(i5,3x)',err=1202) idddd
+                    if(usage < 100._r_kind)then
+                       newstation=.true.
+                       do i=1,nstations
+                          if(pbqc(1,i) == idddd) then
+                             newstation=.false.
+                             exit
+                          end if
+                       end do
+                       if(newstation)then
+                          nstations=nstations+1;i=nstations
+                          pbqc(1,nstations) = idddd
+                       end if   
+                    end if
+                    !find model pressure level
+                    ilev=minloc(abs(presl-plevs(k)),DIM=1)
+                    !ilev=nsig
+                    !do n=1,nsig
+                    !  if(plevs(k) < presl(n))ilev=n
+                    !end do 
+                    !if model level QM is higher than last pass, set to higher QM
+                    if(wqm(k)>pbqc(ilev+1,i))then
+                        pbqc(ilev+1,i)=wqm(k) 
+                    end if 
+1202                continue
+                 end if
 
                  ! No additions to cdata_all should be placed below this check
                  if(mreal/=nreal) then
@@ -2302,6 +2400,30 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  if (twodvar_regional) &
                     call adjust_error(cdata_all(14,iout),cdata_all(15,iout),cdata_all(11,iout),cdata_all(1,iout))
 
+                 if((kx == 120).and.(pbqc4hd))then !find surface pressure QM, write to array for propagation
+                    read(c_station_id,'(i5,3x)',err=1203) idddd
+                    if(usage < 100._r_kind)then
+                       newstation=.true.
+                       do i=1,nstations
+                          if(pbqc(1,i) == idddd) then
+                             newstation=.false.
+                             exit
+                          end if
+                       end do
+                       if(newstation)then
+                          nstations=nstations+1;i=nstations
+                          pbqc(1,nstations) = idddd
+                       end if
+                    end if
+                    !if psob QM is higher than last pass, set to higher QM
+                    if(pqm(k)>pbqc(2,i))then
+                        pbqc(2,i)=pqm(k)
+                        if(pqm(k)>100)write(6,*)'ob: ',i,' abnormal pqm: ',pqm(k)
+                    end if
+1203                continue
+
+                 end if
+
                  ! No additions to cdata_all should be placed below this check
                  if(mreal/=nreal) then
                     call die(myname,': no match of mreal/nreal for ps ',999)
@@ -2354,7 +2476,34 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  endif
                  if (twodvar_regional) &
                     call adjust_error(cdata_all(15,iout),cdata_all(16,iout),cdata_all(12,iout),cdata_all(1,iout))
- 
+                 if((kx == 120).and.(pbqc4hd))then !find highest model layer QM in profile, write to array for propagation
+                    read(c_station_id,'(i5,3x)',err=1204) idddd
+                    if(usage < 100._r_kind)then
+                       newstation=.true.
+                       do i=1,nstations
+                          if(pbqc(1,i) == idddd) then
+                             newstation=.false.
+                             exit
+                          end if
+                       end do
+                       if(newstation)then
+                          nstations=nstations+1;i=nstations
+                          pbqc(1,nstations) = idddd
+                       end if   
+                    end if
+                    !find model pressure level
+                    ilev=minloc(abs(presl-plevs(k)),DIM=1)
+                    !ilev=nsig
+                    !do n=1,nsig
+                    !  if(plevs(k) < presl(n))ilev=n
+                    !end do 
+                    !if model level QM is higher than last pass, set to higher QM
+                    if(qqm(k)>pbqc(ilev+1,i))then
+                        pbqc(ilev+1,i)=qqm(k) 
+                    end if 
+1204                continue
+                 end if
+
 !             Total precipitable water (ssm/i)
               else if(pwob) then
 
@@ -2984,6 +3133,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   write(lunout) cdata_out
 
   deallocate(cdata_out)
+
   call destroy_rjlists
   call destroy_aircraft_rjlists
   if(i_gsdsfc_uselist==1) call destroy_gsd_sfcuselist
@@ -2994,6 +3144,70 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
      'ntest,disterrmax=',ntest,disterrmax
   if(diagnostic_reg .and. nvtest>0) write(6,*)'READ_PREPBUFR:  ',&
      'nvtest,vdisterrmax=',ntest,vdisterrmax
+  
+  !test statement for memory check
+  !if(nstations>0)nstations=0
+
+  if((pbqc4hd).and.(tob).and.(.not.acft_profl_file))then
+  !record number of prepbufr stations and current node for propagation to setup routines
+     npbt=nstations
+     if(nstations > 0)then
+     allocate(pbqct(nsig+1,nstations))
+     do j=1,nstations
+       do i=1,nsig+1
+         pbqct(i,j)=pbqc(i,j)
+       end do
+     end do
+     write(6,*) 'mype: ',mype,' sample pbcqt: ',pbqct(1,1),pbqct(2,1),pbqct(3,1)
+     write(6,*) 'mype: ',mype,' sample pbcq: ',pbqc(1,1),pbqc(2,1),pbqc(3,1)
+
+     pbnodet=mype
+     write(6,*) ' number of pbufr  t stations ',nstations
+     end if 
+     deallocate(pbqc)
+  else if((pbqc4hd).and.(qob).and.(.not.acft_profl_file))then
+     npbq=nstations
+     if(nstations > 0)then
+     allocate(pbqcq(nsig+1,nstations))
+     do j=1,nstations
+       do i=1,nsig+1
+         pbqcq(i,j)=pbqc(i,j)
+       end do
+     end do
+     pbnodeq=mype
+     write(6,*) ' number of pbufr  q stations ',nstations
+     end if 
+     deallocate(pbqc)
+  else if((pbqc4hd).and.(uvob).and.(.not.acft_profl_file))then
+     npbuv=nstations
+     if(nstations > 0)then
+     allocate(pbqcuv(nsig+1,nstations))
+     do j=1,nstations
+       do i=1,nsig+1
+         pbqcuv(i,j)=pbqc(i,j)
+       end do
+     end do
+     pbnodeuv=mype
+     write(6,*) ' number of pbufr  uv stations ',nstations
+     end if 
+     deallocate(pbqc)
+  else if((pbqc4hd).and.(psob).and.(.not.acft_profl_file))then
+     npbps=nstations
+     if(nstations > 0)then
+     allocate(pbqcps(2,nstations))
+     do j=1,nstations
+        do i=1,2
+         pbqcps(i,j)=pbqc(i,j)
+        end do
+     end do
+     write(6,*)'pbqcpsmax: ',maxval(pbqcps,2)
+     pbnodeps=mype
+     write(6,*) ' number of pbufr  ps stations ',nstations
+     end if
+     deallocate(pbqc)
+  end if
+
+  if(allocated(pbqc))deallocate(pbqc) !double check that pbqc is deallocated
 
   call closbf(lunin)
   if(print_verbose)write(6,*)'READ_PREPBUFR:  closbf(',lunin,')'
@@ -3215,4 +3429,4 @@ subroutine sonde_ext(obsdat,tpc,qcmark,obserr,drfdat,levsio,kx,vtcd)
   return
 
 end subroutine sonde_ext
-
+end module prepbufrmod
