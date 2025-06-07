@@ -51,7 +51,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use oneobmod, only: oneobtest,oneob_type,magoberr,maginnov 
   use gridmod, only: get_ijk,nsig,twodvar_regional,regional,wrf_nmm_regional,&
       rotate_wind_xy2ll,pt_ll,fv3_regional
-  use guess_grids, only: nfldsig,hrdifsig,geop_hgtl,sfcmod_gfs
+  use guess_grids, only: nfldsig,hrdifsig,geop_hgtl,sfcmod_gfs,geop_hgti
   use guess_grids, only: tropprs,sfcmod_mm5
   use guess_grids, only: ges_lnprsl,ges_prsi,ges_tsen,comp_fact10,pbl_height
   use constants, only: zero,half,one,tiny_r_kind,two,cg_term, &
@@ -69,6 +69,9 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use m_dtime, only: dtime_setup, dtime_check
 
   use gsi_bundlemod, only : gsi_bundlegetpointer
+  use hdraobmod, only: nhduv,hduvlist
+  use prepbufrmod, only: pbqcuv,npbuv
+
   use gsi_metguess_mod, only : gsi_metguess_get,gsi_metguess_bundle
   use sparsearr, only: sparr2, new, size, writearray, fullarray
   use convinfo, only: id_drifter, subtype_drifter
@@ -228,7 +231,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Declare local variables
 
-  real(r_double) rstation_id
+  real(r_double) rstation_id,hd_rstation_id
   real(r_kind) qcu,qcv,trop5,tfact,fact
   real(r_kind) scale,ratio,obserror,obserrlm
   real(r_kind) residual,ressw,ress,val,vals,val2,valqc2,dudiff,dvdiff
@@ -252,10 +255,9 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind),dimension(nsig,nobs):: dup_kx_vector
   real(r_kind),dimension(nele,nobs):: data
   real(r_kind),dimension(nobs):: dup
-  real(r_kind),dimension(nsig+1)::prsitmp
-  real(r_kind),dimension(nsig)::prsltmp,tges,zges,qges
-  real(r_kind),dimension(nsig)::zges_geometric
-  real(r_kind),dimension(nsig)::tsentmp,zges_read,uges,vges,prsltmp2
+  real(r_kind),dimension(nsig+1)::prsitmp,prsitmp2
+  real(r_kind),dimension(nsig)::prsltmp,tges,zges,qges,zges_read,zges_geometric
+  real(r_kind),dimension(nsig)::tsentmp,uges,vges,prsltmp2,prsltmp3
   real(r_kind) wdirob,wdirgesin,wdirdiffmax
   real(r_kind),dimension(34)::ptabluv
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
@@ -273,16 +275,17 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   integer(i_kind) ihgt,ier2,iuse,ilate,ilone
   integer(i_kind) izz,iprvd,isprvd
   integer(i_kind) idomsfc,isfcr,iskint,iff10
-  integer(i_kind) ibb,ikk,ihil,idft
+  integer(i_kind) ihil,idft,idddd,hd_idddd,iohdraob,pbidx
+  integer(i_kind) pqc_lev
 
   integer(i_kind) iswcm,isaza, isccf, qify, qifn
   real(r_kind)    sccf_wavelen
   real(r_kind),parameter:: rsol=300000000.0_r_kind !speed of light
   real(r_kind),parameter:: rtomic=1000000.0_r_kind !conv to micron
 
-  integer(i_kind) num_bad_ikx
+  integer(i_kind) num_bad_ikx,iprev_station
 
-  character(8) station_id
+  character(8) station_id,hd_station_id
   character(8),allocatable,dimension(:):: cdiagbuf
   character(8),allocatable,dimension(:):: cprvstg,csprvstg
   character(8) c_prvstg,c_sprvstg
@@ -318,6 +321,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 
   equivalence(rstation_id,station_id)
+  equivalence(hd_rstation_id,hd_station_id)
   equivalence(r_prvstg,c_prvstg)
   equivalence(r_sprvstg,c_sprvstg)
 
@@ -410,10 +414,41 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
      if (netcdf_diag.and.nobs>0) call init_netcdf_diag_
   end if
-
+  num_bad_ikx=0
   do i=1,nobs
      muse(i)=nint(data(iuse,i)) <= jiter
+     ikx=nint(data(ikxx,i))
+     if(ikx < 1 .or. ikx > nconvtype) then
+        num_bad_ikx=num_bad_ikx+1
+        if(num_bad_ikx<=10) write(6,*)' in setupw ',ikx,i,nconvtype,mype
+     end if
   end do
+!  If HD raobs available move prepbufr version to monitor
+  if(nhduv > 0)then
+     iprev_station=0
+     do i=1,nobs
+        ikx=nint(data(ikxx,i))
+        itype=ictype(ikx)
+        if(itype == 220 .or. itype == 221) then
+           rstation_id     = data(id,i)
+           read(station_id,'(i5,3x)',err=1200) idddd
+           if(idddd == iprev_station)then
+             data(iuse,i)=108._r_kind
+             muse(i) = .false.
+           else
+              stn_loop:do j=1,nhduv
+                if(idddd == hduvlist(j))then
+                   iprev_station=idddd
+                   data(iuse,i)=108._r_kind
+                   muse(i) = .false.
+                   exit stn_loop
+                end if
+              end do stn_loop
+           end if
+        end if
+1200    continue
+     end do
+  end if
 
 !  handle multiple-report observations at a station
   hr_offset=min_offset/60.0_r_kind
@@ -571,11 +606,12 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      call tintrp2a1(ges_lnprsl,prsltmp,dlat,dlon,dtime,hrdifsig,&
           nsig,mype,nfldsig)
      prsltmp2 = exp(prsltmp) ! pressure on model layers (in cb)
+     prsltmp3 = r10*prsltmp2 ! pressure on model layers (mb)
      call tintrp2a1(ges_prsi,prsitmp,dlat,dlon,dtime,hrdifsig,&
           nsig+1,mype,nfldsig)
+     prsitmp2 = r10*prsitmp
      call tintrp2a1(ges_q,qges,dlat,dlon,dtime,hrdifsig,&
           nsig,mype,nfldsig)
-
      call tintrp2a11(ges_z,zsges,dlat,dlon,dtime,hrdifsig,&
           mype,nfldsig)
      call tintrp2a1(geop_hgtl,zges_read,dlat,dlon,dtime,hrdifsig,&
@@ -626,7 +662,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      z_height = .false.
      if ((itype>=221 .and. itype <= 229) .and. (data(ihgt,i)<r0_1_bmiss)) z_height = .true.
      if ((itype==261) .and. (data(ihgt,i)<r0_1_bmiss)) z_height = .true.
-
+     if (itype == 218) z_height = .true.
 
 !    Process observations reported with height differently than those
 !    reported with pressure.  Type 223=profiler and 224=vadwnd are 
@@ -661,9 +697,39 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 !       For observation reported with geometric height above sea level,
 !       convert geopotential to geometric height.
 
-        if ((itype>=223 .and. itype<=228) .or. sfc_data) then
+        if (((itype>=223 .and. itype<=228) .or. itype==218) .or. sfc_data) then
            zges = zges_geometric
+
         endif
+
+! Implementation of PrepBufr QC check for hdraob type 218 (ascent data - no pressure)
+        write(6,*)'itype: ',itype,' npbuv: ',npbuv,' muse: ',muse(i)
+        if ((itype==218) .and. (npbuv>0).and.(muse(i)==.true.)) then
+       !find PBQC value 
+        hd_rstation_id = data(id,i) !grab id for hd station
+        read(hd_station_id,'(i5,3x)',err=1201,iostat=iohdraob) hd_idddd
+        pbidx=0
+        hd_stn_loop:do j=1,npbuv !find the index of station id 
+           if(hd_idddd == pbqcuv(1,j)) then
+              write(6,*) 'found matching PBQC station: ',pbqcuv(1,j)
+              pbidx=j
+              exit hd_stn_loop
+           end if
+        end do hd_stn_loop
+        if(pbidx.gt.0)then !skip qc array search if PB station not found
+          pqc_lev=minloc(abs(zges-dpres),DIM=1)
+          if (pbqcuv(pqc_lev+1,pbidx)>3) then
+             write(6,*),' layer height: ',zges(pqc_lev),'for  hd ob height: ',dpres
+             write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcuv(pqc_lev+1,pbidx)
+             muse(i)=.false.
+          end if  
+        end if 
+1201    continue
+          if(iohdraob.ne.0)then
+               write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
+          end if
+        end if !type selection 
+        ! End Implementation of PrepBufr QC check
 
 !       Given observation height, (1) adjust 10 meter wind factor if
 !       necessary, (2) convert height to grid relative units, (3) compute
@@ -788,6 +854,48 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         prsfc=psges
         prsln2=log(exp(prsltmp(1))/prsfc)
         dpressave=dpres
+
+! Implementation of PrepBufr QC check for hdraob types 219 (ascent data -w pressure)
+        write(6,*)'itype: ',itype,' npbuv: ',npbuv,' muse: ',muse(i)
+        if ((itype==219) .and. (npbuv>0).and.(muse(i)==.true.)) then
+       !find PBQC value 
+        hd_rstation_id = data(id,i) !grab id for hd station
+        read(hd_station_id,'(i5,3x)',err=1202,iostat=iohdraob) hd_idddd
+        pbidx=0
+        hd_stn_loop_pres:do j=1,npbuv !find the index of station id 
+           if(hd_idddd == pbqcuv(1,j)) then
+              write(6,*) 'found matching PBQC station: ',pbqcuv(1,j)
+              pbidx=j
+              exit hd_stn_loop_pres
+           end if
+        end do hd_stn_loop_pres
+        if(pbidx.gt.0)then !skip qc array search if PB station not found
+          pqc_lev=minloc(abs(prsltmp3-presw),DIM=1)
+          if (pbqcuv(pqc_lev+1,pbidx)>3) then
+             write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',presw
+             write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcuv(pqc_lev+1,pbidx)
+             muse(i)=.false.
+          end if 
+        end if 
+        !do pqc_lev=2,nsig+1 !iterate over model layer pressure levels at ob location (log pressure)
+        !  if (prsitmp2(pqc_lev)<presw) then
+        !     if (pbqcuv(pqc_lev,pbidx)>3) then
+        !           write(6,*),' layer pres: ',prsltmp3(pqc_lev-1),' tripped at: ',prsitmp2(pqc_lev),'for hd ob pres: ',presw
+        !           write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcuv(pqc_lev,pbidx)
+        !           muse(i)=.false.
+        !     else
+        !           write(6,*)'ob above model top'
+        !     end if
+        !     exit
+        !  end if
+        !end do
+1202    continue
+          if(iohdraob.ne.0)then
+               write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
+          end if
+        end if !type selection 
+
+! End implementation of PrepBufr QC check 
 
 !       Put obs pressure in correct units to get grid coord. number
         dpres=log(exp(dpres)*prsfc)
@@ -1179,7 +1287,13 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         endif
      endif
 
-     if (ratio_errors*error <=tiny_r_kind) muse(i)=.false.
+     if (ratio_errors*error <=tiny_r_kind)then
+        muse(i)=.false.
+        write(6,*) 'ob:',i,' failed gross check'
+        write(6,*) 'qcgross: ',qcgross
+        write(6,*) 'ratio_errors: ',ratio_errors
+        write(6,*) 'error',error
+     endif
      if ( (itype==261) .and. (ratio_errors*error <= 1.0E-100_r_kind) ) muse(i)=.false.
 
         ! As a 2-component observation, muse(i) is not the same as muse_u or muse_v in an obs_diag.

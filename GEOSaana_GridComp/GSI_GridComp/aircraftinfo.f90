@@ -55,7 +55,6 @@ module aircraftinfo
   logical :: aircraft_t_bc_ext ! logical to turn off or on the externally supplied aircraft bias correction
   logical :: cleanup_tail ! logical to remove tail number no longer used
   logical :: upd_aircraft ! indicator if update bias at 06Z & 18Z
-
   integer(i_kind) max_tail        ! max tail numbers
   integer(i_kind) npredt          ! predictor number
   integer(i_kind) ntail           ! total tail number

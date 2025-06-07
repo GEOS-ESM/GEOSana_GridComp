@@ -134,6 +134,9 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   use convinfo, only: nconvtype,cermin,cermax,cgross,cvar_b,cvar_pg,ictype,icsubtype
 
   use m_dtime, only: dtime_setup, dtime_check
+  use hdraobmod, only: nhdps,hdpslist
+  use prepbufrmod, only: pbqcps,npbps
+
 
   use gsi_bundlemod, only : gsi_bundlegetpointer
   use gsi_metguess_mod, only : gsi_metguess_get,gsi_metguess_bundle
@@ -167,7 +170,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   external:: stop2
 
 ! Declare local variables
-  real(r_double) rstation_id
+  real(r_double) rstation_id,hd_rstation_id 
   real(r_kind) tges,tges2,drbx,pob,pges,psges,psges2,dlat,dlon,dtime,var_jb
   real(r_kind) rdelz,rdp,halfpi,obserror,obserrlm,drdp,residual,ratio
   real(r_kind) errinv_input,errinv_adjst,errinv_final
@@ -191,16 +194,18 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   integer(i_kind) ier,ilon,ilat,ipres,ihgt,itemp,id,itime,ikx,iqc,iptrb,ijb,isli
   integer(i_kind) ier2,iuse,ilate,ilone,istnelv,idomsfc,izz,iprvd,isprvd
   integer(i_kind) ikxx,nn,ibin,ioff,ioff0
-  integer(i_kind) i,nchar,nreal,ii,jj,k,l,mm1
+  integer(i_kind) i,j,nchar,nreal,ii,jj,k,l,mm1
   integer(i_kind) itype,isubtype 
   integer(i_kind) msges
+  integer(i_kind) idddd,hd_idddd,iohdraob,pbidx
+
 
   logical,dimension(nobs):: luse,muse
   logical,dimension(nobs):: identical_obs
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical proceed
  
-  character(8) station_id
+  character(8) station_id,hd_station_id 
   character(8),allocatable,dimension(:):: cdiagbuf
   character(8),allocatable,dimension(:):: cprvstg,csprvstg
   character(8) c_prvstg,c_sprvstg
@@ -214,6 +219,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   type(obs_diags),pointer:: my_diagLL
 
   equivalence(rstation_id,station_id)
+  equivalence(hd_rstation_id,hd_station_id)
   equivalence(r_prvstg,c_prvstg)
   equivalence(r_sprvstg,c_sprvstg)
   
@@ -287,7 +293,25 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   do i=1,nobs
      muse(i)=nint(data(iuse,i)) <= jiter
   end do
-
+!  If HD raobs available move prepbufr version to monitor
+  if(nhdps > 0)then
+     do i=1,nobs
+        ikx=nint(data(ikxx,i))
+        itype=ictype(ikx)
+        if(itype == 120) then
+           rstation_id     = data(id,i)
+           read(station_id,'(i5,3x)',err=1200) idddd
+           stn_loop:do j=1,nhdps
+             if(idddd == hdpslist(j))then
+                data(iuse,i)=108._r_kind
+                muse(i) = .false.
+                exit stn_loop
+             end if
+           end do stn_loop
+        end if
+1200    continue
+     end do
+  end if
   hr_offset=min_offset/60.0_r_kind
 !  Check for duplicate observations at same location
   dup=one
@@ -442,6 +466,38 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
     ! winds
     call tintrp2a1(ges_u,utmp,dlat,dlon,dtime,hrdifsig,nsig,mype,nfldsig)
     call tintrp2a1(ges_v,vtmp,dlat,dlon,dtime,hrdifsig,nsig,mype,nfldsig)
+
+! Implementation of PrepBufr QC check for hdraob types 119 (ascent data)
+     !write(6,*)'itype: ',itype,' npbps: ',npbps,' muse: ',muse(i)
+     write(6,*)'pbqcpsmax: ',maxval(pbqcps,2)
+     if ((itype==119) .and. (npbps>0).and.(muse(i)==.true.)) then
+       !find PBQC value 
+       hd_rstation_id = data(id,i) !grab id for hd station
+       read(hd_station_id,'(i5,3x)',err=1201,iostat=iohdraob) hd_idddd
+       pbidx=0
+       hd_stn_loop:do j=1,npbps !find the index of station id 
+           if(hd_idddd == pbqcps(1,j)) then
+              write(6,*) 'found matching PBQC station: ',pbqcps(1,j)
+              pbidx=j
+              exit hd_stn_loop
+           end if 
+       end do hd_stn_loop
+
+       !write pressures to log
+       if ((pbidx>0).and.(pbqcps(2,pbidx)>3)) then !turn off if above threshold
+           write(6,*),' hd surface pres sanity check: ', pob
+           write(6,*)'setting PS ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcps(2,pbidx)
+           muse(i)=.false.
+       end if
+       write(6,*),' hd surface pres sanity check (cb): ', pob
+
+1201   continue
+       if(iohdraob.ne.0)then
+               write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
+       end if 
+     end if !type selection 
+! End Implementation of PrepBufr QC check
+
     ! landmask
     msges = 0
     if(itype == 180 .or. itype == 182 .or. itype == 183 .or. itype == 199) then    !sea
