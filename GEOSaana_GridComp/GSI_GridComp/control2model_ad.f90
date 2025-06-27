@@ -26,6 +26,7 @@ subroutine control2model_ad(rval,bval,grad)
 !   2013-10-25  todling  - nullify work pointers
 !   2013-10-28  todling  - rename p3d to prse
 !   2013-05-23  zhu      - add ntclen and predt for aircraft temperature bias correction
+!   2021-10-10  zhu      - add pbl*
 !
 !   input argument list:
 !     rval - State variable
@@ -87,6 +88,9 @@ character(len=max_varname_length),allocatable,dimension(:) :: cvars2dpm  ! names
 
 real(r_kind),pointer,dimension(:,:)   :: rv_ps=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: rv_sst=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: rv_pblri=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: rv_pblrf=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: rv_pblkh=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: rv_u=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: rv_v=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: rv_prse=>NULL()
@@ -165,6 +169,9 @@ do jj=1,nsubwin
    call gsi_bundlegetpointer (rval(jj),'q'   ,rv_q ,  istatus)
    call gsi_bundlegetpointer (rval(jj),'oz'  ,rv_oz , istatus)
    call gsi_bundlegetpointer (rval(jj),'sst' ,rv_sst, istatus)
+   call gsi_bundlegetpointer (rval(jj),'pblri',rv_pblri, istatus)
+   call gsi_bundlegetpointer (rval(jj),'pblrf',rv_pblrf, istatus)
+   call gsi_bundlegetpointer (rval(jj),'pblkh',rv_pblkh, istatus)
 
 !  Convert RHS calculations for u,v to st/vp for application of
 !  background error
@@ -204,6 +211,9 @@ do jj=1,nsubwin
    call gsi_bundleputvar ( wbundle, 'ps', rv_ps,  istatus )
    call gsi_bundleputvar ( wbundle, 'oz', rv_oz,  istatus )
    call gsi_bundleputvar ( wbundle, 'sst',rv_sst, istatus )
+   call gsi_bundleputvar ( wbundle, 'pblri',rv_pblri, istatus )
+   call gsi_bundleputvar ( wbundle, 'pblrf',rv_pblrf, istatus )
+   call gsi_bundleputvar ( wbundle, 'pblkh',rv_pblkh, istatus )
 
    if (nclouds>0) then
       if (cw_to_hydro_ad) then

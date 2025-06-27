@@ -9,15 +9,19 @@ module deter_sfc_mod
 ! program history log:
 !   2011-08-01  lueken - Moved all land surface type subroutines to new module
 !   2013-01-23  parrish - change from grdcrd to grdcrd1 (to allow successful debug compile on WCOSS)
+!   2023-08-02  eyang   - add deter_hsstdv_model to interpolate model topography stdv to obs location
+!   2023-08-25  eyang   - add deter_sfc_type_coast to check coastlines
 !
 ! subroutines included:
 !   sub deter_sfc
 !   sub deter_sfc_type
+!   sub deter_sfc_type_coast
 !   sub deter_sfc2
 !   sub deter_sfc_fov
 !   sub deter_sfc_amsre_low
 !   sub deter_sfc_gmi
 !   sub deter_zsfc_model
+!   sub deter_hsstdv_model
 !   sub reduce2full
 !   sub init_sfc
 !   sub time_int_sfc
@@ -33,6 +37,7 @@ module deter_sfc_mod
   use satthin, only: sno_full,isli_full,sst_full,soil_moi_full, &
       soil_temp_full,soil_type_full,veg_frac_full,veg_type_full, &
       fact10_full,zs_full,sfc_rough_full,zs_full_gfs
+  use satthin, only: hs_stdv_full
   use constants, only: zero,one,two,one_tenth,deg2rad,rad2deg
   use gridmod, only: nlat,nlon,regional,tll2xy,nlat_sfc,nlon_sfc,rlats_sfc,rlons_sfc, &
       rlats,rlons,dx_gfs,txy2ll,lpl_gfs
@@ -46,11 +51,13 @@ module deter_sfc_mod
 ! Set passed variables to public
   public deter_sfc
   public deter_sfc_type
+  public deter_sfc_type_coast
   public deter_sfc2
   public deter_sfc_fov
   public deter_sfc_amsre_low
   public deter_sfc_gmi
   public deter_zsfc_model
+  public deter_hsstdv_model
 
 contains
 
@@ -531,6 +538,158 @@ subroutine deter_sfc_type(dlat_earth,dlon_earth,obstime,isflg,tsavg)
      end if
      return
 end subroutine deter_sfc_type
+
+subroutine deter_sfc_type_coast(dlat_earth,dlon_earth,obstime,isflg,coast)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    deter_sfc                     determine land surface type
+!   prgmmr: eyang           org: np2                date: 2023-08-25
+!
+! abstract:  determines land surface type based on surrounding land
+!            surface types to check for coastlines (both sea and land percentage>0.001)
+!
+! program history log:
+!
+!   input argument list:
+!     dlat
+!     dlon
+!     obstime
+!
+!   output argument list:
+!     isflg    - surface flag
+!                0 sea
+!                1 land
+!                2 sea ice
+!                3 snow
+!                4 mixed
+!     coast   - coastline flag
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+
+     implicit none
+
+     real(r_kind)   ,intent(in   ) :: dlat_earth,dlon_earth,obstime
+
+     integer(i_kind),intent(  out) :: isflg
+     !real(r_kind)   ,intent(  out) :: tsavg
+     logical,        intent(  out) :: coast
+
+     logical outside
+     integer(i_kind) istyp00,istyp01,istyp10,istyp11
+     integer(i_kind):: ix,iy,ixp,iyp,j,itsfc,itsfcp
+     real(r_kind):: dx,dy,dx1,dy1,w00,w10,w01,w11,dtsfc
+     real(r_kind):: dtsfcp,dlat,dlon
+     real(r_kind):: sst00,sst01,sst10,sst11
+     real(r_kind):: sno00,sno01,sno10,sno11
+
+     real(r_kind),parameter:: minsnow=one_tenth
+
+     real(r_kind),dimension(0:3):: sfcpct
+
+     if(regional)then
+        call tll2xy(dlon_earth,dlat_earth,dlon,dlat,outside)
+     else
+        dlat=dlat_earth
+        dlon=dlon_earth
+        call grdcrd1(dlat,rlats_sfc,nlat_sfc,1)
+        call grdcrd1(dlon,rlons_sfc,nlon_sfc,1)
+     end if
+
+     iy=int(dlon); ix=int(dlat)
+     dy  =dlon-iy; dx  =dlat-ix
+     dx1 =one-dx;    dy1 =one-dy
+     w00=dx1*dy1; w10=dx*dy1; w01=dx1*dy; w11=one-w00-w10-w01
+
+     ix=min(max(1,ix),nlat_sfc); iy=min(max(0,iy),nlon_sfc)
+     ixp=min(nlat_sfc,ix+1); iyp=iy+1
+     if(iy==0) iy=nlon_sfc
+     if(iyp==nlon_sfc+1) iyp=1
+
+!    Get time interpolation factors for surface files
+     if(obstime > hrdifsfc(1) .and. obstime <= hrdifsfc(nfldsfc))then
+        do j=1,nfldsfc-1
+           if(obstime > hrdifsfc(j) .and. obstime <= hrdifsfc(j+1))then
+              itsfc=j
+              itsfcp=j+1
+              dtsfc=(hrdifsfc(j+1)-obstime)/(hrdifsfc(j+1)-hrdifsfc(j))
+           end if
+        end do
+     else if(obstime <=hrdifsfc(1))then
+        itsfc=1
+        itsfcp=1
+        dtsfc=one
+     else
+        itsfc=nfldsfc
+        itsfcp=nfldsfc
+        dtsfc=one
+     end if
+     dtsfcp=one-dtsfc
+
+!    Set surface type flag.  Begin by assuming obs over ice-free water
+
+     istyp00 = isli_full(ix ,iy )
+     istyp10 = isli_full(ixp,iy )
+     istyp01 = isli_full(ix ,iyp)
+     istyp11 = isli_full(ixp,iyp)
+
+     sno00= sno_full(ix ,iy ,itsfc)*dtsfc+sno_full(ix ,iy ,itsfcp)*dtsfcp
+     sno01= sno_full(ix ,iyp,itsfc)*dtsfc+sno_full(ix ,iyp,itsfcp)*dtsfcp
+     sno10= sno_full(ixp,iy ,itsfc)*dtsfc+sno_full(ixp,iy ,itsfcp)*dtsfcp
+     sno11= sno_full(ixp,iyp,itsfc)*dtsfc+sno_full(ixp,iyp,itsfcp)*dtsfcp
+
+
+     sst00= sst_full(ix ,iy ,itsfc)*dtsfc+sst_full(ix ,iy ,itsfcp)*dtsfcp
+     sst01= sst_full(ix ,iyp,itsfc)*dtsfc+sst_full(ix ,iyp,itsfcp)*dtsfcp
+     sst10= sst_full(ixp,iy ,itsfc)*dtsfc+sst_full(ixp,iy ,itsfcp)*dtsfcp
+     sst11= sst_full(ixp,iyp,itsfc)*dtsfc+sst_full(ixp,iyp,itsfcp)*dtsfcp
+
+!    Interpolate sst to obs location
+
+     !tsavg=sst00*w00+sst10*w10+sst01*w01+sst11*w11
+
+     if(istyp00 >=1 .and. sno00 > minsnow)istyp00 = 3
+     if(istyp01 >=1 .and. sno01 > minsnow)istyp01 = 3
+     if(istyp10 >=1 .and. sno10 > minsnow)istyp10 = 3
+     if(istyp11 >=1 .and. sno11 > minsnow)istyp11 = 3
+
+     sfcpct = zero
+     sfcpct(istyp00)=sfcpct(istyp00)+w00
+     sfcpct(istyp01)=sfcpct(istyp01)+w01
+     sfcpct(istyp10)=sfcpct(istyp10)+w10
+     sfcpct(istyp11)=sfcpct(istyp11)+w11
+
+!     isflg    - surface flag
+!                0 sea
+!                1 land
+!                2 sea ice
+!                3 snow
+!                4 mixed
+     isflg = 0
+     if(sfcpct(0) > 0.99_r_kind)then
+        isflg = 0
+     else if(sfcpct(1) > 0.99_r_kind)then
+        isflg = 1
+     else if(sfcpct(2) > 0.99_r_kind)then
+        isflg = 2
+     else if(sfcpct(3) > 0.99_r_kind)then
+        isflg = 3
+     else
+        isflg = 4
+     end if
+
+     ! check for coastline
+     ! both sea and land percentage > 0.001 <-- coastlines
+     coast=.false.
+     if (sfcpct(0)>0.001 .and. sfcpct(1)>0.001) then
+        coast=.true.
+     end if
+
+     return
+end subroutine deter_sfc_type_coast
 
 subroutine deter_sfc2(dlat_earth,dlon_earth,obstime,idomsfc,tsavg,ff10,sfcr,zz)
 !$$$  subprogram documentation block
@@ -1548,6 +1707,61 @@ subroutine deter_zsfc_model(dlat,dlon,zsfc)
  
   return
 end subroutine deter_zsfc_model
+
+subroutine deter_hsstdv_model(dlat,dlon,hsstdv)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    deter_hsstdv_model         determine model topography height stdv
+!   prgmmr: e.yang           org: np2                date: 2023-08-02
+!
+! abstract:  determines model topography height stdv
+!
+! program history log:
+!   2023-08-02 e.yang
+!
+!   input argument list:
+!     dlat   - grid relative latitude
+!     dlon   - grid relative longitude
+!
+!   output argument list:
+!     hsstdv     - model topography height stdv (meters)
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+
+  implicit none
+
+  real(r_kind),intent(in   ) :: dlat,dlon
+  real(r_kind),intent(  out) :: hsstdv
+
+  integer(i_kind):: klat1,klon1,klatp1,klonp1
+  real(r_kind):: dx,dy,dx1,dy1,w00,w10,w01,w11
+
+  klon1=int(dlon); klat1=int(dlat)
+  dx  =dlon-klon1; dy  =dlat-klat1
+  dx1 =one-dx;    dy1 =one-dy
+  w00=dx1*dy1; w10=dx1*dy; w01=dx*dy1; w11=dx*dy
+
+  klat1=min(max(1,klat1),nlat); klon1=min(max(0,klon1),nlon)
+  if(klon1==0) klon1=nlon
+  klatp1=min(nlat,klat1+1); klonp1=klon1+1
+  if(klonp1==nlon+1) klonp1=1
+
+  print*, 'deter_hsstdv_model, w00, w10, w01, w11=',w00, w10, w01, w11
+  print*, 'hs_stdv_full(klat1,klon1)=',hs_stdv_full(klat1,klon1)
+  print*, 'hs_stdv_full(klatp1,klon1)=',hs_stdv_full(klatp1,klon1)
+  print*, 'hs_stdv_full(klat1,klonp1)=',hs_stdv_full(klat1,klonp1)
+  print*, 'hs_stdv_full(klatp1,klonp1)=',hs_stdv_full(klatp1,klonp1)
+! Interpolate topography height stdv  to obs location
+  hsstdv=w00*hs_stdv_full(klat1,klon1 ) + w10*hs_stdv_full(klatp1,klon1 ) + &
+       w01*hs_stdv_full(klat1,klonp1) + w11*hs_stdv_full(klatp1,klonp1)
+  print*, 'deter_hsstdv_model: hsstdv=',hsstdv
+
+  return
+end subroutine deter_hsstdv_model
 
 subroutine reduce2full(ireduce, j, ifull)
 !$$$  subprogram documentation block

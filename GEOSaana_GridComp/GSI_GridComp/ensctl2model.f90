@@ -9,6 +9,7 @@ subroutine ensctl2model(xhat,mval,eval)
 ! program history log:
 !   2011-11-17  tremolet - initial code
 !   2013-10-28  todling - rename p3d to prse 
+!   2021-10-10  zhu - add pbl*
 !   Todling: this routine is simply a PLACE HOLDER for now - not working yet
 !
 !   input argument list:
@@ -71,7 +72,7 @@ integer(i_kind) :: isps(nsvars)
 character(len=4), parameter :: mysvars(nsvars) = (/  &  ! vars from ST needed here
                                'u   ', 'v   ', 'prse', 'q   ', 'tsen' /)
 logical :: ls_u,ls_v,ls_prse,ls_q,ls_tsen
-real(r_kind),pointer,dimension(:,:)   :: sv_ps,sv_sst
+real(r_kind),pointer,dimension(:,:)   :: sv_ps,sv_sst,sv_pblri,sv_pblrf,sv_pblkh
 real(r_kind),pointer,dimension(:,:,:) :: sv_u,sv_v,sv_prse,sv_q,sv_tsen,sv_tv,sv_oz
 real(r_kind),pointer,dimension(:,:,:) :: sv_rank3
 
@@ -161,6 +162,9 @@ do jj=1,ntlevs_ens
    call gsi_bundlegetpointer (eval(jj),'q'   ,sv_q ,  istatus)
    call gsi_bundlegetpointer (eval(jj),'oz'  ,sv_oz , istatus)
    call gsi_bundlegetpointer (eval(jj),'sst' ,sv_sst, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblri' ,sv_pblri, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblrf' ,sv_pblrf, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblkh' ,sv_pblkh, istatus)
 
    call sqrt_beta_s_mult(wbundle_c)
    if(dual_res) then
@@ -197,6 +201,9 @@ do jj=1,ntlevs_ens
    call gsi_bundlegetvar ( wbundle_c, 'oz' , sv_oz,  istatus )
    call gsi_bundlegetvar ( wbundle_c, 'ps' , sv_ps,  istatus )
    call gsi_bundlegetvar ( wbundle_c, 'sst', sv_sst, istatus )
+   call gsi_bundlegetvar ( wbundle_c, 'pblri', sv_pblri, istatus )
+   call gsi_bundlegetvar ( wbundle_c, 'pblrf', sv_pblrf, istatus )
+   call gsi_bundlegetvar ( wbundle_c, 'pblkh', sv_pblkh, istatus )
 
 !  Since cloud-vars map one-to-one, take care of them together
    do ic=1,nclouds

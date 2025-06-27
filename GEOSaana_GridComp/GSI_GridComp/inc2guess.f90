@@ -22,6 +22,7 @@ subroutine inc2guess(sval)
 !   2011-06-29  todling - no explict reference to internal bundle arrays
 !   2013-10-19  todling - all guess variables in met-guess
 !   2020-02-26  todling - reset obsbin from hr to min
+!   2022-08-10  zhu     - add treatment for log(pbl*)
 !
 !   input argument list:
 !     sval     - analysis increment in grid space
@@ -123,7 +124,11 @@ endif
         if (id>0) then
            call gsi_bundlegetpointer (sval(ii),               guess(ic),ptr2dinc,istatus)
            call gsi_bundlegetpointer (gsi_metguess_bundle(it),guess(ic),ptr2dges,istatus)
-           ptr2dges = ptr2dinc
+           if (trim(guess(ic))=='pblri' .or. trim(guess(ic))=='pblrf' .or. trim(guess(ic))=='pblkh') then
+               call copy_positive_fldr2_pblh_(ptr2dges,ptr2dinc)
+           else
+              ptr2dges = ptr2dinc
+           end if
         endif
      enddo
 
@@ -175,6 +180,21 @@ endif
      end do
   end do
   end subroutine copy_positive_fldr2_
+  subroutine copy_positive_fldr2_pblh_(ges,xinc)
+  real(r_kind),pointer :: ges(:,:)
+  real(r_kind),pointer :: xinc(:,:)
+  real(r_kind) ana
+  do j=1,lon2
+     do i=1,lat2
+        !ana = exp(log(max(0.1_r_kind,ges(i,j)))+ xinc(i,j))
+        !ana = exp(log(max(1.0_r_kind,ges(i,j)))+ xinc(i,j))
+        ana = max(ges(i,j)+ xinc(i,j),1.e-10_r_kind)
+        !ges(i,j) = ana - max(0.1_r_kind,ges(i,j))
+        !ges(i,j) = ana - max(1.0_r_kind,ges(i,j))
+        ges(i,j) = ana - ges(i,j)
+     end do
+  end do
+  end subroutine copy_positive_fldr2_pblh_
   subroutine copy_positive_fldr3_(ges,xinc)
   real(r_kind),pointer :: ges(:,:,:)
   real(r_kind),pointer :: xinc(:,:,:)

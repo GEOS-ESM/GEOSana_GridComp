@@ -31,6 +31,7 @@ module abstract_ensmod
       procedure(destroy_sub2grid_info), nopass, deferred :: destroy_sub2grid_info
       procedure(get_user_ens         ),         deferred :: get_user_ens
       procedure(get_user_Nens        ),         deferred :: get_user_Nens
+      procedure(get_user_Nens_frocean),         deferred :: get_user_Nens_frocean
       procedure(put_user_ens         ),         deferred :: put_user_ens
       procedure(non_gaussian_ens_grid),         deferred :: non_gaussian_ens_grid
   end type abstractEnsemble
@@ -96,6 +97,23 @@ module abstract_ensmod
       type(gsi_bundle),    intent(inout) :: atm_bundle(:)
       integer(i_kind),     intent(  out) :: iret
     end subroutine get_user_Nens
+  end interface
+
+  abstract interface
+    subroutine get_user_Nens_frocean(this,grd,members,ntindex,tau,atm_bundle,iret)
+      use kinds, only: i_kind
+      use general_sub2grid_mod, only: sub2grid_info
+      use gsi_bundlemod, only: gsi_bundle
+      import abstractEnsemble
+      implicit none
+      class(abstractEnsemble), intent(inout) :: this
+      type(sub2grid_info), intent(in   ) :: grd
+      integer(i_kind),     intent(in   ) :: members
+      integer(i_kind),     intent(in   ) :: ntindex
+      integer(i_kind),     intent(in   ) :: tau
+      type(gsi_bundle),    intent(inout) :: atm_bundle(:)
+      integer(i_kind),     intent(  out) :: iret
+    end subroutine get_user_Nens_frocean
   end interface
 
   abstract interface

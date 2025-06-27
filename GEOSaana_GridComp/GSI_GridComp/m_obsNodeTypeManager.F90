@@ -14,6 +14,8 @@ module m_obsNodeTypeManager
 !                         with total 33 obs-types.
 !   2018-01-23  k apodaca - add a new observation type i.e. lightning (light)
 !                           suitable for the GOES/GLM instrument
+!   2021-10-10  zhu     - added pbl*
+!   2025-02-18  eyang   - added gpsref*
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -40,6 +42,7 @@ module m_obsNodeTypeManager
   use m_ozNode   , only:    ozNode
   use m_o3lNode  , only:   o3lNode
   use m_gpsNode  , only:   gpsNode
+  use m_gpsrefNode  , only:   gpsrefNode
   use m_radNode  , only:   radNode
   use m_tcpNode  , only:   tcpNode
   use m_lagNode  , only:   lagNode
@@ -49,7 +52,9 @@ module m_obsNodeTypeManager
   use m_pm2_5Node, only: pm2_5Node
   use m_gustNode , only:  gustNode
   use m_visNode  , only:   visNode
-  use m_pblhNode , only:  pblhNode
+  use m_pblriNode , only:  pblriNode
+  use m_pblrfNode , only:  pblrfNode
+  use m_pblkhNode , only:  pblkhNode
 
   use m_wspd10mNode, only: wspd10mNode
   use m_uwnd10mNode, only: uwnd10mNode
@@ -97,6 +102,7 @@ module m_obsNodeTypeManager
   public:: iobsNode_oz
   public:: iobsNode_o3l
   public:: iobsNode_gps
+  public:: iobsNode_gpsref
   public:: iobsNode_rad
   public:: iobsNode_tcp
   public:: iobsNode_lag
@@ -106,7 +112,9 @@ module m_obsNodeTypeManager
   public:: iobsNode_pm2_5
   public:: iobsNode_gust
   public:: iobsNode_vis
-  public:: iobsNode_pblh
+  public:: iobsNode_pblri
+  public:: iobsNode_pblrf
+  public:: iobsNode_pblkh
   public:: iobsNode_wspd10m
   public:: iobsNode_uwnd10m
   public:: iobsNode_vwnd10m
@@ -150,6 +158,7 @@ module m_obsNodeTypeManager
   type(ozNode   ), target, save::    oz_mold
   type(o3lNode  ), target, save::   o3l_mold
   type(gpsNode  ), target, save::   gps_mold
+  type(gpsrefNode  ), target, save::   gpsref_mold
   type(radNode  ), target, save::   rad_mold
   type(tcpNode  ), target, save::   tcp_mold
   type(lagNode  ), target, save::   lag_mold
@@ -159,7 +168,9 @@ module m_obsNodeTypeManager
   type(pm2_5Node), target, save:: pm2_5_mold
   type(gustNode ), target, save::  gust_mold
   type(visNode  ), target, save::   vis_mold
-  type(pblhNode ), target, save::  pblh_mold
+  type(pblriNode ), target, save::  pblri_mold
+  type(pblrfNode ), target, save::  pblrf_mold
+  type(pblkhNode ), target, save::  pblkh_mold
 
   type(wspd10mNode), target, save:: wspd10m_mold
   type(uwnd10mNode), target, save:: uwnd10m_mold
@@ -219,6 +230,7 @@ module m_obsNodeTypeManager
     enumerator:: iobsNode_oz
     enumerator:: iobsNode_o3l
     enumerator:: iobsNode_gps
+    enumerator:: iobsNode_gpsref
     enumerator:: iobsNode_rad
     enumerator:: iobsNode_tcp
     enumerator:: iobsNode_lag
@@ -228,7 +240,9 @@ module m_obsNodeTypeManager
     enumerator:: iobsNode_pm2_5
     enumerator:: iobsNode_gust
     enumerator:: iobsNode_vis
-    enumerator:: iobsNode_pblh
+    enumerator:: iobsNode_pblri
+    enumerator:: iobsNode_pblrf
+    enumerator:: iobsNode_pblkh
     enumerator:: iobsNode_wspd10m
     enumerator:: iobsNode_uwnd10m
     enumerator:: iobsNode_vwnd10m
@@ -280,6 +294,7 @@ function vname2index_(vname) result(index_)
   case("oz"   ,   "[oznode]"); index_ = iobsNode_oz
   case("o3l"  ,  "[o3lnode]"); index_ = iobsNode_o3l
   case("gps"  ,  "[gpsnode]"); index_ = iobsNode_gps
+  case("gpsref",  "[gpsrefnode]"); index_ = iobsNode_gpsref ! is this right? yzhu
   case("rad"  ,  "[radnode]"); index_ = iobsNode_rad
   case("tcp"  ,  "[tcpnode]"); index_ = iobsNode_tcp
   case("lag"  ,  "[lagnode]"); index_ = iobsNode_lag
@@ -289,7 +304,9 @@ function vname2index_(vname) result(index_)
   case("pm2_5","[pm2_5node]"); index_ = iobsNode_pm2_5
   case("gust" , "[gustnode]"); index_ = iobsNode_gust
   case("vis"  ,  "[visnode]"); index_ = iobsNode_vis
-  case("pblh" , "[pblhnode]"); index_ = iobsNode_pblh
+  case("pblri" , "[pblrinode]"); index_ = iobsNode_pblri
+  case("pblrf" , "[pblrfnode]"); index_ = iobsNode_pblrf
+  case("pblkh" , "[pblkhnode]"); index_ = iobsNode_pblkh
 
   case("wspd10m", &
              "[wspd10mnode]"); index_ = iobsNode_wspd10m
@@ -346,6 +363,7 @@ function vmold2index_select_(mold) result(index_)
   type is(   ozNode); index_ = iobsNode_oz
   type is(  o3lNode); index_ = iobsNode_o3l
   type is(  gpsNode); index_ = iobsNode_gps
+  type is(  gpsrefNode); index_ = iobsNode_gpsref
   type is(  radNode); index_ = iobsNode_rad
   type is(  tcpNode); index_ = iobsNode_tcp
   type is(  lagNode); index_ = iobsNode_lag
@@ -355,7 +373,9 @@ function vmold2index_select_(mold) result(index_)
   type is(pm2_5Node); index_ = iobsNode_pm2_5
   type is( gustNode); index_ = iobsNode_gust
   type is(  visNode); index_ = iobsNode_vis
-  type is( pblhNode); index_ = iobsNode_pblh
+  type is( pblriNode); index_ = iobsNode_pblri
+  type is( pblrfNode); index_ = iobsNode_pblrf
+  type is( pblkhNode); index_ = iobsNode_pblkh
 
   type is(wspd10mNode); index_ = iobsNode_wspd10m
   type is(uwnd10mNode); index_ = iobsNode_uwnd10m
@@ -412,7 +432,9 @@ function index2vmold_(i_obType) result(obsmold_)
   case(iobsNode_pm2_5); obsmold_ => pm2_5_mold
   case(iobsNode_gust ); obsmold_ =>  gust_mold
   case(iobsNode_vis  ); obsmold_ =>   vis_mold
-  case(iobsNode_pblh ); obsmold_ =>  pblh_mold
+  case(iobsNode_pblri ); obsmold_ =>  pblri_mold
+  case(iobsNode_pblrf ); obsmold_ =>  pblrf_mold
+  case(iobsNode_pblkh ); obsmold_ =>  pblkh_mold
 
   case(iobsNode_wspd10m); obsmold_ => wspd10m_mold
   case(iobsNode_uwnd10m); obsmold_ => uwnd10m_mold

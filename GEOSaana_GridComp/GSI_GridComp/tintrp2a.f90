@@ -152,7 +152,9 @@ subroutine tintrp2a11(f,g,dx,dy,obstime,gridtime, &
 
   ix1=int(dx)
   iy1=int(dy)
+
   ix1=max(1,min(ix1,nlat))  
+
   delx=dx-float(ix1)
   dely=dy-float(iy1)
   delx=max(zero,min(delx,one))
@@ -193,7 +195,6 @@ subroutine tintrp2a11(f,g,dx,dy,obstime,gridtime, &
         +  f(ix,iyp,itime)*delxp*dely+f(ixp,iyp,itime)*delx*dely)*delt &
         +(f(ix,iy,itimep)*delxp*delyp+f(ixp,iy,itimep)*delx*delyp &
         + f(ix,iyp,itimep)*delxp*dely +f(ixp,iyp,itimep)*delx*dely)*deltp
- 
 
   return
 end subroutine tintrp2a11
@@ -451,4 +452,108 @@ subroutine tintrp2a11_indx(dx,dy,obstime,gridtime, &
 
   return
 end subroutine tintrp2a11_indx
+
+subroutine tintrp2a11_indx_ens_grd(dx_ens,dy_ens,obstime,gridtime, &
+     mype,nflds,ix,ixp,iy,iyp,itime,itimep)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    tintrp2a11_indx
+!   prgmmr: zupanski      org: CSU/CIRA/Data Assimilation group     date: 2015-07-10
+!
+! abstract: same as tintrp2a11 but for horizontal grid indexes on ensemble grid surrounding 
+!           an observation point
+!
+! program history log:
+!   2015-07-10  zupanski: add output grid indexes
+!   2018-01-01  apodaca:  compatibility-related updates
+!   2023-11-14  eyang:    find grid index on ensemble grid
+!
+!   input argument list:
+!     dx_ens,dy_ens - input x,y,z-coords of interpolation points (grid units) on ens grid
+!     obstime       - time to interpolate to
+!     gridtime      - grid guess times to interpolate from
+!     mype          - mpi task id
+!     nflds         - number of guess times available to interpolate from
+!
+!   output argument list:
+!     ix,iy,ixp,iyp - horizontal grid indexes on ens grid
+!     itime,itimep  - time grid indexes
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+  use kinds, only: r_kind,i_kind
+  use gridmod, only: istart,jstart,nlon,nlat,lon1
+  use constants, only: zero,one
+  use hybrid_ensemble_parameters, only: grd_ens
+  implicit none
+
+! Declare passed variables
+  integer(i_kind)                              ,intent(in   ) :: mype,nflds
+  real(r_kind)                                 ,intent(in   ) :: dx_ens,dy_ens,obstime
+  real(r_kind),dimension(nflds)                ,intent(in   ) :: gridtime
+  integer(i_kind)                              ,intent(out  ) :: ix,ixp
+  integer(i_kind)                              ,intent(out  ) :: iy,iyp
+  integer(i_kind)                              ,intent(out  ) :: itime,itimep
+
+! Declare local variables
+  integer(i_kind) m1,ix1,iy1
+  integer(i_kind) j
+  real(r_kind) delx
+  real(r_kind) dely,delt
+
+  m1=mype+1
+
+  print*, 'tintp2a11_indx_ens_grd L515: m1,dx_ens,dy_ens=',m1,dx_ens,dy_ens
+  ix1=int(dx_ens)
+  iy1=int(dy_ens)
+  print*, 'tintp2a11_indx_ens_grd L518: m1,ix1,iy1=',m1,ix1,iy1
+  ix1=max(1,min(ix1,grd_ens%nlat))
+  print*, 'tintp2a11_indx_ens_grd L519: m1,grd_ens%nlat,ix1=',m1,grd_ens%nlat,ix1
+  delx=dx_ens-float(ix1)
+  dely=dy_ens-float(iy1)
+  print*, 'tintp2a11_indx_ens_grd L520: m1,delx,dely=',m1,delx,dely
+  delx=max(zero,min(delx,one))
+  print*, 'tintp2a11_indx_ens_grd L521: m1,delx=',m1,delx
+  print*, 'tintp2a11_indx_ens_grd L522: m1,grd_ens%istart(m1),grd_ens%jstart(m1)=',m1,grd_ens%istart(m1),grd_ens%jstart(m1)
+  ix=ix1-grd_ens%istart(m1)+2
+  iy=iy1-grd_ens%jstart(m1)+2
+  print*, 'tintp2a11_indx_ens_grd L523: m1,ix,iy,grd_ens%nlon=',m1,ix,iy,grd_ens%nlon
+  if(iy<1) then
+     iy1=iy1+grd_ens%nlon
+     iy=iy1-grd_ens%jstart(m1)+2
+  end if
+  ! not sure if it works or not
+  print*, 'tintp2a11_indx_ens_grd L524: m1,grd_ens%lon1=',grd_ens%lon1
+  if(iy>grd_ens%lon1+1) then
+     iy1=iy1-grd_ens%nlon
+     iy=iy1-grd_ens%jstart(m1)+2
+  end if
+  ixp=ix+1; iyp=iy+1
+  print*, 'tintp2a11_indx_ens_grd L541: m1,grd_ens%nlat=',grd_ens%nlat
+  if(ix1==grd_ens%nlat) then
+     ixp=ix
+  end if
+  if(obstime > gridtime(1) .and. obstime < gridtime(nflds))then
+     do j=1,nflds-1
+        if(obstime > gridtime(j) .and. obstime <= gridtime(j+1))then
+           itime=j
+           itimep=j+1
+           delt=((gridtime(j+1)-obstime)/(gridtime(j+1)-gridtime(j)))
+        end if
+     end do
+  else if(obstime <=gridtime(1))then
+     itime=1
+     itimep=1
+     delt=one
+  else
+     itime=nflds
+     itimep=nflds
+     delt=one
+  end if
+
+  return
+end subroutine tintrp2a11_indx_ens_grd
 

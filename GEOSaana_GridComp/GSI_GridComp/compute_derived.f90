@@ -74,6 +74,7 @@ subroutine compute_derived(mype,init_pass)
 !   2014-11-28  zhu     - re-compute ges_cwmr & cwgues the same way as in the regional when cw is not state variable
 !   2015-07-10  pondeca - load dcldchdlog used in weak-constraint for cldch
 !   2016-04-28  eliu    - copy cloud water to cwgues to be used in the inner loop     
+!   2021-10-22  zhu     - add pbl*
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -364,11 +365,33 @@ subroutine compute_derived(mype,init_pass)
         end do
      end do
   end if
-  call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'pblh',ptr2d,istatus)
+  call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'pblri',ptr2d,istatus)
   if (istatus==0) then
      do j=1,lon2
         do i=1,lat2
            pgues(i,j)=max(100.0_r_kind,ptr2d(i,j))
+           !pgues(i,j)=log(max(0.1_r_kind,ptr2d(i,j)))
+!           pgues(i,j)=log(max(1.0_r_kind,ptr2d(i,j)))
+        end do
+     end do
+  end if
+  call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'pblrf',ptr2d,istatus)
+  if (istatus==0) then
+     do j=1,lon2
+        do i=1,lat2
+           pgues(i,j)=max(100.0_r_kind,ptr2d(i,j))
+           !pgues(i,j)=log(max(0.1_r_kind,ptr2d(i,j)))
+!           pgues(i,j)=log(max(1.0_r_kind,ptr2d(i,j)))
+        end do
+     end do
+  end if
+  call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'pblkh',ptr2d,istatus)
+  if (istatus==0) then
+     do j=1,lon2
+        do i=1,lat2
+           pgues(i,j)=max(100.0_r_kind,ptr2d(i,j))
+           !pgues(i,j)=log(max(0.1_r_kind,ptr2d(i,j)))
+!           pgues(i,j)=log(max(1.0_r_kind,ptr2d(i,j)))
         end do
      end do
   end if

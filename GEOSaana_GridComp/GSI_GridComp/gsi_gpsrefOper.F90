@@ -6,10 +6,11 @@ module gsi_gpsrefOper
 !      org:	 NASA/GSFC, Global Modeling and Assimilation Office, 610.3
 !     date:	 2018-08-10
 !
-! abstract: an obOper extension for gpsNode type
+! abstract: an obOper extension for gpsrefNode type
 !
 ! program history log:
 !   2018-08-10  j guo   - added this document block
+!   2025-02-18  eyang   - modified intgps/stpgps to intgpsref/stpgpsref
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -23,12 +24,14 @@ module gsi_gpsrefOper
 
 ! module interface:
 
-  use gsi_gpsbendOper, only: gpsbendOper
-  use m_gpsNode, only: gpsNode
+  !use gsi_gpsbendOper, only: gpsbendOper ! not sure this if correct (eyang)
+  use gsi_obOper, only: obOper ! this might be correct (eyang)
+  use m_gpsrefNode, only: gpsrefNode
   implicit none
   public:: gpsrefOper      ! data stracture
 
-  type,extends(gpsbendOper):: gpsrefOper
+  !type,extends(gpsbendOper):: gpsrefOper
+  type,extends(obOper):: gpsrefOper
   contains
     procedure,nopass:: mytype
     procedure,nopass:: nodeMold
@@ -39,7 +42,7 @@ module gsi_gpsrefOper
 
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   character(len=*),parameter :: myname='gsi_gpsrefOper'
-  type(gpsNode),save,target:: myNodeMold_
+  type(gpsrefNode),save,target:: myNodeMold_
 
 contains
   function mytype(nodetype)
@@ -67,7 +70,7 @@ contains
     use gsi_obOper, only: len_isis
 
     use m_rhs  , only: awork => rhs_awork
-    use m_rhs  , only: iwork => i_gps
+    use m_rhs  , only: iwork => i_gpsref
     use m_rhs  , only: toss_gps_sub => rhs_toss_gps
 
     use obsmod  , only: write_diag
@@ -107,7 +110,7 @@ contains
   end subroutine setup_
 
   subroutine intjo1_(self, ibin, rval,sval, qpred,sbias)
-    use intgpsmod, only: intjo => intgps
+    use intgpsrefmod, only: intjo => intgpsref
     use gsi_bundlemod  , only: gsi_bundle
     use bias_predictors, only: predictors
     use m_obsNode , only: obsNode
@@ -132,7 +135,7 @@ contains
   end subroutine intjo1_
 
   subroutine stpjo1_(self, ibin, dval,xval,pbcjo,sges,nstep,dbias,xbias)
-    use stpgpsmod, only: stpjo => stpgps
+    use stpgpsrefmod, only: stpjo => stpgpsref
     use gsi_bundlemod, only: gsi_bundle
     use bias_predictors, only: predictors
     use m_obsNode , only: obsNode

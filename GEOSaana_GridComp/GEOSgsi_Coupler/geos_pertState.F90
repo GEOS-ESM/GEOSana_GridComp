@@ -152,13 +152,16 @@
   character(len=*),parameter::   oz_GSIpert='oz'	! = O3, in GG=gram/gram
   character(len=*),parameter::   cw_GSIpert='cw'	! = QL + QI
   character(len=*),parameter::  sst_GSIpert='sst'	! = ?
+  character(len=*),parameter::  pblri_GSIpert='pblri'	! = ?
+  character(len=*),parameter::  pblrf_GSIpert='pblrf'	! = ?
+  character(len=*),parameter::  pblkh_GSIpert='pblkh'	! = ?
 
   character(len=*),dimension(8),parameter:: var3dList_GSIpert = &
     (/ u_GSIpert,   v_GSIpert,prse_GSIpert,  tv_GSIpert, &
     tsen_GSIpert,   q_GSIpert,  oz_GSIpert,  cw_GSIpert /)
 
-  character(len=*),dimension(2),parameter:: var2dList_GSIpert = &
-    (/ps_GSIpert, sst_GSIpert /)
+  character(len=*),dimension(5),parameter:: var2dList_GSIpert = &
+    (/ps_GSIpert, sst_GSIpert, pblri_GSIpert, pblrf_GSIpert, pblkh_GSIpert /)
 
   	! These are expected from a PGCM state
   character(len=*),parameter::    u_GCMpert='U'		! = u
@@ -169,10 +172,16 @@
   character(len=*),parameter::   ql_GCMpert='QL'	! = cw - qi
   character(len=*),parameter::   qi_GCMpert='QI'	! = qi (=0)
   character(len=*),parameter::   o3_GCMpert='O3'	! = oz, in PPMV
+  character(len=*),parameter:: pblri_GCMpert='pblri'      ! = zpbl
+  character(len=*),parameter:: pblrf_GCMpert='pblrf'      ! = zpbl
+  character(len=*),parameter:: pblkh_GCMpert='pblkh'      ! = zpbl
 
   character(len=*),dimension(8),parameter:: var3dList_GCMpert = &
     (/ u_GCMpert,  v_GCMpert, tv_GCMpert, dp_GCMpert, &
       qv_GCMpert, ql_GCMpert, qi_GCMpert, o3_GCMpert  /)
+
+! character(len=*),dimension(1),parameter:: var2dList_GCMpert = &
+!   (/ pblh_GCMpert /)
 
    integer(i_kind),parameter:: ROOT =0
    real(r_kind), parameter :: kPa_per_Pa = 0.001_r_kind

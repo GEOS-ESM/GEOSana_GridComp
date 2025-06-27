@@ -112,6 +112,9 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
 !  2017-02-09 guo     - Remove m_alloc, n_alloc.
 !                     . Remove my_node with corrected typecast().
 !   2020-02-26  todling - reset obsbin from hr to min
+!  2025-01-31 eyang   - assimilate refractivity gradient instead of refractivity
+!  2025-03-05 eyang   - add idomsfc for land sfc type
+!  2025-03-07 eyang   - remove profile where no. of obs levels are less than 5 and assign top level qc.
 !
 !   input argument list:
 !     lunin    - unit from which to read observations
@@ -129,7 +132,7 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
 !$$$
   use mpeu_util, only: die,perr,getindex
   use kinds, only: r_kind,i_kind
-  use m_gpsStats, only: gps_allhead,gps_alltail
+  use m_gpsrefStats, only: gpsref_allhead,gpsref_alltail
   use m_obsdiagNode, only: obs_diag
   use m_obsdiagNode, only: obs_diags
   use m_obsdiagNode, only: obsdiagLList_nextNode
@@ -141,8 +144,8 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
        lobsdiagsave,nobskeep,lobsdiag_allocated,&
        time_offset,lobsdiag_forenkf
   use m_obsNode, only: obsNode
-  use m_gpsNode, only: gpsNode
-  use m_gpsNode, only: gpsNode_appendto
+  use m_gpsrefNode, only: gpsrefNode
+  use m_gpsrefNode, only: gpsrefNode_appendto
   use m_obsLList, only: obsLList
   use obsmod, only: luse_obsdiag
   use gsi_4dvar, only: nobs_bins,mn_obsbin
@@ -166,6 +169,7 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
   use m_gpsrhs, only: rdiagbuf,cdiagbuf
   use m_gpsrhs, only: qcfail
   use m_gpsrhs, only: qcfail_loc,qcfail_high,qcfail_gross
+  use m_gpsrhs, only: qcfail_top,qcfail_lesslev
   use m_gpsrhs, only: data_ier,data_igps,data_ihgt
   use m_gpsrhs, only: gpsrhs_alloc
   use m_gpsrhs, only: gpsrhs_dealloc
@@ -220,19 +224,28 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
   real(r_kind) hgeso,trefges,pobl,grad_mod,grad_obs
   real(r_kind) sin2,termg,termr,termrg,hob,hobl,qrefges,zsges
   real(r_kind) fact,pw,nrefges1,nrefges2,nrefges3,nrefges,dpres,elev,k4,alt
+  real(r_kind) dpres_b,dpres_a
   real(r_kind) ratio,residual,obserror,obserrlm,delz
+  real(r_kind) delz_b,delz_a
+  real(r_kind) dz
   real(r_kind),dimension(nele,nobs):: data
   real(r_kind),dimension(nsig):: tges,hgesl
   real(r_kind),dimension(nsig+1) :: prsltmp,hges
   
-  integer(i_kind):: ier,ilon,ilat,ihgt,igps,itime,ikx,iuse,ikxx
+  integer(i_kind):: ier,ilon,ilat,ihgt,igps,itime,ikx,iuse,ikxx,idomsfc
   integer(i_kind):: iprof,ipctc,iroc,isatid,iptid
   integer(i_kind):: ilate,ilone,mm1,ibin,ioff
   integer(i_kind) i,j,k,k1,k2,nreal,mreal,jj
+  integer(i_kind) k_b,k1_b,k2_b
+  integer(i_kind) k_a,k1_a,k2_a
   integer(i_kind) :: kl,k1l,k2l
-  integer(i_kind) kprof,istat,jprof
+  integer(i_kind) :: kl_b,k1l_b,k2l_b
+  integer(i_kind) :: kl_a,k1l_a,k2l_a
+  integer(i_kind) kprof,istat,jprof,bprof
   integer(i_kind),dimension(4):: gps_ij
+  integer(i_kind),dimension(4):: gps_ij_b, gps_ij_a ! below and above obs (i-1, i+1)
   integer(i_kind):: satellite_id,transmitter_id
+  integer(i_kind):: nprof ! eyang
 
   type(sparr2) :: dhx_dx
   integer(i_kind) :: iz, t_ind, q_ind, p_ind, nnz, nind
@@ -240,9 +253,11 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
   logical,dimension(nobs):: luse
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical proceed, save_jacobian
+  logical lower_obs, upper_obs
+  logical ref_grad
 
   logical:: in_curbin, in_anybin
-  type(gpsNode),pointer:: my_head
+  type(gpsrefNode),pointer:: my_head
   type(obs_diag),pointer:: my_diag
   type(obs_diags),pointer:: my_diagLL
 
@@ -300,6 +315,7 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
   iuse=13      ! index of use parameter
   ilone=14     ! index of earth relative longitude (degrees)
   ilate=15     ! index of earth relative latitude (degrees)
+  idomsfc=23   ! index of land surface type based on surrounding land sfc types (eyang)
 
 ! Initialize variables
   rsig=float(nsig)
@@ -313,7 +329,8 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
   call init_vars_
 
 ! Allocate arrays for output to diagnostic file
-  mreal=22
+  !mreal=22
+  mreal=26
   nreal=mreal
   if (lobsdiagsave) nreal=nreal+4*miter+1
   if (save_jacobian) then
@@ -325,6 +342,7 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
 
   if(init_pass) call gpsrhs_alloc(is,'ref',nobs,nsig,nreal,-1,-1)
   call gpsrhs_aliases(is)
+  ! nreal should be changed to nreal+2 or 3 by eyang
   if(nreal/=size(rdiagbuf,1)) then
      call perr(myname,'nreal/=size(rdiagbuf,1)')
      call perr(myname,'nreal=',nreal)
@@ -332,6 +350,7 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
      call die(myname)
   endif
   nreal=size(rdiagbuf,1)
+  print '(A,I0,A,I0)','yeg setupref L348: mm1, nreal=',mm1,',',nreal
 
   if(init_pass) then
 !    Initialize saved arrays
@@ -345,6 +364,8 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
      qcfail_loc=zero
      qcfail_gross=zero
      qcfail_high=zero 
+     qcfail_top=zero 
+     qcfail_lesslev=zero 
 
      muse(:)=.false.
 
@@ -360,12 +381,238 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
      data(igps,:)=data_igps(:)
   endif ! (init_pass)
 
+  print *,'yeg setupref L377: mm1,init_pass=',mm1,init_pass
+
+!==========================================================================
+! Save nrefges and height for calculating refractivity gradient
+! to save OmF of refractivity gradient for rdiagbuf (eyang)
+!==========================================================================
 ! Save height,lat, and lon of the observations for later
   call dtime_setup()
   do i=1,nobs
      dtime=data(itime,i)
      call dtime_check(dtime, in_curbin, in_anybin)
      if(.not.in_anybin) cycle
+
+     if(in_curbin) then
+
+        muse(i)=nint(data(iuse,i)) <= jiter
+        sin2  = sin(data(ilate,i)*deg2rad)**2
+        dlon=data(ilon,i)
+        dlat=data(ilat,i)
+        dpres=data(ihgt,i)
+        elev=dpres
+
+        ikx=nint(data(ikxx,i))
+ 
+!       Interpolate log(pres), terrain, and geop heights to obs location
+        call tintrp2a1(ges_lnprsi,prsltmp,dlat,dlon,dtime,hrdifsig,&
+             nsig+1,mype,nfldsig)
+        call tintrp2a1(ges_tv,tges,dlat,dlon,dtime,hrdifsig,&
+             nsig,mype,nfldsig)
+        call tintrp2a1(geop_hgti,hges,dlat,dlon,dtime,hrdifsig,&
+             nsig+1,mype,nfldsig)
+        call tintrp2a1(geop_hgtl,hgesl,dlat,dlon,dtime,hrdifsig,&
+             nsig,mype,nfldsig)
+        call tintrp2a11(ges_z,zsges,dlat,dlon,dtime,hrdifsig,&
+             mype,nfldsig)
+
+!       Convert geometric height at observation to geopotential height using
+!       equations (17, 20, 23) in MJ Mahoney's note "A discussion of various
+!       measures of altitude" (2001).  Available on the web at
+!       http://mtp.jpl.nasa.gov/notes/altitude/altitude.html
+!
+!       termg  = equation 17
+!       termr  = equation 21
+!       termrg = first term in the denominator of equation 23
+
+        termg = grav_equator * &
+             ( (one+somigliana*sin2)/sqrt(one-eccentricity*eccentricity*sin2) )
+        termr = semi_major_axis / (one + flattening + grav_ratio - two*flattening*sin2)
+        termrg = (termg/grav)*termr
+
+!       Surface-corrected geopotential height of the observation
+        dpres=dpres-zsges
+        hgeso=(termg/grav)*((termr*dpres)/(termr+dpres))
+
+!       Convert observation height (in dpres) from meters to grid relative units
+        hob=hgeso
+        hobl=hgeso
+        call grdcrd1(hob,hges,nsig,1)   ! interface levels
+        call grdcrd1(hobl,hgesl,nsig,1) ! midpoint layers
+        dpres=hob
+        dpresl(i)=hobl
+        !data(ihgt,i)=dpres ! commented out here (eyang)
+ 
+!       Get temperature at observation location
+        call tintrp31(ges_tv,trefges,dlat,dlon,hobl,&
+             dtime,hrdifsig,mype,nfldsig)
+ 
+!       Set indices of model levels below (k1) and above (k2) observation.
+        k=dpres
+        k1=min(max(1,k),nsig)
+        k2=max(1,min(k+1,nsig))
+
+!       Get observation pressure from hypsometric equation
+        if(k1==1) then
+           pobl=two*grav*(hgeso-hges(k1))/(rd*(trefges+tges(k1)))
+        else
+           tmean=(tges(k1)+tges(k1-1))/two ! temperature at interface level k1
+           pobl=two*grav*(hgeso-hges(k1))/(rd*(trefges+tmean))
+        endif
+        pobl=prsltmp(k1)-pobl
+
+!       Get finite pressure when obs is above the top model or below first level
+        if(k1 == k2) pobl= prsltmp(k1)
+        pressure(i)=ten*exp(pobl) !in hPa
+
+!       Tune observation error to account for representativeness error.
+!       Preliminary values
+
+!        repe_gps=one
+        alt=r1em3*elev
+
+!       ratio_errors(i) = data(ier,i)/abs(data(ier,i)*repe_gps)
+!        ratio_errors(i) = data(ier,i)/abs(repe_gps) # commented out (eyang)
+        ratio_errors(i) = data(ier,i) ! MAKE IT one 
+
+        error(i)=one/data(ier,i) ! one/original error
+        data(ier,i)=one/data(ier,i)
+        error_adjst(i)= ratio_errors(i)* data(ier,i) !one/adjusted error
+
+!       Remove observation if below surface or at/above the top layer 
+!       of the model by setting observation (1/error) to zero.
+!       Make no adjustment if observation falls within vertical
+!       domain.
+
+        if (hobl < one .or. hobl > rsig) then
+           data(ier,i) = zero
+           ratio_errors(i) = zero
+           muse(i)=.false.
+           qcfail_loc(i)=one
+        endif
+
+!       Commented out (eyang)
+!       Increment obs counter along with low and high obs counters
+!        if(luse(i))then
+!           awork(1)=awork(1)+one
+!           if(hobl <  one) awork(2)=awork(2)+one
+!           if(hobl > rsig) awork(3)=awork(3)+one
+!        endif
+
+!       Save some diagnostic information
+ 
+!       occultation identification
+        satellite_id         = data(isatid,i) ! receiver occ id 
+        transmitter_id       = data(iptid,i)  ! transmitter occ id 
+        write(cdiagbuf(i),'(2(i4.4))') satellite_id,transmitter_id
+ 
+        rdiagbuf(:,i)         = zero
+ 
+        rdiagbuf(1,i)         = ictype(ikx)    ! observation type
+        rdiagbuf(20,i)        = zero           ! uses gps_ref (one = use of bending angle)
+        rdiagbuf(2,i)         = data(iprof,i)  ! profile identifier
+        rdiagbuf(3,i)         = data(ilate,i)  ! lat in degrees
+        rdiagbuf(4,i)         = data(ilone,i)  ! lon in degrees
+        rdiagbuf(6,i)         = pressure(i)    ! guess observation pressure (hPa)
+        rdiagbuf(7,i)         = elev           ! height in meters
+        rdiagbuf(8,i)         = dtime-time_offset ! obs time (hours relative to analysis time)
+!       rdiagbuf(9,i)         = data(ipctc,i)  ! input bufr qc - index of per cent confidence    
+        rdiagbuf(9,i)         = elev-zsges     ! height above model terrain (m)      
+        rdiagbuf(11,i)        = data(iuse,i)   ! data usage flag
+        rdiagbuf(19,i)        = hobl           ! model vertical grid  (midpoint)
+        rdiagbuf(22,i)        = 1.e+10_r_kind  ! spread (filled in by EnKF)
+
+        if (ratio_errors(i) > tiny_r_kind) then  ! obs inside vertical grid
+
+!          Compute guess local refractivity at obs location.
+!          Also compute terms needed in minimization
+
+           call tintrp31(ges_q,qrefges,dlat,dlon,hobl,dtime,&
+                 hrdifsig,mype,nfldsig)
+
+!          Compute guess local refractivity
+           fact=(one+fv*qrefges)
+           pw=eps+qrefges*(one-eps)
+           k4=n_c-n_a
+           nrefges1=n_a*(pressure(i)/trefges)*fact
+           nrefges2=n_b*qrefges*pressure(i)*fact**2/(trefges**2*pw)
+           nrefges3=k4*fact*qrefges*pressure(i)/(trefges*pw)
+           nrefges=nrefges1+nrefges2+nrefges3 !total refractivity
+
+!          Accumulate diagnostic information        
+
+           rdiagbuf(17,i)  = data(igps,i)  ! refractivity observation (units of N)
+
+           rdiagbuf(23,i)  = nrefges       ! simulated refractivity (eyang)
+
+       end if ! obs inside the vertical grid
+     endif ! (in_curbin)
+  end do ! end of loop over observations
+!==========================================================================
+
+
+print '(A,I0)','yeg setupref before 2loop L582: mm1=',mm1
+print '(A,I0,A,F8.5)','yeg setupref L583: mm1,data(ier,1)=',mm1,',',data(ier,1)
+!---------------------------------------------------------------
+! Restore these arrays saved (eyang)
+  data(ier ,:)=data_ier (:)
+!---------------------------------------------------------------
+print '(A,I0,A,F8.5)','yeg setupref L588: mm1,data_ier(1)=',mm1,',',data_ier(1)
+print '(A,I0,A,F8.5)','yeg setupref L589: mm1,data(ier,1)=',mm1,',',data(ier,1)
+!---------------------------------------------------------------
+
+print '(A,I0)','yeg setupref 2loop L586: mm1=',mm1
+!----------------------------------------------------------
+! check how many levels are there for each profile (eyang)
+!----------------------------------------------------------
+  nprof = 1
+  call dtime_setup()
+  do i=1,nobs
+
+     dtime=data(itime,i)
+     call dtime_check(dtime, in_curbin, in_anybin)
+     if(.not.in_anybin) cycle
+
+     if(in_curbin) then
+
+        !rdiagbuf(2,i) = data(iprof,i)  ! profile identifier
+        ! if prof identifier is the same (i = i+1)
+        if (rdiagbuf(2,i) == rdiagbuf(2,i+1) .and. i<nobs) then
+           nprof = nprof + 1
+        else
+           ! if no. of obs levels in the profile < 5 -> we will exclude this profile
+           if (nprof < 5) then ! if nprof=1,2,3,4
+              qcfail_lesslev(i)=one
+              if (nprof > 1) qcfail_lesslev(i-1)=one ! if nprof=2,3,4
+              if (nprof > 2) qcfail_lesslev(i-2)=one ! if nprof=3,4
+              if (nprof > 3) qcfail_lesslev(i-3)=one ! if nprof=4
+              print '(A,I0,A,I0,A,F10.1)','sref L590:mm1,nprof,prof_id(i)=',mm1,',',nprof,',',rdiagbuf(2,i)
+           end if
+           ! if this obs is top level, we will exclude this obs (gradient is not available)
+           if (nprof >= 5) then
+              qcfail_top(i)=one
+              print '(A,I0,A,I0,A,I0,A,I0,A,F10.1)','sref L591:TOP mm1,i,nobs,nprof,prof_id(i)=',mm1,',',i,',',nobs,',',nprof,',',rdiagbuf(2,i)
+           end if
+
+           nprof = 1
+
+        end if
+
+     end if
+
+  end do
+!---------------------------------------------------------------
+! Original part
+!---------------------------------------------------------------
+! Save height,lat, and lon of the observations for later
+  call dtime_setup()
+  print '(A,I0,A,I0)','yeg setupref 2loop L595: mm1,nobs=',mm1,',',nobs
+  do i=1,nobs
+     dtime=data(itime,i)
+     call dtime_check(dtime, in_curbin, in_anybin)
+     if(.not.in_anybin) cycle
+     print '(A,I0,A,I0,A,I0)','yeg setupref 2loop L596: mm1,i,nobs=',mm1,',',i,',',nobs
 
      if(in_curbin) then
 
@@ -445,42 +692,47 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
         repe_gps=one
         alt=r1em3*elev
 
-        if(.not.regional) then ! for global
+!commented out (eyang)
+!--------------------------------------------------------------------
+!        if(.not.regional) then ! for global
 
-           if((data(ilate,i)>= r20).or.(data(ilate,i)<= -r20)) then
-              repe_gps=-1.321_r_kind+0.341_r_kind*alt-0.005_r_kind*alt**2
+!           if((data(ilate,i)>= r20).or.(data(ilate,i)<= -r20)) then
+!              repe_gps=-1.321_r_kind+0.341_r_kind*alt-0.005_r_kind*alt**2
 
-           else
-              if(alt > ten) then
-                 repe_gps=2.013_r_kind-0.060_r_kind*alt+0.0045_r_kind*alt**2
-              else
-                 repe_gps=-1.18_r_kind+0.058_r_kind*alt+0.025_r_kind*alt**2
-              endif
-           endif
+!           else
+!              if(alt > ten) then
+!                 repe_gps=2.013_r_kind-0.060_r_kind*alt+0.0045_r_kind*alt**2
+!              else
+!                 repe_gps=-1.18_r_kind+0.058_r_kind*alt+0.025_r_kind*alt**2
+!              endif
+!           endif
 
-        else ! for regional
+!        else ! for regional
 
-           if((data(ilate,i)>= r20).or.(data(ilate,i)<= -r20)) then
-              if(alt > ten) then
-                 repe_gps=-1.321_r_kind+0.341_r_kind*alt-0.005_r_kind*alt**2
-              else
-                 repe_gps=-1.2_r_kind+0.065_r_kind*alt+0.021_r_kind*alt**2
-              endif
-           else
-              if(alt > ten) then
-                 repe_gps=2.013_r_kind-0.120_r_kind*alt+0.0065_r_kind*alt**2
-              else
-                 repe_gps=-1.19_r_kind+0.03_r_kind*alt+0.023_r_kind*alt**2
-              endif
-           endif
+!           if((data(ilate,i)>= r20).or.(data(ilate,i)<= -r20)) then
+!              if(alt > ten) then
+!                 repe_gps=-1.321_r_kind+0.341_r_kind*alt-0.005_r_kind*alt**2
+!              else
+!                 repe_gps=-1.2_r_kind+0.065_r_kind*alt+0.021_r_kind*alt**2
+!              endif
+!           else
+!              if(alt > ten) then
+!                 repe_gps=2.013_r_kind-0.120_r_kind*alt+0.0065_r_kind*alt**2
+!              else
+!                 repe_gps=-1.19_r_kind+0.03_r_kind*alt+0.023_r_kind*alt**2
+!              endif
+!           endif
 
-        endif
+!        endif
 
-        repe_gps=exp(repe_gps)
-        repe_gps=one/abs(repe_gps) ! representativeness error
+!        repe_gps=exp(repe_gps)
+!        repe_gps=one/abs(repe_gps) ! representativeness error
+!--------------------------------------------------------------------
 
+        print '(A,I0,A,I0,A,F0.7)','yeg setupref 2loop L710: mm1,i,data(ier,i)=',mm1,',',i,',',data(ier,i)
 !       ratio_errors(i) = data(ier,i)/abs(data(ier,i)*repe_gps)
-        ratio_errors(i) = data(ier,i)/abs(repe_gps)
+!        ratio_errors(i) = data(ier,i)/abs(repe_gps) # commented out (eyang)
+        ratio_errors(i) = data(ier,i)
 
         error(i)=one/data(ier,i) ! one/original error
         data(ier,i)=one/data(ier,i)
@@ -512,7 +764,7 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
         transmitter_id       = data(iptid,i)  ! transmitter occ id 
         write(cdiagbuf(i),'(2(i4.4))') satellite_id,transmitter_id
  
-        rdiagbuf(:,i)         = zero
+!        rdiagbuf(:,i)         = zero ! commented out (eyang)
  
         rdiagbuf(1,i)         = ictype(ikx)    ! observation type
         rdiagbuf(20,i)        = zero           ! uses gps_ref (one = use of bending angle)
@@ -527,7 +779,8 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
         rdiagbuf(11,i)        = data(iuse,i)   ! data usage flag
         rdiagbuf(19,i)        = hobl           ! model vertical grid  (midpoint)
         rdiagbuf(22,i)        = 1.e+10_r_kind  ! spread (filled in by EnKF)
-
+        rdiagbuf(26,i)        = data(idomsfc,i)! land surface type based on surrounding land sfc types (eyang)
+        !0: water, 1: land, 2: ice, >=3, mixed (any surrounding grid has different sfc type)
         if (ratio_errors(i) > tiny_r_kind) then  ! obs inside vertical grid
 
 !          Compute guess local refractivity at obs location.
@@ -545,22 +798,84 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
            nrefges3=k4*fact*qrefges*pressure(i)/(trefges*pw)
            nrefges=nrefges1+nrefges2+nrefges3 !total refractivity
 
-!          Accumulate diagnostic information        
-           rdiagbuf(5,i)   = (data(igps,i)-nrefges)/data(igps,i) ! incremental refractivity (x100 %)
+           !-----------------------------------------------
+           ! Difference of height above model terrain (m) 
+           ! between obs levels (i) and (i+1) (eyang)
+           !-----------------------------------------------
+           dz=zero
+           ref_grad = .false.
+           ! Profile identifier at (i+1) is the same as (i) and height(i+1)>height(i) -> ref_grad=.true.
+           !if ( rdiagbuf(2,i) == rdiagbuf(2,i+1) .and. rdiagbuf(7,i+1) > rdiagbuf(7,i) ) then
+           if ( rdiagbuf(2,i) == rdiagbuf(2,i+1) .and. i<nobs ) then
+              dz = rdiagbuf(7,i+1) - rdiagbuf(7,i) 
+              ref_grad = .true.
+              print '(A,F0.1,A,F0.1,A,I0,A,I0)','yeg sref 2l L787: prof_i,i+1,mm1,i=',rdiagbuf(2,i),',',rdiagbuf(2,i+1),',',mm1,',',i
+              print'(A,F0.2,A,F0.2,A,I0,A,I0)','yeg sref 2l L788: hgt_obs(i,i+1),mm1,i=',rdiagbuf(7,i),',',rdiagbuf(7,i+1),',',mm1,',',i
+              print '(A,F0.2,A,I0,A,I0)','yeg sref 2l L789: dz,mm1,i=',dz,',',mm1,',',i
+
+!             Accumulate diagnostic information
+!             rdiagbuf(5,i)   = (data(igps,i)-nrefges)/data(igps,i) ! incremental refractivity (x100 %)
+              !------------------------------------------
+              ! refractivity gradient OmF (eyang)
+              !------------------------------------------
+              ! ref_grad_obs minus ref_grad_simulated
+              ! N/m
+              rdiagbuf(5,i)   = ( rdiagbuf(17,i+1) - rdiagbuf(17,i) )/dz - ( rdiagbuf(23,i+1) - rdiagbuf(23,i) )/dz
+              print '(A,F0.5,A,I0,A,I0)','yeg setupref 2loop L802: ref_grad OmF,mm1,i=',rdiagbuf(5,i),',',mm1,',',i
+
+           else
+              print*,'(A,F0.2,A,F0.2,A,I0,A,I0,A,I0)','yeg setupref 2loop L791, top: prof_i,i+1,mm1,i,nobs=',rdiagbuf(2,i),',',rdiagbuf(2,i+1),',',mm1,',',i,',',nobs
+              print '(A,F0.4,A,F0.4,A,I0,A,I0,A,I0)','yeg sref 2l L792, top: hgt(i+1,i),mm1,i,nobs=',rdiagbuf(7,i+1),',',rdiagbuf(7,i),',',mm1,',',i,',',nobs
+           end if
 
            rdiagbuf(17,i)  = data(igps,i)  ! refractivity observation (units of N)
            rdiagbuf(18,i)  = trefges       ! temperature at obs location in Kelvin
            rdiagbuf(21,i)  = qrefges       ! specific humidity at obs location (kg/kg)
+           print'(A,F0.7,A,I0,A,I0)','yeg setupref 2loop L813: data(igps,i),mm1,i=',data(igps,i),',',mm1,',',i
 
-           data(igps,i)=data(igps,i)-nrefges  ! innovation vector
+           !-------------------------------------------
+           ! added original refractivity obs by eyang
+           !-------------------------------------------
+           rdiagbuf(23,i)  = nrefges        ! simulated refractivity
+           !--------------------------------
+           ! refractivity gradient (eyang)
+           !--------------------------------
+           if (ref_grad) then ! if refractivity gradient is available
+              rdiagbuf(24,i)  = (rdiagbuf(17,i+1) - rdiagbuf(17,i))/dz ! obs
+              rdiagbuf(25,i)  = (rdiagbuf(23,i+1) - rdiagbuf(23,i))/dz ! simulated
+              print '(A,F0.7,A,F0.7,A,I0,A,I0)','yeg setupref 2loop L819: ref_grad_obs,model,mm1,i=',rdiagbuf(24,i),',',rdiagbuf(25,i),',',mm1,',',i
+           end if
+
+           !-------------------------------------------------------------------------------
+           ! Residual -> BUT d2 minus d1 (NOT refractivity gradient) (eyang)
+           ! d2 = refractivity OmF at level 2
+           ! d1 = refractivity OmF at level 1
+           !-------------------------------------------------------------------------------
+           ! Should be changed here NOT LATER
+           ! Will be used for gross error and QC 
+           !-------------------------------------------------------------------------------
+           !data(igps,i)=data(igps,i)-nrefges  ! innovation vector
+           !d2 minus d1 = (ref_obs_2 - ref_model_2) - (ref_obs_1 - ref_model_1)
+           !            = (ref_obs_2 - ref_obs_1) - (ref_model_2 - ref_model_1)
+           !data(igps,i) = d_(i+1) minus d_(i)
+           if (ref_grad) then ! if refractivity gradient is available
+              data(igps,i) = ( rdiagbuf(17,i+1) - rdiagbuf(17,i) ) - ( rdiagbuf(23,i+1) - rdiagbuf(23,i) )
+              print '(A,F0.7,A,I0,A,I0)','yeg setupref 2loop L836: data(igps,i)=(d2-d1),mm1,i=',data(igps,i),',',mm1,',',i
+           end if
 
            if(alt <= gpstop) then ! go into qc checks
 
 !             Gross error check 
               obserror = one/max(ratio_errors(i)*data(ier,i),tiny_r_kind)
               obserrlm = max(cermin(ikx),min(cermax(ikx),obserror))
-              residual = abs(data(igps,i))
+              if (ref_grad) then
+                 residual = abs(data(igps,i)/dz) ! residual should be gradient (eyang)
+              else
+                 residual = 0.0_r_kind ! top level should be removed (eyang)
+              end if
+              !residual = abs(data(igps,i))
               ratio    = residual/obserrlm
+              print '(A,F0.7,A,F0.7,A,F0.7,A,F0.7,A,I0,A,I0)','yeg setupref 2loop L847: ratio,residual,obserrlm,obserr,mm1,i=',ratio,',',residual,',',obserrlm,',',obserror,',',mm1,',',i
  
               if (ratio > cgross(ikx)) then
                  if (luse(i)) then
@@ -599,16 +914,23 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
                  if(alt<=four) cutoff=cutoff3
  
                  cutoff=three*cutoff*r0_01
-
-                 if(abs(rdiagbuf(5,i)) > cutoff) then
-                    qcfail(i)=.true.
-                    data(ier,i) = zero
-                    ratio_errors(i) = zero
-                    muse(i) = .false.
-                 end if
+!------------------------------------------------------------
+! commented out since we do not want to remove obs due to refractivity qc (eyang)
+! and we are doing refractivity gradient DA.
+!------------------------------------------------------------
+!                 if(abs(rdiagbuf(5,i)) > cutoff) then
+!                    qcfail(i)=.true.
+!                    data(ier,i) = zero
+!                    ratio_errors(i) = zero
+!                    muse(i) = .false.
+!                 end if
               end if ! gross qc check 
  
            end if ! qc checks (only below 30km)
+
+           print '(A,F0.7,A,I0,A,I0)','yeg setupref 2loop L910: data(ier,i),mm1,i=',data(ier,i),',',mm1,',',i
+           print*,'yeg setupref 2loop L911: muse(i),mm1,i=',muse(i),mm1,i
+
 
 !          Remove obs above 30 km in order to avoid increments at top model
            if(alt > gpstop) then
@@ -618,17 +940,27 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
               muse(i)=.false.
            endif
 
+           ! Remove obs at the top levels and profile where obs levels < 5 (eyang)
+           if(qcfail_top(i)==one .or. qcfail_lesslev(i)==one) then
+              data(ier,i) = zero
+              ratio_errors(i) = zero
+              muse(i)=.false.
+           endif
+
 !         Remove MetOP/GRAS data below 8 km
-          if ((alt <= eight) .and. ((data(isatid,i)==4) .or. &
-              (data(isatid,i)==3) .or. (data(isatid,i)==5))) then
-             data(ier,i) = zero
-             ratio_errors(i) = zero
-             qcfail(i)=.true.
-             muse(i)=.false.
-          endif
+!         commented out (eyang)
+!          if ((alt <= eight) .and. ((data(isatid,i)==4) .or. &
+!              (data(isatid,i)==3) .or. (data(isatid,i)==5))) then
+!             data(ier,i) = zero
+!             ratio_errors(i) = zero
+!             qcfail(i)=.true.
+!             muse(i)=.false.
+!          endif
 
 !          If obs is "acceptable", compute coefficients for adjoint
-           if ((data(ier,i)*ratio_errors(i)) > tiny_r_kind) then
+           !if ((data(ier,i)*ratio_errors(i)) > tiny_r_kind) then
+           if ((data(ier,i)*ratio_errors(i)) > tiny_r_kind .or. qcfail_top(i)==one) then ! to calculate TL at top level (eyang)
+           ! TL is required at every obs level including top level
  
               if(k1==1) then
                  tmean=tges(k1)
@@ -677,6 +1009,7 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
                         two*((prsltmp(j-1)-prsltmp(j))/(trefges+tmean))
                  end do
               endif
+
            endif
 
         end if ! obs inside the vertical grid
@@ -686,8 +1019,11 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
 ! Loop over observation profiles. Compute penalty
 ! terms, and accumulate statistics.
   if(last_pass) then
+
+!--------------------------------------------------------
+! SR-likely conditions below 3 km should not be removed. (eyang)
+!--------------------------------------------------------
      do i=1,nobs-1
-     
         if(r1em3*rdiagbuf(7,i) <= 3.0_r_kind) then ! check for SR-likely conditions below 3 km
             kprof = data(iprof,i)
             jprof = data(iprof,i+1)
@@ -696,39 +1032,41 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
                                ((rdiagbuf(17,i+1)*(one-rdiagbuf(5,i+1)))-(rdiagbuf(17,i)*(one-rdiagbuf(5,i))))/(rdiagbuf(7,i+1)-rdiagbuf(7,i))
                 grad_obs=1000.0_r_kind*(rdiagbuf(17,i+1)-rdiagbuf(17,i))/(rdiagbuf(7,i+1)-rdiagbuf(7,i))
                 if ((abs(grad_mod)>= half*crit_grad) .or. (abs(grad_obs)>=half*crit_grad)) then
-                   qcfail(i)  = .true.
-                   if( qcfail_gross(i+1) == zero .and. .not. qcfail(i+1)) then
-                       qcfail(i+1)= .true.
-                   end if
+                    write(6,'(A30,2X,F8.2,2X,F8.2)') 'sref L996, grad_obs, grad_mod=',grad_obs,grad_mod
+                    write(6,'(A30,2X,F8.2,2X,F8.2)') 'sref L997, rdiagbuf(17,i),(7)=',rdiagbuf(17,i),rdiagbuf(7,i)
+!                   qcfail(i)  = .true.
+!                   if( qcfail_gross(i+1) == zero .and. .not. qcfail(i+1)) then
+!                       qcfail(i+1)= .true.
+!                   end if
                 end if
             end if
         end if
 
-        if(qcfail(i)) then
-           kprof = data(iprof,i)
-           do j=1,nobs
-              jprof = data(iprof,j)
-              if( kprof == jprof .and. .not. qcfail(j) .and. qcfail_loc(j) == zero .and. qcfail_gross(j) == zero)then
+!        if(qcfail(i)) then
+!           kprof = data(iprof,i)
+!           do j=1,nobs
+!              jprof = data(iprof,j)
+!              if( kprof == jprof .and. .not. qcfail(j) .and. qcfail_loc(j) == zero .and. qcfail_gross(j) == zero)then
 
 !             Remove data below
-                 if(r1em3*rdiagbuf(7,j) < r1em3*rdiagbuf(7,i))then
-                    if((rdiagbuf(1,i)==41).or.(rdiagbuf(1,i)==722).or.(rdiagbuf(1,i)==723).or.&
-                       (rdiagbuf(1,i)==4).or.(rdiagbuf(1,i)==786).or.(rdiagbuf(1,i)==3).or.&
-                       (rdiagbuf(1,i)==5)) then
-                       if(r1em3*rdiagbuf(7,i)<= ten) then
-                          qcfail(j) = .true.
-                       endif
-                    else
-                       if(r1em3*rdiagbuf(7,i)< five) then
-                          qcfail(j) = .true. 
-                       endif
-                    endif
-                 endif
-              end if
-           end do
-        endif
+!                 if(r1em3*rdiagbuf(7,j) < r1em3*rdiagbuf(7,i))then
+!                    if((rdiagbuf(1,i)==41).or.(rdiagbuf(1,i)==722).or.(rdiagbuf(1,i)==723).or.&
+!                       (rdiagbuf(1,i)==4).or.(rdiagbuf(1,i)==786).or.(rdiagbuf(1,i)==3).or.&
+!                       (rdiagbuf(1,i)==5)) then
+!                       if(r1em3*rdiagbuf(7,i)<= ten) then
+!                          qcfail(j) = .true.
+!                       endif
+!                    else
+!                       if(r1em3*rdiagbuf(7,i)< five) then
+!                          qcfail(j) = .true. 
+!                       endif
+!                    endif
+!                 endif
+!              end if
+!           end do
+!        endif
      end do
-
+!--------------------------------------------------------
      do i=1,nobs
 
         alt=r1em3*rdiagbuf(7,i) ! altitude in km
@@ -737,17 +1075,18 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
            data(ier,i) = zero
            ratio_errors(i) = zero
            muse(i) = .false.
-           if ( (rdiagbuf(1,i)==41).or.(rdiagbuf(1,i)==722).or.(rdiagbuf(1,i)==723).or.&
-                (rdiagbuf(1,i)==4).or.(rdiagbuf(1,i)==786).or.(rdiagbuf(1,i)==3).or.&
-                (rdiagbuf(1,i)==5)) then
-              if(alt<=ten) then
-                 toss_gps_sub(kprof) = max(toss_gps_sub(kprof),data(ihgt,i))
-              endif
-           else
-              if (alt < five) then
-                 toss_gps_sub(kprof) = max(toss_gps_sub(kprof),data(ihgt,i))
-              end if
-           end if
+           !commented out (eyang)
+!           if ( (rdiagbuf(1,i)==41).or.(rdiagbuf(1,i)==722).or.(rdiagbuf(1,i)==723).or.&
+!                (rdiagbuf(1,i)==4).or.(rdiagbuf(1,i)==786).or.(rdiagbuf(1,i)==3).or.&
+!                (rdiagbuf(1,i)==5)) then
+!              if(alt<=ten) then
+!                 toss_gps_sub(kprof) = max(toss_gps_sub(kprof),data(ihgt,i))
+!              endif
+!           else
+!              if (alt < five) then
+!                 toss_gps_sub(kprof) = max(toss_gps_sub(kprof),data(ihgt,i))
+!              end if
+!           end if
  
 
 
@@ -787,6 +1126,8 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
         if(qcfail(i))                rdiagbuf(10,i) = four !modified in genstats due to toss_gps_sub
         if(qcfail_loc(i) == one)     rdiagbuf(10,i) = one
         if(qcfail_high(i) == one)    rdiagbuf(10,i) = two
+        if(qcfail_top(i) == one)     rdiagbuf(10,i) = five ! top level
+        if(qcfail_lesslev(i) == one) rdiagbuf(10,i) = six  ! profile where obs levels < 5
 
         if(muse(i)) then            ! modified in genstats_gps due to toss_gps_sub
            rdiagbuf(12,i) = one     ! minimization usage flag (1=use, -1=not used)
@@ -848,43 +1189,72 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
         if (nobskeep>0.and.luse_obsdiag) call obsdiagNode_get(my_diag, jiter=nobskeep, muse=muse(i))
 
 !       Save values needed for generation of statistics for all observations
-        if(.not. associated(gps_allhead(ibin)%head))then
-           gps_allhead(ibin)%n_alloc = 0
-           allocate(gps_allhead(ibin)%head,stat=istat)
-           if(istat /= 0)write(6,*)' failure to write gps_allhead '
-           gps_alltail(ibin)%head => gps_allhead(ibin)%head
+        if(.not. associated(gpsref_allhead(ibin)%head))then
+           gpsref_allhead(ibin)%n_alloc = 0
+           allocate(gpsref_allhead(ibin)%head,stat=istat)
+           if(istat /= 0)write(6,*)' failure to write gpsref_allhead '
+           gpsref_alltail(ibin)%head => gpsref_allhead(ibin)%head
         else
-           allocate(gps_alltail(ibin)%head%llpoint,stat=istat)
-           if(istat /= 0)write(6,*)' failure to write gps_alltail%llpoint '
-           gps_alltail(ibin)%head => gps_alltail(ibin)%head%llpoint
+           allocate(gpsref_alltail(ibin)%head%llpoint,stat=istat)
+           if(istat /= 0)write(6,*)' failure to write gpsref_alltail%llpoint '
+           gpsref_alltail(ibin)%head => gpsref_alltail(ibin)%head%llpoint
         end if
-        gps_allhead(ibin)%n_alloc = gps_allhead(ibin)%n_alloc +1
-        gps_alltail(ibin)%n_alloc = gps_allhead(ibin)%n_alloc
+        gpsref_allhead(ibin)%n_alloc = gpsref_allhead(ibin)%n_alloc +1
+        gpsref_alltail(ibin)%n_alloc = gpsref_allhead(ibin)%n_alloc
 
-        gps_alltail(ibin)%head%idv = is
-        gps_alltail(ibin)%head%iob = ioid(i)
-        gps_alltail(ibin)%head%elat= data(ilate,i)
-        gps_alltail(ibin)%head%elon= data(ilone,i)
+        gpsref_alltail(ibin)%head%idv = is
+        gpsref_alltail(ibin)%head%iob = ioid(i)
+        gpsref_alltail(ibin)%head%elat= data(ilate,i)
+        gpsref_alltail(ibin)%head%elon= data(ilone,i)
 
-        allocate(gps_alltail(ibin)%head%rdiag(nreal),stat=istat)
-        if (istat/=0) write(6,*)'SETUPREF:  allocate error for gps_point, istat=',istat
+        allocate(gpsref_alltail(ibin)%head%rdiag(nreal),stat=istat)
+        if (istat/=0) write(6,*)'SETUPREF:  allocate error for gpsref_point, istat=',istat
  
-        gps_alltail(ibin)%head%ratio_err= ratio_errors(i)
-        gps_alltail(ibin)%head%obserr   = data(ier,i)
-        gps_alltail(ibin)%head%dataerr  = data(ier,i)*data(igps,i)
-        gps_alltail(ibin)%head%pg       = cvar_pg(ikx)
-        gps_alltail(ibin)%head%b        = cvar_b(ikx)
-        gps_alltail(ibin)%head%loc      = data(ihgt,i)
-        gps_alltail(ibin)%head%kprof    = data(iprof,i)
-        gps_alltail(ibin)%head%type     = data(ikxx,i)
-        gps_alltail(ibin)%head%luse     = luse(i) ! logical
-        gps_alltail(ibin)%head%muse     = muse(i) ! logical
-        gps_alltail(ibin)%head%cdiag    = cdiagbuf(i)
+        gpsref_alltail(ibin)%head%ratio_err= ratio_errors(i)
+        gpsref_alltail(ibin)%head%obserr   = data(ier,i)
+
+        ! eyang
+        dz=zero
+        ref_grad = .false.
+        ! Profile identifier at (i+1) is the same as (i) -> ref_grad=.true.
+        if ( rdiagbuf(2,i) == rdiagbuf(2,i+1) .and. i<nobs ) then
+           dz = rdiagbuf(7,i+1) - rdiagbuf(7,i)
+           ref_grad = .true.
+        end if
+
+        if (ref_grad) then
+           gpsref_alltail(ibin)%head%dataerr  = data(ier,i)*data(igps,i)/dz ! OmF of grad (eyang)
+           print '(A,F0.7)', 'sref L1227: data(ier,i),=',data(ier,i)
+        else
+           gpsref_alltail(ibin)%head%dataerr  = data(ier,i) ! no gradient of refractivity
+           print '(A,F0.7)', 'sref L1229 no ref_grad: data(ier,i)=',data(ier,i)
+
+        end if
+        gpsref_alltail(ibin)%head%pg       = cvar_pg(ikx)
+        gpsref_alltail(ibin)%head%b        = cvar_b(ikx)
+        gpsref_alltail(ibin)%head%loc      = data(ihgt,i)
+        gpsref_alltail(ibin)%head%kprof    = data(iprof,i)
+        gpsref_alltail(ibin)%head%type     = data(ikxx,i)
+        gpsref_alltail(ibin)%head%luse     = luse(i) ! logical
+        gpsref_alltail(ibin)%head%muse     = muse(i) ! logical
+        gpsref_alltail(ibin)%head%cdiag    = cdiagbuf(i)
 
 !       Fill obs diagnostics structure
         if (luse_obsdiag) then
-           call obsdiagNode_set(my_diag, wgtjo=(data(ier,i)*ratio_errors(i))**2, &
-              jiter=jiter, muse=muse(i), nldepart=data(igps,i))
+
+           if (ref_grad) then ! no gradient of refractivity (eyang)
+              ! data(igps,i)=d2-d1
+              call obsdiagNode_set(my_diag, wgtjo=(data(ier,i)*ratio_errors(i))**2, &
+                 jiter=jiter, muse=muse(i), nldepart=data(igps,i)/dz) ! is it right? yzhu (eyang)
+                 !jiter=jiter, muse=muse(i), nldepart=data(igps,i))
+              print '(A,F0.7,A,F0.3)', 'sref L1242 data(igps,i),dz=',data(igps,i),',',dz
+           else
+              call obsdiagNode_set(my_diag, wgtjo=(data(ier,i)*ratio_errors(i))**2, &
+                 jiter=jiter, muse=muse(i), nldepart=zero) ! is it right? yzhu (eyang)
+                 !jiter=jiter, muse=muse(i), nldepart=data(igps,i))
+              print '(A,F0.7)', 'sref L1235 dz_zero: data(igps,i)=',data(igps,i)
+
+           end if
         endif
 
 !       Load additional obs diagnostic structure
@@ -915,44 +1285,130 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
         endif
 
         do j=1,nreal
-           gps_alltail(ibin)%head%rdiag(j)= rdiagbuf(j,i)
+           gpsref_alltail(ibin)%head%rdiag(j)= rdiagbuf(j,i)
         end do
 
 !       If obs is "acceptable", load array with obs info for use
 !       in inner loop minimization (int* and stp* routines)
 
-        if ( in_curbin .and. muse(i) ) then
+        !if ( in_curbin .and. muse(i) ) then
+        if ( in_curbin .and. (muse(i) .or. qcfail_top(i)==one ) ) then ! top level should be considered although it is not assimilated. (eyang) yzhu correct?
  
            allocate(my_head)
-           call gpsNode_appendto(my_head,gpshead(ibin))
+           call gpsrefNode_appendto(my_head,gpshead(ibin))
 
            my_head%idv = is
            my_head%iob = ioid(i)
            my_head%elat= data(ilate,i)
            my_head%elon= data(ilone,i)
 
+           !--------------------------------------------------
+           ! Add jacobian for additional obs (i-1, i+1) below and above obs (i) (eyang)
+           !--------------------------------------------------
            allocate(my_head%jac_t(nsig),my_head%jac_q(nsig), &
-                    my_head%jac_p(nsig+1),my_head%ij(4,nsig),stat=istat)
+                    my_head%jac_p(nsig+1),my_head%ij(4,nsig), &
+                    my_head%jac_t_b(nsig),my_head%jac_q_b(nsig), &
+                    my_head%jac_p_b(nsig+1),my_head%ij_b(4,nsig), &
+                    my_head%jac_t_a(nsig),my_head%jac_q_a(nsig), &
+                    my_head%jac_p_a(nsig+1),my_head%ij_a(4,nsig), stat=istat)
+           !allocate(my_head%jac_t(nsig),my_head%jac_q(nsig), &
+           !         my_head%jac_p(nsig+1),my_head%ij(4,nsig),stat=istat)
            if (istat/=0) write(6,*)'SETUPREF:  allocate error for gps_point, istat=',istat
 
 
-           gps_alltail(ibin)%head%mmpoint => my_head
+           gpsref_alltail(ibin)%head%mmpoint => my_head
 
 !          Set (i,j,k) indices of guess gridpoint that bound obs location
            call get_ij(mm1,data(ilat,i),data(ilon,i),gps_ij,my_head%wij)
+           !--------------------------------------------------
+           ! Get wij for additional obs (i-1, i+1) (eyang)
+           !--------------------------------------------------
+           lower_obs=.false.
+           upper_obs=.false.
+           kprof = data(iprof,i)
+           ! lower obs (i-1)
+           if (i>one) then
+              bprof = data(iprof,i-1)
+           else
+              bprof = zero
+           end if
+           ! upper obs (i+1)
+           if (i<nobs) then
+              jprof = data(iprof,i+1)
+           else
+              jprof = zero
+           end if
+
+           ! lower obs (i-1)
+           if (i>one .and. bprof==kprof ) then
+              call get_ij(mm1,data(ilat,i-1),data(ilon,i-1),gps_ij_b,my_head%wij_b)
+              lower_obs=.true.
+           else
+              print*, 'sref L1331: lower_obs,i,nobs,prof at i=',lower_obs,i,nobs,data(iprof,i)
+              if (i>one) print*, 'sref L1332: i,prof at i-1=',i,data(iprof,i-1)
+           end if
+           ! upper obs (i+1)
+           if (i<nobs .and. jprof==kprof ) then
+              call get_ij(mm1,data(ilat,i+1),data(ilon,i+1),gps_ij_a,my_head%wij_a)
+              upper_obs=.true.
+           else
+              print*, 'sref L1339: upper_obs,i,nobs,prof at i=',upper_obs,i,nobs,data(iprof,i)
+              if (i<nobs) print*, 'sref L1332: i,prof at i+1=',i,data(iprof,i+1)
+           end if
+
+           !--------------------------------------------------
 
            do j=1,nsig
+
               my_head%ij(1,j)=gps_ij(1)+(j-1)*latlon11
               my_head%ij(2,j)=gps_ij(2)+(j-1)*latlon11
               my_head%ij(3,j)=gps_ij(3)+(j-1)*latlon11
               my_head%ij(4,j)=gps_ij(4)+(j-1)*latlon11
+
+              !--------------------------------------------------
+              ! lower and upper obs (eyang)
+              !--------------------------------------------------
+              if (lower_obs) then
+                 my_head%ij_b(1,j)=gps_ij_b(1)+(j-1)*latlon11
+                 my_head%ij_b(2,j)=gps_ij_b(2)+(j-1)*latlon11
+                 my_head%ij_b(3,j)=gps_ij_b(3)+(j-1)*latlon11
+                 my_head%ij_b(4,j)=gps_ij_b(4)+(j-1)*latlon11
+              end if
+              if (upper_obs) then
+                 my_head%ij_a(1,j)=gps_ij_a(1)+(j-1)*latlon11
+                 my_head%ij_a(2,j)=gps_ij_a(2)+(j-1)*latlon11
+                 my_head%ij_a(3,j)=gps_ij_a(3)+(j-1)*latlon11
+                 my_head%ij_a(4,j)=gps_ij_a(4)+(j-1)*latlon11
+              end if
+              !--------------------------------------------------
+
            enddo
+
            do j=1,nsig
               my_head%jac_q(j)=zero
               my_head%jac_t(j)=zero
               my_head%jac_p(j)=zero
+              !--------------------------------------------------
+              ! lower and upper obs (eyang)
+              !--------------------------------------------------
+              my_head%jac_q_b(j)=zero
+              my_head%jac_t_b(j)=zero
+              my_head%jac_p_b(j)=zero
+
+              my_head%jac_q_a(j)=zero
+              my_head%jac_t_a(j)=zero
+              my_head%jac_p_a(j)=zero
+              !--------------------------------------------------
            enddo
+
            my_head%jac_p(nsig+1)=zero
+           !--------------------------------------------------
+           ! lower and upper obs (eyang)
+           !--------------------------------------------------
+           my_head%jac_p_b(nsig+1)=zero
+           my_head%jac_p_a(nsig+1)=zero
+           !--------------------------------------------------
+
            dpres=data(ihgt,i)
            k=dpres
            k1=min(max(1,k),nsig)
@@ -980,15 +1436,148 @@ subroutine setupref(obsLL,odiagLL,lunin,mype,awork,nele,nobs,toss_gps_sub,is,ini
            my_head%jac_t(k2l)=my_head%jac_t(k2l)+termt(i)*delz
            my_head%jac_q(k1l)=my_head%jac_q(k1l)+termq(i)*(one-delz)
            my_head%jac_q(k2l)=my_head%jac_q(k2l)+termq(i)*delz
-           my_head%res       = data(igps,i)
-           my_head%err2      = data(ier,i)**2
-           my_head%raterr2   = ratio_errors(i)**2    
+
+           !--------------------------------------------------
+           ! Jacobian for upper obs (eyang)
+           !--------------------------------------------------
+           if (upper_obs) then
+
+              dpres_a=data(ihgt,i+1)
+              k_a=dpres_a
+              k1_a=min(max(1,k_a),nsig)
+              k2_a=max(1,min(k_a+1,nsig))
+              my_head%jac_t_a(k1_a)=my_head%jac_t_a(k1_a)+termtk(i+1)
+              my_head%jac_p_a(k1_a)=my_head%jac_p_a(k1_a)+termpk(i+1)
+              if(k1_a == 1)then
+                 my_head%jac_t_a(k1_a)=my_head%jac_t_a(k1_a)+termtk(i+1)
+              else
+                 my_head%jac_t_a(k1_a-1)=my_head%jac_t_a(k1_a-1)+termtk(i+1)
+                 do j=2,k1_a
+                    my_head%jac_t_a(j-1)=my_head%jac_t_a(j-1)+termtl(j,i+1)
+                    my_head%jac_p_a(j-1)=my_head%jac_p_a(j-1)+termpl1(j,i+1)
+                    my_head%jac_p_a(j)=my_head%jac_p_a(j)-termpl2(j,i+1)
+                 end do
+              end if
+
+!             delz=dpres-float(k1)
+              kl_a=dpresl(i+1)
+              k1l_a=min(max(1,kl_a),nsig)
+              k2l_a=max(1,min(kl_a+1,nsig))
+              delz_a=dpresl(i+1)-float(k1l_a)
+              delz_a=max(zero,min(delz_a,one))
+              my_head%jac_t_a(k1l_a)=my_head%jac_t_a(k1l_a)+termt(i+1)*(one-delz_a)
+              my_head%jac_t_a(k2l_a)=my_head%jac_t_a(k2l_a)+termt(i+1)*delz_a
+              my_head%jac_q_a(k1l_a)=my_head%jac_q_a(k1l_a)+termq(i+1)*(one-delz_a)
+              my_head%jac_q_a(k2l_a)=my_head%jac_q_a(k2l_a)+termq(i+1)*delz_a
+
+              !my_head%agl_a       = rdiagbuf(9,i+1) !elev-zsges! height above model terrain (m) (upper obs) (eyang)
+              my_head%hgt_a       = rdiagbuf(7,i+1) !elev! height (m) (upper obs) (eyang)
+
+           end if
+
+           !--------------------------------------------------
+           ! Jacobian for lower obs (eyang)
+           !--------------------------------------------------
+           if (lower_obs) then
+
+              dpres_b=data(ihgt,i-1)
+              k_b=dpres_b
+              k1_b=min(max(1,k_b),nsig)
+              k2_b=max(1,min(k_b+1,nsig))
+              my_head%jac_t_b(k1_b)=my_head%jac_t_b(k1_b)+termtk(i-1)
+              my_head%jac_p_b(k1_b)=my_head%jac_p_b(k1_b)+termpk(i-1)
+              if(k1_b == 1)then
+                 my_head%jac_t_b(k1_b)=my_head%jac_t_b(k1_b)+termtk(i-1)
+              else
+                 my_head%jac_t_b(k1_b-1)=my_head%jac_t_b(k1_b-1)+termtk(i-1)
+                 do j=2,k1_b
+                    my_head%jac_t_b(j-1)=my_head%jac_t_b(j-1)+termtl(j,i-1)
+                    my_head%jac_p_b(j-1)=my_head%jac_p_b(j-1)+termpl1(j,i-1)
+                    my_head%jac_p_b(j)=my_head%jac_p_b(j)-termpl2(j,i-1)
+                 end do
+              end if
+
+!             delz=dpres-float(k1)
+              kl_b=dpresl(i-1)
+              k1l_b=min(max(1,kl_b),nsig)
+              k2l_b=max(1,min(kl_b+1,nsig))
+              delz_b=dpresl(i-1)-float(k1l_b)
+              delz_b=max(zero,min(delz_b,one))
+              my_head%jac_t_b(k1l_b)=my_head%jac_t_b(k1l_b)+termt(i-1)*(one-delz_b)
+              my_head%jac_t_b(k2l_b)=my_head%jac_t_b(k2l_b)+termt(i-1)*delz_b
+              my_head%jac_q_b(k1l_b)=my_head%jac_q_b(k1l_b)+termq(i-1)*(one-delz_b)
+              my_head%jac_q_b(k2l_b)=my_head%jac_q_b(k2l_b)+termq(i-1)*delz_b
+
+           end if
+           !-------------------------------------- 
+
            my_head%time      = data(itime,i)
            my_head%b         = cvar_b(ikx)
            my_head%pg        = cvar_pg(ikx)
            my_head%luse      = luse(i)
+           !my_head%agl       = rdiagbuf(9,i) !elev-zsges! height above model terrain (m) (eyang)
+           my_head%hgt       = rdiagbuf(7,i) !elev! height (m) (eyang)
+           print *,'sref L1504: my_head%luse,hgt=',my_head%luse,my_head%hgt
+
+           !-------------------------- 
+           ! Residual and obs error
+           !-------------------------------------- 
+           ! with upper obs, residual = d3 - d2
+           !-------------------------------------- 
+           !my_head%err2      = data(ier,i)**2
+           !my_head%raterr2   = ratio_errors(i)**2    
+           if (upper_obs) then ! obs error for gradient (with upper obs) - default
+              ! residual (d3-d2)
+              my_head%res     = data(igps,i) 
+              ! obs error for gradient
+              my_head%err2    = data(ier,i)**2
+              my_head%raterr2 = ratio_errors(i)**2    
+               print '(A,F0.7,A,F0.5,A,F0.5)', 'sref L1518: my_head%res,err2,raterr2=',my_head%res,',',my_head%err2,',',my_head%raterr2
+
+              ! height
+              !my_head%agl_a   = rdiagbuf(9,i+1) !elev-zsges! height above model terrain (m) (upper obs) (eyang)
+              !my_head%dagl    = rdiagbuf(9,i+1) - rdiagbuf(9,i) ! diff of height above model terrain (m) (upper obs) (eyang)
+              my_head%hgt_a   = rdiagbuf(7,i+1) !elev! height (m) (upper obs) (eyang)
+              my_head%dhgt    = rdiagbuf(7,i+1) - rdiagbuf(7,i) ! diff of height (m) (upper obs) (eyang)
+              print '(A,F0.3,A,F0.3,A,F0.3)', 'sref L1524: my_head%hgt_a,dhgt=',my_head%hgt_a,',',my_head%dhgt
+
+           else
+              my_head%res     = zero
+              my_head%dhgt    = zero
+              my_head%err2    = zero
+              my_head%raterr2 = zero
+           end if
+
+           !-------------------------------------- 
+           ! with lower obs, residual = d2 - d1 
+           !-------------------------------------- 
+           if (lower_obs) then ! obs error for gradient (with lower obs)
+              ! residual (d2-d1)
+              my_head%res_b  = data(igps,i-1) 
+              ! obs error for gradient
+              my_head%err2_b      = data(ier,i-1)**2
+              my_head%raterr2_b   = ratio_errors(i-1)**2    
+              print '(A,F0.7,A,F0.5,A,F0.5)', 'sref L1543: my_head%res_b,err2_b,raterr2_b=',my_head%res_b,',',my_head%err2_b,',',my_head%raterr2_b
+
+              ! height
+              !my_head%agl_b  = rdiagbuf(9,i-1) !elev-zsges! height above model terrain (m) (eyang)
+              !my_head%dagl_b = rdiagbuf(9,i) - rdiagbuf(9,i-1) !elev-zsges! diff of height above model terrain (m) (lower obs) (eyang)
+              my_head%hgt_b  = rdiagbuf(7,i-1) !elev! height (m) (eyang)
+              my_head%dhgt_b = rdiagbuf(7,i) - rdiagbuf(7,i-1) !elev! diff of height (m) (lower obs) (eyang)
+              print*, 'sref L1547: my_head%dhgt_b=',my_head%dhgt_b
+
+           else
+              my_head%res_b  = zero
+              my_head%dhgt_b = zero
+              my_head%err2_b = zero
+              my_head%raterr2_b = zero
+           end if
+
+           !--------------------------------------------------
 
            if (save_jacobian) then
+
+              print*,'yeg setupref L1480: mm1,i,save_jacobian=',mm1,i,save_jacobian
 
               t_ind = getindex(svars3d, 'tv')
               q_ind = getindex(svars3d, 'q')

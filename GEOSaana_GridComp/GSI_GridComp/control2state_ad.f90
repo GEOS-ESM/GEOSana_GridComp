@@ -90,7 +90,7 @@ type(gsi_bundle) :: wbundle ! work bundle
 !       this routines knows how to handle.
 integer(i_kind), parameter :: ncvars = 9
 integer(i_kind) :: icps(ncvars)
-integer(i_kind) :: icpblh,icgust,icvis,icoz,icwspd10m,icw
+integer(i_kind) :: icpblri,icpblrf,icpblkh,icgust,icvis,icoz,icwspd10m,icw
 integer(i_kind) :: ictd2m,icmxtm,icmitm,icpmsl,ichowv
 integer(i_kind) :: ictcamt,iclcbas,icsfwter,icvpwter
 integer(i_kind) :: iccldch,icuwnd10m,icvwnd10m
@@ -116,7 +116,8 @@ character(len=4), parameter :: mysvars(nsvars) = (/  &  ! vars from ST needed he
 logical :: ls_u,ls_v,ls_w,ls_prse,ls_q,ls_tsen,ls_ql,ls_qi
 logical :: ls_qr,ls_qs,ls_qg,ls_qh
 real(r_kind),pointer,dimension(:,:)   :: rv_ps=>NULL(),rv_sst=>NULL()
-real(r_kind),pointer,dimension(:,:)   :: rv_gust=>NULL(),rv_vis=>NULL(),rv_pblh=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: rv_gust=>NULL(),rv_vis=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: rv_pblri=>NULL(),rv_pblrf=>NULL(),rv_pblkh=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: rv_wspd10m=>NULL(),rv_tcamt,rv_lcbas=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: rv_td2m=>NULL(),rv_mxtm=>NULL(),rv_mitm=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: rv_pmsl=>NULL(),rv_howv=>NULL(),rv_cldch=>NULL()
@@ -186,7 +187,9 @@ endif
 call gsi_bundlegetpointer (grad%step(1),'oz',icoz,istatus)
 call gsi_bundlegetpointer (grad%step(1),'gust',icgust,istatus)
 call gsi_bundlegetpointer (grad%step(1),'vis',icvis,istatus)
-call gsi_bundlegetpointer (grad%step(1),'pblh',icpblh,istatus)
+call gsi_bundlegetpointer (grad%step(1),'pblri',icpblri,istatus)
+call gsi_bundlegetpointer (grad%step(1),'pblrf',icpblrf,istatus)
+call gsi_bundlegetpointer (grad%step(1),'pblkh',icpblkh,istatus)
 call gsi_bundlegetpointer (grad%step(1),'wspd10m',icwspd10m,istatus)
 call gsi_bundlegetpointer (grad%step(1),'td2m',ictd2m,istatus)
 call gsi_bundlegetpointer (grad%step(1),'mxtm',icmxtm,istatus)
@@ -343,9 +346,23 @@ do jj=1,nsubwin
       call gsi_bundlegetpointer (rval(jj),'vis'  ,rv_vis , istatus)
       call gsi_bundleputvar ( wbundle, 'vis' , rv_vis   , istatus )
    end if
-   if (icpblh>0)then
-      call gsi_bundlegetpointer (rval(jj),'pblh' ,rv_pblh, istatus)
-      call gsi_bundleputvar ( wbundle, 'pblh', rv_pblh, istatus )
+   if (icpblri>0)then
+      call gsi_bundlegetpointer (rval(jj),'pblri' ,rv_pblri, istatus)
+      call gsi_bundleputvar ( wbundle, 'pblri', rv_pblri, istatus )
+   end if
+   if (icpblrf>0)then
+      call gsi_bundlegetpointer (rval(jj),'pblrf' ,rv_pblrf, istatus)
+      if (istatus/=0)then
+         print*, "YEG_control2state_at, L358: no pblrf in rval?"
+      end if
+      call gsi_bundleputvar ( wbundle, 'pblrf', rv_pblrf, istatus )
+      if (istatus/=0)then
+         print*, "YEG_control2state_at, L362: cannot putvar in wbundle pblrf"
+      end if
+   end if
+   if (icpblkh>0)then
+      call gsi_bundlegetpointer (rval(jj),'pblkh' ,rv_pblkh, istatus)
+      call gsi_bundleputvar ( wbundle, 'pblkh', rv_pblkh, istatus )
    end if
    if (icwspd10m>0) then
       call gsi_bundlegetpointer (rval(jj),'wspd10m' ,rv_wspd10m, istatus)
@@ -407,8 +424,12 @@ do jj=1,nsubwin
 
 !  Adjoint of transfer variables
 
+   !print*,"YEGGGGGGGG_control2state_ad,L427: wbundle%ndim=",wbundle%ndim
    do ii=1,wbundle%ndim
+      !print*,"YEGGGGGGGG_control2state_ad,L429: ii=",ii,",grad%step(jj)%values(ii)=",grad%step(jj)%values(ii)
       grad%step(jj)%values(ii)=wbundle%values(ii)+grad%step(jj)%values(ii)
+      !print*,"YEGGGGGGGG_control2state_ad,L430: ii=",ii,",wbundle%values(ii)=",wbundle%values(ii)
+      !print*,"YEGGGGGGGG_control2state_ad,L431: ii=",ii,",grad%step(jj)%values(ii)=",grad%step(jj)%values(ii)
    enddo
    call gsi_bundledestroy(wbundle,istatus)
    if (istatus/=0) then

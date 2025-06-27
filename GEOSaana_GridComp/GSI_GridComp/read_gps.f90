@@ -60,6 +60,11 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 !   2015-10-01  guo     - consolidate use of ob location (in deg)
 !   2017-11-16  dutta   - addition of profile quality flags for KOMPSAT5 GPSRO.
 !   2021-05-13 mccarty  - code updates to handle commercial RO sources from NOAA Comm. Data Purchase
+!   2025-02-12 eyang    - add QC checks to remove refractivity obs above 6 km in order to assimilate refractivity
+!                         gradient below 6 km
+!   2025-03-05 eyang    - add idomsfc for model_sfc_type
+!                         0: water, 1: land, 2: ice, >=3, mixed (any surrounding grid has different sfc type)
+!   2025-03-07 eyang    - add obs error model
 
 !   input argument list:
 !     infile   - unit from which to read BUFR data
@@ -82,12 +87,13 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 
   use kinds, only: r_kind,i_kind,r_double
   use constants, only: deg2rad,zero,r60inv,r100
-  use obsmod, only: iadate,ref_obs
+  use obsmod, only: iadate,ref_obs,ref_obs_new
   use gsi_4dvar, only: l4dvar,l4densvar,iwinbgn,winlen
   use convinfo, only: nconvtype,ctwind, &
         ncmiter,ncgroup,ncnumgrp,icuse,ictype,ioctype
   use gridmod, only: regional,nlon,nlat,tll2xy,rlats,rlons
   use mpimod, only: npe
+  use deter_sfc_mod, only: deter_sfc2
   implicit none
 
 ! Declare passed variables
@@ -98,12 +104,19 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
   integer(i_kind) ,intent(inout) :: nread,ndata,nodata
   integer(i_kind),dimension(npe) ,intent(inout) :: nobs
   integer(i_kind) ,intent(inout) :: nprof_gps
-
+  integer(i_kind) :: idomsfc ! eyang
+  real(r_kind)    :: tsavg,ff10,sfcr,zz ! eyang
 ! Declare local parameters  
   integer(i_kind),parameter:: maxlevs=500
-  integer(i_kind),parameter:: maxinfo=22
+  integer(i_kind),parameter:: maxinfo=23 ! changed from 22 to 23 for idomsfc (eyang)
   real(r_kind),parameter:: r10000=10000.0_r_kind
   real(r_kind),parameter:: r360=360.0_r_kind
+  real(r_kind),parameter:: cerr1=0.015_r_kind ! N/m
+  real(r_kind),parameter:: cerr2=0.03_r_kind 
+  real(r_kind),parameter:: cerr3=0.01_r_kind 
+  real(r_kind),parameter:: chgt1=zero ! meter
+  real(r_kind),parameter:: chgt2=1500.0_r_kind ! meter
+  real(r_kind),parameter:: chgt3=6000.0_r_kind
 
 ! Declare local variables
   logical good,outside
@@ -162,8 +175,11 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 
 ! Check convinfo file to see requesting to process gpsro data
   ikx = 0
+  write(6,*) 'yeg_readgps L167: obstype,ref_obs,ref_obs_new=',trim(obstype),ref_obs,ref_obs_new
   do i=1,nconvtype
       if ( trim(sis)==trim(ioctype(i))) ikx=ikx+1
+      write(6,*) 'yeg_readgps L169: sis,ioctype(i)=',trim(sis),', ',trim(ioctype(i)) 
+      write(6,*) 'yeg_readgps L170: i,ikx,nconvtype=',i,ikx,nconvtype
   end do
 
 ! If no data requested to be process, exit routine
@@ -280,7 +296,8 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
            lone = .false.
              if(nib > 0) then
                do i=1,nib
-                 if(ref_obs) then
+                 !if(ref_obs) then 
+                 if( (ref_obs) .or. (trim(obstype)=='gps_ref' .and. ref_obs_new)) then ! eyang
                     if(ibit(i)== 6) then
                        lone = .true.
                        exit
@@ -338,7 +355,8 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 ! when ref_obs on to get lat/lon information
 
         call ufbseq(lnbufr,data2a,50,maxlevs,levsr,'ROSEQ3') ! refractivity
-        if ((ref_obs).and.(levs/=levsr)) then
+        !if ((ref_obs).and.(levs/=levsr)) then
+        if ( ( (ref_obs) .or. (trim(obstype)=='gps_ref' .and. ref_obs_new) ).and.(levs/=levsr)) then ! eyang
            write(6,*) 'READ_GPS:  **WARNING** said,ptid=',said,ptid,&
                 ' with gps_bnd levs=',levs,&
                 ' and gps_ref levsr=',levsr,&
@@ -359,6 +377,7 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 
 ! Loop over levs in profile
         do k=1, levs
+
            nread=nread+1  ! count observations
            rlat=data1b(1,k)  ! earth relative latitude (degrees)
            rlon=data1b(2,k)  ! earth relative longitude (degrees)
@@ -387,13 +406,24 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
            if((abs(rlat)>90._r_kind).or.(abs(rlon)>r360).or.(height<=zero)) then
               good=.false.
            endif
-           if (ref_obs) then
-              if ((ref>=1.e+9_r_kind).or.(ref<=zero).or.(height>=1.e+9_r_kind)) then
+
+           !if (ref_obs) then
+           if( (ref_obs) .or. (trim(obstype)=='gps_ref' .and. ref_obs_new)) then ! eyang
+              !if ((ref>=1.e+9_r_kind).or.(ref<=zero).or.(height>=1.e+9_r_kind)) then
+              if ((ref>=1.e+9_r_kind).or.(ref<=zero).or.(height>=6.e+3_r_kind)) then ! to consider refractivity only below 6 km (eyang)
                  good=.false.
+                 if (ref>=1.e+9_r_kind) then
+                    print*, 'yeg read_gps L405:REF TooLargeREF, ref=',ref
+                 elseif (ref<=zero) then
+                    print*, 'yeg read_gps L407:REF REF<0, ref=',ref
+                 elseif (height>=6.e+3_r_kind) then
+                    print*, 'yeg read_gps L409:REF REF,height>6000m, height=',height
+                 end if
               endif
            else
               if ((bend>=1.e+9_r_kind).or.(bend<=zero).or.(impact>=1.e+9_r_kind).or.(impact<roc)) then
                  good=.false.
+                 print*, 'yeg read_gps L414: BEND impact height=',impact
               endif
            endif
 
@@ -402,8 +432,21 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
 
 ! Assign preliminary errors
 
-              if(ref_obs) then
-                 ref_error = ref*0.01_r_kind
+              !if(ref_obs) then
+              if( (ref_obs) .or. (trim(obstype)=='gps_ref' .and. ref_obs_new)) then ! eyang
+                 !ref_error = ref*0.01_r_kind
+                 !ref_error = ref*0.01_r_kind ! eyang
+                 !ref_error = ref*0.0001_r_kind ! eyang
+                 ! Obs error model (eyang)
+                 ! cerr1,2,3=0.015,0.03,0.01 ! N/m
+                 ! chgt1,2,3=0.0  ,1500,6000 ! meter
+                 if (height < chgt2) then ! if hgt<1500m
+                    ref_error = cerr1 + (cerr2-cerr1)/(chgt2-chgt1) * (height-chgt1)
+                 else ! if hgt >=1500
+                    ref_error = cerr2 + (cerr3-cerr2)/(chgt3-chgt2) * (height-chgt2)
+                 end if
+                 print*, 'read_gps L448: hgt, ref_err*1000=',height,ref_error*1000
+
               else                      ! bending angle
                  if((impact-roc) <= r10000) then
                     bend_error=(-bend*0.09_r_kind/r10000)*(impact-roc)+bend*1.e-1_r_kind
@@ -430,15 +473,28 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
                  call grdcrd1(dlon,rlons,nlon,1)
               endif
 
+              ! land surface type based on surrounding land sfc types (eyang)
+              if( (ref_obs) .or. (trim(obstype)=='gps_ref' .and. ref_obs_new)) then ! eyang
+                 call deter_sfc2(dlat_earth,dlon_earth,t4dv,idomsfc,tsavg,ff10,sfcr,zz)
+                 print*, 'yeg read_gps L460: ref idomsfc=',idomsfc
+                 !0: water, 1: land, 2: ice, >=3, mixed (any surrounding grid has different sfc type)
+
+              end if
+
               ndata  = min(ndata +1,maxobs)
               nodata = min(nodata+1,maxobs)
- 
        
-              if (ref_obs) then
+              !if (ref_obs) then
+              if( (ref_obs) .or. (trim(obstype)=='gps_ref' .and. ref_obs_new)) then ! eyang
+
                  cdata_all(1,ndata) = ref_error      ! gps ref obs error (units of N)
                  cdata_all(4,ndata) = height         ! geometric height above geoid (m)
+                 print*, 'yeg read_gps L447 REF hgt=',height
                  cdata_all(5,ndata) = ref            ! refractivity obs (units of N)
 !                cdata_all(9,ndata) = ref_pccf       ! per cent confidence (%)
+                 cdata_all(23,ndata)= idomsfc        ! land surface type based on surrounding land sfc types (eyang)
+                 !0: water, 1: land, 2: ice, >=3, mixed (any surrounding grid has different sfc type)
+
               else
                  cdata_all(1,ndata) = bend_error     ! gps bending error (radians)
                  cdata_all(4,ndata) = impact         ! impact parameter (m)
@@ -492,6 +548,7 @@ subroutine read_gps(nread,ndata,nodata,infile,lunout,obstype,twind, &
           write(6,1020)'READ_GPS:  LEO_id,nprof_gps = ',gpsro_itype(i),nmrecs_id(i)
   end do
   write(6,1020)'READ_GPS:  ref_obs,nprof_gps= ',ref_obs,nprof_gps
+  write(6,*)'READ_GPS:  ref_obs_new,obstype,nprof_gps= ',ref_obs_new,obstype,nprof_gps ! eyang
 1020 format(a31,L,i6)
 
 ! Deallocate arrays

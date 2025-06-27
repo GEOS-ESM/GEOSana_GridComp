@@ -147,6 +147,10 @@ module obsmod
 !   2019-06-25  Hu       - add diag_radardbz for controling radar reflectivity
 !                               diag file
 !   2020-06-25 Todling   - add lgpsbnd_revint to use revised bending angle integration
+!   2022-08-10 Zhu       - add pbl*
+!   2025-02-19 eyang     - add gpsref (iout_gpsref,mype_gpsref)
+!   2025-02-20 eyang     - add ref_obs_new for refractivity gradient DA 
+!                          to assimilate both bending angle and refractivity gradient
 ! 
 ! Subroutines Included:
 !   sub init_obsmod_dflts   - initialize obs related variables to default values
@@ -417,7 +421,7 @@ module obsmod
   public :: lsaveobsens
   public ::                  iout_cldch, mype_cldch
   public ::          nprof_gps,time_offset,ianldate
-  public :: iout_oz,dsis,ref_obs,obsfile_all,lobserver,perturb_obs,ditype,dsfcalc,dplat
+  public :: iout_oz,dsis,ref_obs,ref_obs_new,obsfile_all,lobserver,perturb_obs,ditype,dsfcalc,dplat
   public :: iout_tgas
   public :: time_window,dval,dtype,dfile,dirname,obs_setup,oberror_tune,offtime_data
   public :: lobsdiagsave,lobsdiag_forenkf,blacklst,hilbert_curve,lobskeep,time_window_max,sfcmodel,ext_sonde
@@ -426,11 +430,11 @@ module obsmod
   public :: lobsdiag_allocated
   public :: nloz_v8,nloz_v6,nloz_omi,nobskeep
   public :: nlmopitt,nlacos,nlflask
-  public :: grids_dim,rmiss_single,nchan_total,mype_sst,mype_gps
+  public :: grids_dim,rmiss_single,nchan_total,mype_sst,mype_gps,mype_gpsref
   public :: mype_uv,mype_dw,mype_rw,mype_q,mype_tcp,mype_lag,mype_ps,mype_t
   public :: mype_pw,iout_rw,iout_dw,iout_sst,iout_pw,iout_t,iout_q,iout_tcp
-  public :: iout_lag,iout_uv,iout_gps,iout_ps,iout_light,mype_light
-  public :: mype_gust,mype_vis,mype_pblh,iout_gust,iout_vis,iout_pblh
+  public :: iout_lag,iout_uv,iout_gps,iout_gpsref,iout_ps,iout_light,mype_light
+  public :: mype_gust,mype_vis,mype_pblri,mype_pblrf,mype_pblkh,iout_gust,iout_vis,iout_pblri,iout_pblrf,iout_pblkh
   public :: mype_tcamt,mype_lcbas,iout_tcamt,iout_lcbas
   public :: mype_wspd10m,mype_td2m,iout_wspd10m,iout_td2m
   public :: mype_uwnd10m,mype_vwnd10m,iout_uwnd10m,iout_vwnd10m
@@ -512,15 +516,15 @@ module obsmod
   integer(i_kind) nlmopitt,nlacos,nlflask,use_limit 
   integer(i_kind) iout_rad,iout_pcp,iout_t,iout_q,iout_uv, &
                   iout_oz,iout_ps,iout_pw,iout_rw, iout_dbz
-  integer(i_kind) iout_dw,iout_gps,iout_sst,iout_tcp,iout_lag
-  integer(i_kind) iout_gust,iout_vis,iout_pblh,iout_tcamt,iout_lcbas
+  integer(i_kind) iout_dw,iout_gps,iout_gpsref,iout_sst,iout_tcp,iout_lag
+  integer(i_kind) iout_gust,iout_vis,iout_pblri,iout_pblrf,iout_pblkh,iout_tcamt,iout_lcbas
   integer(i_kind) iout_tgas
   integer(i_kind) iout_cldch
   integer(i_kind) iout_wspd10m,iout_td2m,iout_mxtm,iout_mitm,iout_pmsl,iout_howv
   integer(i_kind) iout_uwnd10m,iout_vwnd10m
   integer(i_kind) mype_t,mype_q,mype_uv,mype_ps,mype_pw, &
-                  mype_rw,mype_dw,mype_gps,mype_sst, &
-                  mype_tcp,mype_lag,mype_co,mype_gust,mype_vis,mype_pblh, &
+                  mype_rw,mype_dw,mype_gps,mype_gpsref,mype_sst, &
+                  mype_tcp,mype_lag,mype_co,mype_gust,mype_vis,mype_pblri,mype_pblrf,mype_pblkh, &
                   mype_wspd10m,mype_td2m,mype_mxtm,mype_mitm,mype_pmsl,mype_howv,&
                   mype_uwnd10m,mype_vwnd10m, mype_tcamt,mype_lcbas, mype_dbz
   integer(i_kind) mype_cldch
@@ -566,7 +570,7 @@ module obsmod
 
   logical, save :: obs_instr_initialized_=.false.
 
-  logical oberrflg,bflag,oberror_tune,perturb_obs,ref_obs,sfcmodel,dtbduv_on,dval_use
+  logical oberrflg,bflag,oberror_tune,perturb_obs,ref_obs,ref_obs_new,sfcmodel,dtbduv_on,dval_use
   logical blacklst,lobsdiagsave,lobsdiag_allocated,lobskeep,lsaveobsens
   logical lobserver,l_do_adjoint, lobsdiag_forenkf
   logical,dimension(0:50):: write_diag
@@ -712,32 +716,35 @@ contains
     iout_pcp=208   ! precipitation rate
     iout_rw=209    ! radar radial wind
     iout_dw=210    ! doppler lidar wind
-    iout_gps=212   ! gps refractivity or bending angle
-    iout_sst=213   ! conventional sst
-    iout_tcp=214   ! synthetic tc-mslp
-    iout_lag=215   ! lagrangian tracers
-    iout_tgas=216  ! tgas tracers
-    iout_aero=217  ! aerosol product (aod)
-    iout_gust=218  ! wind gust
-    iout_vis=219   ! visibility
-    iout_pblh=221  ! pbl height
-    iout_pm2_5=222 ! pm2_5
-    iout_wspd10m=223  ! 10-m wind speed
-    iout_td2m=224  ! 2-m dew point
-    iout_mxtm=225  ! daily maximum temperature
-    iout_mitm=226  ! daily minimum temperature
-    iout_pmsl=227  ! pressure at mean sea level
-    iout_howv=228  ! significant wave height
-    iout_tcamt=229 ! total cloud amount
-    iout_lcbas=230 ! base height of lowest cloud
-    iout_pm10=231  ! pm10
-    iout_cldch=232 ! cloud ceiling height
-    iout_uwnd10m=233  ! 10-m uwnd
-    iout_vwnd10m=234  ! 10-m vwnd
-    iout_swcp=235  ! solid-water content path
-    iout_lwcp=236  ! liquid-water content path
-    iout_light=237 ! lightning
-    iout_dbz=238 ! radar reflectivity
+    iout_gps=212   ! gps bending angle
+    iout_gpsref=213! gps refractivity
+    iout_sst=214   ! conventional sst
+    iout_tcp=215   ! synthetic tc-mslp
+    iout_lag=216   ! lagrangian tracers
+    iout_tgas=217  ! tgas tracers
+    iout_aero=218  ! aerosol product (aod)
+    iout_gust=219  ! wind gust
+    iout_vis=221   ! visibility
+    iout_pblri=222  ! pbl height
+    iout_pblrf=223  ! pbl height
+    iout_pblkh=224  ! pbl height
+    iout_pm2_5=225 ! pm2_5
+    iout_wspd10m=226  ! 10-m wind speed
+    iout_td2m=227  ! 2-m dew point
+    iout_mxtm=228  ! daily maximum temperature
+    iout_mitm=229  ! daily minimum temperature
+    iout_pmsl=230  ! pressure at mean sea level
+    iout_howv=231  ! significant wave height
+    iout_tcamt=232 ! total cloud amount
+    iout_lcbas=233 ! base height of lowest cloud
+    iout_pm10=234  ! pm10
+    iout_cldch=235 ! cloud ceiling height
+    iout_uwnd10m=236  ! 10-m uwnd
+    iout_vwnd10m=237  ! 10-m vwnd
+    iout_swcp=238  ! solid-water content path
+    iout_lwcp=239  ! liquid-water content path
+    iout_light=240 ! lightning
+    iout_dbz=241 ! radar reflectivity
 
     mype_ps = npe-1          ! surface pressure
     mype_t  = max(0,npe-2)   ! temperature
@@ -748,31 +755,34 @@ contains
     mype_dw = max(0,npe-7)   ! doppler lidar winds
     !  mype_co is no longer used, but kept here as a space holder for counting.
     mype_co = max(0,npe-8)   ! carbon monoxide
-    mype_gps= max(0,npe-9)   ! gps refractivity or bending angle
-    mype_sst= max(0,npe-10)  ! conventional sst
-    mype_tcp= max(0,npe-11)  ! synthetic tc-mslp
-    mype_lag= max(0,npe-12)  ! lagrangian tracers
-    mype_aero= max(0,npe-13) ! aerosol product (aod)
-    mype_gust= max(0,npe-14) ! wind gust
-    mype_vis = max(0,npe-15) ! visibility
-    mype_pblh= max(0,npe-16) ! pbl height
-    mype_pm2_5= max(0,npe-17)! pm2_5
-    mype_wspd10m= max(0,npe-18)! wspd10m
-    mype_td2m= max(0,npe-19) ! 2m dew point
-    mype_mxtm= max(0,npe-20) ! daily maximum temperature
-    mype_mitm= max(0,npe-21) ! daily minimum temperature
-    mype_pmsl= max(0,npe-22) ! pressure at mean sea level
-    mype_howv= max(0,npe-23) ! significant wave height
-    mype_tcamt=max(0,npe-24) ! total cloud amount
-    mype_lcbas=max(0,npe-25) ! base height of lowest cloud
-    mype_pm10= max(0,npe-26) ! pm10
-    mype_cldch=max(0,npe-27) ! cloud ceiling height
-    mype_uwnd10m= max(0,npe-28)! uwnd10m
-    mype_vwnd10m= max(0,npe-29)! vwnd10m
-    mype_swcp=max(0,npe-30)  ! solid-water content path
-    mype_lwcp=max(0,npe-31)  ! liquid-water content path
-    mype_light=max(0,npe-32)! GOES/GLM lightning
-    mype_dbz=max(0,npe-33)   ! radar reflectivity
+    mype_gps= max(0,npe-9)   ! gps bending angle
+    mype_gpsref= max(0,npe-10)! gps refractivity
+    mype_sst= max(0,npe-11)  ! conventional sst
+    mype_tcp= max(0,npe-12)  ! synthetic tc-mslp
+    mype_lag= max(0,npe-13)  ! lagrangian tracers
+    mype_aero= max(0,npe-14) ! aerosol product (aod)
+    mype_gust= max(0,npe-15) ! wind gust
+    mype_vis = max(0,npe-16) ! visibility
+    mype_pblri= max(0,npe-17) ! pbl height
+    mype_pblrf= max(0,npe-18) ! pbl height
+    mype_pblkh= max(0,npe-19) ! pbl height
+    mype_pm2_5= max(0,npe-20)! pm2_5
+    mype_wspd10m= max(0,npe-21)! wspd10m
+    mype_td2m= max(0,npe-22) ! 2m dew point
+    mype_mxtm= max(0,npe-23) ! daily maximum temperature
+    mype_mitm= max(0,npe-24) ! daily minimum temperature
+    mype_pmsl= max(0,npe-25) ! pressure at mean sea level
+    mype_howv= max(0,npe-26) ! significant wave height
+    mype_tcamt=max(0,npe-27) ! total cloud amount
+    mype_lcbas=max(0,npe-28) ! base height of lowest cloud
+    mype_pm10= max(0,npe-29) ! pm10
+    mype_cldch=max(0,npe-30) ! cloud ceiling height
+    mype_uwnd10m= max(0,npe-31)! uwnd10m
+    mype_vwnd10m= max(0,npe-32)! vwnd10m
+    mype_swcp=max(0,npe-33)  ! solid-water content path
+    mype_lwcp=max(0,npe-34)  ! liquid-water content path
+    mype_light=max(0,npe-35)! GOES/GLM lightning
+    mype_dbz=max(0,npe-36)   ! radar reflectivity
 
 
 !   Initialize arrays used in namelist obs_input 

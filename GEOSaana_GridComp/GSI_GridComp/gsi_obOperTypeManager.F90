@@ -12,6 +12,7 @@ module gsi_obOperTypeManager
 !   2018-07-12  j guo   - a type-manager for all obOper extensions.
 !                       - an enum mapping of obsinput::dtype(:) to obOper type
 !                         extensions.
+!   2021-10-10  zhu     - add pbl*
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -41,7 +42,9 @@ module gsi_obOperTypeManager
   use gsi_mxtmOper    , only: mxtmOper
   use gsi_o3lOper     , only: o3lOper
   use gsi_ozOper      , only: ozOper
-  use gsi_pblhOper    , only: pblhOper
+  use gsi_pblriOper   , only: pblriOper
+  use gsi_pblrfOper   , only: pblrfOper
+  use gsi_pblkhOper   , only: pblkhOper
   use gsi_pcpOper     , only: pcpOper
   use gsi_pm10Oper    , only: pm10Oper
   use gsi_pm2_5Oper   , only: pm2_5Oper
@@ -119,7 +122,9 @@ module gsi_obOperTypeManager
   public:: iobOper_pm2_5
   public:: iobOper_gust
   public:: iobOper_vis
-  public:: iobOper_pblh
+  public:: iobOper_pblri
+  public:: iobOper_pblrf
+  public:: iobOper_pblkh
   public:: iobOper_wspd10m
   public:: iobOper_td2m
   public:: iobOper_mxtm
@@ -164,7 +169,9 @@ module gsi_obOperTypeManager
     enumerator:: iobOper_pm2_5
     enumerator:: iobOper_gust
     enumerator:: iobOper_vis
-    enumerator:: iobOper_pblh
+    enumerator:: iobOper_pblri
+    enumerator:: iobOper_pblrf
+    enumerator:: iobOper_pblkh
     enumerator:: iobOper_wspd10m
     enumerator:: iobOper_td2m
     enumerator:: iobOper_mxtm
@@ -225,7 +232,9 @@ module gsi_obOperTypeManager
   type(  pm2_5Oper), target, save::    pm2_5Oper_mold
   type(   gustOper), target, save::     gustOper_mold
   type(    visOper), target, save::      visOper_mold
-  type(   pblhOper), target, save::     pblhOper_mold
+  type(   pblriOper), target, save::     pblriOper_mold
+  type(   pblrfOper), target, save::     pblrfOper_mold
+  type(   pblkhOper), target, save::     pblkhOper_mold
   type(wspd10mOper), target, save::  wspd10mOper_mold
   type(   td2mOper), target, save::     td2mOper_mold
   type(   mxtmOper), target, save::     mxtmOper_mold
@@ -367,7 +376,9 @@ function dtype2index_(dtype) result(index_)
   case("pm2_5"  ,"[pm2_5oper]"  ); index_= iobOper_pm2_5
   case("gust"   ,"[gustoper]"   ); index_= iobOper_gust
   case("vis"    ,"[visoper]"    ); index_= iobOper_vis
-  case("pblh"   ,"[pblhoper]"   ); index_= iobOper_pblh
+  case("pblri"   ,"[pblrioper]" ); index_= iobOper_pblri
+  case("pblrf"   ,"[pblrfoper]" ); index_= iobOper_pblrf
+  case("pblkh"   ,"[pblkhoper]" ); index_= iobOper_pblkh
 
   case("wspd10m","[wspd10moper]"); index_= iobOper_wspd10m
   case("uwnd10m","[uwnd10moper]"); index_= iobOper_uwnd10m
@@ -471,7 +482,9 @@ function index2vmold_(iobOper) result(vmold_)
   case(iobOper_pm2_5    ); vmold_ =>   pm2_5Oper_mold
   case(iobOper_gust     ); vmold_ =>    gustOper_mold
   case(iobOper_vis      ); vmold_ =>     visOper_mold
-  case(iobOper_pblh     ); vmold_ =>    pblhOper_mold
+  case(iobOper_pblri    ); vmold_ =>    pblriOper_mold
+  case(iobOper_pblrf    ); vmold_ =>    pblrfOper_mold
+  case(iobOper_pblkh    ); vmold_ =>    pblkhOper_mold
   case(iobOper_wspd10m  ); vmold_ => wspd10mOper_mold
   case(iobOper_td2m     ); vmold_ =>    td2mOper_mold
   case(iobOper_mxtm     ); vmold_ =>    mxtmOper_mold
@@ -587,7 +600,9 @@ subroutine cobstype_config_()
     cobstype(iobOper_pm10       )  ="in-situ pm10 obs    " ! pm10_ob_type
     cobstype(iobOper_gust       )  ="gust                " ! gust_ob_type
     cobstype(iobOper_vis        )  ="vis                 " ! vis_ob_type
-    cobstype(iobOper_pblh       )  ="pblh                " ! pblh_ob_type
+    cobstype(iobOper_pblri      )  ="pblri               " ! pblri_ob_type
+    cobstype(iobOper_pblrf      )  ="pblrf               " ! pblrf_ob_type
+    cobstype(iobOper_pblkh      )  ="pblkh               " ! pblkh_ob_type
     cobstype(iobOper_wspd10m    )  ="wspd10m             " ! wspd10m_ob_type
     cobstype(iobOper_td2m       )  ="td2m                " ! td2m_ob_type
     cobstype(iobOper_mxtm       )  ="mxtm                " ! mxtm_ob_type

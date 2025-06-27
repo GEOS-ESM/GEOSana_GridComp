@@ -27,6 +27,7 @@ subroutine control2model(xhat,sval,bval)
 !   2013-10-25  todling  - nullify work pointers
 !   2013-10-28  todling  - rename p3d to prse
 !   2013-05-23   zhu     - add ntclen and predt for aircraft temperature bias correction
+!   2012-10-10   zhu     - add pbl*
 !
 !   input argument list:
 !     xhat - Control variable
@@ -93,6 +94,9 @@ character(len=max_varname_length),allocatable,dimension(:) :: cvars2dpm  ! names
                                                                          !  motley vars (if any)
 real(r_kind),pointer,dimension(:,:)   :: sv_ps=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: sv_sst=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_pblri=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_pblrf=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_pblkh=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: sv_u=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: sv_v=>NULL()
 real(r_kind),pointer,dimension(:,:,:) :: sv_prse=>NULL()
@@ -185,6 +189,9 @@ do jj=1,nsubwin
    call gsi_bundlegetpointer (sval(jj),'q'   ,sv_q ,  istatus)
    call gsi_bundlegetpointer (sval(jj),'oz'  ,sv_oz , istatus)
    call gsi_bundlegetpointer (sval(jj),'sst' ,sv_sst, istatus)
+   call gsi_bundlegetpointer (sval(jj),'pblri' ,sv_pblri, istatus)
+   call gsi_bundlegetpointer (sval(jj),'pblrf' ,sv_pblrf, istatus)
+   call gsi_bundlegetpointer (sval(jj),'pblkh' ,sv_pblkh, istatus)
 
 !  Copy variables from CV to SV
    call gsi_bundlegetvar ( wbundle, 'sf' , workst, istatus )
@@ -194,6 +201,9 @@ do jj=1,nsubwin
    call gsi_bundlegetvar ( wbundle, 'oz' , sv_oz,  istatus )
    call gsi_bundlegetvar ( wbundle, 'ps' , sv_ps,  istatus )
    call gsi_bundlegetvar ( wbundle, 'sst', sv_sst, istatus )
+   call gsi_bundlegetvar ( wbundle, 'pblri', sv_pblri, istatus )
+   call gsi_bundlegetvar ( wbundle, 'pblrf', sv_pblrf, istatus )
+   call gsi_bundlegetvar ( wbundle, 'pblkh', sv_pblkh, istatus )
 
 !  Same one-to-one map for chemistry-vars; take care of them together
    do ic=1,ngases

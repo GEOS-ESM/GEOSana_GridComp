@@ -73,6 +73,7 @@ subroutine prewgt(mype)
 !   2014-08-02  zhu     - set up new background error variance and correlation lengths of cw 
 !                         for all-sky radiance assimilation
 !   2020-07-14  todling- add adjustozhscl as optional
+!   2021-10-10  zhu     - add handling of pbl*
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -127,6 +128,7 @@ subroutine prewgt(mype)
   integer(i_kind) nf2p,istatus
   integer(i_kind),dimension(0:40):: iblend
   integer(i_kind) nrf3_sf,nrf3_q,nrf3_vp,nrf3_t,nrf3_oz,nrf2_ps,nrf2_sst,nrf3_cw
+  integer(i_kind) nrf2_pblri,nrf2_pblrf,nrf2_pblkh
   integer(i_kind),allocatable,dimension(:) :: nrf3_loc,nrf2_loc
 
   real(r_kind) wlipi,wlipih,df
@@ -205,6 +207,10 @@ subroutine prewgt(mype)
   nrf3_cw   = getindex(cvars3d,'cw')
   nrf2_ps   = getindex(cvars2d,'ps')
   nrf2_sst  = getindex(cvars2d,'sst')
+  nrf2_pblri = getindex(cvars2d,'pblri')
+  nrf2_pblrf = getindex(cvars2d,'pblrf')
+  nrf2_pblkh = getindex(cvars2d,'pblkh')
+!  print*, "yeg_prewgt, L213: nrf2_pblri, nrf2_pblrf, nrf2_pblkh=",nrf2_pblri, nrf2_pblrf, nrf2_pblkh (2,3,4)
 ! nrf2_stl  = getindex(cvarsmd,'stl')
 ! nrf2_sti  = getindex(cvarsmd,'sti')
 
@@ -326,6 +332,22 @@ subroutine prewgt(mype)
      end do
   endif
 
+! pbl height
+  if(nrf2_pblri>0) then
+     do i=1,nlat
+        hwllp(i,nrf2_pblri)=hwllinp(i,nrf2_pblri)
+     end do
+  endif
+  if(nrf2_pblrf>0) then
+     do i=1,nlat
+        hwllp(i,nrf2_pblrf)=hwllinp(i,nrf2_pblrf)
+     end do
+  endif
+  if(nrf2_pblkh>0) then
+     do i=1,nlat
+        hwllp(i,nrf2_pblkh)=hwllinp(i,nrf2_pblkh)
+     end do
+  endif
 
 ! sea surface temperature, convert from km to m
 ! also calculate a minimum horizontal length scale for
@@ -498,6 +520,12 @@ subroutine prewgt(mype)
               dssvs(j,i,n)=psvar(j,i)*as2d(n)             ! surface pressure
            end do
         end do
+     else if (n==nrf2_pblri .or. n==nrf2_pblrf .or. n==nrf2_pblkh) then
+        do j=1,lat2
+           do i=1,lon2
+              dssvs(j,i,n)=dssvs(j,i,n)*as2d(n)
+           end do
+        end do
      else if (n==nrf2_sst) then
         do j=1,lat2         
            do i=1,lon2
@@ -624,11 +652,13 @@ subroutine prewgt(mype)
            end if
         end do
 
+        ! ii=12-14: nrf_var(ii)=pblri, pblrf, pblkh
+        ! ii=15,16: nrf_var(ii)=stl, sti
         if (nn==-1) then
            do ii=1,nc2d
               if (nrf2_loc(ii)==n .or. n>nrf) then
-                 nn=ii
-                 if (n>nrf) nn=n-nc3d
+                 nn=ii ! ii=1,2,3,4,5?
+                 if (n>nrf) nn=n-nc3d ! n>14 --> n=15,16 -> nn: 15 or 16 - 9 = 6 or 7
                  if (nn==nrf2_sst) then
                     do j=1,nlon
                        do i=2,nlat-1

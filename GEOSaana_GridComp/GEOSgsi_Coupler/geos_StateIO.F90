@@ -455,12 +455,14 @@ end subroutine put_1State_
       character(len=*), parameter :: myname_ = myname//'*gsi2pgcm_'
 
       real(r_kind), allocatable, dimension(:,:,:) :: sub_tv,sub_u,sub_v,sub_q,sub_delp
+      real(r_kind), allocatable, dimension(:,:,:) :: sub_pblri3,sub_pblrf3,sub_pblkh3
       real(r_kind), allocatable, dimension(:,:,:) :: sub_oz,sub_cw
       real(r_kind), allocatable, dimension(:,:,:) :: sub_qi,sub_ql,sub_qr,sub_qs
-      real(r_kind), allocatable, dimension(:,:)   :: sub_ps
+      real(r_kind), allocatable, dimension(:,:)   :: sub_ps,sub_pblri,sub_pblrf,sub_pblkh
+      real(4), allocatable, dimension(:,:,:) :: wktmp
 
-      integer(i_kind)  i,j,k,kk,ijk,ij
-      integer(i_kind)  i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_dp
+      integer(i_kind)  i,j,k,kk,ijk,ij,iim,jjm,kkm
+      integer(i_kind)  i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_dp,i_pblri,i_pblrf,i_pblkh
       integer(i_kind)  i_qi,i_ql,i_qr,i_qs
       integer(i_kind)  ierr,istatus,rc,status
       character(len=255) :: whatin
@@ -603,6 +605,66 @@ end subroutine put_1State_
          sub_delp(:,:,k) = sub_ps ! just a trick to use gsi2pert_ w/o interface change
       enddo
 
+      call gsi_bundlegetpointer(xx,'pblri',  i_pblri , istatus)
+      if (i_pblri>0) then
+         allocate(sub_pblri(sg%lat2,sg%lon2), stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 91
+             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_pblri)'
+             return
+         end if
+         do j=1,sg%lon2
+            do i=1,sg%lat2
+               sub_pblri(i,j) = xx%r2(i_pblri)%q(i,j)
+            enddo
+         enddo
+         allocate(sub_pblri3(sg%lat2,sg%lon2,nsig), stat=ierr )
+         sub_pblri3=zero
+         do k=1,nsig
+            sub_pblri3(:,:,k) = sub_pblri ! just a trick to use gsi2pert_ w/o interface change
+         enddo
+      endif
+
+      call gsi_bundlegetpointer(xx,'pblrf',  i_pblrf , istatus)
+      if (i_pblrf>0) then
+         allocate(sub_pblrf(sg%lat2,sg%lon2), stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 91
+             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_pblrf)'
+             return
+         end if
+         do j=1,sg%lon2
+            do i=1,sg%lat2
+               sub_pblrf(i,j) = xx%r2(i_pblrf)%q(i,j)
+            enddo
+         enddo
+         allocate(sub_pblrf3(sg%lat2,sg%lon2,nsig), stat=ierr )
+         sub_pblrf3=zero
+         do k=1,nsig
+            sub_pblrf3(:,:,k) = sub_pblrf ! just a trick to use gsi2pert_ w/o interface change
+         enddo
+      endif
+
+      call gsi_bundlegetpointer(xx,'pblkh',  i_pblkh , istatus)
+      if (i_pblkh>0) then
+         allocate(sub_pblkh(sg%lat2,sg%lon2), stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 91
+             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_pblkh)'
+             return
+         end if
+         do j=1,sg%lon2
+            do i=1,sg%lat2
+               sub_pblkh(i,j) = xx%r2(i_pblkh)%q(i,j)
+            enddo
+         enddo
+         allocate(sub_pblkh3(sg%lat2,sg%lon2,nsig), stat=ierr )
+         sub_pblkh3=zero
+         do k=1,nsig
+            sub_pblkh3(:,:,k) = sub_pblkh ! just a trick to use gsi2pert_ w/o interface change
+         enddo
+      endif
+
 !     Gather from GSI subdomains/Scatter to GCM
 !     -----------------------------------------
       i_p = MAPL_SimpleBundleGetIndex ( xpert, 'ps'  , 2, rc=status )
@@ -640,6 +702,36 @@ end subroutine put_1State_
          i_qs= MAPL_SimpleBundleGetIndex ( xpert, 'qstot',3, rc=status )
          call gsi2pert_ ( sub_qs,   xpert%r3(i_qs)%qr4, ierr )
       endif
+      if (i_pblri>0) then
+         i_pblri= MAPL_SimpleBundleGetIndex ( xpert, 'pblri',2, rc=status )
+         iim=size(xpert%r3(i_q)%qr4,1)
+         jjm=size(xpert%r3(i_q)%qr4,2)
+         kkm=size(xpert%r3(i_q)%qr4,3)
+         allocate(wktmp(iim,jjm,kkm), stat=ierr )
+         wktmp = zero
+         call gsi2pert_ ( sub_pblri3,  wktmp, ierr )
+         xpert%r2(i_pblri)%qr4 = wktmp(:,:,1)
+      endif
+      if (i_pblrf>0) then
+         i_pblrf= MAPL_SimpleBundleGetIndex ( xpert, 'pblrf',2, rc=status )
+         iim=size(xpert%r3(i_q)%qr4,1)
+         jjm=size(xpert%r3(i_q)%qr4,2)
+         kkm=size(xpert%r3(i_q)%qr4,3)
+         allocate(wktmp(iim,jjm,kkm), stat=ierr )
+         wktmp = zero
+         call gsi2pert_ ( sub_pblrf3,  wktmp, ierr )
+         xpert%r2(i_pblrf)%qr4 = wktmp(:,:,1)
+      endif
+      if (i_pblkh>0) then
+         i_pblkh= MAPL_SimpleBundleGetIndex ( xpert, 'pblkh',2, rc=status )
+         iim=size(xpert%r3(i_q)%qr4,1)
+         jjm=size(xpert%r3(i_q)%qr4,2)
+         kkm=size(xpert%r3(i_q)%qr4,3)
+         allocate(wktmp(iim,jjm,kkm), stat=ierr )
+         wktmp = zero
+         call gsi2pert_ ( sub_pblkh3,  wktmp, ierr )
+         xpert%r2(i_pblkh)%qr4 = wktmp(:,:,1)
+      endif
 
 !     Build surface pressure perturbation - output purposes
 !     -----------------------------------------------------
@@ -662,6 +754,13 @@ end subroutine put_1State_
       if (allocated(sub_ql)) deallocate(sub_ql)
       if (allocated(sub_qr)) deallocate(sub_qr)
       if (allocated(sub_qs)) deallocate(sub_qs)
+      if (allocated(sub_pblri)) deallocate(sub_pblri)
+      if (allocated(sub_pblri3)) deallocate(sub_pblri3)
+      if (allocated(sub_pblrf)) deallocate(sub_pblrf)
+      if (allocated(sub_pblrf3)) deallocate(sub_pblrf3)
+      if (allocated(sub_pblkh)) deallocate(sub_pblkh)
+      if (allocated(sub_pblkh3)) deallocate(sub_pblkh3)
+      if (allocated(wktmp)) deallocate(wktmp)
 
       CONTAINS
 
@@ -1147,6 +1246,7 @@ end subroutine put_1State_
 !  20Feb2011  Todling   Adapt to work with MAPL-SimpleBundle
 !  30Nov2014  Todling   Add some variable exceptions (qi/ql/ph/ts)
 !  06May2020  Todling   Shuffled pointer check and alloc for increased flexibility
+!  06Sep2022  Zhu       Add pblxx
 !
 !EOP
 !-----------------------------------------------------------------------
@@ -1157,11 +1257,13 @@ end subroutine put_1State_
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_u,sub_v,sub_q,sub_tv
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_oz,sub_ci,sub_cl
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_cr,sub_cs
-      real(r_kind),  allocatable, dimension(:,:)   :: sub_ps,sub_ph,sub_ts
+      real(r_kind),  allocatable, dimension(:,:)   :: sub_ps,sub_ph,sub_ts,sub_pblri,sub_pblrf,sub_pblkh
+      real(r_kind),  allocatable, dimension(:,:)   :: sub_frocean,sub_frland
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_3d
 
       integer(i_kind) i,j,k,ij,ijk,id,ng_d,ng_s,ni,nj
-      integer(i_kind) i_u,i_v,i_t,i_q,i_oz,i_cw,i_ps,i_ts,i_tsen,i_ph
+      integer(i_kind) i_u,i_v,i_t,i_q,i_oz,i_cw,i_ps,i_ts,i_tsen,i_ph,i_pblri,i_pblrf,i_pblkh
+      integer(i_kind) i_frocean,i_frland
       integer(i_kind) i_ci,i_cl,i_cr,i_cs
       integer(i_kind) j_cr,j_cs
       integer(i_kind) ierr,istatus,status
@@ -1186,6 +1288,21 @@ end subroutine put_1State_
       i_ps = MAPL_SimpleBundleGetIndex ( xpert, 'ps'   , 2, rc=status )
       i_ts = MAPL_SimpleBundleGetIndex ( xpert, 'ts'   , 2, rc=status )
       i_ph = MAPL_SimpleBundleGetIndex ( xpert, 'phis' , 2, rc=status )
+      i_pblri= MAPL_SimpleBundleGetIndex (xpert, 'pblri' , 2, rc=status )
+      i_pblrf= MAPL_SimpleBundleGetIndex (xpert, 'pblrf' , 2, rc=status )
+      i_pblkh= MAPL_SimpleBundleGetIndex (xpert, 'pblkh' , 2, rc=status )
+
+      call gsi_bundlegetpointer(xx,'frocean',  i_frocean, ierr)
+      !print*, 'L1296: i_frocean,ierr=',i_frocean,ierr
+      if (ierr==0) then
+         i_frocean = MAPL_SimpleBundleGetIndex (xpert, 'frocean' , 2, rc=status )
+         i_frland = MAPL_SimpleBundleGetIndex (xpert, 'frland' , 2, rc=status )
+      else
+         ierr=0
+         i_frocean=-1
+         i_frland=-1
+      end if
+
       if (i_u>0.and.i_v>0) then
          allocate(sub_u(sg%lat2,sg%lon2,nsig), stat=ierr )
          call pert2gsi_ ( xpert%r3(i_u)%qr4 , sg, sub_u  , ierr )
@@ -1223,6 +1340,28 @@ end subroutine put_1State_
       if (i_ts>0) then
          allocate(sub_ts(sg%lat2,sg%lon2))
          call pert2gsi2d_ ( xpert%r2(i_ts)%qr4, sg, sub_ts, ierr )
+      endif
+      if (i_pblri>0) then
+         allocate(sub_pblri(sg%lat2,sg%lon2))
+         call pert2gsi2d_ ( xpert%r2(i_pblri)%qr4, sg, sub_pblri, ierr )
+      endif
+      if (i_pblrf>0) then
+         allocate(sub_pblrf(sg%lat2,sg%lon2))
+         call pert2gsi2d_ ( xpert%r2(i_pblrf)%qr4, sg, sub_pblrf, ierr )
+      endif
+      if (i_pblkh>0) then
+         allocate(sub_pblkh(sg%lat2,sg%lon2))
+         call pert2gsi2d_ ( xpert%r2(i_pblkh)%qr4, sg, sub_pblkh, ierr )
+      endif
+      if (i_frocean>0) then
+         allocate(sub_frocean(sg%lat2,sg%lon2))
+         call pert2gsi2d_ ( xpert%r2(i_frocean)%qr4, sg, sub_frocean, ierr )
+         !print*, 'i_frocean>0, pert2gsi2d_ -> i_frocean,ierr=',i_frocean, ierr
+      endif
+      if (i_frland>0) then
+         allocate(sub_frland(sg%lat2,sg%lon2))
+         call pert2gsi2d_ ( xpert%r2(i_frland)%qr4, sg, sub_frland, ierr )
+         !print*, 'i_frland>0, pert2gsi2d_ -> i_frland,ierr=',i_frland, ierr
       endif
       if ( ierr/=0 ) then
           stat = 99
@@ -1414,10 +1553,71 @@ end subroutine put_1State_
          deallocate(sub_ts)
       endif
 
+      if (allocated(sub_pblri)) then
+         call gsi_bundlegetpointer(xx,'pblri',  i_pblri, ierr)
+         if (i_pblri>0) then
+            do j=1,sg%lon2
+               do i=1,sg%lat2
+                  xx%r2(i_pblri)%q(i,j)= sub_pblri(i,j)
+               enddo
+            enddo
+         endif
+         deallocate(sub_pblri)
+      endif
+      if (allocated(sub_pblrf)) then
+         call gsi_bundlegetpointer(xx,'pblrf',  i_pblrf, ierr)
+         if (i_pblrf>0) then
+            do j=1,sg%lon2
+               do i=1,sg%lat2
+                  xx%r2(i_pblrf)%q(i,j)= sub_pblrf(i,j)
+               enddo
+            enddo
+         endif
+         deallocate(sub_pblrf)
+      endif
+      if (allocated(sub_pblkh)) then
+         call gsi_bundlegetpointer(xx,'pblkh',  i_pblkh, ierr)
+         if (i_pblkh>0) then
+            do j=1,sg%lon2
+               do i=1,sg%lat2
+                  xx%r2(i_pblkh)%q(i,j)= sub_pblkh(i,j)
+               enddo
+            enddo
+         endif
+         deallocate(sub_pblkh)
+      endif
+
+      if (allocated(sub_frocean)) then
+         call gsi_bundlegetpointer(xx,'frocean',  i_frocean, ierr)
+         if (i_frocean>0) then
+            do j=1,sg%lon2
+               do i=1,sg%lat2
+                  xx%r2(i_frocean)%q(i,j)= sub_frocean(i,j)
+               enddo
+            enddo
+         endif
+         !print*, 'sub_frocean, i_frocean,ierr=',i_frocean,ierr
+         deallocate(sub_frocean)
+      endif
+
+      if (allocated(sub_frland)) then
+         call gsi_bundlegetpointer(xx,'frland',  i_frland, ierr)
+         if (i_frland>0) then
+            do j=1,sg%lon2
+               do i=1,sg%lat2
+                  xx%r2(i_frland)%q(i,j)= sub_frland(i,j)
+               enddo
+            enddo
+         endif
+         !print*, 'sub_frland,i_frland, ierr=',i_frland,ierr
+         deallocate(sub_frland)
+      endif
+
 !     check on essential vars
       if ( ierr/=0 ) then
           stat = 99
           if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_)'
+          !PLEASE UNCOMMENT it later. This is just for removing ens pert of pblrf over land
           return
       end if
       if(allocated(sub_cl)) deallocate(sub_cl)

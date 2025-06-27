@@ -188,6 +188,7 @@ conv_t
 conv_ps
 conv_q
 conv_gps
+conv_gps_ref
 conv_tcp
 conv_pw
 conv_spd
@@ -195,6 +196,9 @@ conv_sst
 conv_aura_t
 conv_prof_t
 conv_prof_uv
+conv_pblri
+conv_pblrf
+conv_pblkh
 ::
 
 tgaslist::

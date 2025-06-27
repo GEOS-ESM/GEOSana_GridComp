@@ -48,6 +48,9 @@ module hybrid_ensemble_isotropic
 !   2015-04-07  carley  - bug fix to allow grd_loc%nlat=grd_loc%nlon
 !   2016-05-13  parrish - remove beta12mult
 !   2018-02-15  wu      - add code for fv3_regional option
+!   2023-09-20  eyang   - add code for modifying vertical localization length scale w.r.t. PBLH
+!   2023-11-08  eyang   - add inflating ensemble spread part to adjoint part (ensemble_forward_model_ad_dual_res)
+!   2023-11-15  eyang   - add code to modify hybrid vertical localization length scale near PBLH obs using array on global ens grid
 !
 ! subroutines included:
 !   sub init_rf_z                         - initialize localization recursive filter (z direction)
@@ -216,6 +219,8 @@ subroutine init_rf_z(z_len)
 !                             when vertical localization length scale is in units of ln(p)
 !   2017-03-23  Hu      - add code to use hybrid vertical coodinate in WRF MASS
 !                             core
+!   2023-11-15  eyang   - add code to modify hybrid vertical localization length scale near PBLH obs using array on global ens grid
+!   2023-11-29  eyang   - add option InfEnsprdPBLH to decide if inflating ens spread near pblh or not
 !
 !   input argument list:
 !     z_len    - filter length scale in grid units
@@ -237,21 +242,61 @@ subroutine init_rf_z(z_len)
   use hybrid_ensemble_parameters, only: grd_ens
   use hybrid_ensemble_parameters, only: ps_bar
 
+!--------------------------------------------------
+! For modifying hybrid vertical localization length scale near PBLH obs,
+! 1) Save pblh obs grid information (subdomain in guess grid)
+! 2) Modify hybrid vertical localization length scale near PBLH obs
+! In this code, we will do 2) in init_rf_z.
+  use kinds, only: r_kind,i_kind
+  use gridmod, only: periodic_s,nlon,nlat,jlon1,ilat1,istart,jstart
+  use guess_grids, only: hrdifsig,nfldsig
+  use gridmod, only: rlats,rlons,use_sp_eqspace
+  !use gridmod, only: regional,rlats,rlons,use_sp_eqspace
+  use gridmod, only: grd_a,lat1,lon1,lat2,lon2
+!  use guess_grids, only: ges_coef_inf,ges_geopi
+  use general_sub2grid_mod, only: general_suba2sube
+  use hybrid_ensemble_parameters, only: grd_a1, grd_e1
+! same as grd_anl/grd_ens, but with communication set up for a single 3d grid
+!  use gridmod, only: nsig
+  ! pblh obs grid information on global ensemble grid
+  use hybrid_ensemble_parameters, only: ges_vlocal_ens_grid_global1
+  use hybrid_ensemble_parameters, only: grd_anl,p_e2a
+  use hybrid_ensemble_parameters, only: vlocal_coef
+  use hybrid_ensemble_parameters, only: InfEnsprdPBLH
+  !use hybrid_ensemble_parameters, only: grd_ens, grd_anl,p_e2a
+  use gsi_bundlemod, only: gsi_grid
+  use gsi_bundlemod, only: gsi_bundle
+
+  use constants, only: pi ! for Gaussian dist.
+!--------------------------------------------------
+
   implicit none
 
   real(r_kind)   ,intent(in) :: z_len(grd_ens%nsig)
+  real(r_kind)               :: z_len_loc(grd_ens%nsig)
 
   integer(i_kind) k,nxy,i,ii,jj,j,l
+  integer(i_kind) il,jl
   real(r_kind) aspect(nsig),p_interface(nsig+1),ln_p_int(nsig+1)
   real(r_kind) dlnp,kap1,kapr,d1,rnsig
   real(r_kind),dimension(:,:,:),allocatable:: fmatz_tmp
   real(r_kind),dimension(:,:),allocatable:: fmat0z_tmp
+
+!--------------------------------------------------
+! Vertical localization
+!  type(gsi_grid)   :: grid_ens,grid_anl
+!  type(gsi_bundle) :: work_ens,work_anl
+!  real(r_kind),allocatable :: tmp_ens(:,:,:,:),tmp_anl(:,:,:,:)
+  real(r_kind) coef
+  integer(i_kind) mm1
+!--------------------------------------------------
 
   kap1=rd_over_cp+one
   kapr=one/rd_over_cp
   nxy=grd_ens%latlon11
   rnsig=float(nsig)
 
+  mm1 = mype+1
 !    use new factorization:
 
   if(.not.allocated(fmatz))  allocate(fmatz(nxy,2,nsig,2))
@@ -289,9 +334,18 @@ subroutine init_rf_z(z_len)
 !              profiles using GFS sigma-p coordinate [ add mods to be able
 !              to use fully generalized coordinate later** ]
 !
+
      i=0
      do jj=1,grd_ens%lon2
+     
+        jl=jj+grd_ens%jstart(mm1)-2 ! global domain index
+        jl=min0(max0(1,jl),grd_ens%nlon)
+        
         do ii=1,grd_ens%lat2
+        
+           il=ii+grd_ens%istart(mm1)-2 ! global domain index
+           il=min0(max0(1,il),grd_ens%nlat)
+           
            i=i+1
 
            if(regional)then
@@ -321,15 +375,64 @@ subroutine init_rf_z(z_len)
                  p_interface(k)=ak5(k)+(bk5(k)*ps_bar(ii,jj,1))
                  ln_p_int(k)=log(max(p_interface(k),0.0001_r_kind))
               enddo
-           endif
+
+              !======================================
+              ! Modify vertical localization length scale near PBLH
+              ! - how much reduce? x 0.5 or x 0.1
+              ! - how many levels for vertical localization? 3 levels or 5 lev
+              !1) 0.5_3lev, 2) 0.1_3lev, 3) 0.1_5lev
+              !======================================
+
+              if (InfEnsprdPBLH) then
+                 z_len_loc=z_len
+                 
+                 do k=1,nsig
+                    !if (ges_vlocal_ens_grid(ii,jj,k,1)>0) then !?? 0.1?? 0.5??
+                    !if (ges_vlocal_ens_grid(ii,jj,k,1)>0.01) then ! too small values everywhere (E-03)
+                    if (ges_vlocal_ens_grid_global1(il,jl,k)>0) then
+                       !print*, "init_rf_z, L395: sub ii,jj,k,mm1=",ii,jj,k,mm1
+                       !print*, "init_rf_z, L396: glo il,jl,mm1=",il,jl,mm1
+                       print*, "init_rf_z, L397: ges_vlocal_ens_grid_global1,mm1=",ges_vlocal_ens_grid_global1(il,jl,k),mm1
+                       print*, "init_rf_z, L398: z_len(k)=",z_len(k)
+                       !1) 0.5_3lev, 2) 0.1_3lev, 3) 0.1_5lev
+                       print*, "init_rf_z, CHECKKK L399: vlocal_coef=",vlocal_coef
+                       coef=vlocal_coef
+                       !coef=0.1_r_kind ! 0.5 ! reduce vertical localization length by multiplying coefficient (0.1)
+                       print*, "init_rf_z, L400: coef=",coef
+                       z_len_loc(k-2)=z_len(k-2)*coef !0.1 !*0.5
+                       z_len_loc(k-1)=z_len(k-1)*coef !0.1 ! 0.5
+                       z_len_loc(k)=z_len(k)*coef !0.1 ! 0.5
+                       z_len_loc(k+1)=z_len(k+1)*coef !0.1 ! 0.5
+                       z_len_loc(k+2)=z_len(k+2)*coef !0.1 ! 0.5
+                       print*, "init_rf_z, L403: z_len_loc(k),k,mm1=",z_len_loc(k),k,mm1
+                    end if
+                 end do
+              end if
+           !======================================
+           end if
 
            do k=1,nsig
               dlnp=abs(ln_p_int(k)-ln_p_int(k+1))
-              d1=abs(z_len(k))/dlnp
+              !======================================
+              ! Modify vertical localization length scale near PBLH
+              !======================================
+              !d1=abs(z_len(k))/dlnp
+              ! if ges_vlocal_ens_grid(1,1,1,1) < 0.0 then, it was just initialized as -1, so no pblh info
+              !if (ges_vlocal_ens_grid(1,1,1,1) >= 0.0) then ! when array is assigned after setuppblri
+              if (InfEnsprdPBLH) then
+                 d1=abs(z_len_loc(k))/dlnp
+              else
+                 d1=abs(z_len(k))/dlnp
+              end if
+              !======================================
+              !d1=abs(z_len(k))/dlnp
               d1=min(rnsig,d1)
               aspect(k)=d1**2
-!!            if(mype == 0) write(400,'(" k, vertical localization in grid units for ln(p) scaling =",i4,f10.2,f10.2,f10.2)') &
-!!                                         k,sqrt(aspect(k))
+              !if(mype == 0) write(400,'(" k, vertical localization in grid units for ln(p) scaling =",i4,f10.2,f10.2,f10.2)') &
+              if (InfEnsprdPBLH) then
+                 if(mype == 0) print*, "init_rf_z,L423: mype,k, vertical localization in grid units for ln(p) scaling =",mype,k,sqrt(aspect(k))
+                 if(mype == 216) print*, "YEG93997 init_rf_z,L424: mype,k, vertical localization in grid units for ln(p) scaling =",mype,k,sqrt(aspect(k))
+              end if
            enddo
    
            call get_new_alpha_beta(aspect,nsig,fmatz_tmp,fmat0z_tmp)
@@ -1099,6 +1202,16 @@ end subroutine normal_new_factorization_rf_y
 !$$$
     use hybrid_ensemble_parameters, only: n_ens,grd_ens,ntlevs_ens
     use hybrid_ensemble_parameters, only: nelen,en_perts,ps_bar
+    use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid
+    use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_t
+    use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_q
+    use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_t1
+    use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_q1
+    use hybrid_ensemble_parameters, only: ges_vlocal_ens_grid
+    use hybrid_ensemble_parameters, only: ges_vlocal_ens_grid_global
+    use hybrid_ensemble_parameters, only: ges_vlocal_ens_grid_global1
+    use guess_grids, only: nfldsig
+
 
     implicit none
 
@@ -1131,7 +1244,32 @@ end subroutine normal_new_factorization_rf_y
                                  grd_ens%latlon11,grd_ens%latlon1n,n_ens,ntlevs_ens
        write(6,*)' in create_ensemble, total bytes allocated=',4*nelen*n_ens*ntlevs_ens
     end if
+
+    ! 1) ensemble inflation coefficient
+    allocate(ges_coef_inf_ens_grid(grd_ens%lat2,grd_ens%lon2,grd_ens%nsig,ntlevs_ens) )
+    allocate(ges_coef_inf_ens_grid_global_t(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig,ntlevs_ens) )
+    allocate(ges_coef_inf_ens_grid_global_q(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig,ntlevs_ens) )
+    allocate(ges_coef_inf_ens_grid_global_t1(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig,ntlevs_ens) )
+    allocate(ges_coef_inf_ens_grid_global_q1(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig,ntlevs_ens) )
+
+    ! 2) vertical localization
+    allocate(ges_vlocal_ens_grid(grd_ens%lat2,grd_ens%lon2,grd_ens%nsig) )
+    allocate(ges_vlocal_ens_grid_global(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig) )
+    allocate(ges_vlocal_ens_grid_global1(grd_ens%nlat,grd_ens%nlon,grd_ens%nsig) )
+    !initialize ges_vlocal_ens_grid
+
+    ges_coef_inf_ens_grid=1.0_r_kind
+    ges_coef_inf_ens_grid_global_t=1.0_r_kind
+    ges_coef_inf_ens_grid_global_q=1.0_r_kind
+    ges_coef_inf_ens_grid_global_t1=1.0_r_kind
+    ges_coef_inf_ens_grid_global_q1=1.0_r_kind
+
+    ges_vlocal_ens_grid=0.0_r_kind
+    ges_vlocal_ens_grid_global=0.0_r_kind
+    ges_vlocal_ens_grid_global1=0.0_r_kind
+    !allocate(ges_coef_inf_ens_grid(grd_ens%lat2,grd_ens%lon2,ntlevs_ens,nfldsig) )
     return
+
 
   end subroutine create_ensemble
 
@@ -1695,6 +1833,14 @@ end subroutine normal_new_factorization_rf_y
 !$$$
     use hybrid_ensemble_parameters, only: l_hyb_ens,n_ens,ntlevs_ens
     use hybrid_ensemble_parameters, only: en_perts,ps_bar
+    use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid
+    use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_t
+    use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_q
+    use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_t1
+    use hybrid_ensemble_parameters, only: ges_coef_inf_ens_grid_global_q1
+    use hybrid_ensemble_parameters, only: ges_vlocal_ens_grid
+    use hybrid_ensemble_parameters, only: ges_vlocal_ens_grid_global
+    use hybrid_ensemble_parameters, only: ges_vlocal_ens_grid_global1
     implicit none
 
     integer(i_kind) istatus,n,m
@@ -1711,6 +1857,14 @@ end subroutine normal_new_factorization_rf_y
        enddo
        deallocate(ps_bar)
        deallocate(en_perts)
+       deallocate(ges_coef_inf_ens_grid)
+       deallocate(ges_coef_inf_ens_grid_global_t)
+       deallocate(ges_coef_inf_ens_grid_global_q)
+       deallocate(ges_coef_inf_ens_grid_global_t1)
+       deallocate(ges_coef_inf_ens_grid_global_q1)
+       deallocate(ges_vlocal_ens_grid)
+       deallocate(ges_vlocal_ens_grid_global)
+       deallocate(ges_vlocal_ens_grid_global1)
     end if
     return
 
@@ -1855,6 +2009,17 @@ end subroutine normal_new_factorization_rf_y
                 enddo
              enddo ! enddo n_ens
  
+          case DEFAULT  ! for PBLH etc
+
+             do n=1,n_ens
+                do j=1,jm
+                   do i=1,im
+                      cvec%r2(ipic)%q(i,j)=cvec%r2(ipic)%q(i,j) &
+                         +a_en(n)%r3(ipx)%q(i,j,1)*en_perts(n,ibin)%r2(ipic)%qr4(i,j)
+                   enddo
+                enddo
+             enddo ! enddo n_ens
+
        end select
 
     enddo
@@ -1908,6 +2073,12 @@ end subroutine normal_new_factorization_rf_y
     use general_sub2grid_mod, only: general_sube2suba
     use gridmod,only: regional
     use constants, only: zero
+!   inflate ens spread
+    use general_sub2grid_mod, only: general_suba2sube
+    use hybrid_ensemble_parameters, only: grd_a1, grd_e1 
+!   same as grd_anl/grd_ens, but with communication set up for a single 3d grid
+    use gridmod, only: nlon,nlat,rlats,rlons,nsig
+    use gridmod, only: grd_a,lat1,lon1,lat2,lon2
     implicit none
 
     type(gsi_bundle),intent(inout) :: cvec
@@ -1919,6 +2090,9 @@ end subroutine normal_new_factorization_rf_y
     type(gsi_bundle) :: work_ens,work_anl
     integer(i_kind) :: i,j,k,n,im,jm,km,ic2,ic3,ipic,ipx,km_tmp
     integer(i_kind) :: ipc2d(nc2d),ipc3d(nc3d),istatus
+
+!   inflate ens spread
+    real(r_kind),allocatable :: tmp_ens(:,:,:,:),tmp_anl(:,:,:,:)
 
 !   Request ensemble-corresponding fields from control vector
 !    NOTE:  because ensemble perturbation bundle structure is same as control vector, use same ipc3d and
@@ -1949,7 +2123,6 @@ end subroutine normal_new_factorization_rf_y
        call stop2(999)
     endif
 
-
     ipx=1
     im=work_ens%grid%im
     jm=work_ens%grid%jm
@@ -1963,6 +2136,7 @@ end subroutine normal_new_factorization_rf_y
                 work_ens%r3(ipic)%q(i,j,k)=zero
              enddo
           enddo
+
           do n=1,n_ens
              do j=1,jm
                 do i=1,im
@@ -1971,6 +2145,7 @@ end subroutine normal_new_factorization_rf_y
                 enddo
              enddo
           enddo
+
        enddo
     enddo
 !$omp parallel do schedule(dynamic,1) private(j,n,k,i,ic2,ipic)
@@ -2004,6 +2179,17 @@ end subroutine normal_new_factorization_rf_y
              enddo ! enddo n_ens
 
           case('SST')
+
+             do n=1,n_ens
+                do j=1,jm
+                   do i=1,im
+                      work_ens%r2(ipic)%q(i,j)=work_ens%r2(ipic)%q(i,j) &
+                         +a_en(n)%r3(ipx)%q(i,j,1)*en_perts(n,ibin)%r2(ipic)%qr4(i,j)
+                   enddo
+                enddo
+             enddo ! enddo n_ens
+
+          case DEFAULT ! for PBLH etc
 
              do n=1,n_ens
                 do j=1,jm
@@ -2158,6 +2344,15 @@ end subroutine normal_new_factorization_rf_y
                    enddo
                 enddo
  
+             case DEFAULT ! for PBLH etc
+
+                do j=1,jm
+                   do i=1,im
+                      a_en(n)%r3(ipx)%q(i,j,1)=a_en(n)%r3(ipx)%q(i,j,1) &
+                         +cvec%r2(ipic)%q(i,j)*en_perts(n,ibin)%r2(ipic)%qr4(i,j)
+                   enddo
+                enddo
+
           end select
        enddo
     enddo ! enddo n_ens
@@ -2273,7 +2468,9 @@ end subroutine normal_new_factorization_rf_y
 !$omp parallel do schedule(dynamic,1) private(j,n,ic3,k,i,ic2,ipic)
     do n=1,n_ens
        do ic3=1,nc3d
+          
           ipic=ipc3d(ic3)
+
           do k=1,km
              do j=1,jm
                 do i=1,im
@@ -2282,7 +2479,9 @@ end subroutine normal_new_factorization_rf_y
                 enddo
              enddo
           enddo
+
        enddo
+
        do ic2=1,nc2d
 
           ipic=ipc2d(ic2)
@@ -2307,6 +2506,17 @@ end subroutine normal_new_factorization_rf_y
 
              case('SST')
 
+                do j=1,jm
+                   do i=1,im
+                      a_en(n)%r3(ipx)%q(i,j,1)=a_en(n)%r3(ipx)%q(i,j,1) &
+                         +work_ens%r2(ipic)%q(i,j)*en_perts(n,ibin)%r2(ipic)%qr4(i,j)
+                   enddo
+                enddo
+
+             case DEFAULT
+
+                !print*, "YEGGGG_hybrid_ensemble_isotropic: L2350, trim(StrUpCase(cvars2d(ic2)))=",trim(StrUpCase(cvars2d(ic2)))
+                !PBLRI, PBLRF, PBLKH
                 do j=1,jm
                    do i=1,im
                       a_en(n)%r3(ipx)%q(i,j,1)=a_en(n)%r3(ipx)%q(i,j,1) &
@@ -2561,7 +2771,8 @@ subroutine sqrt_beta_s_mult_cvec(grady)
   use gsi_4dvar, only: nsubwin
   use hybrid_ensemble_parameters, only: oz_univ_static
   use hybrid_ensemble_parameters, only: sqrt_beta_s
-  use hybrid_ensemble_parameters, only: sst_staticB
+  !use hybrid_ensemble_parameters, only: sst_staticB,pblh_staticB
+  use hybrid_ensemble_parameters, only: sst_staticB,pblri_staticB,pblrf_staticB,pblkh_staticB
   use constants, only:  one
   use gsi_bundlemod, only: gsi_bundlegetpointer
   use control_vectors,only: control_vector
@@ -2616,6 +2827,18 @@ subroutine sqrt_beta_s_mult_cvec(grady)
                   if(j==1.and.mype==0) write(6,*) myname_, ': scale static SST B-error by ', sqrt_beta_s(1)
               endif
            endif
+           ! static B estimate for PBLH
+           if ( trim(StrUpCase(cvars2d(ic2)))=='PBLRI' .or. trim(StrUpCase(cvars2d(ic2)))=='PBLRF' & 
+              .or. trim(StrUpCase(cvars2d(ic2)))=='PBLKH') then
+              !if(pblh_staticB) then
+              if( (pblri_staticB .and. trim(StrUpCase(cvars2d(ic2)))=='PBLRI') .or. &
+                  (pblrf_staticB .and. trim(StrUpCase(cvars2d(ic2)))=='PBLRF') .or. &
+                  (pblkh_staticB .and. trim(StrUpCase(cvars2d(ic2)))=='PBLKH') ) then
+                 cycle
+              else
+                  if(j==1.and.mype==0) write(6,*) myname_, ': scale static PBLH B-error by ', sqrt_beta_s(1)
+              endif
+           endif
            do i=1,lat2
               grady%step(ii)%r2(ipc2d(ic2))%q(i,j) = sqrt_beta_s(1)*grady%step(ii)%r2(ipc2d(ic2))%q(i,j)
            enddo
@@ -2644,6 +2867,8 @@ subroutine sqrt_beta_s_mult_bundle(grady)
 !   2011-06-13  wu       used height dependent beta for regional
 !   2012-05-12  el akkraoui  hybrid beta parameters now vertically varying
 !   2015-09-18  todling - add sst_staticB to control use of ensemble SST error covariance 
+!   2022-08-10  zhu      add pblh_staticB
+!   2024-01-21  eyang    split pblh_staticB to pblri_staticB, pblrf_staticB, and pblkh_staticB
 !
 !   input argument list:
 !     grady    - input field  grady_x1
@@ -2659,7 +2884,8 @@ subroutine sqrt_beta_s_mult_bundle(grady)
   use kinds, only: r_kind,i_kind
   use hybrid_ensemble_parameters, only: oz_univ_static
   use hybrid_ensemble_parameters, only: sqrt_beta_s
-  use hybrid_ensemble_parameters, only: sst_staticB
+  !use hybrid_ensemble_parameters, only: sst_staticB,pblh_staticB
+  use hybrid_ensemble_parameters, only: sst_staticB,pblri_staticB,pblrf_staticB,pblkh_staticB
   use constants, only:  one
   use gsi_bundlemod, only: gsi_bundle
   use gsi_bundlemod, only: gsi_bundlegetpointer
@@ -2711,6 +2937,18 @@ subroutine sqrt_beta_s_mult_bundle(grady)
               cycle
            else
               if(mype==0) write(6,*) myname_, ': scale static SST B-error by ', sqrt_beta_s(1)
+           endif
+        endif
+        ! static B estimate for PBLH
+        if ( trim(StrUpCase(cvars2d(ic2)))=='PBLRI' .or. trim(StrUpCase(cvars2d(ic2)))=='PBLRF' &
+            .or. trim(StrUpCase(cvars2d(ic2)))=='PBLKH') then
+           !if(pblh_staticB) then
+           if( (pblri_staticB .and. trim(StrUpCase(cvars2d(ic2)))=='PBLRI') .or. &
+               (pblrf_staticB .and. trim(StrUpCase(cvars2d(ic2)))=='PBLRF') .or. &
+               (pblkh_staticB .and. trim(StrUpCase(cvars2d(ic2)))=='PBLKH') ) then
+              cycle
+           else
+              if(mype==0) write(6,*) myname_, ': scale static PBLH B-error by ', sqrt_beta_s(1)
            endif
         endif
         do i=1,lat2
@@ -3969,7 +4207,9 @@ subroutine hybens_grid_setup
   if(.not.regional) then
      call general_init_spec_vars(sp_ens,jcap_ens,jcap_ens_test,grd_ens%nlat,grd_ens%nlon,eqspace=use_sp_eqspace)
      call g_create_egrid2agrid(nlat,rlats,nlon,rlons,grd_ens%nlat,sp_ens%rlats,grd_ens%nlon,sp_ens%rlons, &
-                               nord_e2a,p_e2a,.true.,eqspace=use_sp_eqspace)
+                               nord_e2a,p_e2a,.false.,eqspace=use_sp_eqspace) ! for inflating ens spread, e2a_only should be .false.
+     !call g_create_egrid2agrid(nlat,rlats,nlon,rlons,grd_ens%nlat,sp_ens%rlats,grd_ens%nlon,sp_ens%rlons, &
+     !                          nord_e2a,p_e2a,.true.,eqspace=use_sp_eqspace)
   else
      if(dual_res) then
         call get_region_dx_dy_ens(region_dx_ens,region_dy_ens)

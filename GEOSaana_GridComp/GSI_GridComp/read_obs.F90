@@ -12,6 +12,11 @@ module read_obsmod
 !   2015-08-20  zhu  - add flexibility for enabling all-sky and using aerosol info in radiance 
 !                      assimilation. Use radiance_obstype_search from radiance_mod.  
 !   2017-05-12  Y. Wang and X. Wang - add dbz to be read in, POC: xuguang.wang@ou.edu
+!   2022-08-10  zhu  - add pbl* to read in
+!   2023-10-24  E. Yang -  changed subroutine to read in pblri and pblrf obs depending on obs type
+!   2024-03-01  zhu  - read in gnssro pblhlow and pblhhgh data, instead of one gnssro pblh.
+!                    - previously use pblrf for gnssro pblh; now use pblrf for pblhlow, use pblkh for pblhhgh 
+!   2025-02-18  E. Yang - read in gps_ref and gps_bnd separately 
 !
 ! subroutines included:
 !   sub gsi_inquire   -  inquire statement supporting fortran earlier than 2003
@@ -156,6 +161,7 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
   use convinfo, only: nconvtype,ictype,ioctype,icuse
   use chemmod, only : oneobtest_chem,oneob_type_chem,&
        code_pm25_ncbufr,code_pm25_anowbufr,code_pm10_ncbufr,code_pm10_anowbufr
+  use netcdf
 
   implicit none
 
@@ -166,9 +172,10 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
   integer(i_kind) ,intent(in)     :: minuse
   integer(i_kind) ,intent(inout)  :: nread
 
-  integer(i_kind) :: lnbufr,idate,idate2,iret,kidsat
+  integer(i_kind) :: lnbufr,idate,idate2,iret,kidsat,istat
   integer(i_kind) :: ireadsb,ireadmg,kx,nc,said
-  real(r_double) :: satid,rtype
+  integer(i_kind) :: ncid,varid
+  real(r_double) :: satid,rtype,stationid
   character(8) subset
   logical,parameter:: GMAO_READ=.false.
 
@@ -187,10 +194,16 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
 
   if(lexist .and. trim(dtype) /= 'tcp' )then
       lnbufr = 15
-      open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
-      call openbf(lnbufr,'IN',lnbufr)
-      call datelen(10)
-      call readmg(lnbufr,subset,idate,iret)
+      if (dtype=='pblri' .or. dtype=='pblrf' .or. dtype=='pblkh') then
+         iret =  NF90_OPEN(trim(filename),0,ncid)
+         iret = NF90_INQ_VARID(ncid,'Ana_Time',varid)
+         if (iret == nf90_noerr) iret = NF90_GET_VAR(ncid,varid,idate)
+      else
+         open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
+         call openbf(lnbufr,'IN',lnbufr)
+         call datelen(10)
+         call readmg(lnbufr,subset,idate,iret)
+      end if
       if(iret == 0)then
 
 !        Extract date and check for consistency with analysis date
@@ -323,10 +336,17 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
          kidsat = 0
        end if
 
-       call closbf(lnbufr)
-       open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
-       call openbf(lnbufr,'IN',lnbufr)
-       call datelen(10)
+       if (dtype=='pblri' .or. dtype=='pblrf' .or. dtype=='pblkh') then
+          iret = NF90_CLOSE(ncid)
+          iret =  NF90_OPEN(trim(filename),0,ncid)
+          iret = NF90_INQ_VARID(ncid,'Ana_Time',varid)
+          if (iret == nf90_noerr) iret = NF90_GET_VAR(ncid,varid,idate2)
+       else
+          close(lnbufr)
+          open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
+          call openbf(lnbufr,'IN',lnbufr)
+          call datelen(10)
+       end if
 
        if(kidsat /= 0)then
         lexist = .false.
@@ -355,7 +375,7 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
           end do 
           nread = nread + 1
          end do fileloop
-        else if(trim(filename) == 'wcpbufr')then
+       else if(trim(filename) == 'wcpbufr')then
          lexist = .false.
          file2loop: do while(ireadmg(lnbufr,subset,idate2) >= 0)
           do while(ireadsb(lnbufr)>=0)
@@ -370,6 +390,47 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
           end do
           nread = nread + 1
          end do file2loop
+       else if(trim(filename) == 'raob_pblh')then
+         lexist = .false.
+         kx=120
+         do nc=1,nconvtype
+           if(trim(ioctype(nc)) == trim(dtype) .and. kx == ictype(nc) .and. icuse(nc) > minuse)then
+             lexist = .true.
+             exit 
+           end if
+         end do
+         if (.not. lexist) nread = nread + 1
+       else if(trim(filename) == 'ro_pblh')then
+         lexist = .false.
+         kx=870
+         do nc=1,nconvtype
+           if(trim(ioctype(nc)) == trim(dtype) .and. kx == ictype(nc) .and. icuse(nc) > minuse)then
+             lexist = .true.
+             exit 
+           end if
+         end do
+         if (.not. lexist) nread = nread + 1
+       else if(trim(filename) == 'wp_pblh')then
+         lexist = .false.
+         kx=893
+         !kx=888
+         do nc=1,nconvtype
+           if(trim(ioctype(nc)) == trim(dtype) .and. kx == ictype(nc) .and. icuse(nc) > minuse)then
+             lexist = .true.
+             exit 
+           end if
+         end do
+         if (.not. lexist) nread = nread + 1
+       else if(trim(filename) == 'calipso_pblh')then
+         lexist = .false.
+         kx=890
+         do nc=1,nconvtype
+           if(trim(ioctype(nc)) == trim(dtype) .and. kx == ictype(nc) .and. icuse(nc) > minuse)then
+             lexist = .true.
+             exit 
+           end if
+         end do
+         if (.not. lexist) nread = nread + 1
        else if(trim(filename) == 'gps_ref' .or.  trim(filename) == 'gps_bnd')then
          lexist = .false.
          gpsloop: do while(ireadmg(lnbufr,subset,idate2) >= 0)
@@ -542,7 +603,11 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
        end if
       end if
 
-      call closbf(lnbufr)
+      if (dtype=='pblri' .or. dtype=='pblrf' .or. dtype=='pblkh') then
+         iret = NF90_CLOSE(ncid)
+      else
+         call closbf(lnbufr)
+      end if
   end if
   if(lexist)then
       write(6,*)'read_obs_check: bufr file date is ',idate,trim(filename),' ',dtype,jsatid
@@ -676,7 +741,8 @@ subroutine read_obs(ndata,mype)
 !   2019-01-15  Li      - add to handle mbuoyb
 !   2019-03-27  h. liu   - add abi
 !   2021-04-16  j.jin    - read tmi and amsre bufr (made at gmao) data.
-!   
+!   2025-02-20  E. Yang  - add ref_obs_new for refractivity gradient DA and and make ref_obs false all the time
+!                          so that bending angle and refractivity gradient can be assimilated together.
 !
 !   input argument list:
 !     mype     - mpi task id
@@ -696,7 +762,7 @@ subroutine read_obs(ndata,mype)
          displs_g,strip,reorder
     use general_commvars_mod, only: ltosi,ltosj
     use obsmod, only: iadate,ndat,time_window,dplat,dsfcalc,dfile,dthin, &
-           dtype,dval,dmesh,obsfile_all,ref_obs,nprof_gps,dsis,ditype,&
+           dtype,dval,dmesh,obsfile_all,ref_obs,ref_obs_new,nprof_gps,dsis,ditype,&
            perturb_obs,lobserver,lread_obs_save,obs_input_common, &
            reduce_diag,nobs_sub,dval_use
     use gsi_nstcouplermod, only: nst_gsi
@@ -737,6 +803,9 @@ subroutine read_obs(ndata,mype)
     use gsi_unformatted, only: unformatted_open
 
     use mrmsmod,only: l_mrms_sparse_netcdf
+    use read_pblri
+    use read_pblrf
+    use read_pblkh
 
     implicit none
 
@@ -837,6 +906,7 @@ subroutine read_obs(ndata,mype)
 !   type type of GPS data (if present)
     ii=0
     ref_obs = .false.    !.false. = assimilate GPS bending angle
+    ref_obs_new = .false.    !.true. = assimilate refractivity bending angle
     ears_possible = .false.
     db_possible = .false.
     nmls_type=0
@@ -871,7 +941,8 @@ subroutine read_obs(ndata,mype)
            obstype == 'rad_ref' .or. obstype=='lghtn' .or. &
            obstype == 'larccld' .or. obstype == 'pm2_5' .or. obstype == 'pm10' .or. &
            obstype == 'gust' .or. obstype=='vis' .or. &
-           obstype == 'pblh' .or. obstype=='wspd10m' .or. &
+           obstype == 'pblri' .or. obstype == 'pblrf' .or. & 
+           obstype == 'pblkh' .or. obstype=='wspd10m' .or. &
            obstype == 'td2m' .or. obstype=='mxtm' .or. &
            obstype == 'mitm' .or. obstype=='pmsl' .or. &
            obstype == 'howv' .or. obstype=='tcamt' .or. &
@@ -908,8 +979,12 @@ subroutine read_obs(ndata,mype)
           ditype(i) = 'tgas'
        else if (index(obstype,'pcp')/=0 )then
           ditype(i) = 'pcp'
-       else if (obstype == 'gps_ref' .or. obstype == 'gps_bnd') then
+       else if (obstype == 'gps_bnd') then
           ditype(i) = 'gps'
+       else if (obstype == 'gps_ref') then ! separately for refractivity gradient DA (eyang)
+          ditype(i) = 'gpsref'
+       !else if (obstype == 'gps_ref' .or. obstype == 'gps_bnd') then
+       !   ditype(i) = 'gps'
        else if ( index(obstype,'aod') /= 0 ) then
           ditype(i) = 'aero'
        else if (obstype == 'goes_glm') then
@@ -920,7 +995,11 @@ subroutine read_obs(ndata,mype)
 
 !   Set data class and number of reader tasks.  Set logical flag to indicate 
 !   type type of GPS data (if present)
-       if (index(dtype(i),'gps_ref') /= 0) ref_obs = .true.
+       !if (index(dtype(i),'gps_ref') /= 0) ref_obs = .true. ! commented out by eyang
+       if (index(dtype(i),'gps_ref') /= 0) ref_obs_new = .true. ! to assimilate refractivity gradient (eyang)
+                                                                ! also to be able to do with bending angle 
+                                                                ! ref_obs is used in original code (bending angle)
+                                                                ! so we need to separate.
 
 !   Check info files to see if data is read.
 
@@ -995,7 +1074,7 @@ subroutine read_obs(ndata,mype)
              else if(avhrr)then
                 parallel_read(i)= .true.
              else if(amsre)then
-!               parallel_read(i)= .true.  ! turn parallel read off 
+!               parallel_read(i)= .true.  ! turn parallel read off
              else if(obstype == 'goes_img' )then
                 parallel_read(i)= .true.
              else if(obstype == 'ahi' )then
@@ -1118,6 +1197,9 @@ subroutine read_obs(ndata,mype)
     npemax=0
     npetot=0
     do i=1,ndat
+       write(6,*) 'yeg_read_obs L1200: i,ndat=',i,ndat
+       write(6,*) 'yeg_read_obs L1201: i,dtype(i)=',i,dtype(i)
+       write(6,*) 'yeg_read_obs L1202: i,ntasks(i)=',i,ntasks(i)
        if (ntasks(i)>npe) then
           write(6,*)'read_obs:  ***WARNING*** i=',i,' dtype=',dtype(i),' dsis=',dsis(i),&
                ' requested ntasks=',ntasks(i),' > npe=',npe,' reset ntasks=',npe
@@ -1194,6 +1276,7 @@ subroutine read_obs(ndata,mype)
     mype_root=0
     next_mype=0
     do ii=1,mmdat
+       print*, 'yeg_read_obs L1279:ii,mmdat,mype=',ii,mmdat,mype
        i=npe_order(ii)
        if(npe_sub(i) > 0)then
           next_mype=mype_root_sub(i)
@@ -1254,6 +1337,12 @@ subroutine read_obs(ndata,mype)
            else if(obstype == 'dbz')then
              use_hgtl_full=.true.
              if(belong(i))use_hgtl_full_proc=.true.
+          end if
+          if(obstype == 'pblri' .or. obstype == 'pblrf' .or. obstype == 'pblkh')then
+             use_hgtl_full=.true.
+             if(belong(i))use_hgtl_full_proc=.true.
+!            use_prsl_full=.true.
+!            if(belong(i))use_prsl_full_proc=.true.
           end if
           if(obstype == 'sst')then
             if(belong(i))use_sfc=.true.
@@ -1588,11 +1677,72 @@ subroutine read_obs(ndata,mype)
                 endif
 
 !            Process pblh
-             else if (obstype == 'pblh') then
-                call read_pblh(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+             else if (obstype == 'pblri') then
+!               raobpblh should be read in here. for now read_pblh_wp_text is used here as an example
+!               call read_pblh(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+!                   nobs_sub1(1,i))
+!               call read_pblh(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+!                   prsl_full,nobs_sub1(1,i))
+!               if ( index(infile,'raob_pblh') /=0 ) then
+!                  call read_pblri_raobs(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+!                      hgtl_full,nobs_sub1(1,i))
+!               end if
+                !if ( index(infile,'wp_pblh') /=0 ) then
+                !   call read_pblri_wp_text(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                !       hgtl_full,nobs_sub1(1,i))
+                !end if
+                if ( index(infile,'calipso_pblh') /=0 ) then
+                   call read_pblri_calipso_cats_mplnet_raob_wp(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                       nobs_sub1(1,i))
+                   write(6,*) "YEG0: read_obs, read_pblri_calipso_cats_mplnet_raob_wp: [calipso] nread,nouse=",nread,nouse
+                end if
+                if ( index(infile,'cats_pblh') /=0 ) then
+                   call read_pblri_calipso_cats_mplnet_raob_wp(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                       nobs_sub1(1,i))
+                   write(6,*) "YEG0: read_obs, read_pblri_calipso_cats_mplnet_raob_wp: [cats] nread,nouse=",nread,nouse
+                end if
+                if ( index(infile,'mplnet_pblh') /=0 ) then
+                   call read_pblri_calipso_cats_mplnet_raob_wp(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                       nobs_sub1(1,i))
+                   write(6,*) "YEG0: read_obs, read_pblri_calipso_cats_mplnet_raob_wp: [mplnet] nread,nouse=",nread,nouse
+                end if
+                if ( index(infile,'raob_pblh') /=0 ) then
+                   call read_pblri_calipso_cats_mplnet_raob_wp(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                       nobs_sub1(1,i))
+                   write(6,*) "YEG0: read_obs, read_pblri_calipso_cats_mplnet_raob_wp: [raob] nread,nouse=",nread,nouse
+
+                end if
+                if ( index(infile,'wp_pblh') /=0 ) then
+                   call read_pblri_calipso_cats_mplnet_raob_wp(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                       nobs_sub1(1,i))
+                   write(6,*) "YEG0: read_obs, read_pblri_calipso_cats_mplnet_raob_wp: [wp] nread,nouse=",nread,nouse
+                end if
+
+                string='READ_PBLRI'
+
+             else if (obstype == 'pblrf') then
+                call read_pblrf_gnssro(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
                     nobs_sub1(1,i))
-                string='READ_PBLH'
+                string='READ_PBLRF'
+                write(6,*) "YEG_pblrf: read_obs, read_pblrf_gnssro: nread,nouse=",nread,nouse
+
+             else if (obstype == 'pblkh') then
+!               call read_pblh(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+!                   nobs_sub1(1,i))
+                write(6,*) "YEG_pblkh: read_obs,if obstype=pblkhssro, obstype=",obstype
+                if (dplat(i) == 'gnss') then
+                   call read_pblkh_gnssro(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                        nobs_sub1(1,i))
+                   write(6,*) "YEG_pblkh: read_obs, read_pblkh_gnssro: nread,nouse=",nread,nouse
+                else
+!                  model pblh definition for lidar should be used for calipso, CATS, ICSAT-2  
+                   call read_pblkh_calipso(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                        nobs_sub1(1,i))
+                end if
+                string='READ_PBLKH'
+
              end if conv_obstype_select
+
 !            Process swcp and lwcp
           else if (ditype(i) == 'wcp') then
              if ( obstype == 'swcp' .or. obstype == 'lwcp' ) then
@@ -1811,11 +1961,29 @@ subroutine read_obs(ndata,mype)
                   nobs_sub1(1,i))
              string='READ_PCP'
 
-!         Process gps observations
+!         Process gps observations (bending angle) (eyang)
           else if (ditype(i) == 'gps')then
              call read_gps(nread,npuse,nouse,infile,lunout,obstype,twind, &
                   nprof_gps1,sis,nobs_sub1(1,i))
              string='READ_GPS'
+             write(6,*) "yeg_readobs L1959: aft read_gps: bend: mype,nread,nouse,obstype=",mype,nread,nouse,obstype
+             write(6,*) "yeg_readobs L1960: aft read_gps: bend: mype,obstype=",mype,trim(obstype)
+             write(6,*) "yeg_readobs L1961: aft read_gps: bend: mype,ref_obs_new=",mype,ref_obs_new
+
+!         Process gps observations (refractivity) (eyang)
+          else if (ditype(i) == 'gpsref')then
+             call read_gps(nread,npuse,nouse,infile,lunout,obstype,twind, &
+                  nprof_gps1,sis,nobs_sub1(1,i))
+             string='READ_GPSREF'
+             write(6,*) "yeg_readobs L1965: aft read_gps: ref: mype,nread,nouse,obstype=",mype,nread,nouse,obstype
+             write(6,*) "yeg_readobs L1966: aft read_gps: ref: mype,obstype=",mype,trim(obstype)
+             write(6,*) "yeg_readobs L1967: aft read_gps: ref: mype,ref_obs_new=",mype,ref_obs_new
+
+!         Process gps observations
+!          else if (ditype(i) == 'gps')then
+!             call read_gps(nread,npuse,nouse,infile,lunout,obstype,twind, &
+!                  nprof_gps1,sis,nobs_sub1(1,i))
+!             string='READ_GPS'
 
 !         Process aerosol data
           else if (ditype(i) == 'aero' )then
@@ -1910,6 +2078,5 @@ subroutine read_obs(ndata,mype)
 !   End of routine
     return
 end subroutine read_obs
-
 
 end module read_obsmod
