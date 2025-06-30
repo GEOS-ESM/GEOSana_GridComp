@@ -480,7 +480,7 @@ if (in_curbin) then
 
 !       Exit if we're not assimilating this variable
         if (itg < 0 .or. ntgas < itg) then
-           if (mype == 0) write(0,*) myname // ': not analyzing  ', vname
+           if (mype == 0) write(0,*) myname // ': not analyzing ', vname
            call final_vars_
            return
         end if
