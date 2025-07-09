@@ -32,6 +32,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
 !                       . Remove my_node with corrected typecast().
 !   2020-02-26  todling - reset obsbin from hr to min
 !   2025-03-25  sienkiewicz - make sure ratio_errors is defined before use (prior to oberror_tune code)
+!   2025-07-08  sienkiewicz - modify obs error output for ncdiag (JEDI) to Pa, similar to handling in setupps
 !
 !   input argument list:
 !
@@ -72,7 +73,7 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
           ntguessig
   use gridmod, only: get_ij,nsig
   use constants, only: zero,half,one,tiny_r_kind,two,cg_term, &
-          wgtlim,g_over_rd,huge_r_kind,pi,huge_single,tiny_single,r10,r1000
+          wgtlim,g_over_rd,huge_r_kind,pi,huge_single,tiny_single,r10,r100,r1000
   use convinfo, only: nconvtype,cermin,cermax,cgross,cvar_b,cvar_pg,ictype,&
           icsubtype
   use jfunc, only: jiter,last,jiterstart,miter
@@ -685,12 +686,12 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
               call nc_diag_metadata("Analysis_Use_Flag",    sngl(-one)             )
            endif
 
-           call nc_diag_metadata("Errinv_Input",            sngl(errinv_input)     )
-           call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst)     )
-           call nc_diag_metadata("Errinv_Final",            sngl(errinv_final)     )
+           call nc_diag_metadata("Errinv_Input",            sngl(errinv_input/r100)     )
+           call nc_diag_metadata("Errinv_Adjust",           sngl(errinv_adjst/r100)     )
+           call nc_diag_metadata("Errinv_Final",            sngl(errinv_final/r100)     )
 !          the original Error_Input and Error_Adjust saved during the reading procedure
-           call nc_diag_metadata("Error_Input",             sngl(error_input*r10)  )  ! mb
-           call nc_diag_metadata("Error_Adjust",            sngl(error_adjst*r10)  )  ! mb
+           call nc_diag_metadata("Error_Input",             sngl(error_input*r1000)  )  ! Pa
+           call nc_diag_metadata("Error_Adjust",            sngl(error_adjst*r1000)  )  ! Pa
 
            call nc_diag_metadata("Observation",                   sngl(pob)        )
            call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(pob-pges)   )
