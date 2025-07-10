@@ -415,7 +415,7 @@ module obsmod
   public :: destroy_obsmod_vars
   public :: ran01dom,dval_use
   public :: iout_pcp,iout_rad,iadate,iadatemn,write_diag,reduce_diag,oberrflg,bflag,ndat,dthin,dmesh,l_do_adjoint
-  public :: thin_flg,superob_flg,smooth_flg,filter_window,pbqc4hd
+  public :: thin_flg,superob_flg,smooth_flg,filter_window,pbqc4hd,qcrequired
   public :: diag_radardbz
   public :: lsaveobsens
   public ::                  iout_cldch, mype_cldch
@@ -553,7 +553,7 @@ module obsmod
 
   integer(i_kind) ntilt_radarfiles
   logical ::  ta2tb
-  integer(i_kind) filter_window !hdraobmod.f90 binomial filter window
+  integer(i_kind) filter_window
   logical ::  doradaroneob
   logical :: vr_dealisingopt, if_vterminal, if_model_dbz, inflate_obserr, if_vrobs_raw
   character(4) :: whichradar,oneobradid
@@ -571,7 +571,7 @@ module obsmod
   logical         :: missing_to_nopcp
 
   logical, save :: obs_instr_initialized_=.false.
-  logical thin_flg,superob_flg,smooth_flg,pbqc4hd !hdraobmod.f90 flags
+  logical thin_flg,superob_flg,smooth_flg,pbqc4hd,qcrequired 
   logical oberrflg,bflag,oberror_tune,perturb_obs,ref_obs,sfcmodel,dtbduv_on,dval_use
   logical blacklst,lobsdiagsave,lobsdiag_allocated,lobskeep,lsaveobsens
   logical lobserver,l_do_adjoint, lobsdiag_forenkf
@@ -708,6 +708,7 @@ contains
     smooth_flg=.false. ! hdraob smoothing flag
     filter_window=11 ! hdraob smoothing filter window (profile levels)
     pbqc4hd=.true. !hdraob flag for doing QC using prepbufr QC marks 
+    qcrequired=.true. !set to true to set hd ascent raobs that cannot be QCed with prepbufr to unused
 ! moved to create_obsmod_var since l4dvar since before namelist is read
 !   if (l4dvar) then
 !      offtime_data = .true.   ! .true. = ignore difference in obs ref time

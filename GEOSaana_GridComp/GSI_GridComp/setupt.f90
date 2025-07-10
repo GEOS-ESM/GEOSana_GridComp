@@ -30,7 +30,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use m_obsdiagNode, only: obsdiagNode_assert
 
   use obsmod, only: sfcmodel,perturb_obs,oberror_tune,lobsdiag_forenkf,ianldate,&
-       lobsdiagsave,nobskeep,lobsdiag_allocated,time_offset
+       lobsdiagsave,nobskeep,lobsdiag_allocated,time_offset,qcrequired
   use obsmod, only: dplat
   use obsmod, only: wrtgeovals
   use obsmod, only: saberTbot,saberTtop
@@ -744,6 +744,11 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
          if (pbqct(pqc_lev+1,pbidx)>3) then !turn off if above threshold
              write(6,*),' layer pres: ',prsltmp4(pqc_lev),'for hd ob pres: ',prest
              write(6,*)'setting T ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqct(pqc_lev+1,pbidx) 
+             muse(i)=.false.
+         end if 
+         if (qcrequired.and.(pbqct(pqc_lev+1,pbidx).eq.0)) then !if qcrequired option then turn off for no QC
+             write(6,*),' layer pres: ',prsltmp4(pqc_lev),'for hd ob pres: ',prest
+             write(6,*)'setting T ob at stnidx: ',pbidx,' to unused due to missing QC'
              muse(i)=.false.
          end if 
        end if 

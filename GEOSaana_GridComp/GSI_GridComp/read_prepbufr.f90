@@ -2142,19 +2142,17 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 
                  if((kx == 120).and.(pbqc4hd))then !find highest model layer QM in profile, write to array for propagation
                     read(c_station_id,'(i5,3x)',err=1201) idddd
-                    write(6,*) 'station integer id: ',idddd
-                    if(usage < 100._r_kind)then
-                       newstation=.true.
-                       do i=1,nstations
-                          if(pbqc(1,i) == idddd) then
-                             newstation=.false.
-                             exit
-                          end if
-                       end do
-                       if(newstation)then
-                          nstations=nstations+1;i=nstations
-                          pbqc(1,nstations) = idddd 
+                    !write(6,*) 'station integer id: ',idddd
+                    newstation=.true.
+                    do i=1,nstations
+                       if(pbqc(1,i) == idddd) then
+                          newstation=.false.
+                          exit
                        end if
+                    end do
+                    if(newstation)then
+                       nstations=nstations+1;i=nstations
+                       pbqc(1,nstations) = idddd 
                     end if
                     !find model pressure level
                     ilev=minloc(abs(presl-plevs(k)),DIM=1)
@@ -2305,19 +2303,17 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  endif
                  if((kx == 220).and.(pbqc4hd))then !find highest model layer QM in profile, write to array for propagation
                     read(c_station_id,'(i5,3x)',err=1202) idddd
-                    if(usage < 100._r_kind)then
-                       newstation=.true.
-                       do i=1,nstations
-                          if(pbqc(1,i) == idddd) then
-                             newstation=.false.
-                             exit
-                          end if
-                       end do
-                       if(newstation)then
-                          nstations=nstations+1;i=nstations
-                          pbqc(1,nstations) = idddd
-                       end if   
-                    end if
+                    newstation=.true.
+                    do i=1,nstations
+                       if(pbqc(1,i) == idddd) then
+                          newstation=.false.
+                          exit
+                       end if
+                    end do
+                    if(newstation)then
+                       nstations=nstations+1;i=nstations
+                       pbqc(1,nstations) = idddd
+                    end if   
                     !find model pressure level
                     ilev=minloc(abs(presl-plevs(k)),DIM=1)
                     !ilev=nsig
@@ -2421,18 +2417,16 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 
                  if((kx == 120).and.(pbqc4hd))then !find surface pressure QM, write to array for propagation
                     read(c_station_id,'(i5,3x)',err=1203) idddd
-                    if(usage < 100._r_kind)then
-                       newstation=.true.
-                       do i=1,nstations
-                          if(pbqc(1,i) == idddd) then
-                             newstation=.false.
-                             exit
-                          end if
-                       end do
-                       if(newstation)then
-                          nstations=nstations+1;i=nstations
-                          pbqc(1,nstations) = idddd
+                    newstation=.true.
+                    do i=1,nstations
+                       if(pbqc(1,i) == idddd) then
+                          newstation=.false.
+                          exit
                        end if
+                    end do
+                    if(newstation)then
+                       nstations=nstations+1;i=nstations
+                       pbqc(1,nstations) = idddd
                     end if
                     !if psob QM is higher than last pass, set to higher QM
                     if(pqm(k)>pbqc(2,i))then
@@ -2497,19 +2491,17 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                     call adjust_error(cdata_all(15,iout),cdata_all(16,iout),cdata_all(12,iout),cdata_all(1,iout))
                  if((kx == 120).and.(pbqc4hd))then !find highest model layer QM in profile, write to array for propagation
                     read(c_station_id,'(i5,3x)',err=1204) idddd
-                    if(usage < 100._r_kind)then
-                       newstation=.true.
-                       do i=1,nstations
-                          if(pbqc(1,i) == idddd) then
-                             newstation=.false.
-                             exit
-                          end if
-                       end do
-                       if(newstation)then
-                          nstations=nstations+1;i=nstations
-                          pbqc(1,nstations) = idddd
-                       end if   
-                    end if
+                    newstation=.true.
+                    do i=1,nstations
+                       if(pbqc(1,i) == idddd) then
+                          newstation=.false.
+                          exit
+                       end if
+                    end do
+                    if(newstation)then
+                       nstations=nstations+1;i=nstations
+                       pbqc(1,nstations) = idddd
+                    end if   
                     !find model pressure level
                     ilev=minloc(abs(presl-plevs(k)),DIM=1)
                     !ilev=nsig

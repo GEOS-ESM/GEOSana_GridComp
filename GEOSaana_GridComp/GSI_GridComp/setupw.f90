@@ -31,7 +31,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
   use obsmod, only: rmiss_single,perturb_obs,oberror_tune,lobsdiag_forenkf,&
        lobsdiagsave,nobskeep,lobsdiag_allocated,&
-       time_offset,bmiss,ianldate
+       time_offset,bmiss,ianldate,qcrequired
   use obsmod, only: dplat
   use obsmod, only: wrtgeovals
   use m_obsNode, only: obsNode
@@ -723,6 +723,11 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
              write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcuv(pqc_lev+1,pbidx)
              muse(i)=.false.
           end if  
+          if (qcrequired.and.(pbqcuv(pqc_lev+1,pbidx).eq.0)) then
+             write(6,*),' layer height: ',zges(pqc_lev),'for  hd ob height: ',dpres
+             write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to missing QC'
+             muse(i)=.false.
+          end if
         end if 
 1201    continue
           if(iohdraob.ne.0)then
@@ -876,6 +881,11 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
              write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcuv(pqc_lev+1,pbidx)
              muse(i)=.false.
           end if 
+          if (qcrequired.and.(pbqcuv(pqc_lev+1,pbidx).eq.0)) then
+             write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',presw
+             write(6,*)'setting UV ob at stnidx: ',pbidx,' to missing QC'
+             muse(i)=.false.
+          end if
         end if 
         !do pqc_lev=2,nsig+1 !iterate over model layer pressure levels at ob location (log pressure)
         !  if (prsitmp2(pqc_lev)<presw) then

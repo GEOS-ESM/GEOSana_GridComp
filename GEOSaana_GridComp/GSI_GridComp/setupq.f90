@@ -136,7 +136,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use m_qNode, only: qNode_ich0, qNode_ich0_PBL_Pseudo
   use m_obsLList, only: obsLList
   use obsmod, only: luse_obsdiag,ianldate
-  use obsmod, only: netcdf_diag, binary_diag, dirname
+  use obsmod, only: netcdf_diag, binary_diag, dirname,qcrequired
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
        nc_diag_write, nc_diag_data2d
   use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
@@ -221,14 +221,9 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind),dimension(lat2,lon2,nsig,nfldsig):: qg
   real(r_kind),dimension(lat2,lon2,nfldsig):: qg2m
   real(r_kind),dimension(nsig):: prsltmp, tvgestmp, tsentmp
-<<<<<<< HEAD
   real(r_kind),dimension(nsig):: qsat_ges
-  real(r_kind),dimension(nsig):: prsltmp2, qtmp,zges, utmp, vtmp
-  real(r_kind),dimension(nsig+1):: prsitmp
-=======
   real(r_kind),dimension(nsig):: prsltmp2,prsltmp3, qtmp,zges, utmp, vtmp
   real(r_kind),dimension(nsig+1):: prsitmp,prsitmp2
->>>>>>> 83d701a (bring in changes for assimilating high-density radiondes from uprair bufr files (John Derber) with several new modifications: thinning,superobbing of profiles, QC procedures for high-density obs based on prepbufr profiles)
   real(r_kind),dimension(34):: ptablq
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
   real(r_single),allocatable,dimension(:,:)::rdiagbufp
@@ -587,6 +582,11 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcq(pqc_lev+1,pbidx)
               muse(i)=.false.
          end if 
+         if (qcrequired.and.(pbqcq(pqc_lev+1,pbidx).eq.0)) then !if qcrequired option then turn off for no QC
+             write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',prest
+             write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to missing QC'
+             muse(i)=.false.
+         end if  
        end if 
        !do pqc_lev=2,nsig+1 !iterate over model layer pressure levels at ob location (log pressure)
        !   if (prsitmp2(pqc_lev)<prest) then
