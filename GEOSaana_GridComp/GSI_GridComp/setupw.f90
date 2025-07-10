@@ -1297,13 +1297,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         endif
      endif
 
-     if (ratio_errors*error <=tiny_r_kind)then
-        muse(i)=.false.
-        write(6,*) 'ob:',i,' failed gross check'
-        write(6,*) 'qcgross: ',qcgross
-        write(6,*) 'ratio_errors: ',ratio_errors
-        write(6,*) 'error',error
-     endif
+     if (ratio_errors*error <=tiny_r_kind) muse(i)=.false.
      if ( (itype==261) .and. (ratio_errors*error <= 1.0E-100_r_kind) ) muse(i)=.false.
 
         ! As a 2-component observation, muse(i) is not the same as muse_u or muse_v in an obs_diag.

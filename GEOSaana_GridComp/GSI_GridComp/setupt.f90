@@ -1051,15 +1051,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         end if
      endif
      
-     if (ratio_errors*error <=tiny_r_kind) then
-        muse(i)=.false.
-        write(6,*) 'ob:',i,'type: ',itype,' failed gross check'
-        write(6,*) 'qcgross: ',qcgross
-        write(6,*) 'ratio_errors: ',save_re
-        write(6,*) 'ratio_errors: ',data(ier,i)
-
-        !write(6,*) 'error',error
-     endif
+     if (ratio_errors*error <=tiny_r_kind) muse(i)=.false. 
 
      if (nobskeep>0 .and. luse_obsdiag) call obsdiagNode_get(my_diag, jiter=nobskeep, muse=muse(i))
 
