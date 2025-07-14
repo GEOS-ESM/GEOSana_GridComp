@@ -3232,9 +3232,7 @@ subroutine qc_amsua(nchanl,is,ndat,nsig,npred,sea,land,ice,snow,mixed,luse,   &
                     enddo
                  endif
               else if (latms) then
-                 if (si_mean >= 20.0_r_kind) then
-                    efactmc=zero
-                    vfactmc=zero
+                 if (abs(cldeff_obs(16)-cldeff_obs(17))>10.0_r_kind) then
                     if(id_qc(ich890) == igood_qc)id_qc(ich890)=ifail_factch1617_qc
                     errf(ich890) = zero
                     varinv(ich890) = zero
@@ -3243,11 +3241,15 @@ subroutine qc_amsua(nchanl,is,ndat,nsig,npred,sea,land,ice,snow,mixed,luse,   &
                        errf(i) = zero
                        varinv(i) = zero
                     enddo
-                    errf(1:ich544)=zero
-                    varinv(1:ich544)=zero
-                    do i=1,ich544
-                       if(id_qc(i) == igood_qc)id_qc(i)=ifail_factch1617_qc
-                    end do
+                    if (abs(cldeff_obs(16)-cldeff_obs(17))>15.0_r_kind) then
+                       efactmc=zero
+                       vfactmc=zero
+                       errf(1:ich544)=zero
+                       varinv(1:ich544)=zero
+                       do i=1,ich544
+                          if(id_qc(i) == igood_qc)id_qc(i)=ifail_factch1617_qc
+                       end do
+                    end if
                  end if
               else ! QC based on the sensitivity of Tb to the surface emissivity
 !             de1,de2,de3,de15 become smaller as the observation is more cloudy --
@@ -3538,7 +3540,7 @@ subroutine qc_amsua(nchanl,is,ndat,nsig,npred,sea,land,ice,snow,mixed,luse,   &
            ework = ework+min(0.002_r_kind*sfc_speed**2*error0(i), 0.5_r_kind*error0(i))
            clwtmp=min(abs(clwp_amsua-clw_guess_retrieval), one)
            ework = ework+min(13.0_r_kind*clwtmp*error0(i), 3.5_r_kind*error0(i))
-           if (scatp>9.0_r_kind) then
+           if (scatp>9.0_r_kind .and. nchanl==15) then
               ework = ework+min(1.5_r_kind*(scatp-9.0_r_kind)*error0(i), 2.5_r_kind*error0(i))
            end if
            ework=ework**2

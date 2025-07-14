@@ -1904,7 +1904,8 @@ contains
 !           of the observation is too cold (<50 K) or too warm (>500 K),
 !           do not use this observation in computing the update to the
 !           angle dependent bias.
-                  if( ( abs(data_chan(j)%omgnbc) > 200. .or. &
+                  if( ( data_fix%water_frac < 0.99 .or. &
+                       abs(data_chan(j)%omgnbc) > 200. .or. &
                        data_chan(j)%tbobs < 50. .or. &
                        data_chan(j)%tbobs > 500. ) ) cycle loopc
  

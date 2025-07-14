@@ -1014,6 +1014,7 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
 !   2015-09-10  zhu  - generalize enabling all-sky and aerosol usage in radiance assimilation,
 !                      use n_clouds_fwd_wk,n_aerosols_fwd_wk,cld_sea_only_wk, cld_sea_only_wk,cw_cv,etc
 !   2019-03-22  Wei/Martin - added VIIRS AOD obs in addition to MODIS AOD obs
+!   2025-07-10  zhu/wei/jinajun - adapt all-sky atms, cloud fraction, cloud overlap into GEOS
 !
 !   input argument list:
 !     obstype      - type of observations for which to get profile
@@ -1079,6 +1080,11 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
   use obsmod, only: iadate
   use aeroinfo, only: nsigaerojac
   use chemmod, only: lread_ext_aerosol !for separate aerosol input file
+  use crtm_cloudcover_define, only: cloudcover_maximum_overlap, &
+                                    cloudcover_random_overlap,  &
+                                    cloudcover_maxran_overlap,  &
+                                    cloudcover_average_overlap, &  !default
+                                    cloudcover_overcast_overlap
 
   implicit none
 
@@ -2001,21 +2007,37 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
 ! Include cloud guess profiles in mw radiance computation
 
      if (n_clouds_fwd_wk>0) then
+        atmosphere(1)%cloud_fraction(k) = zero
+        do ii=1,n_clouds_fwd_wk
+           atmosphere(1)%cloud(ii)%water_content(:) = zero
+        end do
+
         kgkg_kgm2=(atmosphere(1)%level_pressure(k)-atmosphere(1)%level_pressure(k-1))*r100/grav
-        if (cw_cv.or.ql_cv) then
-          if (icmask) then
-              c6(k) = kgkg_kgm2
-              auxdp(k)=abs(prsi_rtm(kk+1)-prsi_rtm(kk))*r10
-              auxq (k)=q(kk2)
+
+        if (icmask) then
+
+!          In CRTM, if cloud fraction of the layer < 1.0E-12, set cloud content and
+!          effective radius of all hydrometer types in that layer to zero
+!          CRTM minimum thresholds: cloud content=1.0E-6 and cloud fraction=1.E-12
+!          print*, 'crtm_interface: icfs=',icfs
+           if (icfs==0 .and. trim(obstype)=='atms') then
+              atmosphere(1)%cloud_fraction(k) = cf(kk2)
+           end if
+
+           c6(k) = kgkg_kgm2
+           auxdp(k)=abs(prsi_rtm(kk+1)-prsi_rtm(kk))*r10
+           auxq (k)=q(kk2)
+
+           do ii=1,n_clouds_fwd_wk
+              cloud_cont(k,ii)=cloud(kk2,ii)*c6(k)
+              cloud_efr (k,ii)=zero
+           end do
+
+           if ((cw_cv.or.ql_cv).and.(.not. lprecip_wk)) then        
 
               if (regional .and. (.not. wrf_mass_regional) .and. (.not. cold_start)) then
                  do ii=1,n_clouds_fwd_wk
-                    cloud_cont(k,ii)=cloud(kk2,ii)*c6(k)
                     cloud_efr (k,ii)=cloudefr(kk2,ii)
-                 end do
-              else
-                 do ii=1,n_clouds_fwd_wk
-                    cloud_cont(k,ii)=cloud(kk2,ii)*c6(k)
                  end do
               end if
 
@@ -2027,63 +2049,70 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
               if(n_clouds_fwd_wk > 3) snow_guess = snow_guess +  cloud_cont(k,4)
               do ii=1,n_clouds_fwd_wk
                  if ( trim(obstype) == 'amsr2' .and. atmosphere(1)%level_pressure(k) <= 50.0_r_kind ) cycle
-                hwp_guess(ii) = hwp_guess(ii) +  cloud_cont(k,ii)
+                 hwp_guess(ii) = hwp_guess(ii) +  cloud_cont(k,ii)
               enddo
-              atmosphere(1)%cloud_fraction(k) = zero
+              
               do ii=1,n_clouds_fwd_wk
                  if (ii==1 .and. atmosphere(1)%temperature(k)-t0c>-20.0_r_kind) &
                     cloud_cont(k,1)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,1))
                  if (ii==2 .and. atmosphere(1)%temperature(k)<t0c) &
                     cloud_cont(k,2)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,2))
-                 if(cloud_cont(k,ii) > 1.000_r_kind*1.0E-6_r_kind) then
-                    atmosphere(1)%cloud_fraction(k) = one
-                 end if
               end do
-!crtm2.3.x    if (.not. regional .and. icfs==0 ) atmosphere(1)%cloud_fraction(k) = cf(kk2)
-          endif
-        else
-           if (icmask) then
-              c6(k) = kgkg_kgm2
-              do ii=1,n_clouds_fwd_wk
-                !cloud_cont(k,ii)=cloud(kk2,ii)*kgkg_kgm2
-                 cloud_cont(k,ii)=cloud(kk2,ii)*c6(k)
-                 if (imp_physics==11 .and. lprecip_wk .and.  cloud_cont(k,ii) > 1.0e-6_r_kind) then
+           else ! .not. (cw_cv.or.ql_cv)
+              if (imp_physics==11 .and. lprecip_wk .and. cloud_cont(k,ii) > 1.0e-6_r_kind) then
+                 do ii=1,n_clouds_fwd_wk
                     cloud_efr (k,ii)=cloudefr(kk2,ii)
-                 else
-                    cloud_efr (k,ii)=zero
-                 endif
-              enddo
+                 enddo
+              endif
 
-              if (cloud_cont(k,1) >= 1.0e-6_r_kind) clw_guess = clw_guess +  cloud_cont(k,1)
+              ! total column q, tpw
+              if(present(tpwc_guess)) tpwc_guess = tpwc_guess + q(kk2)*c6(k)
+              clw_guess = clw_guess +  cloud_cont(k,1)
+              ciw_guess = ciw_guess +  cloud_cont(k,2)
+              if(n_clouds_fwd_wk > 2) rain_guess = rain_guess +  cloud_cont(k,3)
+              if(n_clouds_fwd_wk > 3) snow_guess = snow_guess +  cloud_cont(k,4)
               if(present(tcwv)) &
                  tcwv = tcwv + (atmosphere(1)%absorber(k,1)*0.001_r_kind)*c6(k)
               do ii=1,n_clouds_fwd_wk
-                 if (cloud_cont(k,ii) >= 1.0e-6_r_kind) hwp_guess(ii) = hwp_guess(ii) +  cloud_cont(k,ii)
+                 hwp_guess(ii) = hwp_guess(ii) +  cloud_cont(k,ii)
               enddo
 
                 !Add lower bound to all hydrometers
                 !note: may want to add lower bound value for effective radius
 
-              atmosphere(1)%cloud_fraction(k) = zero
               do ii=1,n_clouds_fwd_wk
-                 if (trim(cloud_names_fwd(ii))=='ql' .and.  atmosphere(1)%temperature(k)-t0c>-20.0_r_kind) &
+                 if (trim(cloud_names_fwd(ii))=='ql' .and.  atmosphere(1)%temperature(k)-t0c>-20.0_r_kind) then
                      cloud_cont(k,ii)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,ii))
-                 if (trim(cloud_names_fwd(ii))=='qi' .and.  atmosphere(1)%temperature(k)<t0c) &
+                 end if
+                 if (trim(cloud_names_fwd(ii))=='qi' .and.  atmosphere(1)%temperature(k)<t0c) then
                      cloud_cont(k,ii)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,ii))
-                 if (trim(cloud_names_fwd(ii))=='qr' .and.  atmosphere(1)%temperature(k)-t0c>-20.0_r_kind) &
+                 end if
+                 if (trim(cloud_names_fwd(ii))=='qr' .and.  atmosphere(1)%temperature(k)-t0c>-20.0_r_kind) then
                      cloud_cont(k,ii)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,ii))
-                 if (trim(cloud_names_fwd(ii))=='qs' .and.  atmosphere(1)%temperature(k)<t0c) &
+                 end if
+                 if (trim(cloud_names_fwd(ii))=='qs' .and.  atmosphere(1)%temperature(k)<t0c) then
                      cloud_cont(k,ii)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,ii))
-                 if (trim(cloud_names_fwd(ii))=='qg' .and.  atmosphere(1)%temperature(k)<t0c) &
+                 end if
+                 if (trim(cloud_names_fwd(ii))=='qg' .and.  atmosphere(1)%temperature(k)<t0c) then
                      cloud_cont(k,ii)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,ii))
-                 if(cloud_cont(k,ii) > 1.000_r_kind*1.0E-6_r_kind) then
-                    atmosphere(1)%cloud_fraction(k) = one
                  end if
               end do
-!crtm2.3.x    if (.not. regional .and. icfs==0 ) atmosphere(1)%cloud_fraction(k) = cf(kk2)
-           end if
-        endif
-     endif
+           endif
+
+           do ii=1,n_clouds_fwd_wk
+              if (icfs==0 .and. trim(obstype)=='atms') then
+                    if (cloud_cont(k,ii) > 1.000_r_kind*1.0E-6_r_kind .and. & 
+                            atmosphere(1)%cloud_fraction(k)<1.001_r_kind*1.0E-12_r_kind) then
+                       atmosphere(1)%cloud_fraction(k)=1.001_r_kind*1.0E-12_r_kind
+                    endif
+              else
+                 if (cloud_cont(k,ii) > 1.000_r_kind*1.0E-6_r_kind) then
+                    atmosphere(1)%cloud_fraction(k) = one
+                 end if
+              end if
+           end do
+        endif  !icmask 
+     endif !if (n_clouds_fwd_wk>0)
 
 !    Add in a drop-off to absorber amount in the stratosphere to be in more
 !    agreement with ECMWF profiles.  The drop-off is removed when climatological CO2 fields
@@ -2113,6 +2142,7 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
 
 ! Set clouds for CRTM
   if(n_clouds_fwd_wk>0) then
+     if (icfs==0 .and. trim(obstype)=='atms') options(1)%Overlap_Id = cloudcover_average_overlap()
      atmosphere(1)%n_clouds = n_clouds_fwd_wk
      call Set_CRTM_Cloud (msig,n_actual_clouds_wk,cloud_names,icmask,n_clouds_fwd_wk,cloud_cont,cloud_efr,jcloud,auxdp, &
                           atmosphere(1)%temperature,atmosphere(1)%pressure,auxq,atmosphere(1)%cloud,lprecip_wk)

@@ -1285,6 +1285,7 @@ _ENTRY_(trim(Iam))
    real(r_single),dimension(:,:,:), pointer :: dqlmr ! cloud liquid mixing ratio
    real(r_single),dimension(:,:,:), pointer :: dqrmr ! rain mixing ratio
    real(r_single),dimension(:,:,:), pointer :: dqsmr ! snow mixing ratio
+   real(r_single),dimension(:,:,:), pointer :: dclfr ! cloud fraction
    real(r_single),dimension(:,:  ), pointer :: dfrland    ! land fraction
    real(r_single),dimension(:,:  ), pointer :: dfrlandice ! land-ice fraction
    real(r_single),dimension(:,:  ), pointer :: dfrlake    ! lake fraction
@@ -1764,6 +1765,9 @@ _ENTRY_(trim(Iam))
          case ('qstot')
             call ESMFL_StateGetPointerToData(export, dqsmr, trim(cvar), alloc=.true., rc=STATUS)
             VERIFY_(STATUS)
+         case ('cloud')
+            call ESMFL_StateGetPointerToData(export, dclfr, trim(cvar), alloc=.true., rc=STATUS)
+            VERIFY_(STATUS)   
          case ('ozone')
            call ESMFL_StateGetPointerToData(export, doz,    trim(cvar), alloc=.true., rc=STATUS)
            VERIFY_(STATUS)
@@ -2680,10 +2684,9 @@ _ENTRY_(trim(Iam))
            version=1776 ! just give it a number
            call nc_ncepsfc_read('ncepsfc',sfcvars,STATUS)
            VERIFY_(status)
-           if(abs(sfcvars%nveg-nvege_type)>1) then
+           if(sfcvars%nveg/=nvege_type) then
              status=99
-             print*, trim(Iam), 'Failed to read ncep nc sfc file, : ', sfcvars%nveg, nvege_type
-             call stop2(status)
+             VERIFY_(STATUS)
            endif
            glon =size(sfcvars%vfrac,1)
            glat2=size(sfcvars%vfrac,2)
@@ -3010,6 +3013,8 @@ _ENTRY_(trim(Iam))
                CALL GSI_GridCompSwapJI_(dqrmr,GSI_MetGuess_Bundle(it)%r3(ipnt)%q)
             case ('qs')
                CALL GSI_GridCompSwapJI_(dqsmr,GSI_MetGuess_Bundle(it)%r3(ipnt)%q)
+            case ('cf')
+               CALL GSI_GridCompSwapJI_(dclfr,GSI_MetGuess_Bundle(it)%r3(ipnt)%q)   
           end select
       endif
    enddo
@@ -4062,18 +4067,21 @@ _ENTRY_(trim(Iam))
 
 !  Declare export 3d-fields (extra met-guess)
 !  ------------------------
-   integer, parameter :: nex3dx=4
+   integer, parameter :: nex3dx=5
    character(len=16), parameter :: exsname3dx(nex3dx) = (/  &
                                    'qitot           ',      &
                                    'qltot           ',      &
                                    'qrtot           ',      &
-                                   'qstot           '      /)
+                                   'qstot           ',      & 
+                                   'cloud           '      /)
    character(len=40), parameter :: exlname3dx(nex3dx) = (/  &
                       'mass fraction of cloud ice water inc    ', &
                       'mass fraction of cloud liquid water inc ', &
                       'mass fraction of rain inc               ', &
-                      'mass fraction of snow inc               ' /)
+                      'mass fraction of snow inc               ', &
+                      'mass fraction of cloud inc              ' /)
    character(len=16), parameter :: exunits3dx(nex3dx) = (/  &
+                                   '1               ',      &
                                    '1               ',      &
                                    '1               ',      &
                                    '1               ',      &
