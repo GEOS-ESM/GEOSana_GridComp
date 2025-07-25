@@ -705,7 +705,7 @@ contains
                             !            different from analysis time
     thin_flg=.false. ! hdraob thin flag
     superob_flg=.false. ! hdraob superobbing flag
-    smooth_flg=.false. ! hdraob smoothing flag
+    smooth_flg=.false. ! hdraob smoothing flag, using binomial filter
     filter_window=11 ! hdraob smoothing filter window (profile levels)
     pbqc4hd=.true. !hdraob flag for doing QC using prepbufr QC marks 
     qcrequired=.true. !set to true to set hd ascent raobs that cannot be QCed with prepbufr to unused

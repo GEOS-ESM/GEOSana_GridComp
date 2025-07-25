@@ -43,7 +43,8 @@ module hdraobmod
 
 contains
   function nchoosek(n,k) result(nck)
-  ! evaluates factorials necessary for binomial filter calculation
+  ! evaluates expression for n choose k necessary for binomial filter calculation
+  ! formula: n choose k = n!/(k! (n-k)!)
            implicit none
            integer(i_kind) n,k
            integer(i_llong) nck,ii
@@ -69,7 +70,7 @@ contains
    end function
    subroutine binomial_coeffs(filter_size,coeffs)
 !    generates coefficients for binomial filter used in smoothing hd raob profiles
-
+!    filter size must be odd to ensure that kernal is centered on a particular level
      use kinds, only: i_kind,r_kind,i_llong
      integer(i_kind),intent(in) :: filter_size
      real(r_kind),dimension(:),intent(out) :: coeffs
@@ -142,8 +143,7 @@ contains
       icuse,ictype,icsubtype,ioctype
 
   use obsmod, only: iadate,oberrflg,perturb_obs,perturb_fact,ran01dom
-! use obsmod, only: blacklst,offtime_data
-  use obsmod, only: offtime_data
+  use obsmod, only: blacklst,offtime_data
   use obsmod, only: thin_flg,superob_flg,smooth_flg,filter_window
   use converr,only: etabl
   use converr_ps,only: etabl_ps,isuble_ps,maxsub_ps
@@ -157,7 +157,8 @@ contains
   use gsi_4dvar, only: time_4dvar,winlen
   use qcmod, only: errormod,errormod_hdraob,njqc
   use mpimod, only: mype
-! use blacklist, only : blacklist_read,blacklist_destroy
+  use blacklist, only : blacklist_read,blacklist_destroy
+  use blacklist, only : blkstns,blkkx,ibcnt
   use ndfdgrids,only: adjust_error
   use deter_sfc_mod, only: deter_sfc2
   use mpimod, only: npe
@@ -194,7 +195,7 @@ contains
   character(8) c_station_id,id_station
   character(8) c_prvstg,c_sprvstg
   
-! character(8) stnid
+  character(8) stnid
   character(8) stntype
 
   integer(i_kind) ireadmg,ireadsb
@@ -312,7 +313,7 @@ contains
   if(perturb_obs .and. uvob )nreal=nreal+2
 
 
-! if (blacklst) call blacklist_read(obstype)
+  if (blacklst) call blacklist_read(obstype)
 
   lim_qm=3
   terrmin=half
@@ -371,27 +372,6 @@ contains
            call stop2(50)
         endif
 
-
-!       igroup=hdr(1)
-!       istation=hdr(2)
-!       write(6,*) igroup,istation
-!       call ufbint(lunin,obsdat,13,maxlevs,levs,obstr)
-!       Check for blacklisting of station ID
-!       if (blacklst .and. ibcnt > 0) then
-!          stnid = transfer(hdr(4),stnid)
-!          do i = 1,ibcnt
-!             if( kx == blkkx(i) .and. stnid == blkstns(i) ) then
-!                write(6,*)'READ_HDRAOB: blacklist station ',stnid, &
-!                   'for obstype ',trim(obstype),' and kx=',kx
-!          do i = 1,ibcnt
-!             if( kx == blkkx(i) .and. stnid == blkstns(i) ) then
-!                write(6,*)'READ_HDRAOB: blacklist station ',stnid, &
-!                   'for obstype ',trim(obstype),' and kx=',kx
-!                cycle loop_report
-!             endif
-!          enddo
-!       endif
-
         call ufbint(lunin,levdat,2,maxlevs,levs,levstr)
         if(levs > maxlevs)write(6,*) ' not enough levels increase maxlevs ',levs,maxlevs
         call ufbint(lunin,obsdat,8,maxlevs,levs,obstr)
@@ -426,6 +406,24 @@ contains
                end if
             end if
         end if
+
+        !Check for blacklisting of station ID
+
+        if (blacklst .and. ibcnt > 0) then
+           call ufbint(lunin,hdr,2,1,iret,hdstr)
+           igroup=hdr(1)
+           istation=hdr(2)
+           id=1000*igroup+istation
+           write(c_station_id,'(i5,3x)') id
+           do i = 1,ibcnt
+               if( kx == blkkx(i) .and. c_station_id  == blkstns(i) ) then
+                   write(6,*)'READ_HDRAOB: blacklist station ',stnid, &
+                   'for obstype ',trim(obstype),' and kx=',kx
+                cycle loop_report
+               endif
+           enddo
+        endif
+
 !  Match ob to proper convinfo type
         ncsave=0
         matchloop:do ncx=1,ntmatch
@@ -1131,12 +1129,11 @@ contains
                     ndata = maxobs
                  end if
                  if((.not.thin_flg).and.(.not.superob_flg))then !turn off error inflation for thin/superob
-                 if(levs > 100 .or. plevs(1)-plevs(levs) < .01_r_kind)then
-                    call errormod_hdraob(pqm,qqm,levs,plevs,errout,k,presl,dpres,nsig,lim_qm)
-                 else
-
-                    call errormod(pqm,wqm,levs,plevs,errout,k,presl,dpres,nsig,lim_qm)
-                 end if
+                    if(levs > 100 .or. plevs(1)-plevs(levs) < .01_r_kind)then
+                       call errormod_hdraob(pqm,qqm,levs,plevs,errout,k,presl,dpres,nsig,lim_qm)
+                    else
+                       call errormod(pqm,wqm,levs,plevs,errout,k,presl,dpres,nsig,lim_qm)
+                    end if
                  end if
                  woe=obserr(5,k)*errout
                  if(obsdat(1,k) < r50)woe=woe*r1_2
