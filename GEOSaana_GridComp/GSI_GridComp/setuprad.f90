@@ -1484,13 +1484,12 @@ contains
 
            cld = 100-data_s(iclr_sky,n)
 
-!          if rclrsky < 98%, toss data for lowest water-vapor and surface channels
-           if(data_s(iclr_sky,n)<98.0_r_kind) then
+!          if rclrsky < 99%, toss data for all channels
+           if(data_s(iclr_sky,n)<99.0_r_kind) then
               do i=1,nchanl
-                 if(i/=2 .and. i/=3) then
-                    varinv(i)=zero
-                    varinv_use(i)=zero
-                 end if
+                 if(id_qc(i) == igood_qc)id_qc(i)=ifail_cloud_qc
+                 varinv(i)=zero
+                 varinv_use(i)=zero
               end do
            end if
 
@@ -1500,6 +1499,7 @@ contains
               if(i/=2 .and. i/=3) then
                 if( varinv(i) > tiny_r_kind .and. &
                    (tb_obs(7)-tb_obs(8))-(tsim(7)-tsim(8)) <= -0.75_r_kind) then
+                    if(id_qc(i) == igood_qc)id_qc(i)=ifail_cloud_qc
                     varinv(i)=zero
                     varinv_use(i)=zero
                 end if

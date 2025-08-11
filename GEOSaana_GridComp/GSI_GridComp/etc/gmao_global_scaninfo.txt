@@ -55,4 +55,6 @@
  avhrr3_metop-c          -52.612      1.182        90     1    90
  amsre_aqua                0.000      1.000        81     9    73
  amsr2_gcom-w1             0.000      1.000        81     1    81
+ abi_g16                   0.000      1.000        90    -1    -1
+ abi_g18                   0.000      1.000        90    -1    -1
 !sat_sis                  start       step      nstep  edge1  edge2
