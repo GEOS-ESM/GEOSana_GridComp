@@ -4563,14 +4563,14 @@ subroutine qc_abi(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,   &
 
   do i = 1, nchanl
 
-!    Tighter qc for chn7.3: toss data for chn7.3 and surface chns if rclrsky<98% (done in setuprad) or stdev >= 0.5 for chn10.3
-     if(tb_obs_sdv(7)>=0.5_r_kind .and. varinv(i) > zero)then
-       if(i/=2 .and. i/=3) then
-!         QC3 in statsrad
-          if(luse)aivals(9,is)= aivals(9,is) + one
-          if(id_qc(i) == igood_qc ) id_qc(i)=ifail_std_abi_qc
-          varinv(i)=zero
-       end if
+!    Tighter qc for all chns: toss data for all chns if rclrsky<99% (done in setuprad) or stdev >= 0.4 for chn10.3
+     if(tb_obs_sdv(7)>=0.4_r_kind .and. varinv(i) > zero)then
+!      QC3 in statsrad
+       if(luse)aivals(9,is)= aivals(9,is) + one
+       if(id_qc(i) == igood_qc ) id_qc(i)=ifail_std_abi_qc
+       varinv(i)=zero
+     else if (tb_obs_sdv(7) >=0.3 .and. tb_obs_sdv(7) < 0.4) then
+       varinv(i)=varinv(i)/2.
      end if
 
 ! adjust varinv according to the BT standard deviation
@@ -4581,8 +4581,10 @@ subroutine qc_abi(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,   &
            varinv(i)=varinv(i)/1.67_r_kind
         if (tb_obs_sdv(2) >0.6_r_kind .and. tb_obs_sdv(2) <=0.7_r_kind) &
            varinv(i)=varinv(i)/2.24_r_kind
-        if (tb_obs_sdv(2) >0.7_r_kind )  &
-           varinv(i)=varinv(i)/2.31_r_kind
+        if (tb_obs_sdv(2) >0.7_r_kind ) then
+           if(id_qc(i) == igood_qc ) id_qc(i)=ifail_std_abi_qc
+           varinv(i)=zero
+        end if
      end if
 
   end do
