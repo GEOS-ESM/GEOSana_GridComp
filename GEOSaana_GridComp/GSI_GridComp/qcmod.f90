@@ -2267,6 +2267,7 @@ subroutine qc_irsnd(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,goessndr,   &
   real(r_kind) :: sum,sum2,sum3,cloudp,tmp,dts,delta
   real(r_kind),dimension(nchanl) :: dtb
   integer(i_kind) :: i,j,k,kk,lcloud,m
+  real(r_kind) :: sum_min
   integer(i_kind), dimension(nchanl) :: irday
   real(r_kind) :: dtz,ts_ave,xindx,tzchks
   real(r_kind),parameter:: tbmax = 550._r_kind
@@ -2361,6 +2362,7 @@ subroutine qc_irsnd(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,goessndr,   &
   lcloud=0
   cld=zero
   cldp=r10*prsltmp(1)
+  sum_min = 1.e20
 
   do k=1,nsig
      if(prsltmp(k) > trop5)then
@@ -2389,15 +2391,24 @@ subroutine qc_irsnd(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,goessndr,   &
               sum=sum+tmp*tmp*varinv_use(i)
            end if
         end do
-        if(sum < sum3)then
-           sum3=sum
-           lcloud=k
+        if(sum < sum_min)then
+           sum_min = sum
+           lcloud = k
            cld=cloudp
            cldp=r10*prsltmp(k)
-        end if
+        endif
      end if
 
   end do
+
+  if( cris ) then
+    if(cld < 0.01)lcloud=0
+  else
+    if(sum_min >= sum3)then
+      lcloud=0
+    endif
+  endif
+
   if ( lcloud > 0 ) then  ! If cloud detected, reject channels affected by it.
 
      do i=1,nchanl
@@ -2418,7 +2429,7 @@ subroutine qc_irsnd(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,goessndr,   &
 !          reject the channel (0.02 is a tunable parameter)
 
         delta = 0.02_r_kind
-        if ( ptau5(lcloud,i) > 0.02_r_kind) then
+        if ( ptau5(lcloud,i) > delta) then
 !          QC4 in statsrad
            if(luse)aivals(11,is)   = aivals(11,is) + one
            varinv(i) = zero
