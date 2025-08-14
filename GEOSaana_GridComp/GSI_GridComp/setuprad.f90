@@ -2777,7 +2777,11 @@ contains
 
                     do iabsorb = 1, n_absorbers
                        write (fieldname, "(A,I0.2)") "atmosphere_absorber_", atmosphere(1)%absorber_id(iabsorb)
-                       call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
+                       if (iabsorb == 1) then 
+                          call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)/1000.0_r_kind))  ! check %absorber_units
+                       else
+                          call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
+                       end if   
                      enddo
                      do icloud = 1, n_clouds_fwd_wk
                        write (fieldname, "(A,I0.2)") "atmosphere_mass_content_of_cloud_", atmosphere(1)%Cloud(icloud)%Type

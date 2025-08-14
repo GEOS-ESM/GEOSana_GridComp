@@ -2684,9 +2684,10 @@ _ENTRY_(trim(Iam))
            version=1776 ! just give it a number
            call nc_ncepsfc_read('ncepsfc',sfcvars,STATUS)
            VERIFY_(status)
-           if(sfcvars%nveg/=nvege_type) then
+           if(abs(sfcvars%nveg-nvege_type)>1) then
              status=99
-             VERIFY_(STATUS)
+             print*, trim(Iam), 'Failed to read ncep nc sfc file, : ', sfcvars%nveg, nvege_type
+             call stop2(status)
            endif
            glon =size(sfcvars%vfrac,1)
            glat2=size(sfcvars%vfrac,2)
