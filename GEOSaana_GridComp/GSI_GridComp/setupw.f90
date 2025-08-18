@@ -433,13 +433,13 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            rstation_id     = data(id,i)
            read(station_id,'(i5,3x)',err=1200) idddd
            if(idddd == iprev_station)then
-             data(iuse,i)=108._r_kind
+             data(iuse,i)=109._r_kind
              muse(i) = .false.
            else
               stn_loop:do j=1,nhduv
                 if(idddd == hduvlist(j))then
                    iprev_station=idddd
-                   data(iuse,i)=108._r_kind
+                   data(iuse,i)=109._r_kind
                    muse(i) = .false.
                    exit stn_loop
                 end if
@@ -721,11 +721,13 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
           if (pbqcuv(pqc_lev+1,pbidx)>3) then
              write(6,*),' layer height: ',zges(pqc_lev),'for  hd ob height: ',dpres
              write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcuv(pqc_lev+1,pbidx)
+             data(iuse,i)=110._r_kind
              muse(i)=.false.
           end if  
           if (qcrequired.and.(pbqcuv(pqc_lev+1,pbidx).eq.0)) then
              write(6,*),' layer height: ',zges(pqc_lev),'for  hd ob height: ',dpres
              write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to missing QC'
+             data(iuse,i)=111._r_kind
              muse(i)=.false.
           end if
         end if 
@@ -879,11 +881,13 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
           if (pbqcuv(pqc_lev+1,pbidx)>3) then
              write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',presw
              write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcuv(pqc_lev+1,pbidx)
+             data(iuse,i)=110._r_kind
              muse(i)=.false.
           end if 
           if (qcrequired.and.(pbqcuv(pqc_lev+1,pbidx).eq.0)) then
              write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',presw
              write(6,*)'setting UV ob at stnidx: ',pbidx,' to missing QC'
+             data(iuse,i)=111._r_kind
              muse(i)=.false.
           end if
         end if 
@@ -2049,6 +2053,9 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("air_temperature", sngl(tsentmp))
               call nc_diag_data2d("water_vapor_mixing_ratio_wrt_moist_air", sngl(qges))
               call nc_diag_data2d("dup_kx_vector", sngl(dup_kx_vector(:,i)))
+              call nc_diag_data2d("specific_humidity", sngl(qges)) 
+              call nc_diag_metadata("surface_height",sngl(zsges))
+              call nc_diag_metadata("surface_pressure",sngl(psges*r1000))
            endif
            call nc_diag_metadata("Dominant_Sfc_Type", sngl(data(idomsfc,i))           )
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))

@@ -337,13 +337,13 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            rstation_id     = data(id,i)
            read(station_id,'(i5,3x)',err=1200) idddd
            if(idddd == iprev_station)then
-             data(iuse,i)=108._r_kind
+             data(iuse,i)=109._r_kind
              muse(i) = .false.
            else
               stn_loop:do j=1,nhdq
                 if(idddd == hdqlist(j))then
                    iprev_station=idddd
-                   data(iuse,i)=108._r_kind
+                   data(iuse,i)=109._r_kind
                    muse(i) = .false.
                    exit stn_loop
                 end if
@@ -580,11 +580,13 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
          if (pbqcq(pqc_lev+1,pbidx)>3) then !turn off if above threshold
               write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',prest
               write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcq(pqc_lev+1,pbidx)
+              data(iuse,i)=110._r_kind
               muse(i)=.false.
          end if 
          if (qcrequired.and.(pbqcq(pqc_lev+1,pbidx).eq.0)) then !if qcrequired option then turn off for no QC
              write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',prest
              write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to missing QC'
+             data(iuse,i)=111._r_kind
              muse(i)=.false.
          end if  
        end if 
@@ -1487,6 +1489,9 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("northward_wind", sngl(vtmp))
               call nc_diag_data2d("eastward_wind", sngl(utmp))
               call nc_diag_data2d("dup_kx_vector", sngl(dup_kx_vector(:,i)))
+              call nc_diag_data2d("specific_humidity", sngl(qtmp))
+              call nc_diag_metadata("surface_pressure", sngl(psges*r1000))
+              call nc_diag_metadata("surface_height",sngl(zsges))
            endif
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
            call nc_diag_metadata("landmask", sngl(landfrac))

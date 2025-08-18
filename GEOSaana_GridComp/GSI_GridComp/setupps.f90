@@ -303,7 +303,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
            read(station_id,'(i5,3x)',err=1200) idddd
            stn_loop:do j=1,nhdps
              if(idddd == hdpslist(j))then
-                data(iuse,i)=108._r_kind
+                data(iuse,i)=109._r_kind
                 muse(i) = .false.
                 exit stn_loop
              end if
@@ -487,6 +487,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
        if ((pbidx>0).and.(pbqcps(2,pbidx)>3)) then !turn off if above threshold
            write(6,*),' hd surface pres sanity check: ', pob
            write(6,*)'setting PS ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcps(2,pbidx)
+           data(iuse,i)=110._r_kind
            muse(i)=.false.
        end if
        write(6,*),' hd surface pres sanity check (cb): ', pob
@@ -1154,6 +1155,9 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
               call nc_diag_data2d("northward_wind", sngl(vtmp))
               call nc_diag_data2d("eastward_wind", sngl(utmp))
               call nc_diag_metadata("air_temperature_at_2m", sngl(tges))
+              call nc_diag_data2d("specific_humidity", sngl(qtmp)) 
+              call nc_diag_metadata("surface_pressure", sngl(pgesorig*r100)) 
+              call nc_diag_metadata("surface_height",sngl(zsges))
            endif
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
            call nc_diag_metadata("landmask", sngl(landfrac))

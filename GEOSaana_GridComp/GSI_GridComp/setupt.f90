@@ -403,7 +403,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      muse(i)=nint(data(iuse,i)) <= jiter
   end do
   !  If HD raobs available move prepbufr version to monitor
-
+  !  Usage code set to 109 to simplify identification w ncdiag output
 
   if(nhdt > 0)then
      iprev_station=0
@@ -414,13 +414,13 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            rstation_id     = data(id,i)
            read(station_id,'(i5,3x)',err=1200) idddd
            if(idddd == iprev_station)then
-             data(iuse,i)=108._r_kind
+             data(iuse,i)=109._r_kind
              muse(i) = .false.
            else
               stn_loop:do j=1,nhdt
                 if(idddd == hdtlist(j))then
                    iprev_station=idddd
-                   data(iuse,i)=108._r_kind
+                   data(iuse,i)=109._r_kind
                    muse(i) = .false.
                    exit stn_loop
                 end if
@@ -744,11 +744,13 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
          if (pbqct(pqc_lev+1,pbidx)>3) then !turn off if above threshold
              write(6,*),' layer pres: ',prsltmp4(pqc_lev),'for hd ob pres: ',prest
              write(6,*)'setting T ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqct(pqc_lev+1,pbidx) 
+             data(iuse,i)=110._r_kind
              muse(i)=.false.
          end if 
          if (qcrequired.and.(pbqct(pqc_lev+1,pbidx).eq.0)) then !if qcrequired option then turn off for no QC
              write(6,*),' layer pres: ',prsltmp4(pqc_lev),'for hd ob pres: ',prest
              write(6,*)'setting T ob at stnidx: ',pbidx,' to unused due to missing QC'
+             data(iuse,i)=111._r_kind
              muse(i)=.false.
          end if 
        end if 
@@ -1880,13 +1882,15 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
     if (wrtgeovals) then
        call nc_diag_metadata("air_temperature_at_2m", sngl(sfctges))
        call nc_diag_metadata("geopotential_height_at_surface",sngl(zsges))
-       call nc_diag_metadata("air_pressure_at_surface",sngl(psges*r1000))
+       call nc_diag_metadata("surface_height",sngl(zsges))
+       call nc_diag_metadata("surface_pressure",sngl(psges*r1000))
        call nc_diag_data2d("geopotential_height", sngl(zges))
        call nc_diag_data2d("atmosphere_pressure_coordinate", sngl(prsltmp3*r1000))
        call nc_diag_data2d("atmosphere_pressure_coordinate_interface", sngl(prsitmp*r1000))
        call nc_diag_data2d("virtual_temperature", sngl(tvgestmp))
        call nc_diag_data2d("air_temperature", sngl(tsentmp))
        call nc_diag_data2d("water_vapor_mixing_ratio_wrt_moist_air", sngl(qgestmp))
+       call nc_diag_data2d("specific_humidity", sngl(qgestmp))
        call nc_diag_data2d("eastward_wind", sngl(ugestmp))
        call nc_diag_data2d("northward_wind", sngl(vgestmp))
        call nc_diag_data2d("dup_kx_vector", sngl(dup_kx_vector(:,i)))
