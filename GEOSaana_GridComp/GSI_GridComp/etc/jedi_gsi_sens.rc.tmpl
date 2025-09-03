@@ -61,8 +61,7 @@
    ljcpdry=.false.,bamp_jcpdry=2.5e7,
  /
  &STRONGOPTS
-!  tlnmc_option=@TLNMC,nstrong=1,nvmodes_keep=24,period_max=6.,period_width=1.5,
-   tlnmc_option=0,nstrong=1,nvmodes_keep=24,period_max=6.,period_width=1.5,
+   tlnmc_option=@TLNMC,nstrong=1,nvmodes_keep=24,period_max=6.,period_width=1.5,
    baldiag_full=.true.,baldiag_inc=.true.,
  /
  &OBSQC
@@ -158,10 +157,10 @@ OBS_INPUT::
 !  mlsozbufr      o3lev       aura        o3lev_aura            0.0     0      0        test
 !  ompslpgnc      ompslpnc    npp         ompslpnc_npp          1.0     0      0        ompslpnc_nc
 ! NOTE: careful not to have both npp_ompslp_nc and r21c_npp_ompslp_nc in obsclass
-!  ompslpnppnc    ompslpnc    npp         ompslpnc_npp          1.0     0      0        npp_ompslp_nc
-!  ompslpn21nc    ompslpnc    n21         ompslpnc_n21          1.0     0      0        n21_ompslp_nc
-!! ompslpnppnc    ompslpnc    npp         ompslpnc_npp          1.0     0      0        r21c_npp_ompslp_nc
-!! ompslpn21nc    ompslpnc    n21         ompslpnc_n21          1.0     0      0        m2scr_n21_ompslp_nc
+   ompslpnppnc    ompslpnc    npp         ompslpnc_npp          1.0     0      0        npp_ompslp_nc
+   ompslpn21nc    ompslpnc    n21         ompslpnc_n21          1.0     0      0        n21_ompslp_nc
+!  ompslpnppnc    ompslpnc    npp         ompslpnc_npp          1.0     0      0        r21c_npp_ompslp_nc
+!  ompslpn21nc    ompslpnc    n21         ompslpnc_n21          1.0     0      0        m2scr_n21_ompslp_nc
    ompslpuvnc     ompslpuv    npp         ompslpuv_npp          1.0     0      0        ompslpuv_nc
    ompslpvisnc    ompslpvis   npp         ompslpvis_npp         1.0     0      0        ompslpvis_nc
 !  mlsoztext      o3lev       aura        o3lev_aura            0.0     0      0        test
@@ -184,7 +183,7 @@ OBS_INPUT::
    iasibufr       iasi        metop-c     iasi_metop-c          0.0     3      0        ncep_mtiasi_bufr
    atmsbufr       atms        npp         atms_npp              0.0     1      0        ncep_atms_bufr
    atmsbufr       atms        n20         atms_n20              0.0     1      0        ncep_atms_bufr
-!! atmsbufr       atms        n21         atms_n21              0.0     1      0        ncep_atms_bufr
+   atmsbufr       atms        n21         atms_n21              0.0     1      0        ncep_atms_bufr
    crisfsrbufr    cris-fsr    npp         cris-fsr_npp          0.0     3      0        ncep_crisfsr_bufr
    crisfsrbufr    cris-fsr    n20         cris-fsr_n20          0.0     3      0        ncep_crisfsr_bufr
 !  crisfsrbufr    cris-fsr    n21         cris-fsr_n21          0.0     3      0        ncep_crisfsr_bufr
