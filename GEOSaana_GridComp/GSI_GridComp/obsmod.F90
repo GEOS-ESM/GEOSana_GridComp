@@ -415,7 +415,7 @@ module obsmod
   public :: destroy_obsmod_vars
   public :: ran01dom,dval_use
   public :: iout_pcp,iout_rad,iadate,iadatemn,write_diag,reduce_diag,oberrflg,bflag,ndat,dthin,dmesh,l_do_adjoint
-  public :: thin_flg,superob_flg,smooth_flg,filter_window,pbqc4hd,qcrequired
+  public :: thin_flg,superob_flg,smooth_flg,filter_window,pbqc4hd,qcrequired,flag_hr_ua_q
   public :: diag_radardbz
   public :: lsaveobsens
   public ::                  iout_cldch, mype_cldch
@@ -709,6 +709,7 @@ contains
     filter_window=11 ! hdraob smoothing filter window (profile levels)
     pbqc4hd=.true. !hdraob flag for doing QC using prepbufr QC marks 
     qcrequired=.true. !set to true to set hd ascent raobs that cannot be QCed with prepbufr to unused
+    flag_hr_ua_q=.true. !set to false to avoid using prepbufr qc marks indicating q obs above 300 mb 
 ! moved to create_obsmod_var since l4dvar since before namelist is read
 !   if (l4dvar) then
 !      offtime_data = .true.   ! .true. = ignore difference in obs ref time

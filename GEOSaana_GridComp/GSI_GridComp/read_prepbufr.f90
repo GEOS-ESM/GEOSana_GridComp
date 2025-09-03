@@ -200,7 +200,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
       use_prepb_satwnd
   use convinfo, only: id_drifter,id_ship
 
-  use obsmod, only: iadate,oberrflg,perturb_obs,perturb_fact,ran01dom,hilbert_curve,pbqc4hd
+  use obsmod, only: iadate,oberrflg,perturb_obs,perturb_fact,ran01dom,hilbert_curve,pbqc4hd,flag_hr_ua_q
   use obsmod, only: blacklst,offtime_data,bmiss,ext_sonde,time_offset
   use aircraftinfo, only: aircraft_t_bc,aircraft_t_bc_pof,ntail,taillist,idx_tail,npredt,predt, &
       aircraft_t_bc_ext,ntail_update,max_tail,nsort,itail_sort,idx_sort,timelist
@@ -2504,13 +2504,10 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                     end if   
                     !find model pressure level
                     ilev=minloc(abs(presl-plevs(k)),DIM=1)
-                    !ilev=nsig
-                    !do n=1,nsig
-                    !  if(plevs(k) < presl(n))ilev=n
-                    !end do 
                     !if model level QM is higher than last pass, set to higher QM
-                    if(qqm(k)>pbqc(ilev+1,i))then
-                        pbqc(ilev+1,i)=qqm(k) 
+                    !avoid flagging for qm=9 (above 300 mb) if flag_hr_ua_q is false
+                    if((qqm(k)>pbqc(ilev+1,i)))then
+                        if(.not.(flag_hr_ua_q.and.(qqm(k).eq.9)))pbqc(ilev+1,i)=qqm(k)
                     end if 
 1204                continue
                  end if
