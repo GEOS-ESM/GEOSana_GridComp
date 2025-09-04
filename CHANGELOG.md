@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+04Sep2025:
+
+- add knobs for high-resolution radiosondes (zero-diff
+  when new obsclass not used).
+
 16May2025:
  - revise handling of OMPS-LP for 5.42.x FPP/FP
 
