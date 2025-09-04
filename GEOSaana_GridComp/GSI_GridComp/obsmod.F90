@@ -588,6 +588,7 @@ module obsmod
   logical lrun_subdirs
   logical l_foreaft_thin
   logical lgpsbnd_revint
+  logical flag_hr_ua_q
 
   logical l_wcp_cwm
   logical wrtgeovals
