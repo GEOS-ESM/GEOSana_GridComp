@@ -255,6 +255,13 @@ zreqrd = preduc
 
 ilen=xhat%lencv
 
+! Evaluate cost at iteration zero for printout
+if(nprt>=1.and.ltcost_) then
+  call jgrad(xhat,yhat,zfk,gradf,.false.,nprt,subname)
+  if (mype==0) then
+      write(6,999)trim(myname),': grepcost cost=', jiter,0,zfk
+  endif
+endif
 
 if(diag_precon) dirw=zero
 
