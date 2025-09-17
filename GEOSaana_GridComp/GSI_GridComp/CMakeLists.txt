@@ -356,6 +356,7 @@ set (SRCS_SOLVER
   gsd_update_mod.f90
   gsimod.F90
   gsisub.F90
+  hdraobmod.f90
   hybrid_ensemble_isotropic.F90
   inc2guess.f90
   init_jcdfi.f90
@@ -647,6 +648,7 @@ set (SRCS
 
 set (OBJS_OPENBUFR
    getcount_bufr.f90
+   hdraobmod.f90
    m_extOzone.F90
    read_aerosol.f90
    read_abi.f90

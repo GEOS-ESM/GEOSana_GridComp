@@ -415,6 +415,7 @@ module obsmod
   public :: destroy_obsmod_vars
   public :: ran01dom,dval_use
   public :: iout_pcp,iout_rad,iadate,iadatemn,write_diag,reduce_diag,oberrflg,bflag,ndat,dthin,dmesh,l_do_adjoint
+  public :: thin_flg,superob_flg,smooth_flg,filter_window,pbqc4hd,qcrequired,flag_hr_ua_q
   public :: diag_radardbz
   public :: lsaveobsens
   public ::                  iout_cldch, mype_cldch
@@ -551,8 +552,8 @@ module obsmod
   real(r_kind) ,allocatable,dimension(:):: time_window
 
   integer(i_kind) ntilt_radarfiles
-
   logical ::  ta2tb
+  integer(i_kind) filter_window
   logical ::  doradaroneob
   logical :: vr_dealisingopt, if_vterminal, if_model_dbz, inflate_obserr, if_vrobs_raw
   character(4) :: whichradar,oneobradid
@@ -570,7 +571,7 @@ module obsmod
   logical         :: missing_to_nopcp
 
   logical, save :: obs_instr_initialized_=.false.
-
+  logical thin_flg,superob_flg,smooth_flg,pbqc4hd,qcrequired 
   logical oberrflg,bflag,oberror_tune,perturb_obs,ref_obs,sfcmodel,dtbduv_on,dval_use
   logical blacklst,lobsdiagsave,lobsdiag_allocated,lobskeep,lsaveobsens
   logical lobserver,l_do_adjoint, lobsdiag_forenkf
@@ -587,6 +588,7 @@ module obsmod
   logical lrun_subdirs
   logical l_foreaft_thin
   logical lgpsbnd_revint
+  logical flag_hr_ua_q
 
   logical l_wcp_cwm
   logical wrtgeovals
@@ -702,6 +704,13 @@ contains
     dtbduv_on = .true.      ! .true. = use microwave dTb/duv in inner loop
     offtime_data = .false.  ! .false. = code fails if data files contain ref time
                             !            different from analysis time
+    thin_flg=.false. ! hdraob thin flag
+    superob_flg=.false. ! hdraob superobbing flag
+    smooth_flg=.false. ! hdraob smoothing flag, using binomial filter
+    filter_window=11 ! hdraob smoothing filter window (profile levels)
+    pbqc4hd=.true. !hdraob flag for doing QC using prepbufr QC marks 
+    qcrequired=.true. !set to true to set hd ascent raobs that cannot be QCed with prepbufr to unused
+    flag_hr_ua_q=.true. !set to false to avoid using prepbufr qc marks indicating q obs above 300 mb 
 ! moved to create_obsmod_var since l4dvar since before namelist is read
 !   if (l4dvar) then
 !      offtime_data = .true.   ! .true. = ignore difference in obs ref time
