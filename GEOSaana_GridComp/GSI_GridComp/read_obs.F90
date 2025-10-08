@@ -324,6 +324,7 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
        end if
 
        call closbf(lnbufr)
+       close(lnbufr)
        open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
        call openbf(lnbufr,'IN',lnbufr)
        call datelen(10)
@@ -430,9 +431,12 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
                trim(subset) == 'NC005065' .or. trim(subset) == 'NC005066' .or.& 
                trim(subset) == 'NC005030' .or. trim(subset) == 'NC005031' .or.& 
                trim(subset) == 'NC005032' .or. trim(subset) == 'NC005034' .or.&
-               trim(subset) == 'NC005039' .or. trim(subset) == 'NC005091' .or.&
-               trim(subset) == 'NC005067' .or. trim(subset) == 'NC005068' .or. trim(subset) == 'NC005069' &
-               ) then
+               trim(subset) == 'NC005039' .or. &
+               trim(subset) == 'NC005090' .or. trim(subset) == 'NC005091' .or.&
+               trim(subset) == 'NC005067' .or. trim(subset) == 'NC005068' .or. trim(subset) == 'NC005069' .or.&
+               trim(subset) == 'NC005047' .or. trim(subset) == 'NC005048' .or. trim(subset) == 'NC005049' .or.&
+               trim(subset) == 'NC005081' .or. &
+               trim(subset) == 'NC005072' ) then
                lexist = .true.
                exit loop
             endif
@@ -543,6 +547,7 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
       end if
 
       call closbf(lnbufr)
+      close(lnbufr)
   end if
   if(lexist)then
       write(6,*)'read_obs_check: bufr file date is ',idate,trim(filename),' ',dtype,jsatid
@@ -905,9 +910,12 @@ subroutine read_obs(ndata,mype)
            .or. mls &
            ) then
           ditype(i) = 'ozone'
-       else if (obstype == 'tgez' .or. obstype == 'tgev' .or. &
-                obstype == 'tgav' .or. obstype == 'tgaz' .or. &
-                obstype == 'tgop' .or. obstype == 'acos') then
+       else if (obstype == 'tgez'     .or. obstype == 'tgev'  .or. &
+                obstype == 'tgav'     .or. obstype == 'tgaz'  .or. &
+                obstype == 'tgop'     .or. obstype == 'acos'  .or. &
+                obstype == 'omno2'    .or. obstype == 'omso2' .or. &
+                obstype == 'mindsno2' .or. obstype == 'nmso2' .or. &
+                obstype == 's5pno2' ) then
           ditype(i) = 'tgas'
        else if (obstype == 'mlstgas') then
           ditype(i) = 'mlstgas'
@@ -1031,6 +1039,7 @@ subroutine read_obs(ndata,mype)
                   (dplat(i) == 'n17' .or. dplat(i) == 'n18' .or. & 
                    dplat(i) == 'n19' .or. dplat(i) == 'npp' .or. &
                    dplat(i) == 'n20' .or. &
+                   dplat(i) == 'n21' .or. &
                    dplat(i) == 'metop-a' .or. dplat(i) == 'metop-b' .or. &
                    dplat(i) == 'metop-c') 
 ! direct broadcast from NESDIS/UW
@@ -1042,6 +1051,7 @@ subroutine read_obs(ndata,mype)
                   (dplat(i) == 'n17' .or. dplat(i) == 'n18' .or. & 
                    dplat(i) == 'n19' .or. dplat(i) == 'npp' .or. &
                    dplat(i) == 'n20' .or. &
+                   dplat(i) == 'n21' .or. &
                    dplat(i) == 'metop-a' .or. dplat(i) == 'metop-b' .or. &
                    dplat(i) == 'metop-c') 
 

@@ -90,7 +90,6 @@ subroutine read_dims_ (fname,nlat,nlon,nlev,rc, myid,root)
 
 ! Local variables
   character(len=*), parameter :: myname_ = myname//"::dims_"
-  logical :: verbose
    
 ! Return code (status)
   rc=0; mype_=0; root_=0
@@ -269,7 +268,7 @@ subroutine read_berror_ (fname,bvars,rc, myid,root)
   enddo
   deallocate(data_in)
 
-! Write out lat/lon fields
+! Read in lat/lon fields
   allocate(data_in(nlon,nlat,1))
   do nv = 1, nv2dx
      call check_( nf90_inq_varid(ncid, trim(cvars2dx(nv)), varid), rc, mype_, root_ )
@@ -302,7 +301,7 @@ subroutine write_berror_ (fname,bvars,plevs,lats,lons,rc, myid,root)
   integer, intent(out) :: rc
   integer, intent(in), optional :: myid,root        ! accommodate MPI calling programs
 
-  character(len=*), parameter :: myname_ = myname//"::read_"
+  character(len=*), parameter :: myname_ = myname//"::write_"
   integer, parameter :: NDIMS = 3
 
 ! When we create netCDF files, variables and dimensions, we get back
@@ -377,7 +376,8 @@ subroutine write_berror_ (fname,bvars,plevs,lats,lons,rc, myid,root)
      do nl = 1, nlev
         nn=nn+1
         write(cindx,'(i4.4)') nl
-        call check_( nf90_def_var(ncid, trim(cvarsMLL(nv))//cindx, NF90_REAL, (/ y_dimid, z_dimid /), varidMLL(nn)), rc, mype_, root_ )
+        call check_( nf90_def_var(ncid, trim(cvarsMLL(nv))//cindx, NF90_REAL, (/ y_dimid, z_dimid /), varidMLL(nn)), rc, &
+                     mype_, root_ )
      enddo
   enddo
   allocate(varid2dx(nv2dx))
@@ -482,7 +482,7 @@ subroutine write_berror_ (fname,bvars,plevs,lats,lons,rc, myid,root)
   deallocate(varid2d)
   deallocate(varid1d)
 
-  print *, "*** Finish writing file ", fname
+  if(verbose) print *,"*** Finish writing file: ", trim(fname)
 
   return
 

@@ -224,6 +224,8 @@ contains
 !   2020-02-26  todling - reset obsbin from hr to min
 !   2020-08-26  mkim    - adjusted MHS QC for all-sky
 !   2020-09-27  j.jin   - assimilate SSMI, TMI and AMSRE (gmao format) in all-sky conditions.
+!   2023-06-30  j.jin   - add a qc_flag "ierrret_ges" to flag failed cloud retrieval from simulated Tb.
+!   2024-03-27  mkim    - changed the way to select all-sky GMI observations to use in BC coefficients updates 
 !
 !  input argument list:
 !     lunin   - unit from which to read radiance (brightness temperature, tb) obs
@@ -344,6 +346,7 @@ contains
   integer(i_kind) n,nlev,kval,ibin,ioff,ioff0,iii,ijacob,ioff1
   integer(i_kind) ii,jj,idiag,inewpc,nchanl_diag
   integer(i_kind) nadir,kraintype,ierrret
+  integer(i_kind) ierrret_ges
   integer(i_kind) ioz,ius,ivs,iwrmype
   integer(i_kind) iversion_radiag, istatus
   integer(i_kind) cor_opt,iinstr,chan_count
@@ -1035,6 +1038,7 @@ contains
         tpwc_guess_retrieval=zero
         scatp=zero
         scat=zero  
+        ierrret_ges=0
         ierrret=0
         tpwc_obs=zero
         kraintype=0
@@ -1234,6 +1238,7 @@ contains
         cld_rbc_idx=one
         if (radmod%lcloud_fwd .and. radmod%ex_biascor .and. eff_area) then
            ierrret=0
+           ierrret_ges=0
            do i=1,nchanl
               mm=ich(i)
               tsim_bc(i)=tsim(i)
@@ -1251,27 +1256,29 @@ contains
 
            if(amsua) call ret_amsua(tsim_bc,nchanl,tsavg5,zasat,clw_guess_retrieval,ierrret)
            if(gmi .or. tmi) then
-             call gmi_37pol_diff(tsim_bc(6),tsim_bc(7),tsim_clr_bc(6),tsim_clr_bc(7),clw_guess_retrieval,ierrret)
+             call gmi_37pol_diff(tsim_bc(6),tsim_bc(7),tsim_clr_bc(6),tsim_clr_bc(7),clw_guess_retrieval,ierrret_ges)
              call gmi_37pol_diff(tb_obs(6),tb_obs(7),tsim_clr_bc(6),tsim_clr_bc(7),clw_obs,ierrret)
            end if
            if(mhs) then
              call mhs_si(tb_obs(1),tb_obs(2), tsim_clr_bc(1),tsim_clr_bc(2),clw_obs,ierrret)
-             call mhs_si(tsim_bc(1),tsim_bc(2), tsim_clr_bc(1),tsim_clr_bc(2),clw_guess_retrieval,ierrret)
+             call mhs_si(tsim_bc(1),tsim_bc(2), tsim_clr_bc(1),tsim_clr_bc(2),clw_guess_retrieval,ierrret_ges)
            end if
            if(obstype == 'amsre') then
-             call gmi_37pol_diff(tsim_bc(9),tsim_bc(10),tsim_clr_bc(9),tsim_clr_bc(10),clw_guess_retrieval,ierrret)
+             call gmi_37pol_diff(tsim_bc(9),tsim_bc(10),tsim_clr_bc(9),tsim_clr_bc(10),clw_guess_retrieval,ierrret_ges)
              call gmi_37pol_diff(tb_obs(9),tb_obs(10),tsim_clr_bc(9),tsim_clr_bc(10),clw_obs,ierrret)
            endif
            if(ssmi) then
-             call gmi_37pol_diff(tsim_bc(4),tsim_bc(5),tsim_clr_bc(4),tsim_clr_bc(5),clw_guess_retrieval,ierrret)
+             call gmi_37pol_diff(tsim_bc(4),tsim_bc(5),tsim_clr_bc(4),tsim_clr_bc(5),clw_guess_retrieval,ierrret_ges)
              call gmi_37pol_diff(tb_obs(4),tb_obs(5),tsim_clr_bc(4),tsim_clr_bc(5),clw_obs,ierrret)
            endif
+           if (ierrret_ges /= 0) ierrret = ierrret_ges
            if (radmod%ex_obserr=='ex_obserr1') then
               call radiance_ex_biascor(radmod,nchanl,tsim_bc,tsavg5,zasat, &
-                       clw_guess_retrieval,clw_obs,cld_rbc_idx,ierrret)
+                       clw_guess_retrieval,clw_obs,cld_rbc_idx,ierrret_ges)
+           if (ierrret_ges /= 0) ierrret = ierrret_ges
            end if
            if (radmod%ex_obserr=='ex_obserr3') then
-              if(gmi) call radiance_ex_biascor_gmi(radmod,clw_obs,clw_guess_retrieval,nchanl,cld_rbc_idx)
+              if(gmi) call radiance_ex_biascor_gmi(radmod,tbc,nchanl,cld_rbc_idx)
               if(mhs) call radiance_ex_biascor_mhs(radmod,tbc,nchanl,cld_rbc_idx) 
            end if
 
@@ -1290,29 +1297,6 @@ contains
                 varinv(1:nchanl)=zero
                 id_qc(1:nchanl) = ifail_cloud_qc
              endif
-           endif
-
-!          additional bias predictor for all-sky GMI 
-           if (gmi) then
-              do i=1,nchanl
-                pred(6,i) = zero
-                pred(7,i) = zero
-                clw_avg = half*(clw_obs+clw_guess_retrieval)
-                if (i > 3 .and. clw_obs > 0.05_r_kind .and. clw_guess_retrieval > 0.05_r_kind .and. &
-                  abs(clw_obs-clw_guess_retrieval) < 0.005_r_kind .and. clw_avg < 0.5_r_kind) cld_rbc_idx2(i) = one
-                if (i < 5 .and. clw_obs > 0.2_r_kind .and. clw_guess_retrieval > 0.2_r_kind .and. &
-                  abs(clw_obs-clw_guess_retrieval) < 0.005_r_kind .and. clw_avg < 0.5_r_kind) cld_rbc_idx2(i) = one
-
-                if( i > 3 .and. clw_obs > 0.05_r_kind .and. clw_guess_retrieval > 0.05_r_kind .and. cld_rbc_idx(i) == zero) then
-                   pred(6,i) = clw_avg*clw_avg
-                   pred(7,i) = clw_avg
-                   tbc(i)=tbc(i) - pred(6,i)*predchan(6,i) - pred(7,i)*predchan(7,i)  !obs-ges with bias correction
-                else if( i < 5 .and. clw_obs > 0.2_r_kind .and. clw_guess_retrieval > 0.2_r_kind .and. cld_rbc_idx(i) == zero) then
-                   pred(6,i) = clw_avg*clw_avg
-                   pred(7,i) = clw_avg
-                   tbc(i)=tbc(i) - pred(6,i)*predchan(6,i) - pred(7,i)*predchan(7,i)  !obs-ges with bias correction
-                endif
-              enddo
            endif
 
         end if ! radmod%lcloud_fwd .and. radmod%ex_biascor
@@ -2676,7 +2660,6 @@ contains
                  call nc_diag_metadata("Forecast_unadjusted_clear",     sngl(tsim_clr(ich_diag(i))))     ! simulated Tb under clear-sky condition
                  call nc_diag_metadata("Forecast_adjusted_clear",       sngl(tsim_clr_bc(ich_diag(i))))     ! simulated Tb under clear-sky condition
                  call nc_diag_metadata("Forecast_unadjusted",           sngl(tb_obs(ich_diag(i))-tbcnob(ich_diag(i)))) ! simulated Tb with no bias correction
-                 call nc_diag_metadata("Forecast_adjusted",             sngl(tb_obs(ich_diag(i))-tbc(ich_diag(i)))     ) ! simulated Tb with bias correction
            !     call nc_diag_metadata("Bias_Correction", sngl(tbc(ich_diag(i))-tbcnob(ich_diag(i)))       ) ! bias correction
                  call nc_diag_metadata("Bias_Correction", sngl(tbcnob(ich_diag(i))-tbc(ich_diag(i)))       ) ! bias correction
                  call nc_diag_metadata("Bias_Correction_Constant", sngl(predbias(1,ich_diag(i)))           ) ! constant bias correction

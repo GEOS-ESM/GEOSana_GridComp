@@ -1,6 +1,6 @@
 #esma_set_this ()
 
-add_subdirectory(mksi)
+esma_add_subdirectory(mksi)
 add_subdirectory(etc)
 
 set (GSIGC_SRCS
@@ -737,7 +737,7 @@ if (CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 endif ()
 
 set (gsiscripts
-     analyzer gsidiags match_obcls_obsys.pl)
+     analyzer o3analyzer gsidiags match_obcls_obsys.pl)
 
 install(
    PROGRAMS ${gsiscripts} 

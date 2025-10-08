@@ -130,7 +130,9 @@ sub Assignfn {
 # fname = old file
 # fn = new file (links to old)
   my ( $fname, $fn ) = @_;
-  unlink($fn) if ( -e $fn ) ;
+# unlink($fn) if ( -e $fn ) ;
+# bweir the above will not remove a broken link
+  unlink($fn);
   symlink("$fname","$fn");
 
  }

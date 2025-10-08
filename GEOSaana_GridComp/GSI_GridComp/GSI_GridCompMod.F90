@@ -1,7 +1,5 @@
 #include "MAPL_ErrLog.h" 
-#ifdef _REAL8_
-#define _GMAO_FVGSI_
-#endif
+!#define _GMAO_FVGSI_
 !#define PRINT_STATES
 !#define SFCverbose
 !#define UPAverbose
@@ -65,7 +63,11 @@
                           soil_type,    & ! soil type
                           soil_temp,    & ! soil temperature
                           soil_moi,     & ! soil moisture
-                          sfc_rough       ! surface roughness
+                          sfc_rough,    & ! surface roughness
+                          no2_priorc,   & ! a-priori NO2
+                          so2_priorc,   & ! a-priori SO2
+                          pbltopl,      & ! PBL top level index
+                          troplev         ! Tropopause level index
 
    use guess_grids, only: nfldsig,      & ! number of guess sigma times
                           nfldsfc,      & ! number of guess surface times
@@ -104,6 +106,7 @@
                           destroy_metguess_grids
 
    ! routines from gridmod
+   use gridmod,   only : use_sp_eqspace
    use gridmod,   only : create_grid_vars,   &
                          destroy_grid_vars,  &
    ! variables for create_grid_vars
@@ -564,6 +567,10 @@ _ENTRY_(trim(Iam))
 
    call GSI_GridCompAlloc_()
 
+! Get trop. reactive trace gas options from rc file
+   call get_rtgas_params_( rc=STATUS )      
+   VERIFY_(STATUS)
+
 !                       -----------------------
 !                       Initialize MAPL Generic
 !                       -----------------------
@@ -727,10 +734,12 @@ _ENTRY_(trim(Iam))
    lon0d= lon0; lat0d=lat0
    lon0 = lon0 * d2r
    lat0 = lat0 * d2r
-   dlon=(pi+pi)/nlon	! in radians
-   dlat=pi/(nlat-1)
 
-   if(GsiGridType==0) then  ! equally spaced dgrid
+!  if(GsiGridType==0) then  ! equally spaced dgrid
+   if(use_sp_eqspace) then  ! equally spaced dgrid
+
+      dlon=(pi+pi)/nlon	! in radians
+      dlat=pi/(nlat-1)
 
 
 ! Set grid longitude array used by GSI.
@@ -1149,6 +1158,106 @@ _ENTRY_(trim(Iam))
 
    end subroutine GSI_GridCompAlloc_
 
+!-------------------------------------------------------------------------
+   subroutine get_rtgas_params_( rc )
+   
+   use ozinfo,    only: oz_bgadj_stratonly
+   use tgasinfo,  only: nreact, reactname, tgas_minsigobs, tgas_maxsigobs, tgas_sigobsscal, &
+                        tgas_minbgstrat, tgas_minbgwater, tgas_minbglndpbl, &
+                        tgas_minbglndfree, tgas_bgscalstrat, tgas_bgscalwater, &
+                        tgas_bgscallndpbl, tgas_bgscallndfree, tgas_vadj, &
+                        tgas_szamax, tgas_albmax, tgas_cldmax, &
+                        tgas_hadjlevidx, tgas_hadjabove, tgas_hadjbelow
+!-------------------------------------------------------------------------
+   integer, optional, intent(  OUT) :: rc     ! Error code:
+   integer                          :: ireact
+   character(len=ESMF_MAXSTR)       :: rname
+   character(len=*), parameter      :: IAm='get_rtgas_params_'
+
+   ! Check for ozone background error adjustment flag. (cakelle2, 9/15/22)
+   call ESMF_ConfigGetAttribute( CF, oz_bgadj_stratonly, label='oz_bgadj_stratonly:', Default=1, rc=STATUS )
+   VERIFY_(STATUS)
+   if ( IamRoot ) write(*,*) 'oz_bgadj_stratonly set to: ', oz_bgadj_stratonly
+   
+   ! Check trace gas options 
+   do ireact = 1, nreact  
+      rname = trim(reactname(ireact))
+      ! minsigobs
+      call read_param_ ( 'tgas_minsigobs_'//trim(rname)//':', tgas_minsigobs(ireact), 2.0, rc=STATUS )
+      VERIFY_(STATUS)     
+      ! maxsigobs         
+      call read_param_ ( 'tgas_maxsigobs_'//trim(rname)//':', tgas_maxsigobs(ireact), 5.0, rc=STATUS )
+      VERIFY_(STATUS)     
+      ! sigobsscal        
+      call read_param_ ( 'tgas_sigobsscal_'//trim(rname)//':', tgas_sigobsscal(ireact), 1.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! minbgstrat 
+      call read_param_ ( 'tgas_minbgstrat_'//trim(rname)//':', tgas_minbgstrat(ireact), -999.0, rc=STATUS )
+      VERIFY_(STATUS)     
+      ! minbgwater 
+      call read_param_ ( 'tgas_minbgwater_'//trim(rname)//':', tgas_minbgwater(ireact), -999.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! minbglndpbl 
+      call read_param_ ( 'tgas_minbglndpbl_'//trim(rname)//':', tgas_minbglndpbl(ireact), -999.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! minbglndfree 
+      call read_param_ ( 'tgas_minbglndfree_'//trim(rname)//':', tgas_minbglndfree(ireact), -999.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! bgscalstrat 
+      call read_param_ ( 'tgas_bgscalstrat_'//trim(rname)//':', tgas_bgscalstrat(ireact), 1.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! bgscalwater 
+      call read_param_ ( 'tgas_bgscalwater_'//trim(rname)//':', tgas_bgscalwater(ireact), 1.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! bgscallndpbl 
+      call read_param_ ( 'tgas_bgscallndpbl_'//trim(rname)//':', tgas_bgscallndpbl(ireact), 1.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! bgscallndfree 
+      call read_param_ ( 'tgas_bgscallndfree_'//trim(rname)//':', tgas_bgscallndfree(ireact), 1.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! vadj 
+      call read_param_ ( 'tgas_vadj_'//trim(rname)//':', tgas_vadj(ireact), 1.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! szamax 
+      call read_param_ ( 'tgas_szamax_'//trim(rname)//':', tgas_szamax(ireact), 64.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! albmax 
+      call read_param_ ( 'tgas_albmax_'//trim(rname)//':', tgas_albmax(ireact), 0.3, rc=STATUS )
+      VERIFY_(STATUS)
+      ! cldmax 
+      call read_param_ ( 'tgas_cldmax_'//trim(rname)//':', tgas_cldmax(ireact), 0.5, rc=STATUS )
+      VERIFY_(STATUS)
+      ! hadjabove 
+      call read_param_ ( 'tgas_hadjabove_'//trim(rname)//':', tgas_hadjabove(ireact), 1.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! hadjbelow 
+      call read_param_ ( 'tgas_hadjbelow_'//trim(rname)//':', tgas_hadjbelow(ireact), 1.0, rc=STATUS )
+      VERIFY_(STATUS)
+      ! hadjlevidx
+      call ESMF_ConfigGetAttribute( CF, tgas_hadjlevidx(ireact), label='tgas_hadjlevidx_'//trim(rname)//':', Default=15, rc=STATUS )
+      VERIFY_(STATUS)
+      if ( IamRoot ) write(*,*) 'tgas_hadjlevidx_'//trim(rname)//' set to: ', tgas_hadjlevidx(ireact)
+   enddo
+
+   end subroutine get_rtgas_params_
+
+
+!-------------------------------------------------------------------------
+   subroutine read_param_ ( thislabel, thispara, defval, rc )
+!-------------------------------------------------------------------------
+   character(len=*),  intent(IN   ) :: thislabel
+   real(r_kind),      intent(  OUT) :: thispara
+   real,              intent(IN   ) :: defval
+   integer, optional, intent(  OUT) :: rc     ! Error code:
+   real                             :: tmpval
+   character(len=*), parameter      :: IAm='read_param_'
+
+   call ESMF_ConfigGetAttribute( CF, tmpval, label=trim(thislabel), Default=defval, rc=STATUS )
+   VERIFY_(STATUS)
+   thispara = tmpval
+   if ( IamRoot ) write(*,*) trim(thislabel),' set to: ', thispara
+   end subroutine read_param_
+
    end subroutine Initialize
 
 !-------------------------------------------------------------------------
@@ -1220,6 +1329,7 @@ _ENTRY_(trim(Iam))
    real(r_single),dimension(:,:,:), pointer :: clfr ! cloud fraction for radiation
    ! import chem tracers
    real(r_single),dimension(:,:,:), pointer :: tgasp =>NULL() ! generic trace gas
+   real(r_single),dimension(:,:  ), pointer :: levidxp =>NULL() ! pbl top level index
    ! import aerosol optical depth
    real(r_single),dimension(:,:),   pointer :: aodp =>NULL()  ! aerosol optical depth
    ! import aerosols: dust
@@ -1367,19 +1477,18 @@ _ENTRY_(trim(Iam))
    endif
 #endif
 
+!  Set alarm
+!  ---------
+   call GSI_GridCompSetAnaTime_()
+#ifdef VERBOSE
+   call tell(Iam,"returned from GSI_GridCompSetAnaTime_()")
+#endif
+
    call GSI_GridCompGetPointers_()
    call GSI_GridCompCopyImportDyn2Internal_(L)
    call GSI_GridCompComputeVorDiv_(L)
    call GSI_GridCompCopyImportSfc2Internal_(L)
    call GSI_GridCompGetNCEPsfcFromFile_(L)
-
-!  Set alarm
-!  ---------
-
-   call GSI_GridCompSetAnaTime_()
-#ifdef VERBOSE
-   call tell(Iam,"returned from GSI_GridCompSetAnaTime_()")
-#endif
 
 !  Set observations input
 !  ----------------------
@@ -2146,6 +2255,45 @@ _ENTRY_(trim(Iam))
              call ESMFL_StateGetPointerToData(import, tgasp, trim(cvar), alloc=.true., rc=STATUS)
              VERIFY_(STATUS)
              call GSI_GridCompSwapIJ_(tgasp,GSI_chemguess_bundle(it)%r3(ipnt)%q)
+             ! for reactive trace gases, also need some additional imports...
+             if(trim(cvar)=='NO2' .or. trim(cvar)=='SO2g')then
+                if ( trim(cvar)=='NO2' ) then
+                   ! don't think I need this
+                   !call ESMFL_StateGetPointerToData(import, priorp, 'NO2_prior', alloc=.true., rc=STATUS)
+                   !VERIFY_(STATUS) 
+                   if(.not.allocated(no2_priorc))then
+                      allocate(no2_priorc(lat2,lon2,nsig,nfldsig))
+                      no2_priorc(:,:,:,:) = 0.0
+                   end if
+                   !call GSI_GridCompSwapIJ_(priorp,no2_priorc(:,:,:,it))
+                   call GSI_GridCompSwapIJ_(tgasp,no2_priorc(:,:,:,it))
+                elseif(trim(cvar)=='SO2g')then
+                   !call ESMFL_StateGetPointerToData(import, priorp, 'SO2_prior', alloc=.true., rc=STATUS)
+                   !VERIFY_(STATUS) 
+                   if(.not.allocated(so2_priorc))then 
+                      allocate(so2_priorc(lat2,lon2,nsig,nfldsig))
+                      so2_priorc(:,:,:,:) = 0.0
+                   end if
+                   call GSI_GridCompSwapIJ_(tgasp,so2_priorc(:,:,:,it))
+                   !call GSI_GridCompSwapIJ_(priorp,so2_priorc(:,:,:,it))
+                end if
+                ! PBL top level index
+                call ESMFL_StateGetPointerToData(import, levidxp, 'PBLTOPL', alloc=.true., rc=STATUS)
+                VERIFY_(STATUS)
+                if(.not.allocated(pbltopl))then
+                   allocate(pbltopl(lat2,lon2,nfldsig))
+                   pbltopl(:,:,:) = 0.0
+                end if
+                call GSI_GridCompSwapIJ_(levidxp,pbltopl(:,:,it))
+                ! Tropopause level index
+                call ESMFL_StateGetPointerToData(import, levidxp, 'TROPLEV', alloc=.true., rc=STATUS)
+                VERIFY_(STATUS)  
+                if(.not.allocated(troplev))then
+                   allocate(troplev(lat2,lon2,nfldsig))  
+                   troplev(:,:,:) = 0.0
+                end if
+                call GSI_GridCompSwapIJ_(levidxp,troplev(:,:,it))
+             end if
          end select
       end if ! rank 3
 #ifdef UPAverbose
@@ -2192,6 +2340,7 @@ _ENTRY_(trim(Iam))
    use compact_diffs, only: uv2vordiv
    use xhat_vordivmod, only: xhat_vordiv_calc2
 #endif /* _GMAO_FVGSI_ */
+   use mpeu_util, only: die
 
    implicit none
 
@@ -2286,13 +2435,20 @@ _ENTRY_(trim(Iam))
    VERIFY_(STATUS)
 
 #else /* _GMAO_FVGSI_ */
+   if(IamRoot) print *,trim(Iam),': Using GSI-based div/vor procedure'
    if(.not.cdiff_created()) call create_cdiff_coefs()
    if(.not.cdiff_initialized()) call inisph(rearth,rlats(2),wgtlats(2),nlon,nlat-2)
    ier=0
+   call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'div', ges_div_nnn, istatus );ier=ier+istatus
+   call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'vor', ges_vor_nnn, istatus );ier=ier+istatus
    call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'u', ges_u_it, istatus );ier=ier+istatus
    call GSI_BundleGetPointer ( GSI_MetGuess_Bundle(it), 'v', ges_v_it, istatus );ier=ier+istatus
    if(ier==0) then
       call xhat_vordiv_calc2 (ges_u_it,ges_v_it,ges_vor_nnn,ges_div_nnn)
+   else
+!     bweir: need to be able to avoid death for constituent-only DAS
+!     call die(Iam,': unable to calculate vor/div',99)
+      if(IamRoot) print *,trim(Iam),': *** Unable to compute div/vor ***'
    endif
 !!   call destroy_cdiff_coefs
 #endif /* _GMAO_FVGSI_ */
@@ -3416,17 +3572,35 @@ _ENTRY_(trim(Iam))
      integer         ,intent(out) :: rc
      character(len=*), parameter :: IAm='GSI_GridComp.getnexttoken1_'
 
+     logical :: tableEnd
+
+     ! old code
+!    token=""
+!    call ESMF_ConfigNextLine(cf, rc=rc)
+!      if(rc/=0) return           ! end-of-file is expected.  No error message is produced.
+!
+!    call ESMF_ConfigGetAttribute(cf, token, rc=rc)
+!      if(rc/=0) then
+!        write(6,'(2a,i5)') myname, ': ESMF_ConfigGetAttribute(field #1) error, rc=', rc
+!        call MAPL_Abort()
+!      endif
+!
+!    if(token=='::') rc=-1	! end-of-table is expected.  No error message is produced
+
+     ! new
      token=""
-     call ESMF_ConfigNextLine(cf, rc=rc)
-       if(rc/=0) return           ! end-of-file is expected.  No error message is produced.
-
+     call ESMF_ConfigNextLine(cf, tableEnd=tableEnd, rc=rc)
+     if(tableEnd) then
+       rc = -1
+       return
+     endif
+ 
      call ESMF_ConfigGetAttribute(cf, token, rc=rc)
-       if(rc/=0) then
-         write(6,'(2a,i5)') myname, ': ESMF_ConfigGetAttribute(field #1) error, rc=', rc
-         call MAPL_Abort()
-       endif
+     if(rc/=0) then
+       write(6,'(2a,i5)') myname, ': ESMF_ConfigGetAttribute(field #1) error, rc=', rc
+       call MAPL_Abort()
+     endif
 
-     if(token=='::') rc=-1	! end-of-table is expected.  No error message is produced
    end subroutine getnexttoken1_
 
    subroutine getnexttoken2_(cf,token,myname)
@@ -3678,6 +3852,12 @@ _ENTRY_(trim(Iam))
    if(allocated(soil_temp)) deallocate(soil_temp)
    if(allocated(soil_moi)) deallocate(soil_moi)
    if(allocated(sfc_rough)) deallocate(sfc_rough)
+
+   ! reactive trace gas stuff
+   if(allocated(no2_priorc)) deallocate(no2_priorc)
+   if(allocated(so2_priorc)) deallocate(so2_priorc)
+   if(allocated(pbltopl   )) deallocate(pbltopl   )
+   if(allocated(troplev   )) deallocate(troplev   )
 
    call destroy_grid_vars
 
@@ -4183,6 +4363,26 @@ _ENTRY_(trim(Iam))
                HALOWIDTH = local_hw,              &
                RC=STATUS  ); VERIFY_(STATUS)
        endif
+       ! additional imports needed for NO2/SO2
+       if ( trim(lowercase(cvar))=='no2' .or. &
+            trim(lowercase(cvar))=='so2g' ) then
+          call MAPL_AddImportSpec(GC,         &
+            SHORT_NAME= 'PBLTOPL',            &
+            LONG_NAME = 'PBL_top_level_index',&
+            UNITS     = '1',                  &   
+            DIMS      = MAPL_DimsHorzOnly,    &   
+            VLOCATION = MAPL_VLocationNone,   &
+            HALOWIDTH = local_hw,             &
+            RC=STATUS  ); VERIFY_(STATUS)
+          call MAPL_AddImportSpec(GC,         &
+            SHORT_NAME= 'TROPLEV',            &
+            LONG_NAME = 'Tropopause_level',   &
+            UNITS     = '1',                  &
+            DIMS      = MAPL_DimsHorzOnly,    &
+            VLOCATION = MAPL_VLocationNone,   &
+            HALOWIDTH = local_hw,             &
+            RC=STATUS  ); VERIFY_(STATUS)
+       endif 
     enddo
 
 ! Exports
