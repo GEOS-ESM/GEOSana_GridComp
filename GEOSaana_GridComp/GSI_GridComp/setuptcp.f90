@@ -33,6 +33,8 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
 !   2020-02-26  todling - reset obsbin from hr to min
 !   2025-03-25  sienkiewicz - make sure ratio_errors is defined before use (prior to oberror_tune code)
 !   2025-07-08  sienkiewicz - modify obs error output for ncdiag (JEDI) to Pa, similar to handling in setupps
+!   2025-10-09  sienkiewicz - Observation and Obs_Minus_Forecast also converted to Pa, added forecast
+!                             values to ncdiag as in setupps
 !
 !   input argument list:
 !
@@ -693,9 +695,11 @@ subroutine setuptcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
            call nc_diag_metadata("Error_Input",             sngl(error_input*r1000)  )  ! Pa
            call nc_diag_metadata("Error_Adjust",            sngl(error_adjst*r1000)  )  ! Pa
 
-           call nc_diag_metadata("Observation",                   sngl(pob)        )
-           call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(pob-pges)   )
-           call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(pob-pgesorig))
+           call nc_diag_metadata("Observation",                   sngl(pob*r100)        )
+           call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl((pob-pges)*r100)   )
+           call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl((pob-pgesorig)*r100))
+           call nc_diag_metadata("Forecast_adjusted",sngl(pges*r100))
+           call nc_diag_metadata("Forecast_unadjusted",sngl(pgesorig*r100))
 
 
            if (lobsdiagsave) then
