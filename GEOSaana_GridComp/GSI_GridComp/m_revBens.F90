@@ -61,7 +61,8 @@ subroutine revBens_ensmean_overwrite (en_bar,ibin)
   use hybrid_ensemble_parameters, only: grd_ens
   use hybrid_ensemble_parameters, only: q_hyb_ens
   use hybrid_ensemble_parameters, only: oz_univ_static
-  use hybrid_ensemble_parameters, only: sst_staticB
+  use hybrid_ensemble_parameters, only: sst_staticB,pblri_staticB,pblrf_staticB
+  use hybrid_ensemble_parameters, only: pblsld_staticB,pblgld_staticB,pblrd_staticB
   use gsi_bundlemod, only: gsi_bundlecreate
   use gsi_bundlemod, only: gsi_bundlegetpointer
   use gsi_bundlemod, only: gsi_bundlegetvar
@@ -190,6 +191,13 @@ subroutine revBens_ensmean_overwrite (en_bar,ibin)
             mptr2d=gptr2d
          endif
          if (evar=='sst' .and. sst_staticB) then
+            mptr2d=zero
+         endif
+         if ( (evar=='pblri' .and. pblri_staticB) .or. &
+              (evar=='pblrf' .and. pblrf_staticB) .or. &
+              (evar=='pblsld'.and. pblsld_staticB) .or. &
+              (evar=='pblgld'.and. pblgld_staticB) .or. &
+              (evar=='pblrd' .and. pblrd_staticB) ) then
             mptr2d=zero
          endif
          if (mype==0) then

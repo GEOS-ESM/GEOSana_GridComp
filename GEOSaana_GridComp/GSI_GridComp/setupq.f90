@@ -136,7 +136,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use m_qNode, only: qNode_ich0, qNode_ich0_PBL_Pseudo
   use m_obsLList, only: obsLList
   use obsmod, only: luse_obsdiag,ianldate
-  use obsmod, only: netcdf_diag, binary_diag, dirname
+  use obsmod, only: netcdf_diag, binary_diag, dirname,qcrequired
   use nc_diag_write_mod, only: nc_diag_init, nc_diag_header, nc_diag_metadata, &
        nc_diag_write, nc_diag_data2d
   use nc_diag_read_mod, only: nc_diag_read_init, nc_diag_read_get_dim, nc_diag_read_close
@@ -163,8 +163,10 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use sparsearr, only: sparr2, new, size, writearray, fullarray
   use state_vectors, only: svars3d, levels, nsdim
   use convinfo, only: id_drifter, subtype_drifter
-
   use m_fsi_weight, only: fsi_weight,fsi_apply_weight
+  use hdraobmod, only: nhdq,hdqlist
+  use prepbufrmod, only: pbqcq,npbq
+
 
   implicit none
 
@@ -197,7 +199,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Declare local variables  
   
-  real(r_double) rstation_id
+  real(r_double) rstation_id,hd_rstation_id 
   real(r_kind) qob,qges,qsges,q2mges,q2mges_read,q2mges_water
   real(r_kind) ratio_errors,dlat,dlon,dtime,dpres,rmaxerr,error
   real(r_kind) rsig,dprpx,rlow,rhgh,presq,tfact,ramp
@@ -220,25 +222,27 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind),dimension(lat2,lon2,nfldsig):: qg2m
   real(r_kind),dimension(nsig):: prsltmp, tvgestmp, tsentmp
   real(r_kind),dimension(nsig):: qsat_ges
-  real(r_kind),dimension(nsig):: prsltmp2, qtmp,zges, utmp, vtmp
-  real(r_kind),dimension(nsig+1):: prsitmp
+  real(r_kind),dimension(nsig):: prsltmp2,prsltmp3, qtmp,zges, utmp, vtmp
+  real(r_kind),dimension(nsig+1):: prsitmp,prsitmp2
   real(r_kind),dimension(34):: ptablq
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
   real(r_single),allocatable,dimension(:,:)::rdiagbufp
 
 
-  integer(i_kind) i,nchar,nreal,ii,l,jj,mm1,itemp,iip
+  integer(i_kind) i,j,nchar,nreal,ii,l,jj,mm1,itemp,iip
   integer(i_kind) jsig,itype,k,nn,ikxx,iptrb,ibin,ioff,ioff0,icat,ijb,isli
   integer(i_kind) ier,ilon,ilat,ipres,iqob,id,itime,ikx,iqmax,iqc
   integer(i_kind) ier2,iuse,ilate,ilone,istnelv,iobshgt,istat,izz,iprvd,isprvd
   integer(i_kind) idomsfc,iderivative
+  integer(i_kind) idddd,hd_idddd,iohdraob,pbidx
+  integer(i_kind) pqc_lev 
   real(r_kind) :: delz
   real(r_kind) :: sfactor
   type(sparr2) :: dhx_dx
   real(r_single), dimension(nsdim) :: dhx_dx_array
-  integer(i_kind) :: iz, q_ind, nind, nnz
+  integer(i_kind) :: iz, q_ind, nind, nnz,iprev_station
 
-  character(8) station_id
+  character(8) station_id,hd_station_id 
   character(8),allocatable,dimension(:):: cdiagbuf,cdiagbufp
   character(8),allocatable,dimension(:):: cprvstg,csprvstg
   character(8) c_prvstg,c_sprvstg
@@ -264,6 +268,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   integer(i_kind) :: idft
 
   equivalence(rstation_id,station_id)
+  equivalence(hd_rstation_id,hd_station_id) 
   equivalence(r_prvstg,c_prvstg)
   equivalence(r_sprvstg,c_sprvstg)
 
@@ -322,6 +327,32 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   do i=1,nobs
      muse(i)=nint(data(iuse,i)) <= jiter
   end do
+!  If HD raobs available move prepbufr version to monitor
+  if(nhdq > 0)then
+     iprev_station=0
+     do i=1,nobs
+        ikx=nint(data(ikxx,i))
+        itype=ictype(ikx)
+        if(itype == 120) then
+           rstation_id     = data(id,i)
+           read(station_id,'(i5,3x)',err=1200) idddd
+           if(idddd == iprev_station)then
+             data(iuse,i)=109._r_kind
+             muse(i) = .false.
+           else
+              stn_loop:do j=1,nhdq
+                if(idddd == hdqlist(j))then
+                   iprev_station=idddd
+                   data(iuse,i)=109._r_kind
+                   muse(i) = .false.
+                   exit stn_loop
+                end if
+              end do stn_loop
+           end if
+        end if
+1200    continue
+     end do
+  end if
 
   var_jb=zero
 
@@ -508,8 +539,11 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
     ! geopotential height 
     call tintrp2a1(geop_hgtl, zges, dlat, dlon, dtime, hrdifsig, nsig, mype, nfldsig)
     prsltmp2 = exp(prsltmp) ! pressure on model layers
+    prsltmp3 = r10*prsltmp2 ! pressure on model layers (mb)
+
     ! pressure on interfaces
     call tintrp2a1(ges_prsi,prsitmp,dlat,dlon,dtime,hrdifsig,nsig+1,mype,nfldsig)
+    prsitmp2 = r10*prsitmp
     ! virtual temperature profile
     call tintrp2a1(ges_tv,tvgestmp,dlat,dlon,dtime,hrdifsig,nsig,mype,nfldsig)
     ! sensible temperature profile
@@ -524,6 +558,55 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
     ! surface temperature
     call tintrp31(ges_tv,sfctges,dlat,dlon,log(psges),dtime, &
          hrdifsig,mype,nfldsig)
+
+
+
+! Implementation of PrepBufr QC check for hdraob types 119 (ascent data)
+     write(6,*)'itype: ',itype,' npbq: ',npbq,' muse: ',muse(i)
+     if ((itype==119) .and. (npbq>0).and.(muse(i)==.true.)) then
+       !find PBQC value 
+       hd_rstation_id = data(id,i) !grab id for hd station
+       read(hd_station_id,'(i5,3x)',err=1201,iostat=iohdraob) hd_idddd
+       pbidx=0
+       hd_stn_loop:do j=1,npbq !find the index of station id 
+           if(hd_idddd == pbqcq(1,j)) then
+              write(6,*) 'found matching PBQC station: ',pbqcq(1,j)
+              pbidx=j
+              exit hd_stn_loop
+           end if
+       end do hd_stn_loop
+       if(pbidx.gt.0) then!skip qc array search if PB station not found
+         pqc_lev=minloc(abs(prsltmp3-prest),DIM=1)
+         if (pbqcq(pqc_lev+1,pbidx)>3) then !turn off if above threshold
+              write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',prest
+              write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcq(pqc_lev+1,pbidx)
+              data(iuse,i)=110._r_kind
+              muse(i)=.false.
+         end if 
+         if (qcrequired.and.(pbqcq(pqc_lev+1,pbidx).eq.0)) then !if qcrequired option then turn off for no QC
+             write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',prest
+             write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to missing QC'
+             data(iuse,i)=111._r_kind
+             muse(i)=.false.
+         end if  
+       end if 
+       !do pqc_lev=2,nsig+1 !iterate over model layer pressure levels at ob location (log pressure)
+       !   if (prsitmp2(pqc_lev)<prest) then
+       !      if (pbqcq(pqc_lev,pbidx)>3) then !turn off if above threshold
+       !            write(6,*),' layer pres: ',prsltmp3(pqc_lev-1),' tripped at: ',prsitmp2(pqc_lev),'for hd ob pres: ',prest
+       !            write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcq(pqc_lev,pbidx)
+       !            muse(i)=.false.
+       !      else
+       !            write(6,*)'ob above model top'
+       !      end if
+       !      exit
+       !   end if
+       !end do
+1201   continue
+       if(iohdraob.ne.0)then
+               write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
+       end if
+     end if !type selection 
 
     isli = data(idomsfc,i) ! dominate surface type
 
@@ -1406,6 +1489,9 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("northward_wind", sngl(vtmp))
               call nc_diag_data2d("eastward_wind", sngl(utmp))
               call nc_diag_data2d("dup_kx_vector", sngl(dup_kx_vector(:,i)))
+              call nc_diag_data2d("specific_humidity", sngl(qtmp))
+              call nc_diag_metadata("surface_pressure", sngl(psges*r1000))
+              call nc_diag_metadata("surface_height",sngl(zsges))
            endif
            call nc_diag_metadata("surface_roughness", sngl(sfcr/r100))
            call nc_diag_metadata("landmask", sngl(landfrac))

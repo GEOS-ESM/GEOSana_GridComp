@@ -12,6 +12,11 @@ module read_obsmod
 !   2015-08-20  zhu  - add flexibility for enabling all-sky and using aerosol info in radiance
 !                      assimilation. Use radiance_obstype_search from radiance_mod.
 !   2017-05-12  Y. Wang and X. Wang - add dbz to be read in, POC: xuguang.wang@ou.edu
+!   2022-08-10  zhu  - add pbl* to read in
+!   2023-10-24  eyang - changed subroutine to read in pblri and pblrf obs depending on obs type
+!   2024-03-01  zhu  - read in gnssro pblhlow and pblhhgh data, instead of one gnssro pblh.
+!                    - previously use pblrf for gnssro pblh; now use pblrf for pblhlow, use pblkh for pblhhgh
+!   2024-10-06  eyang - add pblsld, pblgld, pblrd
 !
 ! subroutines included:
 !   sub gsi_inquire   -  inquire statement supporting fortran earlier than 2003
@@ -156,6 +161,7 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
   use convinfo, only: nconvtype,ictype,ioctype,icuse
   use chemmod, only : oneobtest_chem,oneob_type_chem,&
        code_pm25_ncbufr,code_pm25_anowbufr,code_pm10_ncbufr,code_pm10_anowbufr
+  use netcdf
 
   implicit none
 
@@ -168,6 +174,7 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
 
   integer(i_kind) :: lnbufr,idate,idate2,iret,kidsat
   integer(i_kind) :: ireadsb,ireadmg,kx,nc,said
+  integer(i_kind) :: ncid,varid
   real(r_double) :: satid,rtype
   character(8) subset
   logical,parameter:: GMAO_READ=.false.
@@ -187,10 +194,16 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
 
   if(lexist .and. trim(dtype) /= 'tcp' )then
       lnbufr = 15
-      open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
-      call openbf(lnbufr,'IN',lnbufr)
-      call datelen(10)
-      call readmg(lnbufr,subset,idate,iret)
+      if (dtype=='pblri' .or. dtype=='pblrf' .or. dtype=='pblsld' .or. dtype=='pblgld' .or. dtype=='pblrd') then
+         iret =  NF90_OPEN(trim(filename),0,ncid)
+         iret = NF90_INQ_VARID(ncid,'Ana_Time',varid)
+         if (iret == nf90_noerr) iret = NF90_GET_VAR(ncid,varid,idate)
+      else
+         open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
+         call openbf(lnbufr,'IN',lnbufr)
+         call datelen(10)
+         call readmg(lnbufr,subset,idate,iret)
+      end if
       if(iret == 0)then
 
 !        Extract date and check for consistency with analysis date
@@ -327,11 +340,18 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
          kidsat = 0
        end if
 
-       call closbf(lnbufr)
-       close(lnbufr)
-       open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
-       call openbf(lnbufr,'IN',lnbufr)
-       call datelen(10)
+       if (dtype=='pblri' .or. dtype=='pblrf' .or. dtype=='pblsld' .or. dtype=='pblgld' .or. dtype=='pblrd') then
+          iret = NF90_CLOSE(ncid)
+          iret =  NF90_OPEN(trim(filename),0,ncid)
+          iret = NF90_INQ_VARID(ncid,'Ana_Time',varid)
+          if (iret == nf90_noerr) iret = NF90_GET_VAR(ncid,varid,idate2)
+       else
+          call closbf(lnbufr)
+          close(lnbufr)
+          open(lnbufr,file=trim(filename),form='unformatted',status ='unknown')
+          call openbf(lnbufr,'IN',lnbufr)
+          call datelen(10)
+       end if
 
        if(kidsat /= 0)then
         lexist = .false.
@@ -375,6 +395,48 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
           end do
           nread = nread + 1
          end do file2loop
+       else if(trim(filename) == 'raob_pblh')then
+         lexist = .false.
+         kx=120
+         do nc=1,nconvtype
+           if(trim(ioctype(nc)) == trim(dtype) .and. kx == ictype(nc) .and. icuse(nc) > minuse)then
+             lexist = .true.
+             exit
+           end if
+         end do
+         if (.not. lexist) nread = nread + 1
+       else if(trim(filename) == 'ro_pblh')then
+         lexist = .false.
+         kx=870
+         do nc=1,nconvtype
+           if(trim(ioctype(nc)) == trim(dtype) .and. kx == ictype(nc) .and. icuse(nc) > minuse)then
+             lexist = .true.
+             exit
+           end if
+         end do
+         if (.not. lexist) nread = nread + 1
+       else if(trim(filename) == 'wp_pblh')then
+         lexist = .false.
+         kx=893
+         !kx=888
+         do nc=1,nconvtype
+           if(trim(ioctype(nc)) == trim(dtype) .and. kx == ictype(nc) .and. icuse(nc) > minuse)then
+             lexist = .true.
+             exit
+           end if
+         end do
+         if (.not. lexist) nread = nread + 1
+       else if(trim(filename) == 'calipso_pblh')then
+         lexist = .false.
+         kx=890
+         do nc=1,nconvtype
+           if(trim(ioctype(nc)) == trim(dtype) .and. kx == ictype(nc) .and. icuse(nc) > minuse)then
+             lexist = .true.
+             exit
+           end if
+         end do
+         if (.not. lexist) nread = nread + 1
+
        else if(trim(filename) == 'gps_ref' .or.  trim(filename) == 'gps_bnd')then
          lexist = .false.
          gpsloop: do while(ireadmg(lnbufr,subset,idate2) >= 0)
@@ -550,8 +612,12 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
        end if
       end if
 
-      call closbf(lnbufr)
-      close(lnbufr)
+      if (dtype=='pblri' .or. dtype=='pblrf' .or. dtype=='pblsld' .or. dtype=='pblgld' .or. dtype=='pblrd') then
+         iret = NF90_CLOSE(ncid)
+      else
+         call closbf(lnbufr)
+         close(lnbufr)
+      end if
   end if
   if(lexist)then
       write(6,*)'read_obs_check: bufr file date is ',idate,trim(filename),' ',dtype,jsatid
@@ -710,12 +776,14 @@ subroutine read_obs(ndata,mype)
            reduce_diag,nobs_sub,dval_use
     use gsi_nstcouplermod, only: nst_gsi
 !   use gsi_nstcouplermod, only: gsi_nstcoupler_set
+    use hdraobmod, only: read_hdraob,nhdt,nhdq,nhduv,nhdps,hdtlist,hdqlist,hduvlist,hdpslist,nodet,nodeq,nodeuv,nodeps
+    use prepbufrmod, only: read_prepbufr,pbqct,pbqcq,pbqcuv,pbqcps,pbnodet,pbnodeps,pbnodeq,pbnodeuv,npbt,npbq,npbuv,npbps
     use qcmod, only: njqc,vadwnd_l2rw_qc
     use gsi_4dvar, only: l4dvar
     use satthin, only: super_val,super_val1,superp,makegvals,getsfc,destroy_sfc
-    use mpimod, only: ierror,mpi_comm_world,mpi_sum,mpi_rtype,mpi_integer,npe,&
+    use mpimod, only: ierror,mpi_comm_world,mpi_sum,mpi_max,mpi_rtype,mpi_integer,npe,&
          setcomm
-    use constants, only: one,zero
+    use constants, only: one,zero,izero
     use converr, only: converr_read
     use converr_ps, only: converr_ps_read
     use converr_q, only: converr_q_read
@@ -746,6 +814,11 @@ subroutine read_obs(ndata,mype)
     use gsi_unformatted, only: unformatted_open
 
     use mrmsmod,only: l_mrms_sparse_netcdf
+    use read_pblri
+    use read_pblrf
+    use read_pblsld
+    use read_pblgld
+    use read_pblrd
 
     implicit none
 
@@ -772,6 +845,7 @@ subroutine read_obs(ndata,mype)
     integer(i_kind):: npetot,npeextra,mmdat,nodata
     integer(i_kind):: iworld,iworld_group,next_mype,mm1,iix
     integer(i_kind):: mype_root
+    integer(i_kind),dimension(16):: nhd,nhd1
     integer(i_kind):: minuse,lunsave,maxproc,minproc
     integer(i_kind),dimension(ndat):: npe_sub,npe_sub3,mpi_comm_sub,mype_root_sub,npe_order
     integer(i_kind),dimension(ndat):: ntasks1,ntasks
@@ -840,7 +914,24 @@ subroutine read_obs(ndata,mype)
        deallocate(nrnd)
     endif
 
+!   Set number of high definition and prepbufr radiosonde stations to zero
+    nhdt=izero
+    nhdq=izero
+    nhduv=izero
+    nhdps=izero
+    nodet=izero
+    nodeq=izero
+    nodeuv=izero
+    nodeps=izero
 
+    npbt=izero
+    npbq=izero
+    npbuv=izero
+    npbps=izero
+    pbnodet=izero
+    pbnodeq=izero
+    pbnodeuv=izero
+    pbnodeps=izero
 
 !   Set data class and number of reader tasks.  Set logical flag to indicate
 !   type type of GPS data (if present)
@@ -882,7 +973,9 @@ subroutine read_obs(ndata,mype)
            obstype == 'rad_ref' .or. obstype=='lghtn' .or. &
            obstype == 'larccld' .or. obstype == 'pm2_5' .or. obstype == 'pm10' .or. &
            obstype == 'gust' .or. obstype=='vis' .or. &
-           obstype == 'pblh' .or. obstype=='wspd10m' .or. &
+           obstype == 'pblri' .or. obstype == 'pblrf' .or. &
+           obstype == 'pblsld'.or. obstype =='pblgld' .or. &
+           obstype == 'pblrd' .or. obstype=='wspd10m' .or. &
            obstype == 'td2m' .or. obstype=='mxtm' .or. &
            obstype == 'mitm' .or. obstype=='pmsl' .or. &
            obstype == 'howv' .or. obstype=='tcamt' .or. &
@@ -1264,10 +1357,19 @@ subroutine read_obs(ndata,mype)
                end if
             end do
           end if
-          if(obstype == 'rw')then
+          if(dfile(i) == 'uprair')then
+             use_prsl_full=.true.
+             use_hgtl_full = .true.
+             if(belong(i))use_hgtl_full_proc=.true.
+             if(belong(i))use_prsl_full_proc=.true.
+          else if(obstype == 'rw')then
              use_hgtl_full=.true.
              if(belong(i))use_hgtl_full_proc=.true.
-           else if(obstype == 'dbz')then
+          else if(obstype == 'dbz')then
+             use_hgtl_full=.true.
+             if(belong(i))use_hgtl_full_proc=.true.
+          end if
+          if(obstype=='pblri' .or. obstype=='pblrf' .or. obstype=='pblsld' .or. obstype=='pblgld' .or. obstype=='pblrd') then
              use_hgtl_full=.true.
              if(belong(i))use_hgtl_full_proc=.true.
           end if
@@ -1396,17 +1498,22 @@ subroutine read_obs(ndata,mype)
                  obstype == 'mta_cld' .or. obstype == 'gos_ctp' .or. &
                  obstype == 'lcbas' .or. obstype == 'cldch' ) then
 
-!               Process flight-letel high-density data not included in prepbufr
+!               Process flight-level high-density data not included in prepbufr
                 if ( index(infile,'hdobbufr') /=0 ) then
                   call read_fl_hdob(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
                                     prsl_full,nobs_sub1(1,i))
                   string='READ_FL_HDOB'
+                else if (index(infile,'uprair') /=0)then
+                   call read_hdraob(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
+                        prsl_full,hgtl_full,nobs_sub1(1,i),read_rec(i))
+                   string='READ_UPRAIR'
                 else
                    call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
                         prsl_full,nobs_sub1(1,i),read_rec(i))
                    string='READ_PREPBUFR'
 
                 endif
+
              else if(obstype == 'howv') then
                  if ( index(infile,'satmar') /=0) then
 
@@ -1464,6 +1571,11 @@ subroutine read_obs(ndata,mype)
                   call read_satwnd(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
                      prsl_full,nobs_sub1(1,i))
                   string='READ_SATWND'
+!             Process high resolution radiosonde data
+                else if (index(infile,'uprair') /=0)then
+                   call read_hdraob(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
+                        prsl_full,hgtl_full,nobs_sub1(1,i),read_rec(i))
+                   string='READ_UPRAIR'
 !             Process oscat winds which seperate from prepbufr
                 elseif ( index(infile,'oscatbufr') /=0 ) then
                   call read_sfcwnd(nread,npuse,nouse,infile,obstype,lunout,gstime,twind,sis,&
@@ -1504,6 +1616,7 @@ subroutine read_obs(ndata,mype)
                    call read_prepbufr(nread,npuse,nouse,infile,obstype,lunout,twind,sis,&
                         prsl_full,nobs_sub1(1,i),read_rec(i))
                    string='READ_PREPBUFR'
+                   write(6,*)'npbuv from reading process: ',npbuv
                 endif
 
 !            Process radar reflectivity Mosaic
@@ -1604,10 +1717,68 @@ subroutine read_obs(ndata,mype)
                 endif
 
 !            Process pblh
-             else if (obstype == 'pblh') then
-                call read_pblh(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+!             else if (obstype == 'pblh') then
+!                call read_pblh(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+!                    nobs_sub1(1,i))
+!                string='READ_PBLH'
+
+             else if (obstype == 'pblri') then !raobpblh should be read in here.
+
+                call read_pblri_raob(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
                     nobs_sub1(1,i))
-                string='READ_PBLH'
+                string='READ_PBLRI'
+                write(6,*) "YEG_pblri: read_obs, read_pblri_raob: nread,nouse=",nread,nouse
+
+             else if (obstype == 'pblrf') then
+
+                call read_pblrf_gnssro(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                    nobs_sub1(1,i))
+                string='READ_PBLRF'
+                write(6,*) "YEG_pblrf: read_obs, read_pblrf_gnssro: nread,nouse=",nread,nouse
+
+             else if (obstype == 'pblsld') then
+
+                if ( index(infile,'calipso_pblh') /=0 ) then
+                   call read_pblsld_calipso_cats_icesat2(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                       nobs_sub1(1,i))
+                   write(6,*) "YEG_pblsld: read_obs, read_pblsld_calipso_cats_icesat2: [calipso] nread,nouse=",nread,nouse
+                end if
+                if ( index(infile,'cats_pblh') /=0 ) then
+                   call read_pblsld_calipso_cats_icesat2(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                       nobs_sub1(1,i))
+                   write(6,*) "YEG_pblsld: read_obs, read_pblsld_calipso_cats_icesat2: [cats] nread,nouse=",nread,nouse
+                end if
+                if ( index(infile,'icesat2_pblh') /=0 ) then
+                   call read_pblsld_calipso_cats_icesat2(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                       nobs_sub1(1,i))
+                   write(6,*) "YEG_pblsld: read_obs, read_pblsld_calipso_cats_icesat2: [icesat2] nread,nouse=",nread,nouse
+                end if
+
+                string='READ_PBLSLD'
+
+             else if (obstype == 'pblgld') then
+
+                if ( index(infile,'mplnet_pblh') /=0 ) then
+                   call read_pblgld_mplnet_ceilometer(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                       nobs_sub1(1,i))
+                   write(6,*) "YEG_pblgld: read_obs, read_pblgld_mplnet_ceilometer: [mplnet] nread,nouse=",nread,nouse
+                end if
+                if ( index(infile,'ceilometer_pblh') /=0 ) then
+                   call read_pblgld_mplnet_ceilometer(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                       nobs_sub1(1,i))
+                   write(6,*) "YEG_pblgld: read_obs, read_pblgld_mplnet_ceilometer: [ceilometer] nread,nouse=",nread,nouse
+                end if
+
+                string='READ_PBLGLD'
+
+             else if (obstype == 'pblrd') then
+
+                call read_pblrd_rwp(nread,npuse,nouse,infile,obstype,lunout,twind,sis, &
+                    nobs_sub1(1,i))
+                write(6,*) "YEG_pblrd: read_obs, read_pblrd_rwp: [rwp] nread,nouse=",nread,nouse
+
+                string='READ_PBLRD'
+
              end if conv_obstype_select
 !            Process swcp and lwcp
           else if (ditype(i) == 'wcp') then
@@ -1922,6 +2093,95 @@ subroutine read_obs(ndata,mype)
     end if
     super_val1(0)=one
     deallocate(super_val)
+    nhd(1)=nhdt
+    nhd(2)=nhdq
+    nhd(3)=nhduv
+    nhd(4)=nhdps
+    nhd(5)=nodet
+    nhd(6)=nodeq
+    nhd(7)=nodeuv
+    nhd(8)=nodeps
+
+    nhd(9)=npbt
+    nhd(10)=npbq
+    nhd(11)=npbuv
+    nhd(12)=npbps
+    nhd(13)=pbnodet
+    nhd(14)=pbnodeq
+    nhd(15)=pbnodeuv
+    nhd(16)=pbnodeps
+
+
+
+!   get number of high resolution stations on every processor
+    call mpi_allreduce(nhd,nhd1,16,mpi_integer,mpi_max,mpi_comm_world,ierror)
+    nhdt=nhd1(1)
+    nhdq=nhd1(2)
+    nhduv=nhd1(3)
+    nhdps=nhd1(4)
+    nodet=nhd1(5)
+    nodeq=nhd1(6)
+    nodeuv=nhd1(7)
+    nodeps=nhd1(8)
+
+    npbt=nhd1(9)
+    npbq=nhd1(10)
+    npbuv=nhd1(11)
+    npbps=nhd1(12)
+    pbnodet=nhd1(13)
+    pbnodeq=nhd1(14)
+    pbnodeuv=nhd1(15)
+    pbnodeps=nhd1(16)
+
+    if(nhdt > 0)then
+      if(.not. allocated(hdtlist))allocate(hdtlist(nhdt))
+      call mpi_bcast(hdtlist,nhdt,mpi_integer,nodet,mpi_comm_world,ierror)
+    end if
+    if(nhdq > 0) then
+      if(.not. allocated(hdqlist))allocate(hdqlist(nhdq))
+      call mpi_bcast(hdqlist,nhdq,mpi_integer,nodeq,mpi_comm_world,ierror)
+    end if
+    if(nhduv > 0) then
+      if(.not. allocated(hduvlist))allocate(hduvlist(nhduv))
+      call mpi_bcast(hduvlist,nhduv,mpi_integer,nodeuv,mpi_comm_world,ierror)
+    end if
+    if(nhdps > 0)then
+      if(.not. allocated(hdpslist))allocate(hdpslist(nhduv))
+      call mpi_bcast(hdpslist,nhdps,mpi_integer,nodeps,mpi_comm_world,ierror)
+    end if
+
+    if(mype == 0)write(6,*)'number of HD stations',nhdt,nhdq,nhduv,nhdps
+    if(mype == 0)write(6,*)'processors           ',nodet,nodeq,nodeuv,nodeps
+
+!   Code block for prepbufr quality control for high-res observations
+!   NOTE: when broadcasting a 2d array, must use whole array, cannot use subsets
+    if((nhdt > 0).and.(npbt > 0)) then
+      if(.not. allocated(pbqct))allocate(pbqct(nsig+1,npbt))
+      call mpi_bcast(pbqct,(nsig+1)*npbt,mpi_integer,pbnodet,mpi_comm_world,ierror)
+    end if
+    if((nhdq > 0).and.(npbq > 0)) then
+      if(.not. allocated(pbqcq))allocate(pbqcq(nsig+1,npbq))
+      call mpi_bcast(pbqcq,(nsig+1)*npbq,mpi_integer,pbnodeq,mpi_comm_world,ierror)
+    end if
+    if((nhduv > 0).and.(npbuv > 0)) then
+      if(.not. allocated(pbqcuv))allocate(pbqcuv(nsig+1,npbuv))
+      call mpi_bcast(pbqcuv,(nsig+1)*npbuv,mpi_integer,pbnodeuv,mpi_comm_world,ierror)
+    end if
+    if((nhdps > 0).and.(npbps > 0)) then
+      if(.not. allocated(pbqcps))allocate(pbqcps(2,npbps))
+      call mpi_bcast(pbqcps,2*npbps,mpi_integer,pbnodeps,mpi_comm_world,ierror)
+    end if
+    if((nhdt > 0).and.(npbt > 0)) then
+    write(6,*)'mype: ',mype,' number of PB stations',npbt,npbq,npbuv,npbps
+    if(mype.eq.pbnodet)then
+    write(6,*)'mype: ',mype,' first three values of column one pbqct: ',pbqct(1,1),pbqct(2,1),pbqct(3,1)
+    end if
+
+    if(mype.eq.0)then
+    write(6,*)'mype: ',mype,' first three values of column one pbqct: ',pbqct(1,1),pbqct(2,1),pbqct(3,1)
+    write(6,*)'mype: ',mype,' size of pbqct,pbqcq,pbqcuv,pbqcps: ',size(pbqct),size(pbqcq),size(pbqcuv),size(pbqcps)
+    end if
+    end if
 
 !   Collect number of gps profiles (needed later for qc)
     call mpi_allreduce(nprof_gps1,nprof_gps,1,mpi_integer,mpi_sum,mpi_comm_world,ierror)

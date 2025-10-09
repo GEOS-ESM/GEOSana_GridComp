@@ -67,7 +67,11 @@ module m_rhs
   public:: i_tgas
   public:: i_gust
   public:: i_vis
-  public:: i_pblh
+  public:: i_pblri
+  public:: i_pblrf
+  public:: i_pblsld
+  public:: i_pblgld
+  public:: i_pblrd
   public:: i_wspd10m
   public:: i_td2m
   public:: i_mxtm
@@ -133,7 +137,11 @@ module m_rhs
     enumerator:: i_tgas
     enumerator:: i_gust
     enumerator:: i_vis
-    enumerator:: i_pblh
+    enumerator:: i_pblri
+    enumerator:: i_pblrf
+    enumerator:: i_pblsld
+    enumerator:: i_pblgld
+    enumerator:: i_pblrd
     enumerator:: i_wspd10m
     enumerator:: i_td2m
     enumerator:: i_mxtm

@@ -11,6 +11,8 @@ subroutine getsiga ()
 !   2010-05-14  todling  - update to use gsi_bundle
 !   2010-05-27  todling  - gsi_4dcoupler; remove all user-specific TL-related references
 !   2010-08-19  lueken   - add only to module use;no machine code, so use .f90
+!   2022-08-10  zhu      - add treatment for log(pbl*)
+!   2025-10-03  eyang    - add pblsld, pblgld, pblrd
 !
 !   input argument list:
 !
@@ -201,6 +203,7 @@ use state_vectors, only: allocate_state,deallocate_state
 use gsi_4dcouplermod, only: gsi_4dcoupler_getpert
 use gsi_bundlemod, only: gsi_bundle
 use gsi_bundlemod, only: gsi_bundlegetpointer
+use gsi_bundlemod, only: gsi_bundledup
 use gsi_bundlemod, only: assignment(=)
 use control_vectors, only: control_vector,read_cv,assignment(=)
 use state_vectors, only: allocate_state,deallocate_state,prt_state_norms
@@ -272,7 +275,7 @@ if(mype==0) write(6,'(3a)')trim(myname_),': complete reading state ', trim(filen
 return
 end subroutine view_cv_ad
 
-subroutine view_st (sval,filename)
+subroutine view_st (ssval,filename)
 !$$$  subprogram documentation block
 !                .      .    .                                       .
 ! subprogram:    view_st
@@ -299,23 +302,78 @@ subroutine view_st (sval,filename)
 use kinds, only: i_kind, r_kind
 use mpimod, only: mype
 use constants, only: zero,one
-use gsi_4dvar, only: ibdate,nobs_bins,nmn_obsbin
+use constants, only: max_varname_length
+use gsi_4dvar, only: ibdate,nobs_bins,nmn_obsbin,mn_obsbin
 use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_set
 use gsi_4dcouplermod, only: gsi_4dcoupler_putpert
 use gsi_4dcouplermod, only: gsi_4dcoupler_putpert_final
 use gsi_bundlemod, only: gsi_bundle
+use gsi_bundlemod, only: gsi_bundlegetpointer
+use gsi_bundlemod, only: gsi_bundledup
+use gsi_metguess_mod, only: gsi_metguess_bundle
+use gsi_metguess_mod, only: gsi_metguess_get
+use mpeu_util, only: getindex
+use guess_grids, only: nfldsig,hrdifsig
+use state_vectors, only: svars2d
+use gridmod, only: lat2,lon2
 implicit none
-type(gsi_bundle)            :: sval(nobs_bins)
+type(gsi_bundle)            :: ssval(nobs_bins)
 character(len=*),intent(in) :: filename
 ! declare local variables
 character(len=*),parameter:: myname_ = "view_st"
+character(max_varname_length),allocatable,dimension(:) :: guess
+type(gsi_bundle)     :: sval(nobs_bins)
 integer(i_kind)      :: nymd                      ! date as in YYYYMMDD
 integer(i_kind)      :: nhms                      ! time as in HHMMSS
 integer(i_kind)      :: ii,status
 integer(i_kind)      :: mydate(5)
+integer(i_kind)      :: i,j,it,nguess,istatus,id,ic
 
+real(r_kind),pointer,dimension(:,:  ) :: ptr2dinc =>NULL()
+real(r_kind),pointer,dimension(:,:  ) :: ptr2dges =>NULL()
 integer(i_kind),dimension(8) :: ida,jda
 real(r_kind),dimension(5)    :: fha
+real(r_kind) zt,dtmp,wktmp
+
+
+! Inquire about guess fields
+  call gsi_metguess_get('dim',nguess,istatus)
+  if (nguess>0) then
+     allocate(guess(nguess))
+     call gsi_metguess_get('gsinames',guess,istatus)
+  endif
+
+  do it=1,nfldsig
+     if (nobs_bins>1) then
+        zt = hrdifsig(it)
+        ii = NINT(zt*60/mn_obsbin)+1
+     else
+        ii = 1
+     endif
+
+     call gsi_bundledup (ssval(ii), sval(ii), ' copy of bundle ', istatus)
+     do ic=1,nguess     
+        id=getindex(svars2d,guess(ic))
+        if (id>0) then
+           if (trim(guess(ic))=='pblri' .or. trim(guess(ic))=='pblrf' .or. trim(guess(ic))=='pblsld' .or. &
+              trim(guess(ic))=='pblgld' .or. trim(guess(ic))=='pblrd') then
+              call gsi_bundlegetpointer (sval(ii), guess(ic),ptr2dinc,istatus)
+              call gsi_bundlegetpointer (gsi_metguess_bundle(it),guess(ic),ptr2dges,istatus)
+              do j=1,lon2
+                 do i=1,lat2
+                    ! Convert Increment to pysical space
+                    if (abs(ptr2dinc(i,j)) > 0.5_r_kind) then ! physical space
+                       write(6,*) i,j,'view_st_1:fg and inc=',ptr2dges(i,j),ptr2dinc(i,j)
+                    else
+                       ptr2dinc(i,j)=zero
+                    end if
+                 end do
+              end do
+              cycle
+           end if          
+        end if
+     end do
+  end do
 
 ! initial date/time and writer
 mydate = ibdate

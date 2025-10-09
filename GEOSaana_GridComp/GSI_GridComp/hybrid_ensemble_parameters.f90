@@ -149,6 +149,19 @@ module hybrid_ensemble_parameters
 !   2015-02-11  Hu      - add flag l_ens_in_diff_time to force GSI hybrid use ensembles not available at analysis time
 !   2015-09-18  todling - add sst_staticB to control use of ensemble SST error covariance 
 !   2020-05-01  todling - allow for centering Bens around background/guess
+!   2022-08-10  zhu     - add pblh_staticB
+!   2023-07-17  eyang   - add ges_coef_inf_ens_grid for inflation coefficient of ensemble spread near PBLH
+!   2023-09-20  eyang   - add ges_vlocal_ens_grid for modifying hybrid vertical localization near PBLH
+!   2023-11-15  eyang   - add ges_coef_inf_ens_grid_global and ges_vlocal_ens_grid_global for global array
+!   2023-11-24  eyang   - add vlocal_coef
+!   2023-11-28  eyang   - add inf_ensprd_pblri_type
+!   2023-11-28  eyang   - add ges_coef_inf_ens_grid_global_t and q
+!   2023-11-29  eyang   - add InfEnsprdPBLH, inf_coef_t, inf_coef_q
+!   2024-01-21  eyang   - split pblh_staticB to pblri_staticB, pblrf_staticB, pblkh_staticB
+!   2024-02-08  eyang   - add zero_en_perts_pblrf_land
+!   2024-02-17  zhu     - add option for ensemble smoothing
+!   2024-04-16  eyang   - add option for inflating T and RH near PBLH type (inf_ensprd_pblri,inf_ensprd_pblrf,inf_ensprd_pblkh)
+!   2025-10-03  eyang   - add pblsld, pblgld, pblrd
 !
 ! subroutines included:
 
@@ -288,15 +301,41 @@ module hybrid_ensemble_parameters
   public :: ensemble_path
   public :: nelen
   public :: en_perts,ps_bar
+  public :: ges_coef_inf_ens_grid
+  public :: ges_coef_inf_ens_grid_global_t
+  public :: ges_coef_inf_ens_grid_global_q
+  public :: ges_coef_inf_ens_grid_global_t1
+  public :: ges_coef_inf_ens_grid_global_q1
+  public :: ges_vlocal_ens_grid
+  public :: ges_vlocal_ens_grid_global
+  public :: ges_vlocal_ens_grid_global1
   public :: region_lat_ens,region_lon_ens
   public :: region_dx_ens,region_dy_ens
   public :: ens_fast_read
   public :: sst_staticB
+  public :: pblri_staticB
+  public :: pblrf_staticB
+  public :: pblsld_staticB
+  public :: pblgld_staticB
+  public :: pblrd_staticB
+  public :: vlocal_coef
+  public :: inf_ensprd_pblri_type
+  public :: InfEnsprdPBLH
+  public :: inf_coef_t
+  public :: inf_coef_q
+  public :: zero_en_perts_pblrf_land
+  public :: inf_ensprd_pblri
+  public :: inf_ensprd_pblrf
+  public :: inf_ensprd_pblsld
+  public :: inf_ensprd_pblgld
+  public :: inf_ensprd_pblrd
   public :: bens_recenter
   public :: upd_ens_spread
   public :: upd_ens_localization
 
   logical l_hyb_ens,uv_hyb_ens,q_hyb_ens,oz_univ_static,sst_staticB
+  logical pblri_staticB,pblrf_staticB,pblsld_staticB,pblgld_staticB,pblrd_staticB
+  logical zero_en_perts_pblrf_land
   logical bens_recenter,upd_ens_spread,upd_ens_localization
   logical aniso_a_en
   logical full_ensemble,pwgtflg
@@ -313,6 +352,7 @@ module hybrid_ensemble_parameters
   logical vvlocal
   logical l_ens_in_diff_time
   logical ens_fast_read
+  logical InfEnsprdPBLH
   integer(i_kind) i_en_perts_io
   integer(i_kind) n_ens,nlon_ens,nlat_ens,jcap_ens,jcap_ens_test
   real(r_kind) beta_s0,s_ens_h,s_ens_v,grid_ratio_ens
@@ -323,6 +363,7 @@ module hybrid_ensemble_parameters
   real(r_kind),allocatable,dimension(:) :: sqrt_beta_s,sqrt_beta_e
   real(r_kind),allocatable,dimension(:) :: beta_s,beta_e
   real(r_kind),allocatable,dimension(:,:,:) :: pwgt
+  real(r_kind) :: vlocal_coef,inf_coef_t,inf_coef_q
 !    nval_lenz_en is total length of ensemble extended control variable for sqrt
 !    minimization mode
 !NOTE:   for sqrt minimization, nval_lenz_en =
@@ -332,6 +373,8 @@ module hybrid_ensemble_parameters
   integer(i_kind) nval_lenz_en
   integer(i_kind) ntlevs_ens
   integer(i_kind) regional_ensemble_option
+  integer(i_kind) inf_ensprd_pblri_type
+  logical inf_ensprd_pblri,inf_ensprd_pblrf,inf_ensprd_pblsld,inf_ensprd_pblgld,inf_ensprd_pblrd
   character(len=512),save :: ensemble_path
 
 ! following is for storage of ensemble perturbations:
@@ -342,6 +385,14 @@ module hybrid_ensemble_parameters
   integer(i_kind) nelen
   type(gsi_bundle),save,allocatable :: en_perts(:,:)
   real(r_single),dimension(:,:,:),allocatable:: ps_bar
+  real(r_single),dimension(:,:,:,:),allocatable:: ges_coef_inf_ens_grid
+  real(r_single),dimension(:,:,:,:),allocatable:: ges_coef_inf_ens_grid_global_t
+  real(r_single),dimension(:,:,:,:),allocatable:: ges_coef_inf_ens_grid_global_q
+  real(r_single),dimension(:,:,:,:),allocatable:: ges_coef_inf_ens_grid_global_t1
+  real(r_single),dimension(:,:,:,:),allocatable:: ges_coef_inf_ens_grid_global_q1
+  real(r_single),dimension(:,:,:),allocatable:: ges_vlocal_ens_grid
+  real(r_single),dimension(:,:,:),allocatable:: ges_vlocal_ens_grid_global
+  real(r_single),dimension(:,:,:),allocatable:: ges_vlocal_ens_grid_global1 ! mpi_allreduce
 
 !    following is for interpolation of global ensemble to regional ensemble grid
 
@@ -386,6 +437,11 @@ subroutine init_hybrid_ensemble_parameters
   q_hyb_ens=.false.
   oz_univ_static=.false.
   sst_staticB=.true.
+  pblri_staticB=.false.
+  pblrf_staticB=.false.
+  pblsld_staticB=.false.
+  pblgld_staticB=.false.
+  pblrd_staticB=.false.
   aniso_a_en=.false.
   generate_ens=.true.
   pseudo_hybens=.false.
@@ -420,6 +476,17 @@ subroutine init_hybrid_ensemble_parameters
   bens_recenter=.false.      ! center ensemble cov around background/guess
   upd_ens_spread=.false.     ! redefine ens spread (for jiter>1) by recentering ens around guess 
   upd_ens_localization=.false.  ! update localization when upd_ens_spread=.t.
+  vlocal_coef=0.1_r_kind     ! vertical localization length scale (dlnp) will be multiplied with vlocal_coef to reduce vlocal length scale near pblh
+  inf_ensprd_pblri_type=1    ! pblh type for inflating ens spread near pblh (1: pblri, 2: q-grad pblh)
+  InfEnsprdPBLH=.false.      ! inflate ensemble spread near pblh obs
+  inf_coef_t=10.0            ! coef 10.0 for Gaussian function inflates 5 times ensemble spread
+  inf_coef_q=22.5            ! coef 22.5 for Gaussian function inflates 10 times ensemble spread
+  zero_en_perts_pblrf_land=.false. ! to make ensemble perturbation of pblrf over land zero 
+  inf_ensprd_pblri =.false.   ! inflate ensemble spread near pblri
+  inf_ensprd_pblrf =.false.   ! inflate ensemble spread near pblrf
+  inf_ensprd_pblsld=.false.   ! inflate ensemble spread near pblsld
+  inf_ensprd_pblgld=.false.   ! inflate ensemble spread near pblgld
+  inf_ensprd_pblrd =.false.   ! inflate ensemble spread near pblrd
 
 end subroutine init_hybrid_ensemble_parameters
 

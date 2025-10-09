@@ -12,6 +12,7 @@ module m_berror_stats
 !   2010-03-24  j guo   - added this document block
 !   2011-08-01  lueken  - changed F90 to f90 (no machine logic) and fix indentation
 !   2014-04-01  weir    - added some chem support
+!   2021-10-10  zhu     - added treatment for pbl*
 !
 !   input argument list: see Fortran 90 style document below
 !
@@ -470,6 +471,23 @@ subroutine read_wgt(corz,corp,hwll,hwllp,vz,corsst,hsst,varq,qoption,varcw,cwopt
          end do
       end if
    endif
+
+   ! correlation length
+   ! corp, hwllp for undefined 2d variables
+   do n=1,size(cvars2d)
+      if ( .not.found2d(n) ) then
+         if ( n>0 ) then
+            if ( cvars2d(n)=='pblri' .or. cvars2d(n)=='pblrf' .or. cvars2d(n)=='pblsld' .or. &
+                 cvars2d(n)=='pblgld' .or. cvars2d(n)=='pblrd' ) then
+               do i=1,nlat
+                  corp(i,n)=one
+                  hwllp(i,n)=1.0_r_kind*hwll(i,1,iq) ! 0.5 previously ! q cor. length. q smaller than T (lower trops)
+               enddo
+            end if
+         endif
+         if ( mype==0 ) write(6,*) myname_, ': WARNING, using general Berror template for ', cvars2d(n)
+      endif
+   enddo
 
    ! need simliar general template for undefined 2d variables ...
 

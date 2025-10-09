@@ -123,7 +123,12 @@ endif
         if (id>0) then
            call gsi_bundlegetpointer (sval(ii),               guess(ic),ptr2dinc,istatus)
            call gsi_bundlegetpointer (gsi_metguess_bundle(it),guess(ic),ptr2dges,istatus)
-           ptr2dges = ptr2dinc
+           if (trim(guess(ic))=='pblri' .or. trim(guess(ic))=='pblrf' .or. trim(guess(ic))=='pblsld' .or. &
+               trim(guess(ic))=='pblgld' .or. trim(guess(ic))=='pblrd') then
+               call copy_positive_fldr2_(ptr2dges,ptr2dinc)
+           else
+              ptr2dges = ptr2dinc
+           end if
         endif
      enddo
 

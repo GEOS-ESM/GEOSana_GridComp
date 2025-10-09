@@ -71,6 +71,10 @@
  /
 OBS_INPUT::
 !  dfile          dtype       dplat       dsis                  dval    dthin  dsfcalc  obsclass
+   uprair         ps          null        ps                    0.0     0      0        ncep_uprair_bufr
+   uprair         t           null        t                     0.0     0      0        ncep_uprair_bufr
+   uprair         q           null        q                     0.0     0      0        ncep_uprair_bufr
+   uprair         uv          null        uv                    0.0     0      0        ncep_uprair_bufr
    prepbufr       ps          null        ps                    0.0     0      0        ncep_prep_bufr
    prepbufr       t           null        t                     0.0     0      0        ncep_prep_bufr
    prepbufr_profl t           prof        t                     0.0     0      0        ncep_acftpfl_bufr
@@ -85,6 +89,12 @@ OBS_INPUT::
    modsbufr       sst         mods        sst                   0.0     0      0        to_be_done
    prepbufr       pw          null        pw                    0.0     0      0        ncep_prep_bufr
    preprscat      uv          null        uv                    0.0     0      0        rscat_bufr
+   raob_pblh      pblri       null        pblri                 0.0     0      0        raob_pblh_nc
+   gnssro_pblhlow pblrf       null        pblrf                 0.0     0      0        gnssro_pblhlow_nc
+   calipso_pblh   pblsld      null        pblsld                0.0     0      0        calipso_pblh_nc
+   cats_pblh      pblsld      null        pblsld                0.0     0      0        cats_pblh_nc
+   mplnet_pblh    pblgld      null        pblgld                0.0     0      0        mplnet_pblh_nc
+   wp_pblh        pblrd       null        pblrd                 0.0     0      0        wp_pblh_nc
    gpsrobufr      gps_bnd     null        gps                   0.0     0      0        ncep_gpsro_bufr
    gpsrocombufr   gps_bnd     null        gps                   0.0     0      0        ncep_gpsro_com_bufr
    ssmirrbufr     pcp_ssmi    dmsp        pcp_ssmi              0.0     0      0        ncep_spssmi_bufr
@@ -228,10 +238,28 @@ OBS_INPUT::
    readin_beta=.true.,
    use_gfs_ens=.false.,
    eqspace_ensgrid=.true.,
-!  write_ens_sprd=.true.,
+   pblri_staticB=.true.,
+   pblrf_staticB=.true.,
+   pblsld_staticB=.true.,
+   pblgld_staticB=.true.,
+   pblrd_staticB=.true.,
+   zero_en_perts_pblrf_land=.true.,
+   write_ens_sprd=.true.,
 !  bens_recenter=.true.,
 !  upd_ens_spread=.true.,
 !  upd_ens_localization=.true.,
+   InfEnsprdPBLH=.false.,
+   vlocal_coef=0.1,
+!  inf_ensprd_pblri_type=1: pblri, 2: q-gradient pblh
+   inf_ensprd_pblri_type=2,
+   inf_ensprd_pblri=.false.,
+   inf_ensprd_pblrf=.false.,
+   inf_ensprd_pblsld=.false.,
+   inf_ensprd_pblgld=.false.,
+   inf_ensprd_pblrd=.false.,
+!  inf_coef=2.5, 5.0, 10.0, 22.5 indicates 2,3,5,10 times,
+   inf_coef_t=2.5,
+   inf_coef_q=2.5,
  /
  &RAPIDREFRESH_CLDSURF
 !  dfi_radar_latent_heat_time_period=30.0,

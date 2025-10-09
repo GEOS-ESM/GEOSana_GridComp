@@ -17,6 +17,11 @@ met_guess::
 # qg       72      10         Graupel              qg
 # qh       72      10         Hail                 qh
 # cf       72       2         cloud_frac4rad(fcld) cloud
+  pblri     1      -1         pbl_height           pblri
+  pblrf     1      -1         pbl_height_rft       pblrf
+  pblsld    1      -1         pbl_height_sld       pblsld
+  pblgld    1      -1         pbl_height_gld       pblgld
+  pblrd     1      -1         pbl_height_rd        pblrd
   z_c       1      -1         cool_layer_depth     DCOOL
   z_w       1      -1         warm_layer_depth     DWARM
   dt_cool   1      -1         cool_layer_tdrop     TDROP
@@ -128,6 +133,11 @@ state_vector::
 #co2      72      1     chem_guess   co2
  ps        1      0     met_guess    prse
  sst       1      0     met_guess    sst
+ pblri     1      0     met_guess    pblri
+ pblrf     1      0     met_guess    pblrf
+ pblsld    1      0     met_guess    pblsld
+ pblgld    1      0     met_guess    pblgld
+ pblrd     1      0     met_guess    pblrd
 ::
 
 control_vector::
@@ -144,6 +154,11 @@ control_vector::
  qr       72      1       0.00        -1.0     state    qr      -1.00
  qs       72      1       0.00        -1.0     state    qs      -1.00
  ps        1      0       0.75        -1.0     state    prse    -1.00
+ pblri     1      0       1.00        -1.0     state    pblri   -1.00
+ pblrf     1      0       1.00        -1.0     state    pblrf   -1.00
+ pblsld    1      0       1.00        -1.0     state    pblsld  -1.00
+ pblgld    1      0       1.00        -1.0     state    pblgld  -1.00
+ pblrd     1      0       1.00        -1.0     state    pblrd   -1.00
 #sst       1      0       2.40        -1.0     state    sst     -1.00
  sst       1      0       1.20        -1.0     state    sst     -1.00
  stl       1      0       3.00        -1.0     motley   sst     -1.00

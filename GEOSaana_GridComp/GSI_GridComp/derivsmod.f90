@@ -473,7 +473,7 @@ drv_set=.true.
           end do
        end do
     end if
-    if (getindex(svars2d,'pblh')>0) then
+    if (getindex(svars2d,'pblri')>0) then
        allocate(pgues(lat2,lon2))
        do j=1,lon2
           do i=1,lat2

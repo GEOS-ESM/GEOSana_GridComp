@@ -44,6 +44,7 @@ subroutine control2state(xhat,sval,bval)
 !   2016-05-03  pondeca  - add uwnd10m and vwnd10m
 !   2017-05-12  Y. Wang and X. Wang - add w as state variable for rw DA, POC: xuguang.wang@ou.edu
 !   2016-08-12  lippi    - add vertical velocity (w) to mycvars and mysvars.
+!   2025-10-03  eyang    - add pblsld, pblgld, pblrd
 !
 !   input argument list:
 !     xhat - Control variable
@@ -99,7 +100,7 @@ type(gsi_bundle):: wbundle ! work bundle
 ! Declare required local control variables
 integer(i_kind), parameter :: ncvars = 9
 integer(i_kind) :: icps(ncvars)
-integer(i_kind) :: icpblh,icgust,icvis,icoz,icwspd10m,icw
+integer(i_kind) :: icpblri,icpblrf,icpblsld,icpblgld,icpblrd,icgust,icvis,icoz,icwspd10m,icw
 integer(i_kind) :: ictd2m,icmxtm,icmitm,icpmsl,ichowv
 integer(i_kind) :: icsfwter,icvpwter,ictcamt,iclcbas
 integer(i_kind) :: iccldch,icuwnd10m,icvwnd10m
@@ -125,7 +126,9 @@ character(len=4), parameter :: mysvars(nsvars) = (/  &  ! vars from ST needed he
 logical :: ls_u,ls_v,ls_w,ls_prse,ls_q,ls_tsen,ls_ql,ls_qi
 logical :: ls_qr,ls_qs,ls_qg,ls_qh
 real(r_kind),pointer,dimension(:,:)   :: sv_ps=>NULL(),sv_sst=>NULL()
-real(r_kind),pointer,dimension(:,:)   :: sv_gust=>NULL(),sv_vis=>NULL(),sv_pblh=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_gust=>NULL(),sv_vis=>NULL(),sv_pblri=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_pblrf=>NULL(),sv_pblsld=>NULL(),sv_pblgld=>NULL()
+real(r_kind),pointer,dimension(:,:)   :: sv_pblrd=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: sv_wspd10m=>NULL(),sv_tcamt=>NULL(),sv_lcbas=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: sv_td2m=>NULL(),sv_mxtm=>NULL(),sv_mitm=>NULL()
 real(r_kind),pointer,dimension(:,:)   :: sv_pmsl=>NULL(),sv_howv=>NULL(),sv_cldch=>NULL()
@@ -201,7 +204,11 @@ endif
 call gsi_bundlegetpointer (xhat%step(1),'oz',icoz,istatus)
 call gsi_bundlegetpointer (xhat%step(1),'gust',icgust,istatus)
 call gsi_bundlegetpointer (xhat%step(1),'vis',icvis,istatus)
-call gsi_bundlegetpointer (xhat%step(1),'pblh',icpblh,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'pblri',icpblri,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'pblrf',icpblrf,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'pblsld',icpblsld,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'pblgld',icpblgld,istatus)
+call gsi_bundlegetpointer (xhat%step(1),'pblrd',icpblrd,istatus)
 call gsi_bundlegetpointer (xhat%step(1),'wspd10m',icwspd10m,istatus)
 call gsi_bundlegetpointer (xhat%step(1),'td2m',ictd2m,istatus)
 call gsi_bundlegetpointer (xhat%step(1),'mxtm',icmxtm,istatus)
@@ -339,9 +346,25 @@ do jj=1,nsubwin
       call gsi_bundlegetpointer (sval(jj),'gust' ,sv_gust, istatus)
       call gsi_bundlegetvar ( wbundle, 'gust', sv_gust, istatus )
    end if
-   if (icpblh>0) then
-      call gsi_bundlegetpointer (sval(jj),'pblh' ,sv_pblh, istatus)
-      call gsi_bundlegetvar ( wbundle, 'pblh', sv_pblh, istatus )
+   if (icpblri>0) then
+      call gsi_bundlegetpointer (sval(jj),'pblri' ,sv_pblri, istatus)
+      call gsi_bundlegetvar ( wbundle, 'pblri', sv_pblri, istatus )
+   end if
+   if (icpblrf>0) then
+      call gsi_bundlegetpointer (sval(jj),'pblrf' ,sv_pblrf, istatus)
+      call gsi_bundlegetvar ( wbundle, 'pblrf', sv_pblrf, istatus )
+   end if
+   if (icpblsld>0) then
+      call gsi_bundlegetpointer (sval(jj),'pblsld' ,sv_pblsld, istatus)
+      call gsi_bundlegetvar ( wbundle, 'pblsld', sv_pblsld, istatus )
+   end if
+   if (icpblgld>0) then
+      call gsi_bundlegetpointer (sval(jj),'pblgld' ,sv_pblgld, istatus)
+      call gsi_bundlegetvar ( wbundle, 'pblgld', sv_pblgld, istatus )
+   end if
+   if (icpblrd>0) then
+      call gsi_bundlegetpointer (sval(jj),'pblrd' ,sv_pblrd, istatus)
+      call gsi_bundlegetvar ( wbundle, 'pblrd', sv_pblrd, istatus )
    end if
    if (icvis >0) then
       call gsi_bundlegetpointer (sval(jj),'vis'  ,sv_vis , istatus)

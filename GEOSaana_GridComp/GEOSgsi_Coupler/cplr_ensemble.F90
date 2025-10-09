@@ -12,6 +12,7 @@ module cplr_ensemble
       contains
       procedure :: get_user_ens => get_geos_ens
       procedure :: get_user_Nens => get_geos_Nens
+      procedure :: get_user_Nens_frocean => get_geos_Nens_frocean
       procedure :: put_user_ens => put_geos_ens
       procedure :: non_gaussian_ens_grid
       procedure, nopass:: mytype => typename
@@ -51,6 +52,7 @@ subroutine get_geos_ens(this,grd,member,ntindex,tau,atm_bundle,iret)
 !   2014-10-30  todling  - generalized interface (pass bundle)
 !                        - add qi/ql/sst
 !   2015-10-19  todling  - revisit var handling; now controlled by supporting code
+!   2022-09-06  zhu      - add pblh
 !
 !   input argument list:
 !     grd      - structure variable containing information about grid
@@ -148,7 +150,6 @@ implicit none
 
 !  Read in a single ensemble member
    if(l4densvar) then
-      ida(:)=0
       ida(1:3)=ibdate(1:3)
       ida(5:6)=ibdate(4:5)
       jda(:)=0
@@ -323,7 +324,6 @@ implicit none
 
 !  Read in ensemble members
    if(l4densvar) then
-      ida(:) = 0
       ida(1:3)=ibdate(1:3)
       ida(5:6)=ibdate(4:5)
       jda(:)=0
@@ -386,6 +386,174 @@ implicit none
    deallocate(flds)
 
 end subroutine get_geos_Nens
+
+subroutine get_geos_Nens_frocean(this,grd,members,ntindex,tau,atm_bundle,iret)
+!$$$  subprogram documentation block
+!                .      .    .                                       .
+! subprogram:    get_user_Nens_    pretend atmos bkg is the ensemble
+!   prgmmr: todling          org: np22                date: 2011-09-13
+!
+! abstract: Read in GEOS ensemble members in to GSI ensemble.
+!
+! program history log: 
+!   2011-09-13  todling  - created for testing purposes
+!   2011-10-15  el akkraoui - add vor/div calculation call
+!   2011-11-13  todling  - add vor/div calculation for dual-res case
+!   2012-01-04  todling  - q on input is indeed spec-hum (later converted to rh)
+!   2014-10-30  todling  - generalized interface (pass bundle)
+!                        - add qi/ql/sst
+!   2015-10-19  todling  - revisit var handling; now controlled by supporting code
+!   2017-06-23  todling  - add as generalization of original single-bundle version
+!
+!   input argument list:
+!     grd      - structure variable containing information about grid
+!     members  - number of members to read at once
+!
+!   output argument list:
+!     atm_bundle  - bundle w/ ensemble fields
+!     iret        - return code, 0 for successful read.
+!
+! attributes:
+!   language: f90
+!   machine:  ibm RS/6000 SP
+!
+!$$$
+use mpimod, only: mype
+use kinds, only: i_kind,r_kind
+use general_sub2grid_mod, only: sub2grid_info
+use gsi_bundlemod, only: gsi_grid
+use gsi_bundlemod, only: gsi_gridcreate
+use gsi_bundlemod, only: gsi_bundle
+use gsi_bundlemod, only: gsi_bundlecreate
+use gsi_bundlemod, only: gsi_bundledestroy
+use gsi_bundlemod, only: gsi_bundlegetpointer
+use gsi_metguess_mod, only: gsi_metguess_bundle
+use gsi_4dvar, only: min_offset,l4densvar,ibdate,ens_fmnlevs
+use geos_StateIO, only: State_get
+use obsmod, only: iadate
+use hybrid_ensemble_parameters, only: uv_hyb_ens
+use control_vectors, only: cvars2d,cvars3d,nc2d,nc3d
+! following needed for vor/div calculation ... need to be careful about resolution
+use constants, only: zero,rearth
+use gridmod, only: rlats,rlons,wgtlats,nlat,nlon
+use compact_diffs, only: cdiff_created
+use compact_diffs, only: cdiff_initialized
+use compact_diffs, only: create_cdiff_coefs
+use compact_diffs, only: inisph
+use xhat_vordivmod, only: xhat_vordiv_calc2
+use timermod, only: timer_ini,timer_fnl
+implicit none
+!  Declare passed variables
+   class(ensemble)                      , intent(inout) :: this
+   type(sub2grid_info)                   ,intent(in   ) :: grd
+   integer(i_kind)                       ,intent(in   ) :: members
+   integer(i_kind)                       ,intent(in   ) :: ntindex
+   integer(i_kind)                       ,intent(in   ) :: tau
+   integer(i_kind)                       ,intent(  out) :: iret
+   type(gsi_bundle)                      ,intent(inout) :: atm_bundle(:)                      
+
+!  Declare internal variables
+   character(len=*),parameter::myname='geos_get_Nens_frocean_'
+   character(len=40) evar
+   integer(i_kind) nymd,nhms,istatus,ii,ier
+   integer(i_kind) ida(8),jda(8)
+   integer(i_kind) mm
+   logical,save :: first=.true.
+   real(r_kind) fha(5)
+   real(r_kind),pointer,dimension(:,:  ) :: iptr2d
+   real(r_kind),pointer,dimension(:,:,:) :: iptr3d
+   real(r_kind),pointer,dimension(:,:  ) :: optr2d
+   real(r_kind),pointer,dimension(:,:,:) :: optr3d
+   type(gsi_grid) grid
+   type(gsi_bundle),allocatable:: flds(:)
+
+   character(len=10),dimension(2) :: evars2d_frocean  ! 2-d fields for frocean and frland
+   evars2d_frocean(1)='frocean'
+   evars2d_frocean(2)='frland'
+
+!  associate( this => this ) ! eliminates warning for unused dummy argument needed for binding
+!  end associate
+
+!  Only works for non-dual resolution ...
+   if(grd%nlat/=nlat.or.grd%nlon/=nlon) then
+      if (first) then
+        if(mype==0) then
+           write(6,*) myname, ': grd%(nlat,nlon) = ', grd%nlat,grd%nlon
+           write(6,*) myname, ': ges%(nlat,nlon) = ', nlat,nlon
+           write(6,*) myname, ': dual resolution hybrid analysis in use'
+        endif
+        first=.false.
+      endif
+   endif
+
+!  Consistency check
+   if(.not. uv_hyb_ens) then
+      if (mype==0) then
+         write(6,*)trim(myname),': must have uv as part of ensemble members'
+         write(6,*)trim(myname),': set uv_hyb_ens to true'
+      endif
+      call stop2(999)
+   endif
+
+!  Create temporary bundle to hold input field
+   call gsi_gridcreate(grid,grd%lat2,grd%lon2,grd%nsig)
+   allocate(flds(members))
+   do mm=1,members
+      call gsi_bundlecreate(flds(mm),grid,'ensemble member',istatus, &
+                            names2d=evars2d_frocean)
+      if(istatus/=0) then
+         write(6,*)trim(myname),': trouble creating temporary bundle for member ', mm
+         call stop2(999)
+      endif
+   enddo
+
+!  Read in ensemble members
+   if(l4densvar) then
+      ida(1:3)=ibdate(1:3)
+      ida(5:6)=ibdate(4:5)
+      jda(:)=0
+      fha(:)=0.0
+      fha(3)=ens_fmnlevs(ntindex)-180.0_r_kind ! NCEP counts time from previous syn analysis (180min=3hr)
+      call w3movdat(fha,ida,jda)
+      nymd=jda(1)*10000+jda(2)*100+jda(3)
+      nhms=jda(5)*10000+jda(6)*100
+   else
+      nymd = iadate(1)*10000 + iadate(2)*100 + iadate(3)
+      nhms = iadate(4)*10000 + iadate(5)*100
+   endif
+   call timer_ini('GetEns')
+   call state_get(flds,grd,nymd,nhms,tau=tau)
+   call timer_fnl('GetEns')
+
+!  take care of rank-2 fields
+   do mm=1,members
+      do ii=1,2
+         evar=trim(evars2d_frocean(ii)) ! in general output name same as input (but not always!)
+         call gsi_bundlegetpointer (flds(mm)      ,evar,iptr2d,istatus)
+         call gsi_bundlegetpointer (atm_bundle(mm),evar,optr2d,ier)
+         if(istatus==0 .and. ier==0) then
+            optr2d=iptr2d
+         else
+            if (ier/=0.and.mype==0) then
+               write(6,*) myname,': field ',evar,' not in evars2d_frocean, skipping'
+            endif
+            if (istatus/=0.and.mype==0) then
+               write(6,*) myname,': field ',evar,' not in member file, skipping'
+            endif
+         endif
+      enddo
+   enddo
+
+   iret=0 ! ignore prior error codes
+
+!  Clean up
+   do mm=members,1,-1
+      call gsi_bundledestroy(flds(mm))
+   enddo
+   deallocate(flds)
+
+end subroutine get_geos_Nens_frocean
+
 
 subroutine put_geos_ens(this,grd,member,ntindex,pert,iret)
 !$$$  subprogram documentation block
@@ -450,9 +618,9 @@ implicit none
    type(gsi_bundle) flds
 
 !  Declare fields in file (should come from resource file)
-   integer(i_kind),parameter:: no2d=2
+   integer(i_kind),parameter:: no2d=7
    integer(i_kind),dimension(no2d)::iptr2d
-   character(len=4), parameter :: ovars2d(no2d) = (/ 'ps  ', 'z   '/)
+   character(len=5), parameter :: ovars2d(no2d) = (/ 'ps   ', 'z    ', 'pblri', 'pblrf', 'pblsld', 'pblgld', 'pblrd'/)
    integer(i_kind),parameter:: no3d=10
    integer(i_kind),dimension(no3d)::iptr3d
    character(len=5), parameter :: ovars3d(no3d) = (/ 'u    ', 'v    ',&
@@ -513,6 +681,74 @@ implicit none
 !     if(mype==0) write(6,*) myname,': z ens member not in incoming pert'
 !     call stop2(999)
 !  endif
+
+!  PBLH
+   call gsi_bundlegetpointer (pert,'pblri',ipnt,istatus)
+   if(istatus==0) then
+      call gsi_bundlegetpointer (flds,'pblri',optr2d,istatus)
+      if(iamsingle) then
+        optr2d=pert%r2(ipnt)%qr4
+      else
+        optr2d=pert%r2(ipnt)%qr8
+      endif
+   else
+      if(mype==0) write(6,*) myname,': pblri ens member not in incoming pert'
+      call stop2(999)
+   endif
+
+   call gsi_bundlegetpointer (pert,'pblrf',ipnt,istatus)
+   if(istatus==0) then
+      call gsi_bundlegetpointer (flds,'pblrf',optr2d,istatus)
+      if(iamsingle) then
+        optr2d=pert%r2(ipnt)%qr4
+      else
+        optr2d=pert%r2(ipnt)%qr8
+      endif
+   else
+      if(mype==0) write(6,*) myname,': pblrf ens member not in incoming pert'
+      call stop2(999)
+   endif
+
+   call gsi_bundlegetpointer (pert,'pblsld',ipnt,istatus)
+   if(istatus==0) then
+      call gsi_bundlegetpointer (flds,'pblsld',optr2d,istatus)
+      if(iamsingle) then
+        optr2d=pert%r2(ipnt)%qr4
+      else
+        optr2d=pert%r2(ipnt)%qr8
+      endif
+   else
+      if(mype==0) write(6,*) myname,': pblsld ens member not in incoming pert'
+      call stop2(999)
+   endif
+
+   call gsi_bundlegetpointer (pert,'pblgld',ipnt,istatus)
+   if(istatus==0) then
+      call gsi_bundlegetpointer (flds,'pblgld',optr2d,istatus)
+      if(iamsingle) then
+        optr2d=pert%r2(ipnt)%qr4
+      else
+        optr2d=pert%r2(ipnt)%qr8
+      endif
+   else
+      if(mype==0) write(6,*) myname,': pblgld ens member not in incoming pert'
+      call stop2(999)
+   endif
+
+   call gsi_bundlegetpointer (pert,'pblrd',ipnt,istatus)
+   if(istatus==0) then
+      call gsi_bundlegetpointer (flds,'pblrd',optr2d,istatus)
+      if(iamsingle) then
+        optr2d=pert%r2(ipnt)%qr4
+      else
+        optr2d=pert%r2(ipnt)%qr8
+      endif
+   else
+      if(mype==0) write(6,*) myname,': pblrd ens member not in incoming pert'
+      call stop2(999)
+   endif
+
+!  SF/VP->U/V
 !  SF/VP->U/V
    istatus=0
    call gsi_bundlegetpointer (pert,'sf',isf,ier);istatus=ier+istatus

@@ -415,6 +415,7 @@ module obsmod
   public :: destroy_obsmod_vars
   public :: ran01dom,dval_use
   public :: iout_pcp,iout_rad,iadate,iadatemn,write_diag,reduce_diag,oberrflg,bflag,ndat,dthin,dmesh,l_do_adjoint
+  public :: thin_flg,superob_flg,smooth_flg,filter_window,pbqc4hd,qcrequired,flag_hr_ua_q
   public :: diag_radardbz
   public :: lsaveobsens
   public ::                  iout_cldch, mype_cldch
@@ -432,7 +433,8 @@ module obsmod
   public :: mype_uv,mype_dw,mype_rw,mype_q,mype_tcp,mype_lag,mype_ps,mype_t
   public :: mype_pw,iout_rw,iout_dw,iout_sst,iout_pw,iout_t,iout_q,iout_tcp
   public :: iout_lag,iout_uv,iout_gps,iout_ps,iout_light,mype_light
-  public :: mype_gust,mype_vis,mype_pblh,iout_gust,iout_vis,iout_pblh
+  public :: mype_gust,mype_vis,mype_pblri,mype_pblrf,mype_pblsld,mype_pblgld,mype_pblrd
+  public :: iout_gust,iout_vis,iout_pblri,iout_pblrf,iout_pblsld,iout_pblgld,iout_pblrd
   public :: mype_tcamt,mype_lcbas,iout_tcamt,iout_lcbas
   public :: mype_wspd10m,mype_td2m,iout_wspd10m,iout_td2m
   public :: mype_uwnd10m,mype_vwnd10m,iout_uwnd10m,iout_vwnd10m
@@ -516,14 +518,16 @@ module obsmod
   integer(i_kind) iout_rad,iout_pcp,iout_t,iout_q,iout_uv, &
                   iout_oz,iout_ps,iout_pw,iout_rw, iout_dbz
   integer(i_kind) iout_dw,iout_gps,iout_sst,iout_tcp,iout_lag
-  integer(i_kind) iout_gust,iout_vis,iout_pblh,iout_tcamt,iout_lcbas
+  integer(i_kind) iout_gust,iout_vis,iout_pblri,iout_pblrf,iout_pblsld,iout_pblgld,iout_pblrd
+  integer(i_kind) iout_tcamt,iout_lcbas
   integer(i_kind) iout_tgas
   integer(i_kind) iout_cldch
   integer(i_kind) iout_wspd10m,iout_td2m,iout_mxtm,iout_mitm,iout_pmsl,iout_howv
   integer(i_kind) iout_uwnd10m,iout_vwnd10m
   integer(i_kind) mype_t,mype_q,mype_uv,mype_ps,mype_pw, &
                   mype_rw,mype_dw,mype_gps,mype_sst, &
-                  mype_tcp,mype_lag,mype_co,mype_gust,mype_vis,mype_pblh, &
+                  mype_tcp,mype_lag,mype_co,mype_gust,mype_vis,mype_pblri, &
+                  mype_pblrf,mype_pblsld,mype_pblgld,mype_pblrd, &
                   mype_wspd10m,mype_td2m,mype_mxtm,mype_mitm,mype_pmsl,mype_howv,&
                   mype_uwnd10m,mype_vwnd10m, mype_tcamt,mype_lcbas, mype_dbz
   integer(i_kind) mype_cldch
@@ -551,8 +555,8 @@ module obsmod
   real(r_kind) ,allocatable,dimension(:):: time_window
 
   integer(i_kind) ntilt_radarfiles
-
   logical ::  ta2tb
+  integer(i_kind) filter_window
   logical ::  doradaroneob
   logical :: vr_dealisingopt, if_vterminal, if_model_dbz, inflate_obserr, if_vrobs_raw
   character(4) :: whichradar,oneobradid
@@ -570,7 +574,7 @@ module obsmod
   logical         :: missing_to_nopcp
 
   logical, save :: obs_instr_initialized_=.false.
-
+  logical thin_flg,superob_flg,smooth_flg,pbqc4hd,qcrequired
   logical oberrflg,bflag,oberror_tune,perturb_obs,ref_obs,sfcmodel,dtbduv_on,dval_use
   logical blacklst,lobsdiagsave,lobsdiag_allocated,lobskeep,lsaveobsens
   logical lobserver,l_do_adjoint, lobsdiag_forenkf
@@ -587,6 +591,7 @@ module obsmod
   logical lrun_subdirs
   logical l_foreaft_thin
   logical lgpsbnd_revint
+  logical flag_hr_ua_q
 
   logical l_wcp_cwm
   logical wrtgeovals
@@ -702,6 +707,13 @@ contains
     dtbduv_on = .true.      ! .true. = use microwave dTb/duv in inner loop
     offtime_data = .false.  ! .false. = code fails if data files contain ref time
                             !            different from analysis time
+    thin_flg=.false. ! hdraob thin flag
+    superob_flg=.false. ! hdraob superobbing flag
+    smooth_flg=.false. ! hdraob smoothing flag, using binomial filter
+    filter_window=11 ! hdraob smoothing filter window (profile levels)
+    pbqc4hd=.true. !hdraob flag for doing QC using prepbufr QC marks
+    qcrequired=.true. !set to true to set hd ascent raobs that cannot be QCed with prepbufr to unused
+    flag_hr_ua_q=.true. !set to false to avoid using prepbufr qc marks indicating q obs above 300 mb
 ! moved to create_obsmod_var since l4dvar since before namelist is read
 !   if (l4dvar) then
 !      offtime_data = .true.   ! .true. = ignore difference in obs ref time
@@ -731,24 +743,28 @@ contains
     iout_aero=217  ! aerosol product (aod)
     iout_gust=218  ! wind gust
     iout_vis=219   ! visibility
-    iout_pblh=221  ! pbl height
-    iout_pm2_5=222 ! pm2_5
-    iout_wspd10m=223  ! 10-m wind speed
-    iout_td2m=224  ! 2-m dew point
-    iout_mxtm=225  ! daily maximum temperature
-    iout_mitm=226  ! daily minimum temperature
-    iout_pmsl=227  ! pressure at mean sea level
-    iout_howv=228  ! significant wave height
-    iout_tcamt=229 ! total cloud amount
-    iout_lcbas=230 ! base height of lowest cloud
-    iout_pm10=231  ! pm10
-    iout_cldch=232 ! cloud ceiling height
-    iout_uwnd10m=233  ! 10-m uwnd
-    iout_vwnd10m=234  ! 10-m vwnd
-    iout_swcp=235  ! solid-water content path
-    iout_lwcp=236  ! liquid-water content path
-    iout_light=237 ! lightning
-    iout_dbz=238 ! radar reflectivity
+    iout_pblri=221  ! pbl height
+    iout_pblrf=222  ! pbl height
+    iout_pblsld=223 ! pbl height
+    iout_pblgld=224 ! pbl height
+    iout_pblrd=225  ! pbl height
+    iout_pm2_5=226 ! pm2_5
+    iout_wspd10m=227  ! 10-m wind speed
+    iout_td2m=228  ! 2-m dew point
+    iout_mxtm=229  ! daily maximum temperature
+    iout_mitm=230  ! daily minimum temperature
+    iout_pmsl=231  ! pressure at mean sea level
+    iout_howv=232  ! significant wave height
+    iout_tcamt=233 ! total cloud amount
+    iout_lcbas=234 ! base height of lowest cloud
+    iout_pm10=235  ! pm10
+    iout_cldch=236 ! cloud ceiling height
+    iout_uwnd10m=237  ! 10-m uwnd
+    iout_vwnd10m=238  ! 10-m vwnd
+    iout_swcp=239  ! solid-water content path
+    iout_lwcp=240  ! liquid-water content path
+    iout_light=241 ! lightning
+    iout_dbz=242 ! radar reflectivity
 
     mype_ps = npe-1          ! surface pressure
     mype_t  = max(0,npe-2)   ! temperature
@@ -766,24 +782,28 @@ contains
     mype_aero= max(0,npe-13) ! aerosol product (aod)
     mype_gust= max(0,npe-14) ! wind gust
     mype_vis = max(0,npe-15) ! visibility
-    mype_pblh= max(0,npe-16) ! pbl height
-    mype_pm2_5= max(0,npe-17)! pm2_5
-    mype_wspd10m= max(0,npe-18)! wspd10m
-    mype_td2m= max(0,npe-19) ! 2m dew point
-    mype_mxtm= max(0,npe-20) ! daily maximum temperature
-    mype_mitm= max(0,npe-21) ! daily minimum temperature
-    mype_pmsl= max(0,npe-22) ! pressure at mean sea level
-    mype_howv= max(0,npe-23) ! significant wave height
-    mype_tcamt=max(0,npe-24) ! total cloud amount
-    mype_lcbas=max(0,npe-25) ! base height of lowest cloud
-    mype_pm10= max(0,npe-26) ! pm10
-    mype_cldch=max(0,npe-27) ! cloud ceiling height
-    mype_uwnd10m= max(0,npe-28)! uwnd10m
-    mype_vwnd10m= max(0,npe-29)! vwnd10m
-    mype_swcp=max(0,npe-30)  ! solid-water content path
-    mype_lwcp=max(0,npe-31)  ! liquid-water content path
-    mype_light=max(0,npe-32)! GOES/GLM lightning
-    mype_dbz=max(0,npe-33)   ! radar reflectivity
+    mype_pblri= max(0,npe-16) ! pbl height
+    mype_pblrf= max(0,npe-17) ! pbl height
+    mype_pblsld= max(0,npe-18) ! pbl height
+    mype_pblgld= max(0,npe-19) ! pbl height
+    mype_pblrd= max(0,npe-20) ! pbl height
+    mype_pm2_5= max(0,npe-21)! pm2_5
+    mype_wspd10m= max(0,npe-22)! wspd10m
+    mype_td2m= max(0,npe-23) ! 2m dew point
+    mype_mxtm= max(0,npe-24) ! daily maximum temperature
+    mype_mitm= max(0,npe-25) ! daily minimum temperature
+    mype_pmsl= max(0,npe-26) ! pressure at mean sea level
+    mype_howv= max(0,npe-27) ! significant wave height
+    mype_tcamt=max(0,npe-27) ! total cloud amount
+    mype_lcbas=max(0,npe-28) ! base height of lowest cloud
+    mype_pm10= max(0,npe-29) ! pm10
+    mype_cldch=max(0,npe-30) ! cloud ceiling height
+    mype_uwnd10m= max(0,npe-31)! uwnd10m
+    mype_vwnd10m= max(0,npe-32)! vwnd10m
+    mype_swcp=max(0,npe-33)  ! solid-water content path
+    mype_lwcp=max(0,npe-34)  ! liquid-water content path
+    mype_light=max(0,npe-35)! GOES/GLM lightning
+    mype_dbz=max(0,npe-36)   ! radar reflectivity
 
 
 !   Initialize arrays used in namelist obs_input 

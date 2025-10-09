@@ -343,7 +343,7 @@ end subroutine get_pert_unset_
 
      character(len=255) fname,bkgfname,tmpl
      character(len=ESMF_MAXSTR) :: etmpl
-     character(len=*), parameter :: only_vars='ps,ts,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     character(len=*), parameter :: only_vars='ps,ts,pblri,pblrf,pblsld,pblgld,pblrd,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
      integer(i_kind) thistime(6)
      integer(i_kind) rc,status,ierr
      integer(i_kind) idim,jdim,kdim,i,j,k,i_dp,i_ps
@@ -466,7 +466,7 @@ end subroutine get_pert_unset_
 
      character(len=255) fname,bkgfname,tmpl
      character(len=ESMF_MAXSTR) :: etmpl
-     character(len=*), parameter :: only_vars='ps,ts,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     character(len=*), parameter :: only_vars='ps,ts,pblri,pblrf,pblsld,pblgld,pblrd,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
      integer(i_kind) thistime(6)
      integer(i_kind) rc,status,ierr
      integer(i_kind) idim,jdim,kdim,i,j,k,i_dp,i_ps
@@ -628,7 +628,7 @@ end subroutine get_pert_unset_
 
      character(len=255) fname,bkgfname,tmpl
      character(len=ESMF_MAXSTR) :: etmpl
-     character(len=*), parameter :: only_vars='ps,ts,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     character(len=*), parameter :: only_vars='ps,ts,pblri,pblrf,pblsld,pblgld,pblrd,delp,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
      integer(i_kind) thistime(6)
      integer(i_kind) rc,status,ierr
      integer(i_kind) idim,jdim,kdim,i,j,k,i_dp,i_ps
@@ -747,10 +747,12 @@ end subroutine get_pert_unset_
       real(r_kind),   allocatable, dimension(:,:,:) :: sub_qi,sub_ql
       real(r_kind),   allocatable, dimension(:,:,:) :: sub_qr,sub_qs
       real(r_kind),   allocatable, dimension(:,:)   :: sub_ps,sub_ts
+      real(r_kind),   allocatable, dimension(:,:)   :: sub_pblri,sub_pblrf,sub_pblsld,sub_pblgld,sub_pblrd
       real(r_single), allocatable, dimension(:,:,:) :: aux3d
 
       integer(i_kind)  i,j,k,ijk,ij
       integer(i_kind)  i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_tsen,i_ts
+      integer(i_kind)  i_pblri,i_pblrf,i_pblsld,i_pblgld,i_pblrd
       integer(i_kind)  i_qi,i_ql,i_qr,i_qs
       integer(i_kind)  ierr,ierr_adm,istatus,rc,status
       character(len=255) :: whatin
@@ -921,6 +923,78 @@ end subroutine get_pert_unset_
             enddo
          enddo
       endif
+      call gsi_bundlegetpointer(xx,'pblri', i_pblri, istatus)
+      if (i_pblri>0) then
+         allocate (sub_pblri(lat2,lon2), stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 91
+             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_pblri)'
+             return
+         end if
+         do j=1,lon2
+            do i=1,lat2
+               sub_pblri(i,j) = xx%r2(i_pblri)%q(i,j)
+            enddo
+         enddo
+      endif
+      call gsi_bundlegetpointer(xx,'pblrf', i_pblrf, istatus)
+      if (i_pblrf>0) then
+         allocate (sub_pblrf(lat2,lon2), stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 91
+             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_pblrf)'
+             return
+         end if
+         do j=1,lon2
+            do i=1,lat2
+               sub_pblrf(i,j) = xx%r2(i_pblrf)%q(i,j)
+            enddo
+         enddo
+      endif
+      call gsi_bundlegetpointer(xx,'pblsld', i_pblsld, istatus)
+      if (i_pblsld>0) then
+         allocate (sub_pblsld(lat2,lon2), stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 91
+             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_pblsld)'
+             return
+         end if
+         do j=1,lon2
+            do i=1,lat2
+               sub_pblsld(i,j) = xx%r2(i_pblsld)%q(i,j)
+            enddo
+         enddo
+      endif
+
+      call gsi_bundlegetpointer(xx,'pblgld', i_pblgld, istatus)
+      if (i_pblgld>0) then
+         allocate (sub_pblgld(lat2,lon2), stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 91
+             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_pblgld)'
+             return
+         end if
+         do j=1,lon2
+            do i=1,lat2
+               sub_pblgld(i,j) = xx%r2(i_pblgld)%q(i,j)
+            enddo
+         enddo
+      endif
+
+      call gsi_bundlegetpointer(xx,'pblrd', i_pblrd, istatus)
+      if (i_pblrd>0) then
+         allocate (sub_pblrd(lat2,lon2), stat=ierr )
+         if ( ierr/=0 ) then
+             stat = 91
+             if(mype==ROOT) print*, trim(myname_), ': Alloc(sub_pblrd)'
+             return
+         end if
+         do j=1,lon2
+            do i=1,lat2
+               sub_pblrd(i,j) = xx%r2(i_pblrd)%q(i,j)
+            enddo
+         enddo
+      endif
 
 !     Calculate perturbation delp
 !     ---------------------------
@@ -984,6 +1058,52 @@ end subroutine get_pert_unset_
           xpert%r2(i_ts)%qr4=aux3d(:,:,nsig) ! level nsig will contain result give vertical swap
           deallocate(aux3d)
 
+          if (i_pblri>0) then
+             i_pblri = MAPL_SimpleBundleGetIndex ( xpert, 'pblri'  , 2, rc=ierr )
+             sub_q=zero
+             sub_q(:,:,1)=sub_pblri       ! copy to level 1
+             allocate(aux3d(size(xpert%r3(i_q)%qr4,1),size(xpert%r3(i_q)%qr4,2),size(xpert%r3(i_q)%qr4,3)))
+             call gsi2pert_ ( sub_q, aux3d,  ierr )
+             xpert%r2(i_pblri)%qr4=aux3d(:,:,nsig) ! level nsig will contain result give vertical swap
+             deallocate(aux3d)
+          end if
+          if (i_pblrf>0) then
+             i_pblrf = MAPL_SimpleBundleGetIndex ( xpert, 'pblrf'  , 2, rc=ierr )
+             sub_q=zero
+             sub_q(:,:,1)=sub_pblrf       ! copy to level 1
+             allocate(aux3d(size(xpert%r3(i_q)%qr4,1),size(xpert%r3(i_q)%qr4,2),size(xpert%r3(i_q)%qr4,3)))
+             call gsi2pert_ ( sub_q, aux3d,  ierr )
+             xpert%r2(i_pblrf)%qr4=aux3d(:,:,nsig) ! level nsig will contain result give vertical swap
+             deallocate(aux3d)
+          end if
+          if (i_pblsld>0) then
+             i_pblsld= MAPL_SimpleBundleGetIndex ( xpert, 'pblsld'  , 2, rc=ierr )
+             sub_q=zero
+             sub_q(:,:,1)=sub_pblsld      ! copy to level 1
+             allocate(aux3d(size(xpert%r3(i_q)%qr4,1),size(xpert%r3(i_q)%qr4,2),size(xpert%r3(i_q)%qr4,3)))
+             call gsi2pert_ ( sub_q, aux3d,  ierr )
+             xpert%r2(i_pblsld)%qr4=aux3d(:,:,nsig) ! level nsig will contain result give vertical swap
+             deallocate(aux3d)
+          end if
+          if (i_pblgld>0) then
+             i_pblgld= MAPL_SimpleBundleGetIndex ( xpert, 'pblgld'  , 2, rc=ierr )
+             sub_q=zero
+             sub_q(:,:,1)=sub_pblgld      ! copy to level 1
+             allocate(aux3d(size(xpert%r3(i_q)%qr4,1),size(xpert%r3(i_q)%qr4,2),size(xpert%r3(i_q)%qr4,3)))
+             call gsi2pert_ ( sub_q, aux3d,  ierr )
+             xpert%r2(i_pblgld)%qr4=aux3d(:,:,nsig) ! level nsig will contain result give vertical swap
+             deallocate(aux3d)
+          end if
+          if (i_pblrd>0) then
+             i_pblrd = MAPL_SimpleBundleGetIndex ( xpert, 'pblrd'  , 2, rc=ierr )
+             sub_q=zero
+             sub_q(:,:,1)=sub_pblrd       ! copy to level 1
+             allocate(aux3d(size(xpert%r3(i_q)%qr4,1),size(xpert%r3(i_q)%qr4,2),size(xpert%r3(i_q)%qr4,3)))
+             call gsi2pert_ ( sub_q, aux3d,  ierr )
+             xpert%r2(i_pblrd)%qr4=aux3d(:,:,nsig) ! level nsig will contain result give vertical swap
+             deallocate(aux3d)
+          end if
+
       deallocate (sub_tv, sub_u, sub_v, sub_q, sub_delp, sub_ps, sub_ts, stat=ierr )
         if ( ierr/=0 ) then
             stat = 99
@@ -1038,9 +1158,46 @@ end subroutine get_pert_unset_
                 return
             end if
        endif
-
-
-
+       if ( allocated(sub_pblri) ) then
+          deallocate (sub_pblri, stat=ierr )
+            if ( ierr/=0 ) then
+                stat = 99
+                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblri)'
+                return
+            end if
+       endif
+       if ( allocated(sub_pblrf) ) then
+          deallocate (sub_pblrf, stat=ierr )
+            if ( ierr/=0 ) then
+                stat = 99
+                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblrf)'
+                return
+            end if
+       endif
+       if ( allocated(sub_pblsld) ) then
+          deallocate (sub_pblsld, stat=ierr )
+            if ( ierr/=0 ) then
+                stat = 99
+                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblsld)'
+                return
+            end if
+       endif
+       if ( allocated(sub_pblgld) ) then
+          deallocate (sub_pblgld, stat=ierr )
+            if ( ierr/=0 ) then
+                stat = 99
+                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblgld)'
+                return
+            end if
+       endif
+       if ( allocated(sub_pblrd) ) then
+          deallocate (sub_pblrd, stat=ierr )
+            if ( ierr/=0 ) then
+                stat = 99
+                if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblrd)'
+                return
+            end if
+       endif
 
       CONTAINS
 
@@ -1306,7 +1463,9 @@ end subroutine get_pert_unset_
      character(len=*), parameter :: Iam = myname_
      character(len=*), parameter :: fname_def ='fsens.eta.nc4' ! full forecast sensitivity from ADM integration
      character(len=*), parameter :: sens_vars='ts,delp,u,v,tv,sphu,ozone'
-     character(len=*), parameter :: xinc_vars='ts,ps,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot'
+     character(len=*), parameter :: xinc_vars='pblri,pblrf,pblsld,pblgld,pblrd,ts,ps,u,v,tv,sphu,ozone,qitot,qltot,qrtot,qstot' ! not sure if this 
+                                                                  ! subroutine is only used for fcst sensitivity calculation,
+                                                                  ! so add PBLH here for now
      character(len=256) :: fname, ffname(1)
      character(len=256) :: my_vars
      character(len=30)  :: GSIGRIDNAME
@@ -1517,11 +1676,13 @@ end subroutine get_pert_unset_
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_oz,sub_cw
       real(r_kind),  allocatable, dimension(:,:,:) :: sub_ql,sub_qi,sub_qr,sub_qs
       real(r_kind),  allocatable, dimension(:,:)   :: sub_ps,sub_ts
+      real(r_kind),  allocatable, dimension(:,:)   :: sub_pblri,sub_pblrf,sub_pblsld,sub_pblgld,sub_pblrd
       real(r_kind),  allocatable, dimension(:,:,:) :: aux3d
 
       character(len=256) :: failvars
       integer(i_kind) i,j,k,ij,ijk,id,ng_d,ng_s
-      integer(i_kind) i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_tsen,i_ts,i_ql,i_qi,i_qr,i_qs
+      integer(i_kind) i_u,i_v,i_t,i_q,i_oz,i_cw,i_prse,i_p,i_tsen,i_ts,i_ql,i_qi,i_qr,i_qs,& 
+                      i_pblri,i_pblrf,i_pblsld,i_pblgld,i_pblrd
       integer(i_kind) slat2,slon2
       integer(i_kind) ierr,istatus,status
       logical         scaleit
@@ -1636,6 +1797,31 @@ end subroutine get_pert_unset_
       if (i_ts>0) then
          allocate (sub_ts(slat2,slon2), stat=istatus ); ierr=ierr+istatus
          call pert2gsi2d_ ( xpert%r2(i_ts)%qr4, sub_ts, ierr )
+      endif
+      i_pblri= MAPL_SimpleBundleGetIndex ( xpert, 'pblri'  , 2, rc=status )
+      if (i_pblri>0) then
+         allocate (sub_pblri(slat2,slon2), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi2d_ ( xpert%r2(i_pblri)%qr4, sub_pblri, ierr )
+      endif
+      i_pblrf= MAPL_SimpleBundleGetIndex ( xpert, 'pblrf'  , 2, rc=status )
+      if (i_pblrf>0) then
+         allocate (sub_pblrf(slat2,slon2), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi2d_ ( xpert%r2(i_pblrf)%qr4, sub_pblrf, ierr )
+      endif
+      i_pblsld= MAPL_SimpleBundleGetIndex ( xpert, 'pblsld'  , 2, rc=status )
+      if (i_pblsld>0) then
+         allocate (sub_pblsld(slat2,slon2), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi2d_ ( xpert%r2(i_pblsld)%qr4, sub_pblsld, ierr )
+      endif
+      i_pblgld= MAPL_SimpleBundleGetIndex ( xpert, 'pblgld'  , 2, rc=status )
+      if (i_pblgld>0) then
+         allocate (sub_pblgld(slat2,slon2), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi2d_ ( xpert%r2(i_pblgld)%qr4, sub_pblsld, ierr )
+      endif
+      i_pblrd= MAPL_SimpleBundleGetIndex ( xpert, 'pblrd'  , 2, rc=status )
+      if (i_pblrd>0) then
+         allocate (sub_pblrd(slat2,slon2), stat=istatus ); ierr=ierr+istatus
+         call pert2gsi2d_ ( xpert%r2(i_pblrd)%qr4, sub_pblrd, ierr )
       endif
 
       if (which=='inc') then
@@ -1920,6 +2106,80 @@ end subroutine get_pert_unset_
          end if
       endif
      
+      call gsi_bundlegetpointer(xx,'pblri',i_pblri,istatus)
+      if ( i_pblri>0 .and. allocated(sub_pblri) ) then
+         do j=1,slon2
+            do i=1,slat2
+               xx%r2(i_pblri)%q(i,j) = sub_pblri(i,j)
+            enddo
+         enddo
+         deallocate (sub_pblri, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblri)'
+            return
+         end if
+      end if
+
+      call gsi_bundlegetpointer(xx,'pblrf',i_pblrf,istatus)
+      if ( i_pblrf>0 .and. allocated(sub_pblrf) ) then
+         do j=1,slon2
+            do i=1,slat2
+               xx%r2(i_pblrf)%q(i,j) = sub_pblrf(i,j)
+            enddo
+         enddo
+         deallocate (sub_pblrf, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblrf)'
+            return
+         end if
+      end if
+
+      call gsi_bundlegetpointer(xx,'pblsld',i_pblsld,istatus)
+      if ( i_pblsld>0 .and. allocated(sub_pblsld) ) then
+         do j=1,slon2
+            do i=1,slat2
+               xx%r2(i_pblsld)%q(i,j) = sub_pblsld(i,j)
+            enddo
+         enddo
+         deallocate (sub_pblsld, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblsld)'
+            return
+         end if
+      end if
+
+      call gsi_bundlegetpointer(xx,'pblgld',i_pblgld,istatus)
+      if ( i_pblgld>0 .and. allocated(sub_pblgld) ) then
+         do j=1,slon2
+            do i=1,slat2
+               xx%r2(i_pblgld)%q(i,j) = sub_pblgld(i,j)
+            enddo
+         enddo
+         deallocate (sub_pblgld, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblgld)'
+            return
+         end if
+      end if
+
+      call gsi_bundlegetpointer(xx,'pblrd',i_pblrd,istatus)
+      if ( i_pblrd>0 .and. allocated(sub_pblrd) ) then
+         do j=1,slon2
+            do i=1,slat2
+               xx%r2(i_pblrd)%q(i,j) = sub_pblrd(i,j)
+            enddo
+         enddo
+         deallocate (sub_pblrd, stat=ierr )
+         if ( ierr/=0 ) then
+            stat = 99
+            if(mype==ROOT) print*, trim(myname_), ': Dealloc(sub_pblrd)'
+            return
+         end if
+      end if
 
       CONTAINS
 

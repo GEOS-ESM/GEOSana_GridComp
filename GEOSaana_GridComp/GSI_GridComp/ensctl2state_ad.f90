@@ -13,6 +13,8 @@ subroutine ensctl2state_ad(eval,mval,grad)
 !   2014-12-03  derber   - introduce parallel regions for optimization
 !   2017-05-12  Y. Wang and X. Wang - add w as state variable for rw DA, POC: xuguang.wang@ou.edu
 !   2019-07-11  Todling - there should be no need to check on the existence of w and dw
+!   2021-10-10  zhu - add pbl*
+!   2025-10-03  eyang - add pblsld, pblgld, pblrd
 !
 !   input argument list:
 !     eval - Ensemble state variable variable
@@ -76,7 +78,8 @@ character(len=4), parameter :: mysvars(nsvars) = (/  &  ! vars from ST needed he
 logical :: ls_u,ls_v,ls_prse,ls_q,ls_tsen,ls_ql,ls_qi
 logical :: ls_qr,ls_qs,ls_qg,ls_qh
 logical :: ls_w,ls_dw
-real(r_kind),pointer,dimension(:,:)   :: rv_ps,rv_sst
+real(r_kind),pointer,dimension(:,:)   :: rv_ps,rv_sst,rv_pblri,rv_pblrf
+real(r_kind),pointer,dimension(:,:)   :: rv_pblsld,rv_pblgld,rv_pblrd
 real(r_kind),pointer,dimension(:,:,:) :: rv_u,rv_v,rv_prse,rv_q,rv_tsen,rv_tv,rv_oz
 real(r_kind),pointer,dimension(:,:,:) :: rv_rank3,rv_w,rv_dw
 
@@ -197,8 +200,18 @@ do jj=1,ntlevs_ens
 
    call gsi_bundlegetpointer (eval(jj),'oz'  ,rv_oz , istatus)
    call gsi_bundlegetpointer (eval(jj),'sst' ,rv_sst, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblri' ,rv_pblri, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblrf' ,rv_pblrf, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblsld' ,rv_pblsld, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblgld' ,rv_pblgld, istatus)
+   call gsi_bundlegetpointer (eval(jj),'pblrd' ,rv_pblrd, istatus)
    call gsi_bundleputvar ( wbundle_c, 'oz',  rv_oz,  istatus )
    call gsi_bundleputvar ( wbundle_c, 'sst', rv_sst, istatus )
+   call gsi_bundleputvar ( wbundle_c, 'pblri', rv_pblri, istatus )
+   call gsi_bundleputvar ( wbundle_c, 'pblrf', rv_pblrf, istatus )
+   call gsi_bundleputvar ( wbundle_c, 'pblsld', rv_pblsld, istatus )
+   call gsi_bundleputvar ( wbundle_c, 'pblgld', rv_pblgld, istatus )
+   call gsi_bundleputvar ( wbundle_c, 'pblrd', rv_pblrd, istatus )
    if(wdw_exist)then
      call gsi_bundlegetpointer (eval(jj),'w' ,rv_w, istatus)
      call gsi_bundleputvar ( wbundle_c, 'w', rv_w, istatus )

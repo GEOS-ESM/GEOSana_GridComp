@@ -101,6 +101,8 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !                         polymorphic implementation using %setup().
 !   2019-03-15  Ladwig  - add option for cloud analysis in observer
 !   2019-03-28  Ladwig  - add metar cloud obs as pseudo water vapor in var analysis
+!   2022-08-22  Zhu     - add pblri,pblrf,pblkh
+!   2025-10-07  eyang   - add pblsld,pblgld,pblrd
 !
 !   input argument list:
 !     ndata(*,1)- number of prefiles retained for further processing
@@ -166,7 +168,8 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
   use m_rhs, only: toss_gps_sub => rhs_toss_gps
 
   use m_rhs, only: i_ps,i_uv,i_t,i_q,i_pw,i_rw,i_dw,i_gps,i_sst,i_tcp,i_lag, &
-                   i_gust,i_vis,i_pblh,i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, &
+                   i_gust,i_vis,i_pblri,i_pblrf,i_pblsld,i_pblgld,i_pblrd,&
+                   i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, &
                    i_tcamt,i_lcbas,i_cldch,i_uwnd10m,i_vwnd10m,i_swcp,i_lwcp
   use m_rhs, only: i_dbz
   use m_rhs, only: i_light
@@ -626,7 +629,8 @@ subroutine setuprhsall(ndata,mype,init_pass,last_pass)
 !    Compute and print statistics for "conventional" data
      call statsconv(mype,&
           i_ps,i_uv,i_t,i_q,i_pw,i_rw,i_dw,i_gps,i_sst,i_tcp,i_lag, &
-          i_gust,i_vis,i_pblh,i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, &
+          i_gust,i_vis,i_pblri,i_pblrf,i_pblsld,i_pblgld,i_pblrd, &
+          i_wspd10m,i_td2m,i_mxtm,i_mitm,i_pmsl,i_howv, &
           i_tcamt,i_lcbas,i_cldch,i_uwnd10m,i_vwnd10m,i_swcp,i_lwcp,i_dbz, &
           size(awork1,2),bwork1,awork1,ndata)
 

@@ -17,6 +17,8 @@ subroutine prt_guess(sgrep)
 !   2013-04-15  zhu    - account for aircraft bias correction
 !   2018-04-16  eliu   - add prt_guess2 
 !   2019-06-06  eliu   - add cloud fraction in prt_guess 
+!   2021-10-10  zhu    - add pbl*
+!   2025-10-06  eyang  - add pblsld, pblgld, pblrd
 !
 !   input argument list:
 !    sgrep  - prefix for write statement
@@ -55,7 +57,7 @@ subroutine prt_guess(sgrep)
   character(len=*), intent(in   ) :: sgrep
 
 ! Declare local variables
-  integer(i_kind), parameter :: nvars=13
+  integer(i_kind), parameter :: nvars=18
   integer(i_kind) ii,istatus,ier,icf 
   integer(i_kind) ntsig
   integer(i_kind) ntsfc
@@ -72,6 +74,11 @@ subroutine prt_guess(sgrep)
   real(r_kind),pointer,dimension(:,:,:)::ges_oz_it=>NULL()
   real(r_kind),pointer,dimension(:,:,:)::ges_cwmr_it=>NULL()
   real(r_kind),pointer,dimension(:,:,:)::ges_cf_it=>NULL()  
+  real(r_kind),pointer,dimension(:,:  )::ges_pblri_it=>NULL()
+  real(r_kind),pointer,dimension(:,:  )::ges_pblrf_it=>NULL()
+  real(r_kind),pointer,dimension(:,:  )::ges_pblsld_it=>NULL()
+  real(r_kind),pointer,dimension(:,:  )::ges_pblgld_it=>NULL()
+  real(r_kind),pointer,dimension(:,:  )::ges_pblrd_it=>NULL()
   character(len=4) :: cvar(nvars+3)
 
 !*******************************************************************************
@@ -106,6 +113,12 @@ subroutine prt_guess(sgrep)
   call gsi_bundlegetpointer (gsi_metguess_bundle(ntsig),'cf',ges_cf_it,icf)
   if (icf/=0) ges_cf_it =>cfgues
 
+  call gsi_bundlegetpointer (gsi_metguess_bundle(ntsig),'pblri',ges_pblri_it,istatus)
+  call gsi_bundlegetpointer (gsi_metguess_bundle(ntsig),'pblrf',ges_pblrf_it,istatus)
+  call gsi_bundlegetpointer (gsi_metguess_bundle(ntsig),'pblsld',ges_pblsld_it,istatus)
+  call gsi_bundlegetpointer (gsi_metguess_bundle(ntsig),'pblgld',ges_pblgld_it,istatus)
+  call gsi_bundlegetpointer (gsi_metguess_bundle(ntsig),'pblrd',ges_pblrd_it,istatus)
+
 ! get pointer to cloud water condensate
   call gsi_metguess_get('clouds::3d',n_actual_clouds,ier)
   if (n_actual_clouds>0) then
@@ -139,9 +152,14 @@ subroutine prt_guess(sgrep)
   cvar(11)='PRSL'
   cvar(12)='PS  '
   cvar(13)='SST '
-  cvar(14)='radb'
-  cvar(15)='pcpb'
-  cvar(16)='aftb'
+  cvar(14)='PBLRI'
+  cvar(15)='PBLRF'
+  cvar(16)='PBLSLD'
+  cvar(17)='PBLGLD'
+  cvar(18)='PBLRD'
+  cvar(19)='radb'
+  cvar(20)='pcpb'
+  cvar(21)='aftb'
 
   zloc(1)          = sum   (ges_u_it  (2:lat1+1,2:lon1+1,1:nsig))
   zloc(2)          = sum   (ges_v_it  (2:lat1+1,2:lon1+1,1:nsig))
@@ -156,6 +174,11 @@ subroutine prt_guess(sgrep)
   zloc(11)         = sum   (ges_prsl  (2:lat1+1,2:lon1+1,1:nsig,ntsig))
   zloc(12)         = sum   (ges_ps_it (2:lat1+1,2:lon1+1             ))
   zloc(13)         = sum   (sfct      (2:lat1+1,2:lon1+1,       ntsfc))
+  zloc(14)         = sum   (ges_pblri_it(2:lat1+1,2:lon1+1))
+  zloc(15)         = sum   (ges_pblrf_it(2:lat1+1,2:lon1+1))
+  zloc(16)         = sum   (ges_pblsld_it(2:lat1+1,2:lon1+1))
+  zloc(17)         = sum   (ges_pblgld_it(2:lat1+1,2:lon1+1))
+  zloc(18)         = sum   (ges_pblrd_it(2:lat1+1,2:lon1+1))
   zloc(nvars+1)    = minval(ges_u_it  (2:lat1+1,2:lon1+1,1:nsig))
   zloc(nvars+2)    = minval(ges_v_it  (2:lat1+1,2:lon1+1,1:nsig))
   zloc(nvars+3)    = minval(ges_tv_it (2:lat1+1,2:lon1+1,1:nsig))
@@ -169,6 +192,11 @@ subroutine prt_guess(sgrep)
   zloc(nvars+11)   = minval(ges_prsl  (2:lat1+1,2:lon1+1,1:nsig,ntsig))
   zloc(nvars+12)   = minval(ges_ps_it (2:lat1+1,2:lon1+1             ))
   zloc(nvars+13)   = minval(sfct      (2:lat1+1,2:lon1+1,       ntsfc))
+  zloc(nvars+14)   = minval(ges_pblri_it(2:lat1+1,2:lon1+1))
+  zloc(nvars+15)   = minval(ges_pblrf_it(2:lat1+1,2:lon1+1))
+  zloc(nvars+16)   = minval(ges_pblsld_it(2:lat1+1,2:lon1+1))
+  zloc(nvars+17)   = minval(ges_pblgld_it(2:lat1+1,2:lon1+1))
+  zloc(nvars+18)   = minval(ges_pblrd_it(2:lat1+1,2:lon1+1))
   zloc(2*nvars+1)  = maxval(ges_u_it  (2:lat1+1,2:lon1+1,1:nsig))
   zloc(2*nvars+2)  = maxval(ges_v_it  (2:lat1+1,2:lon1+1,1:nsig))
   zloc(2*nvars+3)  = maxval(ges_tv_it (2:lat1+1,2:lon1+1,1:nsig))
@@ -178,10 +206,15 @@ subroutine prt_guess(sgrep)
   zloc(2*nvars+7)  = maxval(ges_cwmr_it(2:lat1+1,2:lon1+1,1:nsig))
   zloc(2*nvars+8)  = maxval(ges_cf_it(2:lat1+1,2:lon1+1,1:nsig))
   zloc(2*nvars+9)  = maxval(ges_div_it(2:lat1+1,2:lon1+1,1:nsig))
-  zloc(2*nvars+10)  = maxval(ges_vor_it(2:lat1+1,2:lon1+1,1:nsig))
+  zloc(2*nvars+10) = maxval(ges_vor_it(2:lat1+1,2:lon1+1,1:nsig))
   zloc(2*nvars+11) = maxval(ges_prsl  (2:lat1+1,2:lon1+1,1:nsig,ntsig))
   zloc(2*nvars+12) = maxval(ges_ps_it (2:lat1+1,2:lon1+1             ))
   zloc(2*nvars+13) = maxval(sfct      (2:lat1+1,2:lon1+1,       ntsfc))
+  zloc(2*nvars+14) = maxval(ges_pblri_it(2:lat1+1,2:lon1+1))
+  zloc(2*nvars+15) = maxval(ges_pblrf_it(2:lat1+1,2:lon1+1))
+  zloc(2*nvars+16) = maxval(ges_pblsld_it(2:lat1+1,2:lon1+1))
+  zloc(2*nvars+17) = maxval(ges_pblgld_it(2:lat1+1,2:lon1+1))
+  zloc(2*nvars+18) = maxval(ges_pblrd_it(2:lat1+1,2:lon1+1))
   zloc(3*nvars+1)  = real(lat1*lon1*nsig*ntsig,r_kind)
   zloc(3*nvars+2)  = real(lat1*lon1*ntsig,r_kind)
   zloc(3*nvars+3)  = real(lat1*lon1*nsig*ntsig,r_kind)

@@ -24,6 +24,9 @@ subroutine compute_qvar3d
 ! 2015-09-10 zhu  - use centralized cloud_names_fwd and n_clouds_fwd in the assignments of cloud 
 !                   variances (either cw or individual hydrometerors) for all-sky radiance assimilation
 !                 - remove cwoption1
+! 2021-10-10 zhu  - add pbl*
+! 2024-08-22 yang - add lower limit for BEC
+! 2025-10-03 yang - add pblsld, pblgld, pblrd
 !
 !   input argument list:
 !
@@ -36,10 +39,10 @@ subroutine compute_qvar3d
 !
 !$$$
   use kinds, only: r_kind,i_kind,r_single
-  use berror, only: dssv
+  use berror, only: dssv,dssvs
   use jfunc, only: varq,qoption,varcw,cwoption,clip_supersaturation
   use derivsmod, only: qsatg,qgues
-  use control_vectors, only: cvars3d
+  use control_vectors, only: cvars3d,cvars2d
   use gridmod, only: lat2,lon2,nsig
   use constants, only: zero,one,fv,r100,qmin
   use guess_grids, only: fact_tv,ntguessig,nfldsig,ges_tsen,ges_prsl,ges_qsat
@@ -55,12 +58,13 @@ subroutine compute_qvar3d
 ! Declare local variables
   logical ice
   integer(i_kind) :: i,j,k,it,n,np,iderivative,nrf3_q,nrf3_cw
+  integer(i_kind) :: nrf2_pblri,nrf2_pblrf,nrf2_pblsld,nrf2_pblgld,nrf2_pblrd
   integer(i_kind) :: ic,nrf3_var
   real(r_kind) d,dn1,dn2
   real(r_kind),allocatable,dimension(:,:,:):: rhgues
 
   integer(i_kind):: istatus,ier,ier6
-  real(r_kind):: cwtmp
+  real(r_kind):: cwtmp,htmp
   real(r_kind),pointer,dimension(:,:,:):: ges_var=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_ql=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_qi=>NULL()
@@ -69,11 +73,16 @@ subroutine compute_qvar3d
   real(r_kind),pointer,dimension(:,:,:):: ges_qg=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_qh=>NULL()
   real(r_kind),pointer,dimension(:,:,:):: ges_q =>NULL()
+  real(r_kind),pointer,dimension(:,:):: ges_tmp =>NULL()
   integer(i_kind):: maxvarq1
-
 
   nrf3_q=getindex(cvars3d,'q')
   nrf3_cw=getindex(cvars3d,'cw')
+  nrf2_pblri=getindex(cvars2d,'pblri')
+  nrf2_pblrf=getindex(cvars2d,'pblrf')
+  nrf2_pblsld=getindex(cvars2d,'pblsld')
+  nrf2_pblgld=getindex(cvars2d,'pblgld')
+  nrf2_pblrd=getindex(cvars2d,'pblrd')
 
 ! Calculate qsat independently of presence of q in guess
   iderivative = 0
@@ -152,6 +161,77 @@ subroutine compute_qvar3d
   end if
 
   deallocate(rhgues)
+
+  if (nrf2_pblri>0) then
+     call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'pblri',ges_tmp,istatus)
+     if (istatus/=0) return
+     do j = 1,lon2
+        do i = 1,lat2
+           htmp=ges_tmp(i,j)
+           if (ges_tmp(i,j)<one) htmp=one
+           !dn1=0.1_r_kind*htmp ! previously, 0.1 was used. -> 0.5 -> 0.1 -> 0.2 -> 0.3
+           dn1=0.3_r_kind*htmp  ! to get better fit to radiosonde PBLH
+           if (dn1<300.0_r_kind) dn1=300.0_r_kind ! lower limit 
+           dssvs(i,j,nrf2_pblri)=dn1 ! background error cov. 
+           ! 1) NMC cannot be applied due to variable pblh depending on time.
+           ! 2) Method for RH (range, grouping), simplified RH method can be applied here.
+           ! e.g. All sky rad -> BECs are based on analsys field itself.
+        end do
+     end do
+  end if
+  if (nrf2_pblrf>0) then
+     call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'pblrf',ges_tmp,istatus)
+     if (istatus/=0) return
+     do j = 1,lon2
+        do i = 1,lat2
+           htmp=ges_tmp(i,j)
+           if (ges_tmp(i,j)<one) htmp=one
+           !dn1=0.1_r_kind*htmp 
+           dn1=0.3_r_kind*htmp ! increase bkg error from 0.2 to 0.3 to get Jo/n smaller at the end (better fit to obs) 
+           if (dn1<300.0_r_kind) dn1=300.0_r_kind ! lower limit 
+           dssvs(i,j,nrf2_pblrf)=dn1
+        end do
+     end do
+  end if
+  if (nrf2_pblsld>0) then
+     call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'pblsld',ges_tmp,istatus)
+     if (istatus/=0) return
+     do j = 1,lon2
+        do i = 1,lat2
+           htmp=ges_tmp(i,j)
+           if (ges_tmp(i,j)<one) htmp=one
+           dn1=0.3_r_kind*htmp
+           if (dn1<300.0_r_kind) dn1=300.0_r_kind ! lower limit 
+           dssvs(i,j,nrf2_pblsld)=dn1
+        end do
+     end do
+  end if
+  if (nrf2_pblgld>0) then
+     call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'pblgld',ges_tmp,istatus)
+     if (istatus/=0) return
+     do j = 1,lon2
+        do i = 1,lat2
+           htmp=ges_tmp(i,j)
+           if (ges_tmp(i,j)<one) htmp=one
+           dn1=0.3_r_kind*htmp
+           if (dn1<300.0_r_kind) dn1=300.0_r_kind ! lower limit 
+           dssvs(i,j,nrf2_pblgld)=dn1
+        end do
+     end do
+  end if
+  if (nrf2_pblrd>0) then
+     call gsi_bundlegetpointer (gsi_metguess_bundle(ntguessig),'pblrd',ges_tmp,istatus)
+     if (istatus/=0) return
+     do j = 1,lon2
+        do i = 1,lat2
+           htmp=ges_tmp(i,j)
+           if (ges_tmp(i,j)<one) htmp=one
+           dn1=0.3_r_kind*htmp
+           if (dn1<300.0_r_kind) dn1=300.0_r_kind ! lower limit 
+           dssvs(i,j,nrf2_pblrd)=dn1
+        end do
+     end do
+  end if
 
   if (.not. icloud_cv) return
   if (nrf3_cw>0) then 

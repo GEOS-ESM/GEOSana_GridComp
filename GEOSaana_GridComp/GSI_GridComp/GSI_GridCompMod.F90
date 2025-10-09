@@ -237,6 +237,9 @@
 !   24Mar2014 Weir    - Changed carbon monoxide to be stored as its log
 !   10Aug2014 Weir    - Added methane
 !   23Nov2022 Weir    - Rolled trace gases into generic tgasp
+!   20Aug2022 Zhu     - add pbl*
+!   03Aug2023 Yang    - add hs_stdv, topography height stdv
+!   03Oct2025 Yang    - add pblsld, pblgld, pblrd
 !
 !EOP
 !-------------------------------------------------------------------------
@@ -1210,6 +1213,12 @@ _ENTRY_(trim(Iam))
    ! import state upper air pointers
    real(r_single),dimension(:,:  ), pointer :: hsp  ! terrain
    real(r_single),dimension(:,:  ), pointer :: psp  ! surf. pressure
+   real(r_single),dimension(:,:  ), pointer :: pblrip  ! pbl height (Ri-based)
+   real(r_single),dimension(:,:  ), pointer :: pblrfp  ! pbl height (RO-based)
+   real(r_single),dimension(:,:  ), pointer :: pblsldp ! pbl height (satellite lidar-based)
+   real(r_single),dimension(:,:  ), pointer :: pblgldp ! pbl height (ground lidar-based)
+   real(r_single),dimension(:,:  ), pointer :: pblrdp  ! pbl height (Radar wind profiler-based)
+   real(r_single),dimension(:,:  ), pointer :: hsstdvp ! terrain stdv
    real(r_single),dimension(:,:,:), pointer :: up   ! u wind
    real(r_single),dimension(:,:,:), pointer :: vp   ! v wind
    real(r_single),dimension(:,:,:), pointer :: tp   ! virtual temp.
@@ -1276,6 +1285,13 @@ _ENTRY_(trim(Iam))
    real(r_single),dimension(:,:  ), pointer :: dhs   ! terrain
    real(r_single),dimension(:,:  ), pointer :: dps   ! surf pressure
    real(r_single),dimension(:,:,:), pointer :: ddp   ! del pressure
+   real(r_single),dimension(:,:  ), pointer :: dpblri  ! pbl height (Ri-based)
+   real(r_single),dimension(:,:  ), pointer :: dpblrf  ! pbl height (RO-based)
+   real(r_single),dimension(:,:  ), pointer :: dpblsld ! pbl height (satellite lidar-based)
+   real(r_single),dimension(:,:  ), pointer :: dpblgld ! pbl height (ground lidar-based)
+   real(r_single),dimension(:,:  ), pointer :: dpblrd  ! pbl height (Radar wind profiler-based)
+   real(r_single),dimension(:,:  ), pointer :: dhsstdv ! terrain stdv
+
    real(r_single),dimension(:,:,:), pointer :: du    ! u wind
    real(r_single),dimension(:,:,:), pointer :: dv    ! v wind
    real(r_single),dimension(:,:,:), pointer :: dt    ! virtual Temp.
@@ -1584,6 +1600,24 @@ _ENTRY_(trim(Iam))
          case ( 'PS' )
             call ESMFL_StateGetPointerToData(import, psp,trim(cvar), rc=STATUS)
             VERIFY_(STATUS)
+         case ( 'PBLRI' )
+            call ESMFL_StateGetPointerToData(import, pblrip,trim(cvar), rc=STATUS)
+            VERIFY_(STATUS)
+         case ( 'PBLRF' )
+            call ESMFL_StateGetPointerToData(import, pblrfp,trim(cvar), rc=STATUS)
+            VERIFY_(STATUS)
+         case ( 'PBLSLD' )
+            call ESMFL_StateGetPointerToData(import, pblsldp,trim(cvar), rc=STATUS)
+            VERIFY_(STATUS)
+         case ( 'PBLGLD' )
+            call ESMFL_StateGetPointerToData(import, pblgldp,trim(cvar), rc=STATUS)
+            VERIFY_(STATUS)
+         case ( 'PBLRD' )
+            call ESMFL_StateGetPointerToData(import, pblrdp,trim(cvar), rc=STATUS)
+            VERIFY_(STATUS)
+         case ( 'HS_STDV' )
+            call ESMFL_StateGetPointerToData(import, hsstdvp,trim(cvar), rc=STATUS)
+            VERIFY_(STATUS)
          case ( 'PHIS' )
             call ESMFL_StateGetPointerToData(import, hsp,trim(cvar), rc=STATUS)
             VERIFY_(STATUS)
@@ -1739,6 +1773,24 @@ _ENTRY_(trim(Iam))
             VERIFY_(STATUS)
          case ('ps')
             call ESMFL_StateGetPointerToData(export,  dps,  trim(cvar), alloc=.true., rc=STATUS)
+            VERIFY_(STATUS)
+         case ('pblri')
+            call ESMFL_StateGetPointerToData(export,  dpblri,  trim(cvar), alloc=.true., rc=STATUS)
+            VERIFY_(STATUS)
+         case ('pblrf')
+            call ESMFL_StateGetPointerToData(export,  dpblrf,  trim(cvar), alloc=.true., rc=STATUS)
+            VERIFY_(STATUS)
+         case ('pblsld')
+            call ESMFL_StateGetPointerToData(export,  dpblsld, trim(cvar), alloc=.true., rc=STATUS)
+            VERIFY_(STATUS)
+         case ('pblgld')
+            call ESMFL_StateGetPointerToData(export,  dpblgld, trim(cvar), alloc=.true., rc=STATUS)
+            VERIFY_(STATUS)
+         case ('pblrd')
+            call ESMFL_StateGetPointerToData(export,  dpblrd,  trim(cvar), alloc=.true., rc=STATUS)
+            VERIFY_(STATUS)
+         case ('hs_stdv')
+            call ESMFL_StateGetPointerToData(export,  dhsstdv, trim(cvar), alloc=.true., rc=STATUS)
             VERIFY_(STATUS)
          case ('u')
             call ESMFL_StateGetPointerToData(export,    du, trim(cvar), alloc=.true., rc=STATUS)
@@ -2042,6 +2094,18 @@ _ENTRY_(trim(Iam))
               call GSI_GridCompSwapIJ_(tdelp,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
             case ('tref')
               call GSI_GridCompSwapIJ_(trefp ,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
+            case ('pblri')
+              call GSI_GridCompSwapIJ_(pblrip ,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
+            case ('pblrf')
+              call GSI_GridCompSwapIJ_(pblrfp ,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
+            case ('pblsld')
+              call GSI_GridCompSwapIJ_(pblsldp,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
+            case ('pblgld')
+              call GSI_GridCompSwapIJ_(pblgldp,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
+            case ('pblrd')
+              call GSI_GridCompSwapIJ_(pblrdp,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
+            case ('hs_stdv')
+              call GSI_GridCompSwapIJ_(hsstdvp,GSI_MetGuess_bundle(it)%r2(ipnt)%q)
          end select
 #ifdef SFCverbose
          call guess_grids_stats(cvar, GSI_MetGuess_Bundle(it)%r2(ipnt)%q, mype)
@@ -2985,6 +3049,18 @@ _ENTRY_(trim(Iam))
           select case (cvar)
             case('ps')
                call GSI_GridCompSwapJI_(dps,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
+            case('pblri')
+               call GSI_GridCompSwapJI_(dpblri,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
+            case('pblrf')
+               call GSI_GridCompSwapJI_(dpblrf,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
+            case('pblsld')
+               call GSI_GridCompSwapJI_(dpblsld,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
+            case('pblgld')
+               call GSI_GridCompSwapJI_(dpblgld,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
+            case('pblrd')
+               call GSI_GridCompSwapJI_(dpblrd,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
+            case('hs_stdv')
+               call GSI_GridCompSwapJI_(dhsstdv,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
             case('z')
                call GSI_GridCompSwapJI_(dhs,GSI_MetGuess_Bundle(it)%r2(ipnt)%q)
           end select
@@ -3808,11 +3884,17 @@ _ENTRY_(trim(Iam))
 
 !  Declare import 2d-fields
 !  ------------------------
-   integer, parameter :: nin2d=14
+   integer, parameter :: nin2d=20
    character(len=16), parameter :: insname2d(nin2d) = (/  &
                                    'phis            ',    &
                                    'ps              ',    &
                                    'ts              ',    &
+                                   'pblri           ',    &
+                                   'pblrf           ',    &
+                                   'pblsld          ',    &
+                                   'pblgld          ',    &
+                                   'pblrd           ',    &
+                                   'hs_stdv         ',    &
 !                                  'NCEP_VEGFRAC    ',    &
 !                                  'NCEP_VEGTYPE    ',    &
 !                                  'NCEP_SOITYPE    ',    &
@@ -3831,6 +3913,12 @@ _ENTRY_(trim(Iam))
                       'geopotential height             ', &
                       'surface pressure                ', &
                       'skin temperature                ', &
+                      'pblh Bulk Ri                    ', &
+                      'pblh refractivity gradient      ', &
+                      'pblh satellite-based lidar      ', &
+                      'pblh ground-based lidar         ', &
+                      'pblh radar wind profiler        ', &
+                      'topography stdv                 ', &
 !                     'NCEP(CRTM-like) veg fraction    ', &
 !                     'NCEP(CRTM-like) veg type        ', &
 !                     'NCEP(CRTM-like) soil type       ', &
@@ -3849,6 +3937,12 @@ _ENTRY_(trim(Iam))
                                    'm**2/s**2       ',    &
                                    'Pa              ',    &
                                    'K               ',    &
+                                   'm               ',    &
+                                   'm               ',    &
+                                   'm               ',    &
+                                   'm               ',    &
+                                   'm               ',    &
+                                   'm               ',    &
 !                                  '1               ',    &
 !                                  '1               ',    &
 !                                  '1               ',    &
@@ -4006,11 +4100,17 @@ _ENTRY_(trim(Iam))
 
 !  Declare export 2d-fields
 !  ------------------------
-   integer, parameter :: nex2d=8
+   integer, parameter :: nex2d=14
    character(len=16), parameter :: exsname2d(nex2d) = (/  &
                                    'phis            ',    &
                                    'ps              ',    &
                                    'ts              ',    &
+                                   'pblri           ',    &
+                                   'pblrf           ',    &
+                                   'pblsld          ',    &
+                                   'pblgld          ',    &
+                                   'pblrd           ',    &
+                                   'hs_stdv         ',    &
                                    'frland          ',    &
                                    'frlandice       ',    &
                                    'frlake          ',    &
@@ -4020,6 +4120,12 @@ _ENTRY_(trim(Iam))
                       'geopotential height             ', &
                       'surface pressure inc            ', &
                       'skin temperature inc            ', &
+                      'pblh Bulk Ri inc                ', &
+                      'pblh rft inc                    ', &
+                      'pblh satellite lidar inc        ', &
+                      'pblh ground lidar inc           ', &
+                      'pblh radar wind profiler inc    ', &
+                      'topography stdv                 ', &
                       'fraction of land                ', &
                       'fraction of land ice            ', &
                       'fraction of lake                ', &
@@ -4029,6 +4135,12 @@ _ENTRY_(trim(Iam))
                                    'm**2/s**2       ',    &
                                    'Pa              ',    &
                                    'K               ',    &
+                                   'm               ',    &
+                                   'm               ',    &
+                                   'm               ',    &
+                                   'm               ',    &
+                                   'm               ',    &
+                                   'm               ',    &
                                    '1               ',    &
                                    '1               ',    &
                                    '1               ',    &

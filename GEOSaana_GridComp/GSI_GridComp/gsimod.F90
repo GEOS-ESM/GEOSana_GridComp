@@ -36,6 +36,7 @@
   use obsmod, only: netcdf_diag, binary_diag
   use obsmod, only: l_wcp_cwm
   use obsmod, only: wrtgeovals
+  use obsmod, only: thin_flg,superob_flg,smooth_flg,filter_window,pbqc4hd,qcrequired,flag_hr_ua_q
   use aircraftinfo, only: init_aircraft,hdist_aircraft,aircraft_t_bc_pof,aircraft_t_bc, &
                           aircraft_t_bc_ext,max_tail,biaspredt,upd_aircraft,cleanup_tail
   use obs_sensitivity, only: lobsensfc,lobsensincr,lobsensjb,lsensrecompute, &
@@ -131,7 +132,11 @@
                          readin_localization,write_ens_sprd,eqspace_ensgrid,grid_ratio_ens,&
                          readin_beta,use_localization_grid,use_gfs_ens,q_hyb_ens,i_en_perts_io, &
                          l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB,&
-                         bens_recenter,upd_ens_spread,upd_ens_localization
+                         pblri_staticB,pblrf_staticB,pblsld_staticB,pblgld_staticB,pblrd_staticB,&
+                         bens_recenter,upd_ens_spread,upd_ens_localization,vlocal_coef,&
+                         inf_ensprd_pblri_type,InfEnsprdPBLH,inf_coef_t,inf_coef_q,zero_en_perts_pblrf_land,&
+                         inf_ensprd_pblri,inf_ensprd_pblrf,inf_ensprd_pblsld,&
+                         inf_ensprd_pblgld,inf_ensprd_pblrd
   use rapidrefresh_cldsurf_mod, only: init_rapidrefresh_cldsurf, &
                             dfi_radar_latent_heat_time_period,metar_impact_radius,&
                             metar_impact_radius_lowcloud,l_gsd_terrain_match_surftobs, &
@@ -410,6 +415,13 @@
 !  10-15-2019 Wei/Martin   added option lread_ext_aerosol to read in aerfXX file for NEMS aerosols;
 !                          added option use_fv3_aero to choose between NGAC and FV3GFS-GSDChem
 !  07-14-2020 todling   add adjustozhscl to scale ozone hscales (>0 will scale by this number)
+!  10-08-2022 zhu       add pblh_staticB
+!  11-24-2023 eyang     add vlocal_coef
+!  11-28-2023 eyang     add inf_ensprd_pblri_type
+!  11-29-2023 eyang     add InfEnsprdPBLH, inf_coef_t, inf_coef_q
+!  01-21-2024 eyang     split pblh_staticB to pblri_staticB, pblrf_staticB, pblkh_staticB
+!  04-16-2024 eyang     add inf_ensprd_pblri, inf_ensprd_pblrf, inf_ensprd_pblkh for inflating option
+!  10-03-2025 eyang     add pblsld, pblgld, pblrd
 !
 !EOP
 !-------------------------------------------------------------------------
@@ -860,7 +872,8 @@
        tcp_ermin,tcp_ermax,qc_noirjaco3,qc_noirjaco3_pole,qc_satwnds,njqc,vqc,&
        aircraft_t_bc_pof,aircraft_t_bc,aircraft_t_bc_ext,max_tail,biaspredt,upd_aircraft,cleanup_tail,&
        hdist_aircraft,buddycheck_t,buddydiag_save,vadwnd_l2rw_qc,  &
-       pvis,pcldch,scale_cv,estvisoe,estcldchoe,vis_thres,cldch_thres,cld_det_dec2bin,half_goesr_err
+       pvis,pcldch,scale_cv,estvisoe,estcldchoe,vis_thres,cldch_thres,cld_det_dec2bin,half_goesr_err, &
+       thin_flg,superob_flg,smooth_flg,filter_window,pbqc4hd,qcrequired,flag_hr_ua_q
 
 ! OBS_INPUT (controls input data):
 !      dmesh(max(dthin))- thinning mesh for each group
@@ -982,6 +995,18 @@
 !     bens_recenter - center Bens around background/guess
 !     upd_ens_spread - update ens spread with recentering around guess
 !     upd_ens_localization - update ens localizations (goes together w/ upd_ens_spread)
+!     vlocal_coef - update vertical localization length scale near pblh
+!     inf_ensprd_pblri_type - pblri type for inflating ens spread near pblh (1: pblri, 2: q-gradient pblh)
+!     InfEnsprdPBLH - decide to inflate ens spread near pblh or not
+!                     =.true. : inflate
+!                     =.false.: no inflation
+!     inf_coef_t - coefficient for Gaussian function to inflate ens spread near pblh (10.0 coef inflates 5 times)
+!     inf_coef_q - coefficient for Gaussian function to inflate ens spread near pblh (22.5 coef inflates 10 times)
+!     inf_ensprd_pblri  - option to inflate T and RH near pblri or not
+!     inf_ensprd_pblrf  - option to inflate T and RH near pblrf_low or not
+!     inf_ensprd_pblsld - option to inflate T and RH near pblsld or not
+!     inf_ensprd_pblgld - option to inflate T and RH near pblgld or not
+!     inf_ensprd_pblrd  - option to inflate T and RH near pblrd or not
 !
 !
   namelist/hybrid_ensemble/l_hyb_ens,uv_hyb_ens,q_hyb_ens,aniso_a_en,generate_ens,n_ens,nlon_ens,nlat_ens,jcap_ens,&
@@ -990,7 +1015,10 @@
                 grid_ratio_ens, &
                 oz_univ_static,write_ens_sprd,use_localization_grid,use_gfs_ens, &
                 i_en_perts_io,l_ens_in_diff_time,ensemble_path,ens_fast_read,sst_staticB,&
-                bens_recenter,upd_ens_spread,upd_ens_localization
+                pblri_staticB,pblrf_staticB,pblsld_staticB,pblgld_staticB,pblrd_staticB,zero_en_perts_pblrf_land, &
+                bens_recenter,upd_ens_spread,upd_ens_localization,vlocal_coef,inf_ensprd_pblri_type,&
+                InfEnsprdPBLH,inf_coef_t,inf_coef_q,&
+                inf_ensprd_pblri,inf_ensprd_pblrf,inf_ensprd_pblsld,inf_ensprd_pblgld,inf_ensprd_pblrd
 
 ! rapidrefresh_cldsurf (options for cloud analysis and surface
 !                             enhancement for RR appilcation  ):

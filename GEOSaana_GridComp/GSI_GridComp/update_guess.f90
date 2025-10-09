@@ -89,6 +89,8 @@ subroutine update_guess(sval,sbias)
 !   2016-06-23  lippi   - Add update for vertical velocity (w).
 !   2018-05-01  yang    - modify the constrains to C and V in g-space, or using NLTF transfermation to C/V
 !   2020-02-26  todling - reset obsbin from hr to min
+!   2022-08-10  zhu     - add handling of pbl*
+!   2025-10-07  eyang   - add handling of pblsld,pblgld,pblrd
 !
 !   input argument list:
 !    sval
@@ -326,7 +328,8 @@ subroutine update_guess(sval,sbias)
            endif
 
            if (trim(guess(ic))=='wspd10m') ptr2dges = max(ptr2dges,zero)
-           if (trim(guess(ic))=='pblh')  ptr2dges = max(ptr2dges,zero)
+           if (trim(guess(ic))=='pblri' .or. trim(guess(ic))=='pblrf' .or. trim(guess(ic))=='pblsld' .or. &
+               trim(guess(ic))=='pblgld'.or. trim(guess(ic))=='pblrd' )  ptr2dges = max(ptr2dges,zero)
            if (trim(guess(ic))=='howv')  ptr2dges = max(ptr2dges,zero)
            if (trim(guess(ic))=='tcamt') ptr2dges = max(min(ptr2dges,r100),zero) !Cannot have>100% or <0% cloud amount
            if (trim(guess(ic))=='lcbas') ptr2dges = max(min(ptr2dges,20000.0_r_kind),one_tenth)

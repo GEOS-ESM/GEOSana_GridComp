@@ -20,6 +20,7 @@ private
   public GSI_EnsCoupler_localization_grid
   public GSI_EnsCoupler_get_user_ens
   public GSI_EnsCoupler_get_user_Nens
+  public GSI_EnsCoupler_get_user_Nens_frocean
   public GSI_EnsCoupler_put_gsi_ens
   public GSI_EnsCoupler_registry
   public GSI_EnsCoupler_name
@@ -30,6 +31,7 @@ private
   interface GSI_EnsCoupler_localization_grid;  module procedure non_gaussian_ens_grid_;  end interface
   interface GSI_EnsCoupler_get_user_ens;       module procedure get_user_ens_;           end interface
   interface GSI_EnsCoupler_get_user_Nens;      module procedure get_user_Nens_;          end interface
+  interface GSI_EnsCoupler_get_user_Nens_frocean;      module procedure get_user_Nens_frocean_;          end interface
   interface GSI_EnsCoupler_put_gsi_ens;        module procedure put_user_ens_;           end interface
 
   interface GSI_EnsCoupler_registry ; module procedure typedef_ ; end interface
@@ -125,6 +127,22 @@ end function typename_
       call ifn_alloc_()     ! to ensure an allocated(this_ensemble_)
       call this_ensemble_%get_user_Nens(grd,members,ntindex,tau,atm_bundle,iret)
    end subroutine get_user_Nens_
+
+  subroutine get_user_Nens_frocean_(grd,members,ntindex,tau,atm_bundle,iret)
+   use kinds, only: i_kind,r_kind
+   use gsi_bundlemod, only: gsi_bundle
+   use general_sub2grid_mod, only: sub2grid_info
+   implicit none
+!  Declare passed variables
+      type(sub2grid_info)                   ,intent(in   ) :: grd
+      integer(i_kind)                       ,intent(in   ) :: members
+      integer(i_kind)                       ,intent(in   ) :: ntindex
+      integer(i_kind)                       ,intent(in   ) :: tau
+      type(gsi_bundle)                      ,intent(inout) :: atm_bundle(:)
+      integer(i_kind)                       ,intent(  out) :: iret
+      call ifn_alloc_()     ! to ensure an allocated(this_ensemble_)
+      call this_ensemble_%get_user_Nens_frocean(grd,members,ntindex,tau,atm_bundle,iret)
+   end subroutine get_user_Nens_frocean_
 
    subroutine put_user_ens_(grd,member,ntindex,pert,iret)
    use kinds, only: i_kind,r_kind
