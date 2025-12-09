@@ -372,7 +372,6 @@ subroutine disobs(ndata,nobs,mm1,lunout,obsfile,obstypeall)
   if(trim(obstype) /=trim(obstypeall)) &
         write(6,*)'DISOBS:  ***ERROR***   obstype,obstypeall=',trim(obstype),trim(obstypeall)
 
-  print*, 'disobs L310: obstype=',trim(obstype) ! pblri?
   nn_obs = nreal + nchanl
 
   allocate(obs_data(nn_obs,ndata))

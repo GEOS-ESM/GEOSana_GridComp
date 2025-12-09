@@ -1,0 +1,119 @@
+# pblhl Run Time Configuration
+#------------------------------
+setenv GID s0818
+setenv ARCH `uname -s`
+setenv HOST `uname -n`
+setenv NODEFLG mil
+setenv GTAG 352855d
+setenv RTAG 352855d
+setenv EXPID pblhl
+setenv FVHOME /discover/nobackup/projects/gmao/obsdev/eyang2/PBLH/Exp/${EXPID}
+setenv FVROOT /discover/nobackup/projects/gmao/obsdev/eyang2/GEOSadas-5.42.11/GEOSadas/install-SLES15
+setenv FVROOT_PORTAL /discover/nobackup/projects/gmao/obsdev/eyang2/GEOSadas-5.42.11/GEOSadas/install-SLES15
+setenv FVSHARE /discover/nobackup/projects/gmao/share/dao_ops/
+if (! $?SHARE) setenv SHARE /discover/nobackup/projects/gmao/share
+setenv GRADS_CONFIG "$FVSHARE/opengrads/setup.csh 1.9.8"
+setenv REM_GRADS_CONFIG "/discover/nobackup/projects/gmao/share/dasilva/opengrads/setup.csh 1.9.8"
+setenv G5MGRAM snare:/www/html/products/nwp/meteogram/cities
+setenv LATS4DLOC /home/dao_ops/operations/GrADS/current/
+setenv FVARCH /discover/nobackup/projects/gmao/obsdev/eyang2/archive/physical_PBLH
+setenv FVSPOOL $FVHOME/spool
+setenv BASEDIR /discover/swdev/gmao_SIteam/Baselibs/ESMA-Baselibs-7.24.0/x86_64-pc-linux-gnu/ifort_2021.6.0-intelmpi_2021.13.0-SLES15
+setenv PYRADMON /discover/nobackup/jstassi/GEOSadas/pyradmon
+#------------------------------
+setenv G5MODULES "GEOSenv comp/gcc/11.4.0 comp/intel/2021.6.0 mpi/impi/2021.13 python/GEOSpyD/Min23.5.2-0_py3.11"
+source $FVROOT/bin/g5_modules
+#------------------------------
+setenv FVBCS $FVHOME/fvInput
+setenv NCEPINPUT $FVBCS
+setenv RC_LOC /discover/nobackup/projects/gmao/obsdev/eyang2/PBLH/Exp/pblhl/run
+setenv FVGROUP $GID
+setenv FVSCRA $NOBACKUP/scratch
+setenv FVSILO $FVSCRA/$EXPID
+setenv FVSTAGE /staging/dao_ops/$GTAG/$EXPID
+setenv FVBIN /home/dao_ops/bin
+setenv FVPORTAL /portal/GMAO/gmao_ops/
+setenv FVWORK $TMPDIR/fvwork.$$
+setenv ERROR_LOG_NAME "-L DEFAULT"
+setenv ERROR_ID ops
+setenv ERROR_EXP $EXPID
+setenv ERR "Err_Log.pl -N $EXPID.job -I $ERROR_ID -X $ERROR_EXP $ERROR_LOG_NAME"
+setenv FCSTID fblhl
+setenv FCHOME $FVHOME/run/fcst
+setenv FCSTAGE $FVHOME/fcst
+setenv FERR "Err_Log.pl -N $FCSTID.job -I $ERROR_ID -X $FCSTID $ERROR_LOG_NAME"
+setenv ANAID $EXPID
+setenv ANASTAGE /discover/nobackup/dao_ops/intermediate/flk/stage/g5ana
+setenv RSTINC 21600
+setenv PBS_BIN "/usr/bin"
+setenv PLOTS_LOC eyang2@train:/gmao/intranet/research/modeling/agcm/geos5/$EXPID  # Monthly Plots Web server location
+setenv GEOSUTIL /discover/nobackup/projects/gmao/obsdev/eyang2/GEOSadas-5.42.11/GEOSadas/install-SLES15
+setenv MERRAID pblhl
+setenv STNOBS ~/stnobs/stnobs_v3.3/
+setenv LIBSZ $BASEDIR/$ARCH/lib
+setenv FVDMGET /usr/bin/dmget
+setenv PBS_ID FP
+setenv RUN_MEANS 1
+setenv MONTHLY_X "$FVROOT/bin/time_ave.x"
+setenv FVDOLMS polar:/www2/science/dolms/$EXPID/TERRA_mm
+setenv CASE $EXPID
+setenv OMP_NUM_THREADS 1
+setenv ARCH_QUEUE "-q datamove"
+setenv POST_CPUS 1
+setenv VTXRELOC 1
+setenv VTRACK 1
+setenv VTXLEVS "1000 925 850 700 600 500 400 300 250 200 150 100 70 50 30 20 10"
+#setenv OBSCLASS "ncep_osbuv_bufr,ncep_ssmis_bufr,ncep_1bamua_bufr,ncep_prep_bufr,ncep_tcvitals,ncep_mhs_bufr,ncep_1bhrs4_bufr,ncep_gpsro_bufr,ncep_gpsro_com_bufr,ncep_mtiasi_bufr,ncep_atms_bufr,ncep_crisfsr_bufr,ncep_satwnd_bufr,ncep_sevcsr_bufr,ncep_avcsam_bufr,ncep_avcspm_bufr,ncep_aura_omi_bufr,disc_airs_bufr,disc_amsua_bufr,gmao_gmi_bufr,mls_nrt_nc,gmao_amsr2_bufr,npp_ompsnm_bufr,npp_ompsnp_bufr,ncep_acftpfl_bufr,npp_ompsnmeff_nc,npp_ompsnp_nc,npp_ompslp_nc,r21c_npp_ompslp_nc,m2scr_n21_ompslp_nc,aura_omieff_nc,gmao_mlst_bufr,raob_pblh_nc,calipso_pblh_nc,cats_pblh_nc,mplnet_pblh_nc,wp_pblh_nc,gnssro_pblhlow_nc"
+# Previously used for 2015 cases
+#setenv OBSCLASS "disc_airs_bufr,disc_amsua_bufr,gmao_amsr2_bufr,gmao_gmi_bufr,mls_nrt_nc,ncep_1bamua_bufr,ncep_1bhrs4_bufr,ncep_acftpfl_bufr,ncep_atms_bufr,ncep_aura_omi_bufr,ncep_avcsam_bufr,ncep_avcspm_bufr,ncep_crisfsr_bufr,ncep_goesfv_bufr,ncep_gpsro_bufr,ncep_mhs_bufr,ncep_mtiasi_bufr,ncep_prep_bufr,ncep_satwnd_bufr,ncep_sevcsr_bufr,ncep_ssmis_bufr,ncep_tcvitals,npp_ompsnm_bufr,gmao_mlst_bufr" 
+
+# Previously used for 2015 cases + com_gpsro added (JUST TEST)
+#setenv OBSCLASS "disc_airs_bufr,disc_amsua_bufr,gmao_amsr2_bufr,gmao_gmi_bufr,mls_nrt_nc,ncep_1bamua_bufr,ncep_1bhrs4_bufr,ncep_acftpfl_bufr,ncep_atms_bufr,ncep_aura_omi_bufr,ncep_avcsam_bufr,ncep_avcspm_bufr,ncep_crisfsr_bufr,ncep_goesfv_bufr,ncep_gpsro_bufr,ncep_mhs_bufr,ncep_mtiasi_bufr,ncep_prep_bufr,ncep_satwnd_bufr,ncep_sevcsr_bufr,ncep_ssmis_bufr,ncep_tcvitals,npp_ompsnm_bufr,gmao_mlst_bufr,ncep_gpsro_com_bufr" 
+# Previously used for 2015 cases + com_gpsro added (JUST TEST) + no sevcsr
+#setenv OBSCLASS "disc_airs_bufr,disc_amsua_bufr,gmao_amsr2_bufr,gmao_gmi_bufr,mls_nrt_nc,ncep_1bamua_bufr,ncep_1bhrs4_bufr,ncep_acftpfl_bufr,ncep_atms_bufr,ncep_aura_omi_bufr,ncep_avcsam_bufr,ncep_avcspm_bufr,ncep_crisfsr_bufr,ncep_goesfv_bufr,ncep_gpsro_bufr,ncep_mhs_bufr,ncep_mtiasi_bufr,ncep_prep_bufr,ncep_satwnd_bufr,ncep_ssmis_bufr,ncep_tcvitals,npp_ompsnm_bufr,gmao_mlst_bufr,ncep_gpsro_com_bufr" 
+#setenv OBSCLASS "ncep_osbuv_bufr,ncep_ssmis_bufr,ncep_1bamua_bufr,ncep_prep_bufr,ncep_tcvitals,ncep_mhs_bufr,ncep_1bhrs4_bufr,ncep_gpsro_bufr,ncep_gpsro_com_bufr,ncep_mtiasi_bufr,ncep_atms_bufr,ncep_crisfsr_bufr,ncep_satwnd_bufr,ncep_sevcsr_bufr,ncep_avcsam_bufr,ncep_avcspm_bufr,ncep_aura_omi_bufr,disc_airs_bufr,disc_amsua_bufr,gmao_gmi_bufr,mls_nrt_nc,gmao_amsr2_bufr,npp_ompsnm_bufr,npp_ompsnp_bufr,ncep_acftpfl_bufr,npp_ompsnmeff_nc,npp_ompsnp_nc,npp_ompslp_nc,r21c_npp_ompslp_nc,m2scr_n21_ompslp_nc,aura_omieff_nc,gmao_mlst_bufr" # error
+
+#x0052
+#setenv OBSCLASS "disc_airs_bufr,disc_amsua_bufr,gmao_amsr2_bufr,gmao_gmi_bufr,mls_nrt_nc,ncep_1bamua_bufr,ncep_acftpfl_bufr,ncep_atms_bufr,ncep_aura_omi_bufr,ncep_avcsam_bufr,ncep_avcspm_bufr,ncep_crisfsr_bufr,ncep_goesfv_bufr,ncep_gpsro_bufr,ncep_mhs_bufr,ncep_mtiasi_bufr,ncep_prep_bufr,ncep_satwnd_bufr,ncep_ssmis_bufr,ncep_tcvitals,npp_ompsnm_bufr,r21c_npp_ompslp_nc,m2scr_n21_ompslp_nc,gmao_mlst_bufr"
+#x0052 + no available "OMPS-LP NPP" data (r21c_npp_ompslp_nc)
+#setenv OBSCLASS "disc_airs_bufr,disc_amsua_bufr,gmao_amsr2_bufr,gmao_gmi_bufr,mls_nrt_nc,ncep_1bamua_bufr,ncep_acftpfl_bufr,ncep_atms_bufr,ncep_aura_omi_bufr,ncep_avcsam_bufr,ncep_avcspm_bufr,ncep_crisfsr_bufr,ncep_goesfv_bufr,ncep_gpsro_bufr,ncep_mhs_bufr,ncep_mtiasi_bufr,ncep_prep_bufr,ncep_satwnd_bufr,ncep_ssmis_bufr,ncep_tcvitals,npp_ompsnm_bufr,m2scr_n21_ompslp_nc,gmao_mlst_bufr"
+
+# new obs in f5295_fp_20240714_21z (no obs in x0052)
+#ncep_1bamub_bufr (NCEP Satellite AMSUB Data) - 2004-2014
+#ncep_1bhrs2_bufr (NCEP Satellite HIRS2 Data) - 2004-2006 
+#ncep_1bhrs3_bufr (NCEP Satellite HIRS3 Data) - 2004-2014 
+#ncep_1bmsu_bufr  (NCEP Satellite MSU Data)   - 2004-2006 
+#ncep_1bhrs4_bufr (NCEP Satellite HIRS4 Data) - 2009-current
+#ncep_sevcsr_bufr (NCEP SEVIRI bufr format)   - 2012-2022
+#rscat_bufr                                   - 2015-2016
+
+#f5295_fp_20240714_21z
+#setenv OBSCLASS "ncep_prep_bufr,ncep_1bamua_bufr,ncep_1bamub_bufr,ncep_1bhrs2_bufr,ncep_1bhrs3_bufr,ncep_1bmsu_bufr,disc_airs_bufr,disc_amsua_bufr,ncep_mhs_bufr,ncep_1bhrs4_bufr,ncep_goesfv_bufr,ncep_mtiasi_bufr,ncep_gpsro_bufr,ncep_aura_omi_bufr,ncep_satwnd_bufr,ncep_atms_bufr,ncep_sevcsr_bufr,ncep_ssmis_bufr,mls_nrt_nc,rscat_bufr,ncep_avcsam_bufr,ncep_avcspm_bufr,ncep_tcvitals,gmao_gmi_bufr,ncep_crisfsr_bufr,npp_ompsnm_bufr,ncep_acftpfl_bufr,gmao_amsr2_bufr,npp_ompslp_nc"
+
+#f5295_fp_20240714_21z (removed hrs4 due to crtm coeff error)
+#setenv OBSCLASS "ncep_prep_bufr,ncep_1bamua_bufr,ncep_1bamub_bufr,ncep_1bhrs2_bufr,ncep_1bhrs3_bufr,ncep_1bmsu_bufr,disc_airs_bufr,disc_amsua_bufr,ncep_mhs_bufr,ncep_goesfv_bufr,ncep_mtiasi_bufr,ncep_gpsro_bufr,ncep_aura_omi_bufr,ncep_satwnd_bufr,ncep_atms_bufr,ncep_sevcsr_bufr,ncep_ssmis_bufr,mls_nrt_nc,rscat_bufr,ncep_avcsam_bufr,ncep_avcspm_bufr,ncep_tcvitals,gmao_gmi_bufr,ncep_crisfsr_bufr,npp_ompsnm_bufr,ncep_acftpfl_bufr,gmao_amsr2_bufr,npp_ompslp_nc"
+
+#f5295_fp_20240714_21z + removed hrs4 due to crtm coeff error + added HR raob (monitoring - ncep_uprair_bufr)
+setenv OBSCLASS "ncep_prep_bufr,ncep_1bamua_bufr,ncep_1bamub_bufr,ncep_1bhrs2_bufr,ncep_1bhrs3_bufr,ncep_1bmsu_bufr,disc_airs_bufr,disc_amsua_bufr,ncep_mhs_bufr,ncep_goesfv_bufr,ncep_mtiasi_bufr,ncep_gpsro_bufr,ncep_aura_omi_bufr,ncep_satwnd_bufr,ncep_atms_bufr,ncep_sevcsr_bufr,ncep_ssmis_bufr,mls_nrt_nc,rscat_bufr,ncep_avcsam_bufr,ncep_avcspm_bufr,ncep_tcvitals,gmao_gmi_bufr,ncep_crisfsr_bufr,npp_ompsnm_bufr,ncep_acftpfl_bufr,gmao_amsr2_bufr,npp_ompslp_nc,ncep_uprair_bufr"
+
+#f5295_fp_20240714_21z
+#ncep_aura_omi_bufr, # same with fp_20250606, 
+# however different with the latest fp (after 20250606): aura_omieff_nc
+
+#setenv AOD_OBSCLASS "mod04_061_flk,myd04_061_flk,aeronet_obs_flk,aeronet_obs_llk"
+#setenv AOD_OBSCLASS "mod04_061_flk,myd04_061_flk,mod04_061_his,myd04_061_his"
+#x0052
+#setenv AOD_OBSCLASS "mod04_061_flk,myd04_061_flk,aeronet_obs_llk"
+#setenv AOD_OBSCLASS "mod04_061_flk,myd04_061_flk"
+#f5295_fp_20240714_21z
+setenv AOD_OBSCLASS "mod04_061_flk,myd04_061_flk,aeronet_obs_flk"
+#f5295_fp_20240714_21z - no aeronet data for 2024
+#setenv AOD_OBSCLASS "mod04_061_flk,myd04_061_flk"
+setenv ACFTBIAS "2"
+setenv NEWRADBC "1"
+setenv ANGLEBC "1"
+
+umask 022
+limit stacksize unlimited
+set REMSH = /usr/bin/ssh
+set RCP   = /usr/bin/scp

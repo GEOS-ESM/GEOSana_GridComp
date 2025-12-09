@@ -184,7 +184,7 @@
             !   Convert Julian date (fractional day-of-year) -> hour,min,sec
             call djul_day_inv(jdy(i),rhour(i),rmin(i),rsec(i))
             !   if yyyy-mm-dd is changed in one file, we need to add one day (yyyy-mm-dd)
-            if ( jdy(i) < jdy(i-1) ) then 
+            if ( i>1 .and. jdy(i) < jdy(i-1) ) then 
                call add_oneday(mm_new, dd_new, imm, idd)
                rmonth(i) = mm_new
                rdate(i)  = dd_new
