@@ -144,6 +144,7 @@ contains
 
   use obsmod, only: iadate,oberrflg,perturb_obs,perturb_fact,ran01dom
   use obsmod, only: blacklst,offtime_data
+  use obsmod, only: hr_q_whitelist,hr_q_cutoff
   use obsmod, only: thin_flg,superob_flg,smooth_flg,filter_window
   use converr,only: etabl
   use converr_ps,only: etabl_ps,isuble_ps,maxsub_ps
@@ -190,6 +191,7 @@ contains
 
   character(80) hdstr,hdstr2,hdstr3,levstr,hdtypestr
   character(80) obstr
+  character(80) sondetypestr
   character(10) date
   character(8) subset
   character(8) c_station_id,id_station
@@ -199,6 +201,7 @@ contains
   character(8) stntype
 
   integer(i_kind) ireadmg,ireadsb
+  integer(i_kind) hr_q_cutoff_cb
   integer(i_kind) lunin,i,maxobs,j,idomsfc,nmsgmax,mxtb
   integer(i_kind) kk,klon1,klat1,klonp1,klatp1
   integer(i_kind) nc,nx,ntread,ncsave
@@ -252,6 +255,7 @@ contains
   real(r_double),dimension(2):: hdr
   real(r_double),dimension(8):: hdr2
   real(r_double),dimension(1):: hdr3
+  real(r_double) typearr
   real(r_double),dimension(1):: hdrtype
   real(r_double),dimension(2,maxlevs):: levdat
   real(r_double),dimension(8,maxlevs):: var_jb,obserr
@@ -273,6 +277,7 @@ contains
   data hdtypestr /'BUHD' /
   data hdstr3 /'HEIT'/
   data obstr  /'LTDS LATDH LONDH GP10 WSPD WDIR TMDB TMDP'/
+  data sondetypestr /'RATP'/
   data levstr /'PRLC GP07'/
   data lunin / 13 /
   data missing/1.e8_r_double/
@@ -547,7 +552,7 @@ contains
            end do
 
            !------------------------------------------------------------------------
-
+           call ufbint(lunin,typearr,1,1,iret,sondetypestr) !check sonde type
            call ufbint(lunin,hdr2,8,1,iret,hdstr2)
            dlat_earth_deg=hdr2(7)
            dlon_earth_deg=hdr2(8)
@@ -1205,6 +1210,13 @@ contains
 
 !             Specific humidity
               else if(qob) then
+                 !throw out if not allowed type and above humidity cutoff
+                 hr_q_cutoff_cb=hr_q_cutoff*0.1_r_kind !convert mb to cb
+                 if ((plevs(k).lt.hr_q_cutoff_cb).and.(NOT(ANY(hr_q_whitelist == nint(typearr)))))then
+                         qqm(k)=typearr+1000
+                         usage=108._r_kind 
+                         write(6,*)id,'setting humidity measurement from RATP: ',typearr,' to monitor'
+                 end if 
                  if((descend).and.(plevs(k)<15))then
                     qqm(k)=12
                     usage=108._r_kind

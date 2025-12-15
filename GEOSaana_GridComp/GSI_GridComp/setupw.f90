@@ -32,6 +32,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   use obsmod, only: rmiss_single,perturb_obs,oberror_tune,lobsdiag_forenkf,&
        lobsdiagsave,nobskeep,lobsdiag_allocated,&
        time_offset,bmiss,ianldate,qcrequired
+  use obsmod, only: hr_save_qc,hr_save_colocated
   use obsmod, only: dplat
   use obsmod, only: wrtgeovals
   use m_obsNode, only: obsNode
@@ -263,6 +264,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
 
   integer(i_kind) i,nchar,nreal,k,j,l,ii,itype,ijb
+  integer(i_kind) hr_qc
 ! Variables needed for new polar winds QC based on Log Normalized Vector Departure (LNVD)
   real(r_kind) LNVD_wspd
   real(r_kind) LNVD_omb
@@ -299,6 +301,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   logical z_height,sfc_data
   logical,dimension(nobs):: luse,muse
   logical,dimension(nobs):: identical_obs
+  real(r_kind),dimension(nobs):: hr_colocated
   real,dimension(nobs):: qc_flag
   logical:: muse_u,muse_v
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
@@ -424,6 +427,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      end if
   end do
 !  If HD raobs available move prepbufr version to monitor
+  hr_colocated=zero
   if(nhduv > 0)then
      iprev_station=0
      do i=1,nobs
@@ -434,12 +438,14 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            read(station_id,'(i5,3x)',err=1200) idddd
            if(idddd == iprev_station)then
              data(iuse,i)=109._r_kind
+             hr_colocated(i)=one
              muse(i) = .false.
            else
               stn_loop:do j=1,nhduv
                 if(idddd == hduvlist(j))then
                    iprev_station=idddd
                    data(iuse,i)=109._r_kind
+                   hr_colocated(i)=one
                    muse(i) = .false.
                    exit stn_loop
                 end if
@@ -718,13 +724,14 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         end do hd_stn_loop
         if(pbidx.gt.0)then !skip qc array search if PB station not found
           pqc_lev=minloc(abs(zges-dpres),DIM=1)
-          if (pbqcuv(pqc_lev+1,pbidx)>3) then
+          hr_qc=pbqcuv(pqc_lev+1,pbidx)
+          if (hr_qc>3) then
              write(6,*),' layer height: ',zges(pqc_lev),'for  hd ob height: ',dpres
-             write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcuv(pqc_lev+1,pbidx)
+             write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',hr_qc
              data(iuse,i)=110._r_kind
              muse(i)=.false.
           end if  
-          if (qcrequired.and.(pbqcuv(pqc_lev+1,pbidx).eq.0)) then
+          if (qcrequired.and.(hr_qc.eq.0)) then
              write(6,*),' layer height: ',zges(pqc_lev),'for  hd ob height: ',dpres
              write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to missing QC'
              data(iuse,i)=111._r_kind
@@ -878,31 +885,20 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         end do hd_stn_loop_pres
         if(pbidx.gt.0)then !skip qc array search if PB station not found
           pqc_lev=minloc(abs(prsltmp3-presw),DIM=1)
-          if (pbqcuv(pqc_lev+1,pbidx)>3) then
+          hr_qc=pbqcuv(pqc_lev+1,pbidx)
+          if (hr_qc>3) then
              write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',presw
-             write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcuv(pqc_lev+1,pbidx)
+             write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',hr_qc
              data(iuse,i)=110._r_kind
              muse(i)=.false.
           end if 
-          if (qcrequired.and.(pbqcuv(pqc_lev+1,pbidx).eq.0)) then
+          if (qcrequired.and.(hr_qc.eq.0)) then
              write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',presw
              write(6,*)'setting UV ob at stnidx: ',pbidx,' to missing QC'
              data(iuse,i)=111._r_kind
              muse(i)=.false.
           end if
         end if 
-        !do pqc_lev=2,nsig+1 !iterate over model layer pressure levels at ob location (log pressure)
-        !  if (prsitmp2(pqc_lev)<presw) then
-        !     if (pbqcuv(pqc_lev,pbidx)>3) then
-        !           write(6,*),' layer pres: ',prsltmp3(pqc_lev-1),' tripped at: ',prsitmp2(pqc_lev),'for hd ob pres: ',presw
-        !           write(6,*)'setting UV ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcuv(pqc_lev,pbidx)
-        !           muse(i)=.false.
-        !     else
-        !           write(6,*)'ob above model top'
-        !     end if
-        !     exit
-        !  end if
-        !end do
 1202    continue
           if(iohdraob.ne.0)then
                write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
@@ -1910,6 +1906,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   type(obs_diag),pointer,intent(in):: udiag,vdiag
 ! Observation class
   character(7),parameter     :: obsclass = '     uv'
+  real(r_single),parameter::     missing = -9.99e9_r_single
   real(r_kind),dimension(miter) :: obsdiag_iuse
 
            call nc_diag_metadata("Station_ID",              station_id             )
@@ -2023,7 +2020,22 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               call nc_diag_data2d("u_ObsDiagSave_obssen",   udiag%obssen   )
               call nc_diag_data2d("v_ObsDiagSave_obssen",   vdiag%obssen   )
            endif
-
+           if (hr_save_qc) then
+             write(6,*)'hr_qc: ',hr_qc
+             if (((itype==219).or.(itype==218)) .and. (npbuv>0).and.(iohdraob.eq.0)) then
+               call nc_diag_metadata("high_res_qc", real(hr_qc))
+             else 
+               call nc_diag_metadata("high_res_qc", missing)
+             endif 
+           endif 
+           if ((hr_save_colocated).and.(nhduv>0)) then
+             write(6,*)'hr_colocated: ',hr_colocated(i)
+             if (itype==220) then
+               call nc_diag_metadata("high_res_colocated", real(hr_colocated(i)))
+             else
+               call nc_diag_metadata("high_res_colocated", missing)
+             endif 
+           endif
            if (twodvar_regional) then
               call nc_diag_metadata("Model_Terrain",     data(izz,i)                  )
               r_prvstg            = data(iprvd,i)

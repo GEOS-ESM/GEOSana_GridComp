@@ -2507,7 +2507,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                     !if model level QM is higher than last pass, set to higher QM
                     !avoid flagging for qm=9 (above 300 mb) if flag_hr_ua_q is false
                     if((qqm(k)>pbqc(ilev+1,i)))then
-                        if(.not.(flag_hr_ua_q.and.(qqm(k).eq.9)))pbqc(ilev+1,i)=qqm(k)
+                        if(.not.((.not.flag_hr_ua_q).and.(qqm(k).eq.9)))pbqc(ilev+1,i)=qqm(k)
                     end if 
 1204                continue
                  end if
