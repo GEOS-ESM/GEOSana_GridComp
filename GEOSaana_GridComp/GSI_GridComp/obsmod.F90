@@ -716,7 +716,7 @@ contains
     filter_window=11 ! hdraob smoothing filter window (profile levels)
     pbqc4hd=.true. !hdraob flag for doing QC using prepbufr QC marks 
     qcrequired=.true. !set to true to set hd ascent raobs that cannot be QCed with prepbufr to unused
-    flag_hr_ua_q=.true. !set to false to avoid using prepbufr qc marks indicating q obs above 300 mb 
+    flag_hr_ua_q=.false. !set to false to avoid using prepbufr qc marks indicating q obs above 300 mb 
     hr_q_cutoff=300 !default cutoff for raob humidity assimilation (mb)
     hr_q_whitelist= (/123,124,125,141,142,191,193,70,79,80,81,113,114,152/) !allow q assimilation above cutoff for these sonde types
     hr_save_qc=.true.
