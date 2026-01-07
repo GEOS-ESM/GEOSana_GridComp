@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+07Jan2026:
+- minor revisions of CG tolerance (consistency between pcgsoi and bicg)
+
 04Sep2025:
 
 - add knobs for high-resolution radiosondes (zero-diff
