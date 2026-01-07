@@ -57,7 +57,7 @@ use kinds    , only : r_kind,i_kind,r_quad,r_single,r_double
 use constants, only : zero, one, half,two, zero_quad,tiny_r_kind
 use timermod , only : timer_ini, timer_fnl
 use lanczos  , only : save_precond
-use gsi_4dvar, only : iorthomax
+use gsi_4dvar, only : iorthomax,CG_TOL
 use control_vectors, only: control_vector
 use control_vectors, only: allocate_cv,deallocate_cv,inquire_cv
 use control_vectors, only: read_cv,write_cv
@@ -85,7 +85,7 @@ logical      :: allocated_work_vectors=.false.
 real(r_kind) :: R_MAX_CNUM_PC = 10.0_r_kind
 real(r_kind) :: xmin_ritz = 1.0_r_kind
 real(r_kind) :: pkappa = 0.1_r_kind
-real(r_kind) :: CG_TOL = 0.001_r_kind
+!real(r_kind) :: CG_TOL = 0.001_r_kind
 
 integer(i_kind)           :: NPCVECS, NVCGLPC, NVCGLEV
 REAL(r_kind), ALLOCATABLE :: RCGLPC(:)
