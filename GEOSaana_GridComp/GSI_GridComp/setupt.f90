@@ -272,11 +272,9 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind),dimension(34) :: ptablt
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
   real(r_single),allocatable,dimension(:,:)::rdiagbufp
-
-
   real(r_kind),dimension(nsig):: prsltmp2,prsltmp3,prsltmp4
   real(r_kind),dimension(nsig+1):: prsitmp,prsitmp2
-  !real(r_kind),dimension(nsig+1):: prsitmp2 !interface pressure in mb hdraob
+  real(r_kind),dimension(nobs):: hr_colocated
 
 
   integer(i_kind) i,j,nchar,nreal,k,ii,iip,jj,l,nn,ibin,idia,idia0,ix,ijb
@@ -289,7 +287,6 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   integer(i_kind) idomsfc,iskint,iff10,isfcr
   integer(i_kind) idddd,hd_idddd,iohdraob,pbidx
   integer(i_kind) pqc_lev 
-
   integer(i_kind),dimension(nobs):: buddyuse
 
   type(sparr2) :: dhx_dx
@@ -305,15 +302,15 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
   logical,dimension(nobs):: luse,muse
   logical,dimension(nobs):: identical_obs
-  real(r_kind),dimension(nobs):: hr_colocated
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical sfctype
   logical iqtflg
   logical aircraftobst
   logical duplogic
-
+  logical, save :: verbose_hires_raob = .false.
   logical:: in_curbin, in_anybin, save_jacobian
   logical proceed
+
   type(tNode),pointer:: my_head
   type(obs_diag),pointer:: jj_diag
   type(obs_diag),pointer:: my_diag
@@ -731,7 +728,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 
 ! Implementation of PrepBufr QC check for hdraob type 119 (ascent data)
-     write(6,*)'itype: ',itype,' npbt: ',npbt,' muse: ',muse(i)
+     if(verbose_hires_raob)write(6,*)'itype: ',itype,' npbt: ',npbt,' muse: ',muse(i)
      if ((itype==119) .and. (npbt>0).and.(muse(i)==.true.)) then
        !find PBQC value 
        hd_rstation_id = data(id,i) !grab id for hd station
@@ -739,7 +736,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
        pbidx=0
        hd_stn_loop:do j=1,npbt !find the index of station id 
            if(hd_idddd == pbqct(1,j)) then
-              write(6,*) 'found matching PBQC station: ',pbqct(1,j)
+              if(verbose_hires_raob)write(6,*) 'found matching PBQC station: ',pbqct(1,j)
               pbidx=j
               exit hd_stn_loop
            end if 
@@ -748,35 +745,23 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
          pqc_lev=minloc(abs(prsltmp4-prest),DIM=1) 
          hr_qc=pbqct(pqc_lev+1,pbidx)
          if (hr_qc>3) then !turn off if above threshold
-             write(6,*),' layer pres: ',prsltmp4(pqc_lev),'for hd ob pres: ',prest
-             write(6,*)'setting T ob at stnidx: ',pbidx,' to unused due to QC val of: ',hr_qc 
+             if(verbose_hires_raob)write(6,*),' layer pres: ',prsltmp4(pqc_lev),'for hd ob pres: ',prest
+             if(verbose_hires_raob)write(6,*)'setting T ob at stnidx: ',pbidx,' to unused due to QC val of: ',hr_qc 
              data(iuse,i)=110._r_kind
              muse(i)=.false.
          end if 
          if (qcrequired.and.(hr_qc.eq.0)) then !if qcrequired option then turn off for no QC
-             write(6,*),' layer pres: ',prsltmp4(pqc_lev),'for hd ob pres: ',prest
-             write(6,*)'setting T ob at stnidx: ',pbidx,' to unused due to missing QC'
+             if(verbose_hires_raob)write(6,*),' layer pres: ',prsltmp4(pqc_lev),'for hd ob pres: ',prest
+             if(verbose_hires_raob)write(6,*)'setting T ob at stnidx: ',pbidx,' to unused due to missing QC'
              data(iuse,i)=111._r_kind
              muse(i)=.false.
          end if 
        else
          hr_qc=-1 !set to negative if matching PB station not found
        end if 
-       !do pqc_lev=2,nsig+1 !iterate over model layer pressure levels at ob location (log pressure)
-       !   if (prsitmp2(pqc_lev)<prest) then
-       !      if (pbqct(pqc_lev,pbidx)>3) then !turn off if above threshold
-       !            write(6,*),' layer pres: ',prsltmp4(pqc_lev-1),'tripped at',prsitmp2(pqc_lev),'for hd ob pres: ',prest
-       !            write(6,*)'setting T ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqct(pqc_lev,pbidx) 
-       !            muse(i)=.false.
-       !       else
-       !            write(6,*)'ob above model pressure top'
-       !       end if 
-       !       exit
-       !   end if
-       !end do
 1201   continue 
        if(iohdraob.ne.0)then
-               write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
+         if(verbose_hires_raob)write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
        end if 
      end if !type selection 
 
@@ -1871,7 +1856,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
     endif
 
     if (hr_save_qc) then
-      write(6,*)'hr_qc: ',hr_qc
+      if(verbose_hires_raob)write(6,*)'hr_qc: ',hr_qc
       if ((itype==119) .and.(npbt>0).and.(iohdraob.eq.0)) then
         call nc_diag_metadata("high_res_qc", real(hr_qc))
       else 
@@ -1879,7 +1864,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
       endif 
     endif 
     if ((hr_save_colocated).and.(nhdt>0)) then
-      write(6,*)'hr_colocated: ',hr_colocated(i)
+      if(verbose_hires_raob)write(6,*)'hr_colocated: ',hr_colocated(i)
       if (itype==120) then
         call nc_diag_metadata("high_res_colocated", real(hr_colocated(i)))
       else

@@ -190,6 +190,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   real(r_kind),dimension(nsig+1):: prsitmp
   real(r_kind),dimension(nele,nobs):: data
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
+  real(r_kind),dimension(nobs):: hr_colocated
 
   integer(i_kind) ier,ilon,ilat,ipres,ihgt,itemp,id,itime,ikx,iqc,iptrb,ijb,isli
   integer(i_kind) hr_qc
@@ -203,9 +204,9 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
 
   logical,dimension(nobs):: luse,muse
   logical,dimension(nobs):: identical_obs
-  real(r_kind),dimension(nobs):: hr_colocated
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical proceed
+  logical, save :: verbose_hires_raob 
  
   character(8) station_id,hd_station_id 
   character(8),allocatable,dimension(:):: cdiagbuf
@@ -472,8 +473,8 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
     call tintrp2a1(ges_v,vtmp,dlat,dlon,dtime,hrdifsig,nsig,mype,nfldsig)
 
 ! Implementation of PrepBufr QC check for hdraob types 119 (ascent data)
-     !write(6,*)'itype: ',itype,' npbps: ',npbps,' muse: ',muse(i)
-     write(6,*)'pbqcpsmax: ',maxval(pbqcps,2)
+     if(verbose_hires_raob)write(6,*)'itype: ',itype,' npbps: ',npbps,' muse: ',muse(i)
+     if(verbose_hires_raob)write(6,*)'pbqcpsmax: ',maxval(pbqcps,2)
      if ((itype==119) .and. (npbps>0).and.(muse(i)==.true.)) then
        !find PBQC value 
        hd_rstation_id = data(id,i) !grab id for hd station
@@ -481,7 +482,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
        pbidx=0
        hd_stn_loop:do j=1,npbps !find the index of station id 
            if(hd_idddd == pbqcps(1,j)) then
-              write(6,*) 'found matching PBQC station: ',pbqcps(1,j)
+              if(verbose_hires_raob)write(6,*) 'found matching PBQC station: ',pbqcps(1,j)
               pbidx=j
               exit hd_stn_loop
            end if 
@@ -491,16 +492,16 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
        hr_qc=pbqcps(2,pbidx)
        if ((pbidx>0).and.(hr_qc>3)) then !turn off if above threshold
 
-           write(6,*),' hd surface pres sanity check: ', pob
-           write(6,*)'setting PS ob at stnidx: ',pbidx,' to unused due to QC val of: ',hr_qc
+           if(verbose_hires_raob)write(6,*),' hd surface pres sanity check: ', pob
+           if(verbose_hires_raob)write(6,*)'setting PS ob at stnidx: ',pbidx,' to unused due to QC val of: ',hr_qc
            data(iuse,i)=110._r_kind
            muse(i)=.false.
        end if
-       write(6,*),' hd surface pres sanity check (cb): ', pob
+       if(verbose_hires_raob)write(6,*),' hd surface pres sanity check (cb): ', pob
 
 1201   continue
        if(iohdraob.ne.0)then
-               write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
+           if(verbose_hires_raob)write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
        end if 
      end if !type selection 
 ! End Implementation of PrepBufr QC check
@@ -1130,7 +1131,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
               call nc_diag_data2d("ObsDiagSave_obssen",   odiag%obssen   )             
            endif
            if (hr_save_qc) then
-              write(6,*)'hr_qc: ',hr_qc
+              if(verbose_hires_raob)write(6,*)'hr_qc: ',hr_qc
               if ((itype==119) .and. (npbps>0).and.(iohdraob.eq.0)) then
                 call nc_diag_metadata("high_res_qc", real(hr_qc))
               else 
@@ -1138,7 +1139,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
               endif 
            endif 
            if ((hr_save_colocated).and.(nhdps>0)) then
-             write(6,*)'hr_colocated: ',hr_colocated(i)
+             if(verbose_hires_raob)write(6,*)'hr_colocated: ',hr_colocated(i)
              if (itype==120) then
                call nc_diag_metadata("high_res_colocated", real(hr_colocated(i)))
              else

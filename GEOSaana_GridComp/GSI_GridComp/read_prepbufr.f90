@@ -286,6 +286,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
   logical acft_profl_file
   logical newstation !hdraob
   logical,allocatable,dimension(:,:):: lmsg           ! set true when convinfo entry id found in a message
+  logical, save :: verbose_hires_raob = .false.
 
   character(40) drift,hdstr,qcstr,oestr,sststr,satqcstr,levstr,hdstr2
   character(40) metarcldstr,goescldstr,metarvisstr,metarwthstr,cldseqstr,cld2seqstr,cldceilhstr
@@ -2142,7 +2143,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
 
                  if((kx == 120).and.(pbqc4hd))then !find highest model layer QM in profile, write to array for propagation
                     read(c_station_id,'(i5,3x)',err=1201) idddd
-                    !write(6,*) 'station integer id: ',idddd
+                    if(verbose_hires_raob)write(6,*) 'station integer id: ',idddd
                     newstation=.true.
                     do i=1,nstations
                        if(pbqc(1,i) == idddd) then
@@ -2156,14 +2157,10 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                     end if
                     !find model pressure level
                     ilev=minloc(abs(presl-plevs(k)),DIM=1)
-                    !ilev=nsig
-                    !do n=1,nsig
-                    !  if(plevs(k) < presl(n))ilev=n
-                    !end do 
-                    write(6,*)'station model layer: ',ilev,' at pressure (cb): ',plevs(k)
+                    if(verbose_hires_raob)write(6,*)'station model layer: ',ilev,' at pressure (cb): ',plevs(k)
                     !if model level QM is higher than last pass, set to higher QM
                     if(tqm(k)>pbqc(ilev+1,i))then
-                        write(6,*)'highest tqm found: ',tqm(k),' at model level: ',ilev
+                        if(verbose_hires_raob)write(6,*)'highest tqm found: ',tqm(k),' at model level: ',ilev
                         pbqc(ilev+1,i)=tqm(k) 
                     end if 
 1201                continue
@@ -2316,10 +2313,6 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                     end if   
                     !find model pressure level
                     ilev=minloc(abs(presl-plevs(k)),DIM=1)
-                    !ilev=nsig
-                    !do n=1,nsig
-                    !  if(plevs(k) < presl(n))ilev=n
-                    !end do 
                     !if model level QM is higher than last pass, set to higher QM
                     if(wqm(k)>pbqc(ilev+1,i))then
                         pbqc(ilev+1,i)=wqm(k) 
@@ -2431,7 +2424,6 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                     !if psob QM is higher than last pass, set to higher QM
                     if(pqm(k)>pbqc(2,i))then
                         pbqc(2,i)=pqm(k)
-                        if(pqm(k)>100)write(6,*)'ob: ',i,' abnormal pqm: ',pqm(k)
                     end if
 1203                continue
 
@@ -3166,11 +3158,11 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
          pbqct(i,j)=pbqc(i,j)
        end do
      end do
-     write(6,*) 'mype: ',mype,' sample pbcqt: ',pbqct(1,1),pbqct(2,1),pbqct(3,1)
-     write(6,*) 'mype: ',mype,' sample pbcq: ',pbqc(1,1),pbqc(2,1),pbqc(3,1)
+     if(verbose_hires_raob)write(6,*) 'mype: ',mype,' sample pbcqt: ',pbqct(1,1),pbqct(2,1),pbqct(3,1)
+     if(verbose_hires_raob)write(6,*) 'mype: ',mype,' sample pbcq: ',pbqc(1,1),pbqc(2,1),pbqc(3,1)
 
      pbnodet=mype
-     write(6,*) ' number of pbufr  t stations ',nstations
+     if(verbose_hires_raob)write(6,*) ' number of pbufr  t stations ',nstations
      end if 
      deallocate(pbqc)
   else if((pbqc4hd).and.(qob).and.(.not.acft_profl_file))then
@@ -3183,7 +3175,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
        end do
      end do
      pbnodeq=mype
-     write(6,*) ' number of pbufr  q stations ',nstations
+     if(verbose_hires_raob)write(6,*) ' number of pbufr  q stations ',nstations
      end if 
      deallocate(pbqc)
   else if((pbqc4hd).and.(uvob).and.(.not.acft_profl_file))then
@@ -3196,7 +3188,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
        end do
      end do
      pbnodeuv=mype
-     write(6,*) ' number of pbufr  uv stations ',nstations
+     if(verbose_hires_raob)write(6,*) ' number of pbufr  uv stations ',nstations
      end if 
      deallocate(pbqc)
   else if((pbqc4hd).and.(psob).and.(.not.acft_profl_file))then
@@ -3208,9 +3200,9 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
          pbqcps(i,j)=pbqc(i,j)
         end do
      end do
-     write(6,*)'pbqcpsmax: ',maxval(pbqcps,2)
+     if(verbose_hires_raob)write(6,*)'pbqcpsmax: ',maxval(pbqcps,2)
      pbnodeps=mype
-     write(6,*) ' number of pbufr  ps stations ',nstations
+     if(verbose_hires_raob)write(6,*) ' number of pbufr  ps stations ',nstations
      end if
      deallocate(pbqc)
   end if

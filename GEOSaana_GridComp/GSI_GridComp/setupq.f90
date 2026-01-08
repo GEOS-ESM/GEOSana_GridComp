@@ -228,7 +228,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   real(r_kind),dimension(34):: ptablq
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
   real(r_single),allocatable,dimension(:,:)::rdiagbufp
-
+  real(r_kind),dimension(nobs):: hr_colocated
 
   integer(i_kind) i,j,nchar,nreal,ii,l,jj,mm1,itemp,iip
   integer(i_kind) jsig,itype,k,nn,ikxx,iptrb,ibin,ioff,ioff0,icat,ijb,isli
@@ -253,12 +253,11 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   logical ice,proceed
   logical,dimension(nobs):: luse,muse
   logical,dimension(nobs):: identical_obs
-  real(r_kind),dimension(nobs):: hr_colocated
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
-
   logical duplogic
-
+  logical, save :: verbose_hires_raob = .false.
   logical:: in_curbin, in_anybin, save_jacobian
+
   type(qNode),pointer:: my_head
   type(obs_diag),pointer:: jj_diag
   type(obs_diag),pointer:: my_diag
@@ -572,7 +571,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 
 ! Implementation of PrepBufr QC check for hdraob types 119 (ascent data)
-     write(6,*)'itype: ',itype,' npbq: ',npbq,' muse: ',muse(i)
+     if(verbose_hires_raob)write(6,*)'itype: ',itype,' npbq: ',npbq,' muse: ',muse(i)
      if ((itype==119) .and. (npbq>0).and.(muse(i)==.true.)) then
        !find PBQC value 
        hd_rstation_id = data(id,i) !grab id for hd station
@@ -580,7 +579,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
        pbidx=0
        hd_stn_loop:do j=1,npbq !find the index of station id 
            if(hd_idddd == pbqcq(1,j)) then
-              write(6,*) 'found matching PBQC station: ',pbqcq(1,j)
+              if(verbose_hires_raob)write(6,*) 'found matching PBQC station: ',pbqcq(1,j)
               pbidx=j
               exit hd_stn_loop
            end if
@@ -589,21 +588,21 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
          pqc_lev=minloc(abs(prsltmp3-prest),DIM=1)
          hr_qc=pbqcq(pqc_lev+1,pbidx)
          if (hr_qc>3) then !turn off if above threshold
-              write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',prest
-              write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to QC val of: ',hr_qc
+              if(verbose_hires_raob)write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',prest
+              if(verbose_hires_raob)write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to QC val of: ',hr_qc
               data(iuse,i)=110._r_kind
               muse(i)=.false.
          end if 
          if (qcrequired.and.(hr_qc.eq.0)) then !if qcrequired option then turn off for no QC
-             write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',prest
-             write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to missing QC'
+             if(verbose_hires_raob)write(6,*),' layer pres: ',prsltmp3(pqc_lev),'for hd ob pres: ',prest
+             if(verbose_hires_raob)write(6,*)'setting Q ob at stnidx: ',pbidx,' to unused due to missing QC'
              data(iuse,i)=111._r_kind
              muse(i)=.false.
          end if  
        end if 
 1201   continue
        if(iohdraob.ne.0)then
-               write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
+             if(verbose_hires_raob)write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
        end if
      end if !type selection 
 
@@ -1460,7 +1459,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            endif
 
            if (hr_save_qc) then 
-             write(6,*)'hr_qc: ',hr_qc
+             if(verbose_hires_raob)write(6,*)'hr_qc: ',hr_qc
              if ((itype==119) .and. (npbq>0).and.(iohdraob.eq.0)) then
                call nc_diag_metadata("high_res_qc", real(hr_qc))
              else 
@@ -1468,7 +1467,7 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
              endif 
            endif 
            if ((hr_save_colocated).and.(nhdq>0)) then 
-              write(6,*)'hr_colocated: ',hr_colocated(i)
+              if(verbose_hires_raob)write(6,*)'hr_colocated: ',hr_colocated(i)
               if (itype==120) then 
                 call nc_diag_metadata("high_res_colocated", real(hr_colocated(i)))
               else 

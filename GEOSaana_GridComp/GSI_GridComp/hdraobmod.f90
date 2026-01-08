@@ -498,12 +498,12 @@ contains
            ntb = ntb+1
            nc=tab(ntb,1)
            if (nc <=0)then
-              if(nc /= 0)write(6,*) obstype,nc,(tab(ntb,i),i=1,3),ntb
+              if((print_verbose).and.(nc /= 0))write(6,*) obstype,nc,(tab(ntb,i),i=1,3),ntb
               cycle loop_readsb
            end if
            kx = ictype(nc)
            if(tab(ntb,2) /= kx) then
-              if(nc /= 0)write(6,*) obstype,nc,(tab(ntb,i),i=1,3),ntb
+              if((print_verbose).and.(nc /= 0))write(6,*) obstype,nc,(tab(ntb,i),i=1,3),ntb
               cycle loop_readsb
            end if
            write(6,*)'starting with ntb: ',ntb,'kx: ',kx
@@ -533,11 +533,11 @@ contains
                    read(id_station,*) stntype
                    if(index(stntype,'IUD') /=0 .or. index( stntype,'IUX') /=0)then
                            if(kx == 119 .or. kx == 219 .or. kx == 218)then
-                                   write(6,*) ' inconsistent descent ',kx,id,levs,stntype
+                                   if(print_verbose)write(6,*) ' inconsistent descent ',kx,id,levs,stntype
                            end if
                    else
                            if(kx == 118 .or. kx == 217)then
-                                   write(6,*) ' inconsistent ascent ',kx,id,levs,stntype
+                                   if(print_verbose)write(6,*) ' inconsistent ascent ',kx,id,levs,stntype
                            end if
                    end if
            end if
@@ -624,7 +624,7 @@ contains
                            end do
                    end if
                    end do
-                   if(uvob .and. kx /= 218 )write(6,*) ' inconsistent kx ',kx
+                   if(print_verbose .and. uvob .and. kx /= 218 )write(6,*) ' inconsistent kx ',kx
            end if
            !             Compute depth of guess pressure layersat observation location
            if (.not.twodvar_regional .and. levs > 1) then
@@ -1191,7 +1191,6 @@ contains
                     cdata_all(27,iout)=ran01dom()*perturb_fact ! u perturbation
                     cdata_all(28,iout)=ran01dom()*perturb_fact ! v perturbation
                  endif
-!                if(kx == 219 .and. k == 5)write(6,*) k,kx,c_station_id,(cdata_all(i,iout),i=1,25)
                  if(kx == 219 .or. kx == 218)then
                     if(usage < 100._r_kind)then
                        newstation=.true.
@@ -1215,7 +1214,7 @@ contains
                  if ((plevs(k).lt.hr_q_cutoff_cb).and.(NOT(ANY(hr_q_whitelist == nint(typearr)))))then
                          qqm(k)=typearr+1000
                          usage=108._r_kind 
-                         write(6,*)id,'setting humidity measurement from RATP: ',typearr,' to monitor'
+                         if(print_verbose)write(6,*)id,'setting humidity measurement from RATP: ',typearr,' to monitor'
                  end if 
                  if((descend).and.(plevs(k)<15))then
                     qqm(k)=12
@@ -1369,8 +1368,8 @@ contains
               if((thin_flg.or.superob_flg).and.(tob.or.qob.or.uvob).and.(usage<100._r_kind))then !thinning/supperobing application
                  !locate obs locations closest to vertical center of model layer
                  mlvl=minloc(abs(presl-plevs(k)),DIM=1)
-                 if(sigma_count(mlvl).lt.4)write(6,*)'iout index:',iout,'found at mdl sigma lvl pressure: ',presl(mlvl)
-                 if(sigma_count(mlvl).lt.4)write(6,*)'iout index:',iout,'pdistance: ',pdistance(mlvl)
+                 if((print_verbose).and.(sigma_count(mlvl).lt.4))write(6,*)'iout index:',iout,'found at mdl sigma lvl pressure: ',presl(mlvl)
+                 if((print_verbose).and.(sigma_count(mlvl).lt.4))write(6,*)'iout index:',iout,'pdistance: ',pdistance(mlvl)
 
                  sigma_count(mlvl)=sigma_count(mlvl)+1
                  if(abs(presl(mlvl)-plevs(k)).lt.pdistance(mlvl))then
@@ -1378,7 +1377,7 @@ contains
                          if(sigma_count(mlvl).gt.1)then
 
                          !set previous closest ob to unused
-                               write(6,*)'deactivating: ',previous_center(mlvl)
+                               if(print_verbose)write(6,*)'deactivating: ',previous_center(mlvl)
                                if(tob)cdata_all(12,previous_center(mlvl))=108._r_kind
                                if(qob)cdata_all(13,previous_center(mlvl))=108._r_kind
                                if(uvob)cdata_all(14,previous_center(mlvl))=108._r_kind
@@ -1403,15 +1402,15 @@ contains
                               do ki=1,nsig
                                   if(sigma_count(ki).lt.2)cycle
                                   if(tob)then
-                                     write(6,*)'at level: ',ki,' of:',levs,' replacing: ',&
+                                     if(print_verbose)write(6,*)'at level: ',ki,' of:',levs,' replacing: ',&
                                              cdata_all(5,previous_center(ki)),'with: ',(sigma_avg(ki)/sigma_count(ki))
                                      cdata_all(5,previous_center(ki))=1._r_double*(sigma_avg(ki)/sigma_count(ki))
                                   else if(qob)then
-                                     write(6,*)'at level: ',ki,' of:',levs,' replacing: ',&
+                                     if(print_verbose)write(6,*)'at level: ',ki,' of:',levs,' replacing: ',&
                                              cdata_all(5,previous_center(ki)),'with: ',(sigma_avg(ki)/sigma_count(ki))
                                      cdata_all(5,previous_center(ki))=(sigma_avg(ki)/sigma_count(ki))
                                   else if(uvob)then
-                                     write(6,*)'at level: ',ki,' of',levs,' replacing: ',&
+                                     if(print_verbose)write(6,*)'at level: ',ki,' of',levs,' replacing: ',&
                                              cdata_all(6,previous_center(ki)),'with: ',(sigma_avg(ki)/sigma_count(ki))
 
                                      cdata_all(6,previous_center(ki))=(sigma_avg(ki)/sigma_count(ki))
@@ -1423,10 +1422,10 @@ contains
                  else if((k.eq.levs).and.print_verbose)then !print out location of thinned ob within model layer
                       do ki=1,nsig
                           if(sigma_count(ki).gt.0)then
-                              write(6,*)'at model level:',ki,'thinned to iout:',previous_center(ki),&
+                              if(print_verbose)write(6,*)'at model level:',ki,'thinned to iout:',previous_center(ki),&
                                  'at pressure:',plevs(previous_center(ki)) 
                           else
-                              write(6,*)'no obs near model level:',ki
+                              if(print_verbose)write(6,*)'no obs near model level:',ki
                           end if 
                       end do 
                  end if 
@@ -1443,7 +1442,7 @@ contains
              if(tob.or.qob)delta_t=cdata_all(7,iout_endk)-cdata_all(7,iout_startk)
              if(uvob)delta_t=cdata_all(9,iout_endk)-cdata_all(9,iout_startk)
              avg_tint=(delta_t*3600)/(iout_endk-iout_startk)
-             write(6,*)'profile time: ',delta_t,' avg report interv: ',avg_tint
+             if(print_verbose)write(6,*)'profile time: ',delta_t,' avg report interv: ',avg_tint
              filter_window_active=nint((one/avg_tint)*filter_window)
              if((filter_window_active.gt.3).and.((iout_endk-iout_startk).gt.(filter_window_active+1)))then
 
@@ -1459,7 +1458,7 @@ contains
                 call binomial_coeffs(filter_window_active, coefs) !calls routine to generate binomial filter coeffs based on filter window
                 if(print_verbose)then
                   do bc=1,filter_window_active
-                     write(6,*)'binomial_coeff: ',bc,'value: ',coefs(bc)
+                      if(print_verbose)write(6,*)'binomial_coeff: ',bc,'value: ',coefs(bc)
                   end do
                 end if 
 
