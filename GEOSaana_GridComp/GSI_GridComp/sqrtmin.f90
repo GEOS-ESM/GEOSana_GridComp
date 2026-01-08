@@ -30,6 +30,7 @@ subroutine sqrtmin()
 use kinds, only: r_kind,i_kind,r_quad
 use gsi_4dvar, only: l4dvar, lsqrtb, lcongrad, lbfgsmin, ltlint, &
                      ladtest, lgrtest, lanczosave, jsiga, nwrvecs, ltcost
+use gsi_4dvar, only: cg_tol
 use jfunc, only: jiter,miter,niter,xhatsave,jiterstart
 use constants, only: zero
 use mpimod, only: mype
@@ -103,7 +104,7 @@ endif
 ! Minimization
 nprt=1
 itermax=niter(jiter)
-eps=1.0e-8_r_kind
+eps=cg_tol
 costf=zf0
 
 if (lbfgsmin) then
