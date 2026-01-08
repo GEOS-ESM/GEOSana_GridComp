@@ -130,7 +130,7 @@ subroutine pcgsoi()
        iguess,read_guess_solution,diag_precon,step_start, &
        niter_no_qc,print_diag_pcg,lgschmidt
   use gsi_4dvar, only: nobs_bins, nsubwin, l4dvar, iwrtinc, ladtest, &
-                       iorthomax
+                       iorthomax, cg_tol
   use gridmod, only: twodvar_regional
   use constants, only: zero,one,five,tiny_r_kind
   use anberror, only: anisotropic
@@ -226,7 +226,7 @@ subroutine pcgsoi()
 ! efficiency, uses r_single (4 byte) arithmetic.  this generally triggers
 ! the warning about penalty increasing, but this doesn't happen until
 ! the gradient has been reduced by more than 9 orders of magnitude.
-  converge=1.e-10_r_kind
+  converge=cg_tol**2 ! notice the square here is for consistency w/ biCG/congrad 
   if(anisotropic) converge=1.e-9_r_kind
 
   lanlerr=.false.
@@ -388,6 +388,19 @@ subroutine pcgsoi()
            call bkerror_a_en(gradx,grady)
         end if
 
+     end if
+
+!    2nd Re-orthonormalization if requested
+     if(iorthomax>0) then 
+        iortho=min(iorthomax,iter) 
+        if(iter .ne. 0) then 
+           do ii=iortho,1,-1
+              zdla = DOT_PRODUCT(grady,cglworkhat(ii))
+              do i=1,nclen
+                 grady%values(i) = grady%values(i) - zdla*cglwork(ii)%values(i)
+              end do
+           end do
+        end if
      end if
 
      if(iorthomax>0) then
