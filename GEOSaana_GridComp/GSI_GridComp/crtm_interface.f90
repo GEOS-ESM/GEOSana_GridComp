@@ -44,6 +44,7 @@ module crtm_interface
 !                         if(stability)) to avoid accessing non-present()
 !                         optional arguments.
 !   2022-03-04  Jin J./Akkraoui	- Added amsre
+!   2025-12-10  Karpowicz - Enforce crtm_use flags for all ghg's and ignore unimplemented gases present in chem bundle
 !
 !
 ! subroutines included:
@@ -169,7 +170,8 @@ public isazi_ang2           ! = 37 index of solar azimuth angle (degrees)
   real(r_kind)   , save ,allocatable,dimension(:,:) :: aero_conc    ! aerosol (guess) concentrations at obs location
   real(r_kind)   , save ,allocatable,dimension(:)   :: auxrh        ! temporary array for rh profile as seen by CRTM
 
-  character(len=20),save,allocatable,dimension(:)   :: ghg_names    ! names of green-house gases
+  character(len=20),save,allocatable,dimension(:)   :: ghg_names    ! names of green-house gases used from chem bundle
+  character(len=20),save,allocatable,dimension(:)   :: ghg_names_present    ! names of green-house gases present in chem bundle
 
   integer(i_kind), save ,allocatable,dimension(:)   :: icloud       ! cloud index for those considered here
   integer(i_kind), save ,allocatable,dimension(:)   :: jcloud       ! cloud index for those fed to CRTM
@@ -203,7 +205,7 @@ public isazi_ang2           ! = 37 index of solar azimuth angle (degrees)
   integer(i_kind),save :: n_actual_clouds_wk        ! number of clouds considered
   integer(i_kind),save :: n_clouds_fwd_wk           ! number of clouds considered
   integer(i_kind),save :: n_clouds_jac_wk           ! number of clouds considered
-  integer(i_kind),save :: n_ghg              ! number of green-house gases
+  integer(i_kind),save :: n_ghg, n_ghg_present      ! number of green-house gases
   integer(i_kind),save :: itv,iqv,ioz,ius,ivs,isst
   integer(i_kind),save :: indx_p25, indx_dust1, indx_dust2
   logical        ,save :: lwind
@@ -364,6 +366,7 @@ subroutine init_crtm(init_pass,mype_diaghdr,mype,nchanl,nreal,isis,obstype,radmo
 ! ...all "additional absorber" variables
   integer(i_kind) :: j,icount
   integer(i_kind) :: ig
+  integer(i_kind) :: ighg_used
   logical quiet
   logical print_verbose
 
@@ -552,11 +555,34 @@ subroutine init_crtm(init_pass,mype_diaghdr,mype,nchanl,nreal,isis,obstype,radmo
 
 ! get the number of trace gases present in the chemguess bundle
  n_ghg=0
+ n_ghg_present=0
+ ighg_used=0
  if(size(gsi_chemguess_bundle)>0) then
-    call gsi_chemguess_get('ghg',n_ghg,ier)
-    if (n_ghg>0) then
-       allocate(ghg_names(n_ghg))
-       call gsi_chemguess_get('ghg',ghg_names,ier)
+    call gsi_chemguess_get('ghg',n_ghg_present,ier)
+   if (n_ghg_present>0) then
+       ! fundamentally there are only 4 ghg the gsi allows right now, but allow up to
+       ! as many ghg's present.
+       allocate(ghg_names(n_ghg_present))
+       ! Populate ghg_names with gases the gsi understands and the user sets as active,
+       ! otherwise ignore it and print out that it is being ignored. 
+       allocate(ghg_names_present(n_ghg_present))
+       call gsi_chemguess_get('ghg',ghg_names_present,ier)
+       do ig=1,n_ghg_present
+          if( trim(ghg_names_present(ig)) == 'co2' .or.&
+              trim(ghg_names_present(ig)) == 'ch4' .or.&
+              trim(ghg_names_present(ig)) == 'n2o' .or.&
+              trim(ghg_names_present(ig)) == 'co') then
+          
+              call gsi_chemguess_get ( 'i4crtm::'//trim(ghg_names_present(ig)), ighg_used, ier )
+              if(ighg_used>0) then
+                n_ghg = n_ghg+1
+                ghg_names(n_ghg) = trim(ghg_names_present(ig))
+                if(mype==0) write(6,*)myname_,': crtm_init() using ghg '//ghg_names_present(ig)
+              else 
+                if(mype==0) write(6,*)myname_,': crtm_init() ignoring ghg '//ghg_names_present(ig)
+              end if
+          endif
+       enddo 
     endif
  endif
  n_absorbers = min_n_absorbers + n_ghg
@@ -957,8 +983,9 @@ subroutine destroy_crtm
      deallocate(aero,aero_conc,auxrh)
      if(n_aerosols_jac>0) deallocate(iaero_jac)
   endif
-  if (n_ghg>0) then
+  if (n_ghg_present>0) then
      deallocate(ghg_names)
+     deallocate(ghg_names_present)
   endif
   if(allocated(icloud)) deallocate(icloud)
   if(allocated(cloud)) deallocate(cloud)
@@ -1837,6 +1864,8 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
   if (n_ghg>0) then
     allocate (tgas1d(nsig,n_ghg))
     do ig=1,n_ghg
+       if(mype==0)write(6,*)myname_,': ghg loading: '//ghg_names(ig)
+       if(mype==0)write(6,*)myname_,'ico2',ico2,ico24crtm
        if(size(gsi_chemguess_bundle)==1) then
           call gsi_bundlegetpointer(gsi_chemguess_bundle(1), ghg_names(ig),tgasges_itsig ,ier)
           do k=1,nsig
