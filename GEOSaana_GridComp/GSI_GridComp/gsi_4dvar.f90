@@ -47,6 +47,8 @@ module gsi_4dvar
 !   nwrvecs           - Number of precond vectors (Lanczos) or pairs of vectors (QN)
 !                       being saved
 !   iorthomax         - max number of vectors used for orthogonalization of various CG options
+!   cg_tol            - tolerance for convergence of CG algorithms (notice PCGSOI def of norm
+!                       norm reduction in comparison to biCG/congrad - sqrt missing in PCGSOI).
 !   liauon            - turn on IAU mode.  The default value is set to .false.
 !
 !   ibdate            - Date and time at start of 4dvar window
@@ -122,6 +124,7 @@ module gsi_4dvar
   public :: evfsoi_order
   public :: evfsoi_afcst
   public :: evfsoi_ana
+  public :: cg_tol
 
   logical         :: l4dvar
   logical         :: lsqrtb
@@ -162,6 +165,7 @@ module gsi_4dvar
   integer(i_kind),save:: mPEs_observer=0
 
   real(r_kind) :: iwinbgn, winlen, winoff, winsub, mn_obsbin
+  real(r_kind) :: cg_tol
 
 ! --------------------------------------------------------------------
 contains
@@ -217,6 +221,7 @@ iwrtinc=-1
 nwrvecs=-1
 jsiga  =-1
 iorthomax=0
+cg_tol = 1.0e-3_r_kind ! tolerance for CG algorithms
 
 ens_nstarthr = 6
 ibin_anl = 1
@@ -402,6 +407,7 @@ if (mype==0) then
    write(6,*)'SETUP_4DVAR: jsiga=',jsiga
    write(6,*)'SETUP_4DVAR: nwrvecs=',nwrvecs
    write(6,*)'SETUP_4DVAR: iorthomax=',iorthomax
+   write(6,*)'SETUP_4DVAR: cg_tol=',cg_tol
    write(6,*)'SETUP_4DVAR: liauon=',liauon
    write(6,*)'SETUP_4DVAR: ljc4tlevs=',ljc4tlevs
    write(6,*)'SETUP_4DVAR: ibin_anl=',ibin_anl
