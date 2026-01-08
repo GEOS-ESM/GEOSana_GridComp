@@ -107,7 +107,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   use m_obsdiagNode, only: obsdiagNode_set
   use m_obsdiagNode, only: obsdiagNode_get
   use m_obsdiagNode, only: obsdiagNode_assert
-
+  use obsmod, only: hr_save_qc,hr_save_colocated
   use obsmod, only: rmiss_single,perturb_obs,oberror_tune,&
                     lobsdiagsave,nobskeep,lobsdiag_allocated,&
                     time_offset,lobsdiag_forenkf,ianldate
@@ -190,8 +190,10 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   real(r_kind),dimension(nsig+1):: prsitmp
   real(r_kind),dimension(nele,nobs):: data
   real(r_single),allocatable,dimension(:,:)::rdiagbuf
+  real(r_kind),dimension(nobs):: hr_colocated
 
   integer(i_kind) ier,ilon,ilat,ipres,ihgt,itemp,id,itime,ikx,iqc,iptrb,ijb,isli
+  integer(i_kind) hr_qc
   integer(i_kind) ier2,iuse,ilate,ilone,istnelv,idomsfc,izz,iprvd,isprvd
   integer(i_kind) ikxx,nn,ibin,ioff,ioff0
   integer(i_kind) i,j,nchar,nreal,ii,jj,k,l,mm1
@@ -204,6 +206,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   logical,dimension(nobs):: identical_obs
   integer(i_kind),dimension(nobs):: ioid ! initial (pre-distribution) obs ID
   logical proceed
+  logical, save :: verbose_hires_raob 
  
   character(8) station_id,hd_station_id 
   character(8),allocatable,dimension(:):: cdiagbuf
@@ -294,6 +297,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
      muse(i)=nint(data(iuse,i)) <= jiter
   end do
 !  If HD raobs available move prepbufr version to monitor
+  hr_colocated=zero
   if(nhdps > 0)then
      do i=1,nobs
         ikx=nint(data(ikxx,i))
@@ -304,6 +308,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
            stn_loop:do j=1,nhdps
              if(idddd == hdpslist(j))then
                 data(iuse,i)=109._r_kind
+                hr_colocated(i)=one
                 muse(i) = .false.
                 exit stn_loop
              end if
@@ -468,8 +473,8 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
     call tintrp2a1(ges_v,vtmp,dlat,dlon,dtime,hrdifsig,nsig,mype,nfldsig)
 
 ! Implementation of PrepBufr QC check for hdraob types 119 (ascent data)
-     !write(6,*)'itype: ',itype,' npbps: ',npbps,' muse: ',muse(i)
-     write(6,*)'pbqcpsmax: ',maxval(pbqcps,2)
+     if(verbose_hires_raob)write(6,*)'itype: ',itype,' npbps: ',npbps,' muse: ',muse(i)
+     if(verbose_hires_raob)write(6,*)'pbqcpsmax: ',maxval(pbqcps,2)
      if ((itype==119) .and. (npbps>0).and.(muse(i)==.true.)) then
        !find PBQC value 
        hd_rstation_id = data(id,i) !grab id for hd station
@@ -477,24 +482,26 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
        pbidx=0
        hd_stn_loop:do j=1,npbps !find the index of station id 
            if(hd_idddd == pbqcps(1,j)) then
-              write(6,*) 'found matching PBQC station: ',pbqcps(1,j)
+              if(verbose_hires_raob)write(6,*) 'found matching PBQC station: ',pbqcps(1,j)
               pbidx=j
               exit hd_stn_loop
            end if 
        end do hd_stn_loop
 
        !write pressures to log
-       if ((pbidx>0).and.(pbqcps(2,pbidx)>3)) then !turn off if above threshold
-           write(6,*),' hd surface pres sanity check: ', pob
-           write(6,*)'setting PS ob at stnidx: ',pbidx,' to unused due to QC val of: ',pbqcps(2,pbidx)
+       hr_qc=pbqcps(2,pbidx)
+       if ((pbidx>0).and.(hr_qc>3)) then !turn off if above threshold
+
+           if(verbose_hires_raob)write(6,*),' hd surface pres sanity check: ', pob
+           if(verbose_hires_raob)write(6,*)'setting PS ob at stnidx: ',pbidx,' to unused due to QC val of: ',hr_qc
            data(iuse,i)=110._r_kind
            muse(i)=.false.
        end if
-       write(6,*),' hd surface pres sanity check (cb): ', pob
+       if(verbose_hires_raob)write(6,*),' hd surface pres sanity check (cb): ', pob
 
 1201   continue
        if(iohdraob.ne.0)then
-               write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
+           if(verbose_hires_raob)write(6,*)'WARNING - problem reading hdraob station name: ',hd_rstation_id
        end if 
      end if !type selection 
 ! End Implementation of PrepBufr QC check
@@ -1067,6 +1074,7 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
   type(obs_diag),pointer,intent(in):: odiag
 ! Observation class
   character(7),parameter     :: obsclass = '     ps'
+  real(r_single),parameter::     missing = -9.99e9_r_single
   real(r_kind),dimension(miter) :: obsdiag_iuse
            call nc_diag_metadata("Station_ID",              station_id             )
            call nc_diag_metadata("Observation_Class",       obsclass               )
@@ -1122,6 +1130,22 @@ subroutine setupps(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
               call nc_diag_data2d("ObsDiagSave_tldepart", odiag%tldepart )
               call nc_diag_data2d("ObsDiagSave_obssen",   odiag%obssen   )             
            endif
+           if (hr_save_qc) then
+              if(verbose_hires_raob)write(6,*)'hr_qc: ',hr_qc
+              if ((itype==119) .and. (npbps>0).and.(iohdraob.eq.0)) then
+                call nc_diag_metadata("high_res_qc", real(hr_qc))
+              else 
+                call nc_diag_metadata("high_res_qc", missing)
+              endif 
+           endif 
+           if ((hr_save_colocated).and.(nhdps>0)) then
+             if(verbose_hires_raob)write(6,*)'hr_colocated: ',hr_colocated(i)
+             if (itype==120) then
+               call nc_diag_metadata("high_res_colocated", real(hr_colocated(i)))
+             else
+               call nc_diag_metadata("high_res_colocated", missing)
+             endif
+           endif  
    
            if (twodvar_regional) then
               call nc_diag_metadata("Dominant_Sfc_Type", data(idomsfc,i)              )
