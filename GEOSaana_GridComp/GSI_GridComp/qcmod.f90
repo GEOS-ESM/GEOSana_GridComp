@@ -2378,7 +2378,6 @@ subroutine qc_irsnd(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,goessndr,   &
   real(r_kind) :: sum,sum2,sum3,cloudp,tmp,dts,delta
   real(r_kind),dimension(nchanl) :: dtb
   integer(i_kind) :: i,j,k,kk,lcloud,m
-  real(r_kind) :: sum_min
   integer(i_kind), dimension(nchanl) :: irday
   real(r_kind) :: dtz,ts_ave,xindx,tzchks
   real(r_kind),parameter:: tbmax = 550._r_kind
@@ -2473,7 +2472,6 @@ subroutine qc_irsnd(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,goessndr,   &
   lcloud=0
   cld=zero
   cldp=r10*prsltmp(1)
-  sum_min = 1.e20
 
   do k=1,nsig
      if(prsltmp(k) > trop5)then
@@ -2502,24 +2500,15 @@ subroutine qc_irsnd(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,goessndr,   &
               sum=sum+tmp*tmp*varinv_use(i)
            end if
         end do
-        if(sum < sum_min)then
-           sum_min = sum
-           lcloud = k
+        if(sum < sum3)then
+           sum3=sum
+           lcloud=k
            cld=cloudp
            cldp=r10*prsltmp(k)
-        endif
+        end if
      end if
 
   end do
-
-  if( cris ) then
-    if(cld < 0.01)lcloud=0
-  else
-    if(sum_min >= sum3)then
-      lcloud=0
-    endif
-  endif
-
   if ( lcloud > 0 ) then  ! If cloud detected, reject channels affected by it.
 
      do i=1,nchanl
@@ -2540,7 +2529,7 @@ subroutine qc_irsnd(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,goessndr,   &
 !          reject the channel (0.02 is a tunable parameter)
 
         delta = 0.02_r_kind
-        if ( ptau5(lcloud,i) > delta) then
+        if ( ptau5(lcloud,i) > 0.02_r_kind) then
 !          QC4 in statsrad
            if(luse)aivals(11,is)   = aivals(11,is) + one
            varinv(i) = zero
@@ -4674,14 +4663,14 @@ subroutine qc_abi(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,   &
 
   do i = 1, nchanl
 
-!    Tighter qc for all chns: toss data for all chns if rclrsky<99% (done in setuprad) or stdev >= 0.4 for chn10.3
-     if(tb_obs_sdv(7)>=0.4_r_kind .and. varinv(i) > zero)then
-!      QC3 in statsrad
-       if(luse)aivals(9,is)= aivals(9,is) + one
-       if(id_qc(i) == igood_qc ) id_qc(i)=ifail_std_abi_qc
-       varinv(i)=zero
-     else if (tb_obs_sdv(7) >=0.3 .and. tb_obs_sdv(7) < 0.4) then
-       varinv(i)=varinv(i)/2.
+!    Tighter qc for chn7.3: toss data for chn7.3 and surface chns if rclrsky<98% (done in setuprad) or stdev >= 0.5 for chn10.3
+     if(tb_obs_sdv(7)>=0.5_r_kind .and. varinv(i) > zero)then
+       if(i/=2 .and. i/=3) then
+!         QC3 in statsrad
+          if(luse)aivals(9,is)= aivals(9,is) + one
+          if(id_qc(i) == igood_qc ) id_qc(i)=ifail_std_abi_qc
+          varinv(i)=zero
+       end if
      end if
 
 ! adjust varinv according to the BT standard deviation
@@ -4692,10 +4681,8 @@ subroutine qc_abi(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,   &
            varinv(i)=varinv(i)/1.67_r_kind
         if (tb_obs_sdv(2) >0.6_r_kind .and. tb_obs_sdv(2) <=0.7_r_kind) &
            varinv(i)=varinv(i)/2.24_r_kind
-        if (tb_obs_sdv(2) >0.7_r_kind ) then
-           if(id_qc(i) == igood_qc ) id_qc(i)=ifail_std_abi_qc
-           varinv(i)=zero
-        end if
+        if (tb_obs_sdv(2) >0.7_r_kind )  &
+           varinv(i)=varinv(i)/2.31_r_kind
      end if
 
   end do
