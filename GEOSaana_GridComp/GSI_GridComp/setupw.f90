@@ -423,7 +423,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      ikx=nint(data(ikxx,i))
      if(ikx < 1 .or. ikx > nconvtype) then
         num_bad_ikx=num_bad_ikx+1
-        if(num_bad_ikx<=10) write(6,*)' in setupw ',ikx,i,nconvtype,mype
+        if(verbose_hires_raob.and.num_bad_ikx<=10) write(6,*)' in setupw ',ikx,i,nconvtype,mype
      end if
   end do
 !  If HD raobs available move prepbufr version to monitor

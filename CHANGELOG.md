@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 09Jan2026:
 - Back out changes from PR 209 (IR adjustments) since this is 
   aimed at FPP and the update must be zero-diff.
+- optional write out in setupw
 
 07Jan2026:
 - minor revisions of CG tolerance (consistency between pcgsoi and bicg)
