@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+12Jan2026:
+- bug fixes in interfacing GSI w/ libSP - these are zero-diff fixes
+
 09Jan2026:
 - Back out changes from PR 209 (IR adjustments) since this is 
   aimed at FPP and the update must be zero-diff.
