@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 28Jan2026:
 - bug fix: add ABI tlapmean back (had lost them when backing out PR#209)
+- another miss (qcmod) wrt ABI and IR back out
 
 12Jan2026:
 - bug fixes in interfacing GSI w/ libSP - these are zero-diff fixes
