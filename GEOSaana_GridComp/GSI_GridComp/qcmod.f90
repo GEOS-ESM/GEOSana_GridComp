@@ -4680,20 +4680,20 @@ subroutine qc_abi(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse,   &
        if(luse)aivals(9,is)= aivals(9,is) + one
        if(id_qc(i) == igood_qc ) id_qc(i)=ifail_std_abi_qc
        varinv(i)=zero
-     else if (tb_obs_sdv(7) >=0.3 .and. tb_obs_sdv(7) < 0.4) then
+     else if (tb_obs_sdv(7) >=0.3_r_kind .and. tb_obs_sdv(7) < 0.4_r_kind .and. varinv(i) > zero) then
        varinv(i)=varinv(i)/2.
      end if
 
 ! adjust varinv according to the BT standard deviation
      if( i== 2 .or. i==3 .or. i==4 .and. varinv(i) > zero) then
-        if (tb_obs_sdv(2) >0.4_r_kind .and. tb_obs_sdv(2) <=0.5_r_kind) &
+        if (tb_obs_sdv(2) >=0.4_r_kind .and. tb_obs_sdv(2) <0.5_r_kind) then
            varinv(i)=varinv(i)/1.32_r_kind
-        if (tb_obs_sdv(2) >0.5_r_kind .and. tb_obs_sdv(2) <=0.6_r_kind) &
+        else if (tb_obs_sdv(2) >=0.5_r_kind .and. tb_obs_sdv(2) < 0.6_r_kind) then
            varinv(i)=varinv(i)/1.67_r_kind
-        if (tb_obs_sdv(2) >0.6_r_kind .and. tb_obs_sdv(2) <=0.7_r_kind) &
+        else if (tb_obs_sdv(2) >=0.6_r_kind .and. tb_obs_sdv(2) <0.7_r_kind) then
            varinv(i)=varinv(i)/2.24_r_kind
-        if (tb_obs_sdv(2) >0.7_r_kind ) then
-           if(id_qc(i) == igood_qc ) id_qc(i)=ifail_std_abi_qc
+        else if (tb_obs_sdv(2) >=0.7_r_kind) then
+           if(id_qc(i) == igood_qc ) id_qc(i)=ifail_std_abi_qc           
            varinv(i)=zero
         end if
      end if
