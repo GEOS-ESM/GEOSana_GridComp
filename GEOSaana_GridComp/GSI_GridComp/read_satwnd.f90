@@ -73,9 +73,10 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
 !                         or hilber curve downweighting
 !   2021-06-21  Todling - Allow code to bypass hack to half-GOES-R errors
 !   2020-05-04  wu   - no rotate_wind for fv3_regional
-!   2021-07-25 Genkova  - added code for Metop-B/C winds in new BUFR,NC005081  !
-!   2022-01-20 Genkova  - added missing station_id for polar winds
-!   2022-01-20 Genkova  - added code for Meteosat and Himawari AMVs in new BUFR
+!   2021-07-25  Genkova - added code for Metop-B/C winds in new BUFR,NC005081  !
+!   2021-11-15  Eunhee  - add QC for MSG IR winds and modified QC for IR winds over land and top air winds removal
+!   2022-01-20  Genkova - added missing station_id for polar winds
+!   2022-01-20  Genkova - added code for Meteosat and Himawari AMVs in new BUFR
 !
 !
 !   input argument list:
@@ -144,6 +145,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   real(r_kind),parameter:: r105= 105.0_r_kind
   real(r_kind),parameter:: r110= 110.0_r_kind
   real(r_kind),parameter:: r125=125.0_r_kind
+  real(r_kind),parameter:: r150=150.0_r_kind
   real(r_kind),parameter:: r200=200.0_r_kind
   real(r_kind),parameter:: r250=250.0_r_kind
   real(r_kind),parameter:: r360 = 360.0_r_kind
@@ -179,7 +181,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
   integer(i_kind) nmind,lunin,idate,ilat,ilon,iret,k
   integer(i_kind) nreal,ithin,iout,ntmp,icount,iiout,ii
   integer(i_kind) itype,iosub,ixsub,isubsub,iobsub,itypey,ierr
-  integer(i_kind) qm
+  integer(i_kind) qm, hamd
   integer(i_kind) nlevp         ! vertical level for thinning
   integer(i_kind) pflag
   integer(i_kind) ntest,nvtest
@@ -637,6 +639,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
            ee=r110
            qifn=r110
            qify=r110
+           hamd=-1
 
 !          Test for BUFR version using lat/lon mnemonics
            call ufbint(lunin,hdrdat_test,2,1,iret, 'CLAT CLON')
@@ -653,7 +656,8 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
                hdrdat(3) >100000000.0_r_kind .or. &
                obsdat(4) > 100000000.0_r_kind) cycle loop_readsb
            if(ppb >r10000) ppb=ppb/r100
-           if (ppb <r125) cycle loop_readsb    !  reject data above 125mb
+!          if (ppb <r125) cycle loop_readsb    !  reject data above 125mb
+           if (ppb <r150) cycle loop_readsb    !  reject data above 150mb based on monitoring
            if(hdrdat(13) == 12.0_r_kind .or. hdrdat(13) == 14.0_r_kind) cycle loop_readsb
            if (twodvar_regional .and. ppb <r850) cycle loop_readsb
 !   reject the data with bad quality mark from SDM
@@ -1285,6 +1289,15 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
                  if(hdrdat(2) >20.0_r_kind) then
                     call deter_sfc_type(dlat_earth,dlon_earth,t4dv,isflg,tsavg)
                     if(isflg /= 0) cycle loop_readsb
+                 else
+                    call deter_sfc_type(dlat_earth,dlon_earth,t4dv,isflg,tsavg)
+                    if (isflg /= 0 .and. ppb > 700.0_r_kind) cycle loop_readsb  ! low over land
+                 endif
+              endif
+              if(itype ==253) then
+                 if(hdrdat(2) >5.0_r_kind) then
+                    call deter_sfc_type(dlat_earth,dlon_earth,t4dv,isflg,tsavg)
+                    if(isflg /= 0 ) cycle loop_readsb
                  endif
               endif
            endif
