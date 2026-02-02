@@ -1256,7 +1256,7 @@ contains
               tsim_clr_bc(i)=tsim_clr_bc(i)+predbias(npred+2,i)
            end do
 
-           if(amsua) call ret_amsua(tsim_bc,nchanl,tsavg5,zasat,clw_guess_retrieval,ierrret)
+           if(amsua .or. atms) call ret_amsua(tsim_bc,nchanl,tsavg5,zasat,clw_guess_retrieval,ierrret)
            if(gmi .or. tmi) then
              call gmi_37pol_diff(tsim_bc(6),tsim_bc(7),tsim_clr_bc(6),tsim_clr_bc(7),clw_guess_retrieval,ierrret_ges)
              call gmi_37pol_diff(tb_obs(6),tb_obs(7),tsim_clr_bc(6),tsim_clr_bc(7),clw_obs,ierrret)
@@ -1638,7 +1638,7 @@ contains
               if(radmod%lcloud_fwd .and. eff_area) then
                  if(radmod%rtype == 'amsua' .and. (i <=5 .or. i==15) ) then 
                     errf(i) = three*errf(i)    
-                 else if(radmod%rtype == 'atms' .and. (i <= 6 .or. i>=16) ) then
+                 else if(radmod%rtype == 'atms' .and. (i <= 6 .or. (i>15 .and. i<19)) ) then
                     errf(i) = min(three*errf(i),10.0_r_kind)    
                  else if(radmod%rtype == 'gmi' .or. radmod%rtype == 'tmi' &
                          .or. radmod%rtype == 'ssmi'  &
@@ -2463,6 +2463,8 @@ contains
               if (save_jacobian) then
                  j = 1
                  do ii = 1, nvarjac
+                    ! skip 'cf'
+                    if (trim(radjacnames(ii)) == 'cf') cycle
                     state_ind = getindex(svars3d, radjacnames(ii))
                     if (state_ind < 0)     state_ind = getindex(svars2d,radjacnames(ii))
                     if (state_ind < 0) then
@@ -2683,6 +2685,8 @@ contains
                  if (save_jacobian) then
                     j = 1
                     do ii = 1, nvarjac
+                       ! skip 'cf'
+                       if (trim(radjacnames(ii)) == 'cf') cycle
                        state_ind = getindex(svars3d, radjacnames(ii))
                        if (state_ind < 0)     state_ind = getindex(svars2d,radjacnames(ii))
                        if (state_ind < 0) then
@@ -2775,7 +2779,11 @@ contains
 
                     do iabsorb = 1, n_absorbers
                        write (fieldname, "(A,I0.2)") "atmosphere_absorber_", atmosphere(1)%absorber_id(iabsorb)
-                       call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
+                       if (iabsorb == 1) then 
+                          call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)/1000.0_r_kind))  ! check %absorber_units
+                       else
+                          call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
+                       end if   
                      enddo
                      do icloud = 1, n_clouds_fwd_wk
                        write (fieldname, "(A,I0.2)") "atmosphere_mass_content_of_cloud_", atmosphere(1)%Cloud(icloud)%Type
