@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+29Jan2026:
+- revise ABI QC
+
+28Jan2026:
+- bring back changes from PR #209
 
 28Jan2026:
 - bug fix: add ABI tlapmean back (had lost them when backing out PR#209)
