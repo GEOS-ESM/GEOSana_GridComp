@@ -2664,6 +2664,9 @@ contains
                  call nc_diag_metadata("SST_Cool_layer_tdrop",     sngl(data_s(idtc,n))              )       ! dt_cool at zob
                  call nc_diag_metadata("SST_dTz_dTfound",          sngl(data_s(itz_tr,n))            )       ! d(Tz)/d(Tr)
 
+                 if (abi) then
+                    call nc_diag_metadata("standard_deviation_clear_bt", sngl(tb_obs_sdv(ich_diag(i)))  )     ! tb_obs_sdv (K)
+                 endif
                  call nc_diag_metadata("Observation",                   sngl(tb_obs(ich_diag(i)))  )     ! observed brightness temperature (K)
                  call nc_diag_metadata("Obs_Minus_Forecast_adjusted",   sngl(tbc0(ich_diag(i)  ))  )     ! observed - simulated Tb with bias corrrection (K)
                  call nc_diag_metadata("Obs_Minus_Forecast_unadjusted", sngl(tbcnob(ich_diag(i)))  )     ! observed - simulated Tb with no bias correction (K)
@@ -2775,7 +2778,11 @@ contains
 
                     do iabsorb = 1, n_absorbers
                        write (fieldname, "(A,I0.2)") "atmosphere_absorber_", atmosphere(1)%absorber_id(iabsorb)
-                       call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
+                       if (iabsorb == 1) then
+                         call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)/1000.0))  ! check %absorber_units
+                       else
+                         call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
+                       endif
                      enddo
                      do icloud = 1, n_clouds_fwd_wk
                        write (fieldname, "(A,I0.2)") "atmosphere_mass_content_of_cloud_", atmosphere(1)%Cloud(icloud)%Type
