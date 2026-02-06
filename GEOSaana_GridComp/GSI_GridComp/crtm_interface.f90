@@ -603,7 +603,6 @@ subroutine init_crtm(init_pass,mype_diaghdr,mype,nchanl,nreal,isis,obstype,radmo
     n_aerosols_jac_wk=0
     Load_AerosolCoeff=.false.
  endif
-if(mype==0) print *, 'DEBUG_RT: iasi, aero ', isis, n_actual_aerosols_wk, radmod%laerosol_fwd
 
 ! Initialize radiative transfer
 
@@ -888,7 +887,8 @@ endif
  endif
 
 ! Initial GFDL saturation water vapor pressure tables
-  if (n_actual_aerosols_wk>0 .or. n_clouds_fwd_wk>0 .and. imp_physics==11) then
+  if (imp_physics==11) then
+   if (n_actual_aerosols_wk>0 .or. n_clouds_fwd_wk>0) then
 
      if (mype==0) write(6,*)myname_,':initial and load GFDL saturation water vapor pressure tables'
 
@@ -909,6 +909,7 @@ endif
      des2 (length) = des2 (length - 1)
      desw (length) = desw (length - 1)
 
+   endif
   endif
 
  return
@@ -2150,7 +2151,6 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
 
 ! Set aerosols for CRTM
   if(n_actual_aerosols_wk>0) then
-     print *, 'DEBUG_RT: crtm_interface: calling aero set'
      call Set_CRTM_Aerosol ( msig, n_actual_aerosols_wk, n_aerosols_fwd_wk, aerosol_names, aero_conc, auxrh, &
                              atmosphere(1)%aerosol )
   endif
