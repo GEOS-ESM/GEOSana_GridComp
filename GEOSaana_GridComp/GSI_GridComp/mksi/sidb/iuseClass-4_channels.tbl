@@ -134,7 +134,10 @@ n18  20051001 000000  20071116 120000  amsua  1        14               # M2: re
 ###                                                                                             # attempt to assimilate.  This should be set
 ###                                                                                             # to inactive should an issue arise (wm)
 n18  20051101 000000  20071116 120000  amsua  1        14               # (old note)added all 14 back (see iuse-4.tbl)
-n18  20071116 180000  21001231 240000  amsua  1        14               # amsua: 9 bad, added all 14 back
+n18  20071116 180000  20230912 240000  amsua  1        14               # amsua: 9 bad, added all 14 back
+n18  20230913 000000  20231027 060000  amsua  0                         # NOAA-18 satellite will be fully transitioned to Parsons
+n18  20231027 120000  20240621 060000  amsua  1        14               # Transition complete
+n18  20240621 120000  21001231 240000  amsua  0                         # Noisy channel 14 (all sats)
 
 # NOAA-19 (nn')
 #==============
@@ -143,7 +146,8 @@ n19  20090414 000000  20091215 060000  amsua  1        14               # M2: re
 ###                                                                                             # attempt to assimilate.  This should be set
 ###                                                                                             # to inactive should an issue arise (wm)
 n19  20091215 120000  20091221 240000  amsua  1        14               #
-n19  20091222 000000  21001231 240000  amsua  1        14               #  ch8 noisy (noise started on 12/21/2009) 
+n19  20091222 000000  20240621 060000  amsua  1        14               #  ch8 noisy (noise started on 12/21/2009) 
+n19  20240621 120000  21001231 240000  amsua  0                         # Noisy channel 14 (all sats)
 
 # Aqua AMSU-A
 #=============
@@ -161,14 +165,27 @@ metop-a 20210918 120000  21001231 240000  amsua 0
 
 # METOP-B
 #=========
-metop-b 20130213 000000  21001231 240000  amsua  1     14            # active for e512a_rt - known tech ok to be on
+metop-b 20130213 000000  20240621 060000  amsua  1     14            # active for e512a_rt - known tech ok to be on
+metop-b 20240621 120000  21001231 240000  amsua  0                   # Noisy channel 14 (all sats)
 
 # METOP-C   # using start data of data in regular data files - can modify this to reflect additional data availability
 #=========
-metop-c 20190917 000000  21001231 240000  amsua  1     14            # 
+metop-c 20190917 000000  20240621 060000  amsua  1     14            # 
+metop-c 20240621 120000  21001231 240000  amsua  0                   # Noisy channel 14 (all sats)
 
 
 # Downgrade & upgrade 14 to iuse=4
-npp  20111116 000000  21001231 240000  atms  1  15
-n20  20180510 000000  21001231 240000  atms  1  15
+npp  20111116 000000  20231102 060000  atms  1  15
+npp  20231102 120000  20231106 060000  atms  0        # safe mode
+npp  20231106 120000  20240605 060000  atms  1  15
+npp  20240605 120000  20240607 060000  atms  0
+npp  20240607 120000  20240621 060000  atms  1  15
+npp  20240621 120000  21001231 240000  atms  0        # Noisy channel 15 (all sats)
+
+n20  20180510 000000  20231003 240000  atms  1  15
+n20  20231004 000000  20231006 060000  atms  0        # safe mode
+n20  20231006 120000  20240325 060000  atms  1  15
+n20  20240325 120000  20240410 060000  atms  0
+n20  20240410 120000  20240621 060000  atms  1  15
+n20  20240621 120000  21001231 240000  atms  0        # Noisy channel 15 (all sats)
 

@@ -729,6 +729,7 @@ end subroutine final_
      istatus=0
   else if(trim(desc)=='ghg') then
      ivar = nghg
+     istatus=0
   else if(trim(desc)=='aerosols') then
      ivar = naero
      istatus=0
@@ -810,7 +811,7 @@ end subroutine final_
   character(len=*),intent(out):: ivar
   integer(i_kind),intent(out):: istatus
   character(len=*),parameter::myname_=myname//'*get_char0d_'
-  character(len=MAXSTR):: gaslist
+  character(len=254):: gaslist
   character(len=MAXSTR),allocatable:: work(:)
   integer(i_kind) is,ie,i,i0
   logical labfound

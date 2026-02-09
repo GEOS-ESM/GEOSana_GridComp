@@ -80,6 +80,7 @@ set (SRCS_UTIL
   gridmod.F90
   gscond_ad.f90
   gsi_4dcouplermod.f90
+  gsi_crtmcoupler_aeromod.f90
   gsi_enscouplermod.f90
   gsi_io.f90
   gsi_nemsio_mod.f90
@@ -138,7 +139,6 @@ set (SRCS_UTIL
   rsearch.F90
   rtlnmc_version3.f90
   satthin.F90
-  set_crtm_aerosolmod.f90
   set_crtm_cloudmod.f90
   sfc_model.f90
   simpin1.f90
@@ -721,6 +721,7 @@ if (EXTENDED_SOURCE)
 endif ()
 
 set (SRCS_STUBS
+  stub_crtm_aerosol.f90
   stub_get_wrf_mass_ensperts.f90
   stub_nstmod.f90
   stub_pertmod.F90

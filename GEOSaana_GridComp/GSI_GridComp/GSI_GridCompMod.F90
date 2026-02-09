@@ -1847,7 +1847,6 @@ _ENTRY_(trim(Iam))
          where ( du002p /= MAPL_UNDEF )
                  du002p = du002p * KGpKG2PPBVaero ! convert from kg/kg to ppbv
          endwhere
-         print *, 'DEBUG doing the right thing ...'
       endif
       if(associated(du003p)) then
          where ( du003p /= MAPL_UNDEF )
