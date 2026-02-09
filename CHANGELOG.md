@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+06Feb2026:
+- revive knob for aerosol-affected radiances (zero-diff when not used)
+
 29Jan2026:
 - revise ABI QC
 
