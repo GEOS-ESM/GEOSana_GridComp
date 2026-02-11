@@ -1,36 +1,4 @@
-module set_crtm_aerosolmod
-!$$$ module documentation block
-!           .      .    .                                       .
-! module:   set_crtm_aerosolmod
-!  prgmmr: todling          org: gmao                date: 2011-06-01
-!
-! abstract: module providing interface to set-crtm-aerosol procedures
-!
-! program history log:
-!   2011-06-01  todling
-!   2011-09-20  hclin   - separate na and na_crtm for p25 handling
-!   2019-03-21  martin - replaced blank subroutine here with that previously
-!                        in stub_set_crtm_aerosol.f90;
-!                        also moved eff rad for dust to size function
-!
-! subroutines included:
-!   sub Set_CRTM_Aerosol_
-!
-! attributes:
-!   language: f90
-!   machine:
-!
-!$$$ end documentation block
-
-implicit none
-
-private
-
-public Set_CRTM_Aerosol
-
-contains
-
-  subroutine Set_CRTM_Aerosol ( km, na, na_crtm, aero_name, aero_conc, rh, aerosol)
+subroutine Set_CRTM_Aerosol_ ( km, na, na_crtm, aero_name, aero_conc, rh, aerosol)
   
 !$$$  subprogram documentation block
 !                .      .    .                                       .
@@ -213,6 +181,5 @@ contains
     return
     end function GOCART_Aerosol_size
   
-  end subroutine Set_CRTM_Aerosol
+  end subroutine Set_CRTM_Aerosol_
 
-end module set_crtm_aerosolmod

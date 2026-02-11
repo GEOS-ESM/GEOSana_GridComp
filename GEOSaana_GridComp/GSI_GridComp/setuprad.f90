@@ -297,7 +297,7 @@ contains
       ifrac_sea,ifrac_lnd,ifrac_ice,ifrac_sno,itsavg, &
       izz,idomsfc,isfcr,iff10,ilone,ilate, &
       isst_hires,isst_navy,idata_type,iclr_sky,itref,idtw,idtc,itz_tr,&
-      n_clouds_fwd_wk,n_actual_aerosols_wk,n_absorbers
+      n_clouds_fwd_wk,n_absorbers
   use crtm_interface, only: iedge_log
   use crtm_interface, only: ilzen_ang2,iscan_ang2,iszen_ang2,isazi_ang2, ilazi_ang2
   use clw_mod, only: calc_clw, ret_amsua, gmi_37pol_diff,mhs_si
@@ -2776,13 +2776,17 @@ contains
                     do iabsorb = 1, n_absorbers
                        write (fieldname, "(A,I0.2)") "atmosphere_absorber_", atmosphere(1)%absorber_id(iabsorb)
                        call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
-                     enddo
-                     do icloud = 1, n_clouds_fwd_wk
+                    enddo
+                    do icloud = 1, n_clouds_fwd_wk
                        write (fieldname, "(A,I0.2)") "atmosphere_mass_content_of_cloud_", atmosphere(1)%Cloud(icloud)%Type
                        call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%Cloud(icloud)%Water_Content))
                        write (fieldname, "(A,I0.2)") "effective_radius_of_cloud_particle_", atmosphere(1)%Cloud(icloud)%Type
                        call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%Cloud(icloud)%Effective_Radius))
-                     enddo
+                    enddo
+!                   do iaero = 1, n_actual_aerosols_wk
+!                      write (fieldname, "(A,I0.2)") "atmosphere_aerosol_", atmosphere(1)%absorber_id(iaero)
+!                      call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%aerosols(:,iaero)))  ! check %absorber_units
+!                   enddo
                  endif ! wrtgeovals
               enddo
 !  if (adp_anglebc) then

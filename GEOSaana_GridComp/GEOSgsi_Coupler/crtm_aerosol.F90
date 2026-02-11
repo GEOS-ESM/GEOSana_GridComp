@@ -14,10 +14,9 @@ module crtm_aerosol
   use CRTM_Aerosol_Define, only: CRTM_Aerosol_type
   use CRTM_Parameters,     only: DUST_AEROSOL, SEASALT_SSAM_AEROSOL, &
                                  SEASALT_SSCM1_AEROSOL, SEASALT_SSCM2_AEROSOL, &
-                                 SEASALT_SSCM3_AEROSOL, SEASALT_SSCM3_AEROSOL, &
+                                 SEASALT_SSCM3_AEROSOL, &
                                  BLACK_CARBON_AEROSOL, ORGANIC_CARBON_AEROSOL, &
                                  SULFATE_AEROSOL
-
 
   use Chem_RegistryMod, only: Chem_Registry, Chem_RegistryCreate, Chem_RegistryDestroy
   use Chem_MieMod,      only: Chem_Mie, Chem_MieCreate, Chem_MieDestroy, &
