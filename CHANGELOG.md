@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+03Feb2026:
+- output ABI tb standard deviation to nc diag file and change water wapor unit from g/kg to kg/kg
+
 29Jan2026:
 - revise ABI QC
 
