@@ -81,6 +81,7 @@ use radiance_mod, only: n_actual_clouds,cloud_names,n_clouds_fwd,cloud_names_fwd
     n_aerosols_jac,aerosol_names_jac,rad_obs_type,cw_cv,ql_cv
 use control_vectors, only: lcalc_gfdl_cfrac
 use ncepnems_io, only: imp_physics
+use gsi_crtmcoupler_aeromod, only: Set_CRTM_Aerosol 
 
 implicit none
 
@@ -886,7 +887,8 @@ endif
  endif
 
 ! Initial GFDL saturation water vapor pressure tables
-  if (n_actual_aerosols_wk>0 .or. n_clouds_fwd_wk>0 .and. imp_physics==11) then
+  if (imp_physics==11) then
+   if (n_actual_aerosols_wk>0 .or. n_clouds_fwd_wk>0) then
 
      if (mype==0) write(6,*)myname_,':initial and load GFDL saturation water vapor pressure tables'
 
@@ -907,6 +909,7 @@ endif
      des2 (length) = des2 (length - 1)
      desw (length) = desw (length - 1)
 
+   endif
   endif
 
  return
@@ -1100,7 +1103,6 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
   use constants, only: zero,half,one,one_tenth,fv,r0_05,r10,r100,r1000,constoz,grav,rad2deg, &
       sqrt_tiny_r_kind,two,three,four,five,t0c,rd,eps,rd_over_cp,rearth
   use constants, only: max_varname_length,pi
-  use set_crtm_aerosolmod, only: set_crtm_aerosol
   use set_crtm_cloudmod, only: set_crtm_cloud
   use crtm_module, only: limit_exp,o3_id,toa_pressure
   use obsmod, only: iadate
