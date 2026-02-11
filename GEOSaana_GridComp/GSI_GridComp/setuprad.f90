@@ -300,6 +300,7 @@ contains
       n_clouds_fwd_wk,n_absorbers
   use crtm_interface, only: iedge_log
   use crtm_interface, only: ilzen_ang2,iscan_ang2,iszen_ang2,isazi_ang2, ilazi_ang2
+  use crtm_module, only: H2O_ID
   use clw_mod, only: calc_clw, ret_amsua, gmi_37pol_diff,mhs_si
   use qcmod, only: qc_ssmi,qc_seviri,qc_abi,qc_ssu,qc_avhrr,qc_goesimg,qc_msu,qc_irsnd,qc_amsua,qc_mhs,qc_atms
   use qcmod, only: igood_qc,ifail_gross_qc,ifail_interchan_qc,ifail_crtm_qc,ifail_satinfo_qc,qc_noirjaco3,ifail_cloud_qc
@@ -2778,7 +2779,7 @@ contains
 
                     do iabsorb = 1, n_absorbers
                        write (fieldname, "(A,I0.2)") "atmosphere_absorber_", atmosphere(1)%absorber_id(iabsorb)
-                       if (iabsorb == 1) then
+                       if (atmosphere(1)%absorber_id(iabsorb) == H2O_ID) then
                          call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)/1000.0))  ! check %absorber_units
                        else
                          call nc_diag_data2d(trim(fieldname), sngl(atmosphere(1)%absorber(:,iabsorb)))  ! check %absorber_units
