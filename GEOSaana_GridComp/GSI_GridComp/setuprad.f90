@@ -2722,7 +2722,6 @@ contains
                  call nc_diag_metadata("Emissivity",                            sngl(emissivity(ich_diag(i)))     )           ! surface emissivity
                  call nc_diag_metadata("EmissivitySensitivity",                 sngl(emissivity_k(ich_diag(i)))   )           ! surface emissivity sens
                  call nc_diag_metadata("Weighted_Lapse_Rate",                   sngl(tlapchn(ich_diag(i)))        )           ! stability index
-                 call nc_diag_metadata("Weighted_Lapse_Rate",                   sngl(tlapchn(ich_diag(i)))        )           ! stability index
                  call nc_diag_metadata("dTb_dTs",                               sngl(ts(ich_diag(i)))             )           ! d(Tb)/d(Ts)
                  call nc_diag_metadata("ascending_flag",                        sngl(node)                        )           !  ascending/decending flag
 
