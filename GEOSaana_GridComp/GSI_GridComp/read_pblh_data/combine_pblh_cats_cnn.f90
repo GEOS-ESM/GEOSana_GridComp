@@ -96,9 +96,25 @@
          call GetArg ( iArg, argv )
          nfile = nfile + 1
          filename(nfile) = argv
-         print*, 'filename = ', trim(filename(nfile))
+         !print*, 'filename = ', trim(filename(nfile))
       end do
       print*, 'nfile = ', nfile ! 775
+
+      print*, 'Sorting filenames chronologically...'
+      do i = 1, nfile - 1
+         do j = i + 1, nfile
+            ! Compare 27th character for file name
+            ! e.g., CATS-CNN_PBL_D-M7.2-V3.00.2015-09-24... 
+            !                                 ^ 27th
+            if (filename(i)(27:) > filename(j)(27:)) then
+               argv = filename(i)
+               filename(i) = filename(j)
+               filename(j) = argv
+            end if
+         end do
+         print*, 'fname(i)=',trim(filename(i))
+      end do
+      print*, 'Sorting complete.'
 
 !     Read data from each file and Sort data into analysis windows
       total_nobs = 0 
@@ -107,7 +123,7 @@
 
          print*, "k = ", k
 !        Check if pblh file exists
-         print*, "input filename = ", filename(k)
+         print*, "input filename = ", trim(filename(k))
          inquire(file=trim(filename(k)),exist=lexist)
          if (.not.lexist) cycle
 
@@ -184,15 +200,16 @@
             !   Convert Julian date (fractional day-of-year) -> hour,min,sec
             call djul_day_inv(jdy(i),rhour(i),rmin(i),rsec(i))
             !   if yyyy-mm-dd is changed in one file, we need to add one day (yyyy-mm-dd)
-            if ( jdy(i) < jdy(i-1) ) then 
+            if ( i>1 .and. jdy(i) < jdy(i-1) ) then 
                call add_oneday(mm_new, dd_new, imm, idd)
                rmonth(i) = mm_new
                rdate(i)  = dd_new
+               print*, 'add_oneday: rmonth(i),rdate(i)=',rmonth(i),rdate(i)
             end if
-            !print*, 'ryear(i),rmonth(i),rdate(i)=',ryear(i),rmonth(i),rdate(i)
+!            print*, 'ryear(i),rmonth(i),rdate(i)=',ryear(i),rmonth(i),rdate(i)
 
             obs_time = ryear(i)*1000000+rmonth(i)*10000+rdate(i)*100+rhour(i)
-            !print*, i, "obs_time=", obs_time
+!            print*, i, "obs_time=", obs_time
             kk = 0
             do j = 2, ntime
                if (obs_time>=win_time(j-1) .and. obs_time<win_time(j)) then
@@ -239,7 +256,7 @@
          if (ierr2 /= nf90_noerr) call handle_err(ierr2,"create")
 !        ierr2 = nf90_open(trim(filename2(i)),nf90_write, ncid2(i))
 !        if (ierr2 /= nf90_noerr) call handle_err(ierr2,"open")
-         print*, "filename2 = ", filename2(i)
+         print*, "filename2 = ", trim(filename2(i))
          print*, "total_nobs =", total_nobs(i)
 
          ierr2 = nf90_def_dim(ncid2(i), 'Time', 1, dimid3)
