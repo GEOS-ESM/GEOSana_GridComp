@@ -154,12 +154,12 @@
          ! Read date
 !CATS-CNN_PBL_N-M7.2-V3.00.2015-09-30T23-33-51T00-18-36UTC.dat
 !CATS-DTD_PBL_2015-09-30T22-00-40T22-46-07UTC.dat
-
+!CATS-DTD_PBL_CATS-ISS_L1B_N-M7.2-V3-00.2015-09-30T15-49-35T16-34-31UTC.dat
          filename_each = filename(k)
-         ymd = filename_each(14:23)
-         yyyy = filename_each(14:17)
-         mm = filename_each(19:20)
-         dd = filename_each(22:23)
+         ymd = filename_each(40:49)
+         yyyy = filename_each(40:43)
+         mm = filename_each(45:46)
+         dd = filename_each(48:49)
 
          read(yyyy, '(I4)', iostat=iostat) iyyyy
          read(mm, '(I2)', iostat=iostat) imm
