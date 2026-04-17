@@ -1,4 +1,4 @@
-  program read_pblh_lidar_cats_dtds
+  program read_pblh_lidar_icesat2_dtds
 
 ! !USES:
 
@@ -13,7 +13,7 @@
       implicit none
 
 !     Declare local parameters
-      integer(i_kind),parameter:: ntime = 236
+      integer(i_kind),parameter:: ntime = 216
       integer(i_kind),parameter:: maxnum = 400000 ! 150000
       real(r_double),parameter:: r360 = 360.0_r_double
       real(r_double),parameter:: missing = -99999.9_r_double
@@ -47,7 +47,7 @@
       integer(i_kind) :: varid7,varid8,varid9,varid10,varid11
 !     integer(i_kind) :: iyear, imonth, idate, ihour, iminute
       real(r_double), allocatable,dimension(:) :: time
-      real(kind=4), allocatable,dimension(:)   :: lat, lon, PBL_z, qcflag
+      real(kind=4), allocatable,dimension(:)   :: lat, lon, PBL_z
       real(kind=8), allocatable,dimension(:) :: jdy
       integer(i_kind), allocatable,dimension(:) :: ryear, rmonth, rdate, rhour, rmin
       real(r_double), allocatable,dimension(:) :: rsec
@@ -55,19 +55,19 @@
 
       integer(i_kind) :: total_nobs(ntime)
       integer(i_kind) ana_time(ntime), win_time(ntime), obs_time
-      real(r_kind), dimension(maxnum,ntime) :: slat, slon, spblh, sqcflag
+      real(r_kind), dimension(maxnum,ntime) :: slat, slon, spblh
       integer(i_kind), dimension(maxnum,ntime) :: syear, smonth, sdate, shour, smin
       real(r_double), dimension(maxnum,ntime) :: ssec
 
       obstype = 'pblh'
-      sis = 'catsdtds'
+      sis = 'icesat2dtds'
 
 !     set analysis window and output file name
-      ana_yy0 = 2015
+      ana_yy0 = 2024
       ana_yy1 = ana_yy0
-      ana_mm0 = 8
-      ana_dd0 = 3
-      ana_hh0 = 9
+      ana_mm0 = 7
+      ana_dd0 = 9
+      ana_hh0 = 21
       win_time(1) = ana_yy0*1000000+ana_mm0*10000+ana_dd0*100+ana_hh0
       print*, win_time(1)
       call add_interval(ana_mm1, ana_dd1, ana_hh1, 3, ana_mm0, ana_dd0, ana_hh0)
@@ -119,7 +119,7 @@
          print *, "Number of elements (nr):", nr
 
          ! Allocate memory
-         allocate(PBL_z(nr), lat(nr), lon(nr), qcflag(nr))
+         allocate(PBL_z(nr), lat(nr), lon(nr))
          allocate(jdy(nr))
 
          ! Read PBL_z (float32)
@@ -142,11 +142,6 @@
          print *, "jdy read successfully."
          print *, "jdy(1)=",jdy(1)
 
-         ! Read qcflag (float32)
-         read(unit_number) qcflag
-         print *, "qcflag read successfully."
-         print *, "qcflag(1)=",qcflag(1)
-
          ! Deallocate memory and close the file
          !deallocate(PBL_z, lat, lon, jdy)
          !close(unit_number)
@@ -154,12 +149,12 @@
          ! Read date
 !CATS-CNN_PBL_N-M7.2-V3.00.2015-09-30T23-33-51T00-18-36UTC.dat
 !CATS-DTD_PBL_2015-09-30T22-00-40T22-46-07UTC.dat
-!CATS-DTD_PBL_CATS-ISS_L1B_N-M7.2-V3-00.2015-09-30T15-49-35T16-34-31UTC.dat
+!ICES-DTD_PBL_20240831150440_11482401.dat
          filename_each = filename(k)
-         ymd = filename_each(40:49)
-         yyyy = filename_each(40:43)
-         mm = filename_each(45:46)
-         dd = filename_each(48:49)
+         ymd = filename_each(14:21)
+         yyyy = filename_each(14:17)
+         mm = filename_each(18:19)
+         dd = filename_each(20:21)
 
          read(yyyy, '(I4)', iostat=iostat) iyyyy
          read(mm, '(I2)', iostat=iostat) imm
@@ -222,11 +217,10 @@
             smin(ii,kk) = rmin(i) 
             ssec(ii,kk) = rsec(i) 
             spblh(ii,kk) = PBL_z(i)
-            sqcflag(ii,kk) = qcflag(i)
 
          end do
 
-         deallocate(lat, lon, PBL_z, jdy,qcflag)
+         deallocate(lat, lon, PBL_z, jdy)
          deallocate(ryear, rmonth, rdate, rhour, rmin, rsec)
 
       end do ! end of nfile
@@ -235,7 +229,7 @@
       do i = 1, ntime
          if (total_nobs(i) < 1) cycle
 
-         write(filename2(i), '(A15,I10,A4)') 'cats_pblh_dtds.', ana_time(i), '.nc4'
+         write(filename2(i), '(A18,I10,A4)') 'icesat2_pblh_dtds.', ana_time(i), '.nc4'
 !        ierr2 =  NF90_CREATE(trim(filename2(i)), NF90_CLOBBER, ncid2(i)) ! overwrite this file if it already exists
          ierr2 =  NF90_CREATE(trim(filename2(i)), NF90_NETCDF4, ncid2(i)) 
          if (ierr2 /= nf90_noerr) call handle_err(ierr2,"create")
@@ -257,13 +251,11 @@
          ierr2 = nf90_def_var(ncid2(i), 'Minute', NF90_INT64, dimid1, varid7)
          ierr2 = nf90_def_var(ncid2(i), 'Second', NF90_DOUBLE, dimid1, varid8)
          ierr2 = nf90_def_var(ncid2(i), 'PBL_Height', NF90_FLOAT, dimid1, varid10)
-         ierr2 = nf90_def_var(ncid2(i), 'QC_Flag', NF90_FLOAT, dimid1, varid11)
 
          ierr2 = nf90_put_att(ncid2(i), varid9, 'units', 'YYYYMMDDHH')
          ierr2 = nf90_put_att(ncid2(i), varid1, 'units', 'degrees_north')
          ierr2 = nf90_put_att(ncid2(i), varid2, 'units', 'degrees_east')
          ierr2 = nf90_put_att(ncid2(i), varid10, 'units', 'kilometers')
-         ierr2 = nf90_put_att(ncid2(i), varid11, 'units', '-0.1,0.0,1.7,2.0,2.5,4.0')
 
          ierr2 = nf90_enddef(ncid2(i))
 
@@ -278,11 +270,10 @@
          ierr2 = nf90_put_var(ncid2(i), varid7, smin(1:kk,i))  
          ierr2 = nf90_put_var(ncid2(i), varid8, ssec(1:kk,i))  
          ierr2 = nf90_put_var(ncid2(i), varid10, spblh(1:kk,i))  
-         ierr2 = nf90_put_var(ncid2(i), varid11, sqcflag(1:kk,i))  
 
          ierr2 = NF90_CLOSE(ncid2(i))
       end do
-  end program read_pblh_lidar_cats_dtds
+  end program read_pblh_lidar_icesat2_dtds
 
   subroutine add_interval(ana_mm1, ana_dd1, ana_hh1, interval, ana_mm0, ana_dd0, ana_hh0)
      use kinds, only: i_kind
@@ -293,12 +284,12 @@
      if (ana_hh1 >= 24) then
         ana_hh1 = ana_hh1 - 24
         ana_dd1 = ana_dd0 + 1
-        if (ana_mm0 == 8 .and. ana_dd1 > 31) then
-           ana_mm1 = 9
+        if (ana_mm0 == 7 .and. ana_dd1 > 31) then
+           ana_mm1 = 8
            ana_dd1 = 1
         end if
-        if (ana_mm0 == 9 .and. ana_dd1 > 30) then
-           ana_mm1 = 10
+        if (ana_mm0 == 8 .and. ana_dd1 > 31) then
+           ana_mm1 = 9
            ana_dd1 = 1
         end if
      end if
@@ -309,14 +300,15 @@
      integer(i_kind) :: mm1, dd1, mm0, dd0
      mm1 = mm0
      dd1 = dd0+1
+     if (mm0 == 7 .and. dd1 > 31) then
+        mm1 = 8
+        dd1 = 1
+     end if
      if (mm0 == 8 .and. dd1 > 31) then
         mm1 = 9
         dd1 = 1
      end if
-     if (mm0 == 9 .and. dd1 > 30) then
-        mm1 = 10
-        dd1 = 1
-     end if
+
   end subroutine add_oneday
 
   subroutine djul_day_inv(jday,hour,min,sec)
