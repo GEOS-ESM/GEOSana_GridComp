@@ -998,7 +998,13 @@ subroutine setupq(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
            error=one/(data(ier2,i)*qsges)
 
-           my_head%res     = ddiff
+           if (fsi_weight) then
+             ! Adjustment to omb residual following FSI
+             call fsi_apply_weight(sfactor,'q',itype,data(ilate,i),data(ilone,i),presq)
+             my_head%res    = sfactor*ddiff
+           else
+             my_head%res     = ddiff
+           endif
            my_head%err2    = error**2
            my_head%raterr2 = ratio_errors**2
            my_head%time    = dtime

@@ -25,11 +25,14 @@ integer, parameter :: MAXSTR=256
 character(len=*),parameter :: myname = 'm_fsi_weight'
 logical :: fsi_weight
 logical :: iamroot_
+logical :: verbose = .false. ! careful: when used blindly this produce huge output
 
 type fsi_type
   integer :: ncri ! number of criteria
   character(len= 4),allocatable :: criterium(:)
   character(len=20),allocatable :: variable(:)
+  character(len=20),allocatable :: dplat(:)
+  character(len=20),allocatable :: obtype(:)
   integer,     allocatable :: instrument(:)
   real(r_kind),allocatable :: lata(:), latb(:)
   real(r_kind),allocatable :: levl(:), levh(:)
@@ -75,7 +78,7 @@ character(len=*),parameter:: tbname='fsi_weights::'
 integer :: luin,ii,ntot,nrows,instrument
 character(len=MAXSTR),allocatable,dimension(:):: utable
 character(len=4) criterium
-character(len=20) var
+character(len=20) var,dplat,obtype
 real(r_kind) lata,latb
 real(r_kind) levl,levh
 real(r_kind) sfactor
@@ -115,8 +118,10 @@ call fsi_type_init_(fsi)
 ! Count variables first
 if(iamroot_) write(6,*) myname_,': FSI scaling factors'
 do ii=1,fsi%ncri
-   read(utable(ii),*) criterium, var, instrument, lata, latb, levl, levh, sfactor
+   read(utable(ii),*) criterium, dplat, obtype, var, instrument, lata, latb, levl, levh, sfactor
    fsi%criterium(ii) = trim(criterium)
+   fsi%dplat(ii) = trim(dplat)
+   fsi%obtype(ii) = trim(obtype)
    fsi%variable(ii) = trim(var)
    fsi%instrument(ii) = instrument
    fsi%lata(ii) = lata
@@ -125,7 +130,8 @@ do ii=1,fsi%ncri
    fsi%levh(ii) = levh
    fsi%sfactor(ii) = sfactor
    if(iamroot_) then
-      write(6,'(1x,2(a10,1x),i4,1x,4f15.3,1x,f7.2)') trim(criterium), trim(var), instrument, lata, latb, levl, levh, sfactor
+      write(6,'(1x,4(a10,1x),i4,1x,4f15.3,1x,f7.2)') trim(criterium), trim(dplat), trim(obtype), &
+                                                     trim(var), instrument, lata, latb, levl, levh, sfactor
    endif
 enddo
 
@@ -143,6 +149,8 @@ subroutine fsi_type_init_(this)
  integer n
  n=this%ncri
  allocate(this%criterium(n))
+ allocate(this%dplat(n))
+ allocate(this%obtype(n))
  allocate(this%variable(n))
  allocate(this%instrument(n))
  allocate(this%lata(n))
@@ -161,6 +169,8 @@ subroutine fsi_type_clean_(this)
  deallocate(this%lata)
  deallocate(this%instrument)
  deallocate(this%variable)
+ deallocate(this%obtype)
+ deallocate(this%dplat)
  deallocate(this%criterium)
 end subroutine fsi_type_clean_
 
@@ -194,7 +204,7 @@ do ii=1,fsi%ncri
            criterium = fsi%criterium(ii)
            sfactor = fsi%sfactor(ii)
            done = .true.
-!          print *, 'DEBUG_RT: ', trim(var), kx, sfactor
+           !if(verbose) print *, 'fsi*conv:', trim(var), kx, sfactor
            exit
        endif
      endif
@@ -216,11 +226,11 @@ endif
 
 end subroutine apply_lev_weight_
 
-subroutine apply_chn_weight_(sfactor,dplat,obstype,ich,lat,lon)
+subroutine apply_chn_weight_(sfactor,dplat,obtype,ich,lat,lon)
 implicit none
 real(r_kind),     intent(inout) :: sfactor
-character(len=*), intent(in) :: dplat ! metop-c - not yet implemented
-character(len=*), intent(in) :: obstype ! iasi - not yet implemented
+character(len=*), intent(in) :: dplat  ! e.g., metop-c
+character(len=*), intent(in) :: obtype ! e.g., iasi
 real(r_kind),     intent(in) :: lat,lon
 integer(i_kind),  intent(in) :: ich
 !
@@ -235,33 +245,34 @@ sfactor = one
 iirad=-1
 done=.false.
 do ii=1,fsi%ncri
-   if(trim(fsi%variable(ii))=='rad') then
+   if(trim(fsi%variable(ii))/='rad') then
       iirad=ii
-      cycle ! see special handle below
+      cycle
    endif
-!   if(trim(fsi%variable(ii)) == trim(var)) then
-!     if(fsi%instrument(ii) == kx) then
-!       if( lat>fsi%lata(ii) .and. lat<fsi%latb(ii) .and. &
-!           lev<fsi%levl(ii) .and. lev>fsi%levh(ii) ) then
-!           criterium = fsi%criterium(ii)
-!           sfactor = fsi%sfactor(ii)
-!           done = .true.
-!           exit
-!       endif
-!     endif
-!   endif
+   if (trim(fsi%dplat(ii))  == trim(dplat) .and. &
+       trim(fsi%obtype(ii)) == trim(obtype) ) then
+       if( lat>fsi%lata(ii) .and. lat<fsi%latb(ii) .and. &
+           ich>nint(fsi%levl(ii)) .and. ich<nint(fsi%levh(ii)) ) then
+           criterium = fsi%criterium(ii)
+           sfactor = fsi%sfactor(ii)
+           if(verbose) print *, 'fsi*rad:', trim(criterium), sfactor
+           done = .true.
+           exit
+       endif
+   endif
 enddo
 ! special handle case of all others
-if (.not. done) then
-  if(iirad>0) then
-    ii=iirad
-    if( lat>fsi%lata(ii) .and. lat<fsi%latb(ii) ) then
-        criterium = fsi%criterium(ii)
-        sfactor = fsi%sfactor(ii)
-        done = .true.
-    endif
-  endif
-endif
+!if (.not. done) then
+!  if(iirad>0) then
+!    ii=iirad
+!    if( lat>fsi%lata(ii) .and. lat<fsi%latb(ii) ) then
+!        criterium = fsi%criterium(ii)
+!        sfactor = fsi%sfactor(ii)
+!        if(verbose) print *, 'fsi*rad:', trim(dplat), sfactor
+!        done = .true.
+!    endif
+!  endif
+!endif
 
 end subroutine apply_chn_weight_
 

@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- remove redundant offending line associated with ncdiag (radiance) output
+- latest FSI-based tuning (using x50)
 
 ### Fixed
 
