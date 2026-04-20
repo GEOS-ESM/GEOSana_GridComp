@@ -1321,7 +1321,13 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
            my_head%elat= data(ilate,i)
            my_head%elon= data(ilone,i)
 
-           my_head%res     = ddiff
+           if (fsi_weight) then
+             ! Adjustment to omb residual following FSI
+             call fsi_apply_weight(sfactor,'t',itype,data(ilate,i),data(ilone,i),prest)
+             my_head%res     = sfactor*ddiff
+           else
+             my_head%res     = ddiff
+           endif
            my_head%err2    = error**2
            my_head%raterr2 = ratio_errors**2
            my_head%time    = dtime
