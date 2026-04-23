@@ -265,6 +265,9 @@ subroutine advect_cv(mype,mydate,tau,fpert)
   character(len=*), parameter :: myname_ = myname//"::init_"
   integer ios,ier
 
+  namelist/padvect/dt,scheme,cfl,filter,cnstwind_test,fluxform,advrate,&
+                   vflux,altderiv,backward,blobtest,advpert,showsens
+
 ! Set detaults
   cfl=.true.              ! redefine dt based on half-based CFL check
   dt = 180.               ! user time step
@@ -281,9 +284,6 @@ subroutine advect_cv(mype,mydate,tau,fpert)
   fluxform = .true.       ! opt for flux-form or not
   vflux = .false.         ! vertical fluxes
   altderiv = .false.      ! alternative derivative calc (old stuff)
-
-  namelist/padvect/dt,scheme,cfl,filter,cnstwind_test,fluxform,advrate,&
-                   vflux,altderiv,backward,blobtest,advpert,showsens
 
 ! call mpi_barrier(ier)
   if (mype==0) then

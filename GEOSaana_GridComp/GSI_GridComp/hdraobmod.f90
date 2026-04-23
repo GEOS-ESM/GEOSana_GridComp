@@ -1211,7 +1211,7 @@ contains
               else if(qob) then
                  !throw out if not allowed type and above humidity cutoff
                  hr_q_cutoff_cb=hr_q_cutoff*0.1_r_kind !convert mb to cb
-                 if ((plevs(k).lt.hr_q_cutoff_cb).and.(NOT(ANY(hr_q_whitelist == nint(typearr)))))then
+                 if ((plevs(k).lt.hr_q_cutoff_cb).and.(.NOT. (ANY(hr_q_whitelist == nint(typearr)))))then
                          qqm(k)=typearr+1000
                          usage=108._r_kind 
                          if(print_verbose)write(6,*)id,'setting humidity measurement from RATP: ',typearr,' to monitor'

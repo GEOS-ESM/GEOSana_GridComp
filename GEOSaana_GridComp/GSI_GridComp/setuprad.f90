@@ -2762,9 +2762,9 @@ contains
                     endif
                  end if
 
-                 call nc_diag_metadata("Vegetation_Type", sngl(surface(1)%vegetation_type))
-                 call nc_diag_metadata("Lai",             sngl(surface(1)%lai))
-                 call nc_diag_metadata("Soil_Type",  sngl(surface(1)%soil_type))
+                 call nc_diag_metadata("Vegetation_Type", real(surface(1)%vegetation_type, 4))
+                 call nc_diag_metadata("Lai",             real(surface(1)%lai, 4))
+                 call nc_diag_metadata("Soil_Type",  real(surface(1)%soil_type, 4))
 
                  call nc_diag_metadata("Sfc_Wind_Direction", sngl(surface(1)%wind_direction)    )
                  if (wrtgeovals) then

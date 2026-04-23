@@ -710,7 +710,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Implementation of PrepBufr QC check for hdraob type 218 (ascent data - no pressure)
         if(verbose_hires_raob)write(6,*)'itype: ',itype,' npbuv: ',npbuv,' muse: ',muse(i)
-        if ((itype==218) .and. (npbuv>0).and.(muse(i)==.true.)) then
+        if ((itype==218) .and. (npbuv>0).and.(muse(i))) then
        !find PBQC value 
         hd_rstation_id = data(id,i) !grab id for hd station
         read(hd_station_id,'(i5,3x)',err=1201,iostat=iohdraob) hd_idddd
@@ -871,7 +871,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Implementation of PrepBufr QC check for hdraob types 219 (ascent data -w pressure)
         if(verbose_hires_raob)write(6,*)'itype: ',itype,' npbuv: ',npbuv,' muse: ',muse(i)
-        if ((itype==219) .and. (npbuv>0).and.(muse(i)==.true.)) then
+        if ((itype==219) .and. (npbuv>0).and.(muse(i))) then
        !find PBQC value 
         hd_rstation_id = data(id,i) !grab id for hd station
         read(hd_station_id,'(i5,3x)',err=1202,iostat=iohdraob) hd_idddd
@@ -1958,8 +1958,8 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
              call nc_diag_metadata("SCCF_chan_wavelen",       sngl(sccf_wavelen))
              qify= int(data(ielev,i)/1000.0);
              qifn= mod(data(ielev,i),1000.0);
-             call nc_diag_metadata("QI_with_FC",    sngl(qify))
-             call nc_diag_metadata("QI_without_FC", sngl(qifn))
+             call nc_diag_metadata("QI_with_FC",    real(qify, 4))
+             call nc_diag_metadata("QI_without_FC", real(qifn, 4))
            else
 ! Write out missing values)        
              call nc_diag_metadata("SWCM_spec_type",          sngl(bmiss))

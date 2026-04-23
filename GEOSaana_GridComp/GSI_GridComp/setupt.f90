@@ -729,7 +729,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Implementation of PrepBufr QC check for hdraob type 119 (ascent data)
      if(verbose_hires_raob)write(6,*)'itype: ',itype,' npbt: ',npbt,' muse: ',muse(i)
-     if ((itype==119) .and. (npbt>0).and.(muse(i)==.true.)) then
+     if ((itype==119) .and. (npbt>0).and.(muse(i))) then
        !find PBQC value 
        hd_rstation_id = data(id,i) !grab id for hd station
        read(hd_station_id,'(i5,3x)',err=1201,iostat=iohdraob) hd_idddd 

@@ -5159,7 +5159,7 @@ _ENTRY_(trim(Iam))
      reltol_=.01
      if(present(reltol)) reltol_=reltol
 
-     if(verb==.true.) then
+     if(verb) then
         call lookfor_(fundef_ssi() ,reltol_,var,6,cwhere,vname)	! -.999e33
         call lookfor_(undef_in     ,reltol_,var,6,cwhere,vname)	! given
         call lookfor_(1.e12        ,reltol_,var,6,cwhere,vname)	! 1.e12

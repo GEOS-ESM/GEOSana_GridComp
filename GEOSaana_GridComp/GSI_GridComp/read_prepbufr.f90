@@ -2014,7 +2014,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  endif
                  if(kx >= 242 .and. kx <= 256) then
                     call ufbint(lunin,satqc,1,1,iret,satqcstr)
-                    if (ibfms(satqc(1))) satqc(1) = 0.0
+                    if (ibfms(satqc(1))/=0) satqc(1) = 0.0
                     crit1 = timedif/r6+half + four*(one-satqc(1)/r100)*r3_33
                  else
                     crit1 = timedif/r6+half
@@ -2365,7 +2365,7 @@ subroutine read_prepbufr(nread,ndata,nodata,infile,obstype,lunout,twindin,sis,&
                  if ( kx == 180 .and. obsdat(4,k) == zero ) then
                     it29=nint(hdr(8))
                     if (it29 >= 522 .and. it29 <= 525 .and.  &
-                           .not. ibfms(obsdat(13,k)) .and. pmq(k) < lim_qm) then
+                           .not. (ibfms(obsdat(13,k))/=0) .and. pmq(k) < lim_qm) then
                        call ufbint(lunin,pmin,1,1,iret,' PMIN ')
                        if (obsdat(13,k) - obsdat(1,k) > one_tenth .and. nint(pmin(1)) == 0) then
                           plevs(k)=one_tenth*obsdat(13,k)
