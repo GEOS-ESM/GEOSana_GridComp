@@ -2,7 +2,7 @@ esma_set_this ()
 
 set (alldirs
   GSI_GridComp
-#  GEOSgsi_Coupler
+  GEOSgsi_Coupler
   )
 
 esma_add_library (${this}
