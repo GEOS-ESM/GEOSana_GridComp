@@ -473,7 +473,7 @@ subroutine setuppblsld(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
   subroutine init_vars_
 
   real(r_kind),dimension(:,:  ),pointer:: rank2=>NULL()
-  character(len=5) :: varname
+  character(len=6) :: varname
   integer(i_kind) ifld, istatus
   integer(i_kind) i, j
 
