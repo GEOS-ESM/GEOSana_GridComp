@@ -143,6 +143,8 @@ ssu_tirosn
 tmi_trmm
 abi_g16
 abi_g18
+viirs-m_npp
+viirs-m_j1
 ::
 
 ozlist::

@@ -467,6 +467,7 @@ set (SRCS_SOLVER
   read_anowbufr.f90
   read_atms.f90
   read_avhrr.f90
+  read_viirs.f90
   read_avhrr_navy.f90
   read_bufrtovs.f90
   read_tgas.f90
@@ -661,6 +662,7 @@ set (OBJS_OPENBUFR
    read_atms.f90
    read_avhrr.f90
    read_avhrr_navy.f90
+   read_viirs.f90
    read_bufrtovs.f90
    read_cris.f90
    read_fl_hdob.f90
