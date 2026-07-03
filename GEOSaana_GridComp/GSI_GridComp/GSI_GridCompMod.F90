@@ -2620,6 +2620,9 @@ _ENTRY_(trim(Iam))
 
 ! start
 
+   ! ygyu add:  this var use_sfcio was not initialized, causing crash on linux
+   use_sfcio=.false.
+
    if(IamRoot.and.verbose) print *,trim(Iam),': read NCEP global surface fields from a file'
 
    call ESMF_ConfigGetAttribute( CF, iset_veg_type, label ='THIS_VEG_TYPE:', default=-1, rc = STATUS )
@@ -2667,6 +2670,10 @@ _ENTRY_(trim(Iam))
          glon =head%lonb
          version = head%ivs
          glat=glat2
+         ! ygyu debug
+         write(6,*) 'yhour, igdate, glat2, glon, version'
+         write(6,*) yhour, igdate, glat2, glon, version
+
          if (iset_veg_type>0) then
             data%vfrac=1.0 ! test sens of CRTM to veg fractions
             data%vtype=13.0! test sens of CRTM to veg type

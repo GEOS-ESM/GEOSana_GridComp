@@ -850,6 +850,9 @@ subroutine upd_varch_
    ntrow = size(idnames)
    allocate(ich1(jpch_rad),tblidx(5,ntrow))
 
+   print*, 'ck  jpch_rad, ntrow', jpch_rad, ntrow
+   print*, 'idnames = ', idnames
+
    nsatype=0
    do jj0=1,ntrow
 
@@ -910,6 +913,8 @@ subroutine upd_varch_
                else if (isurf==5) then
                   covtype = trim(nusis(ii))//':mixed'
                end if
+               print*, 'itbl, idnames(itbl), covtype = ', trim(idnames(itbl)), trim(covtype)
+
                if(trim(idnames(itbl))==trim(covtype)) then
                   jc=jc+1
                   ich1(jc)=ii
