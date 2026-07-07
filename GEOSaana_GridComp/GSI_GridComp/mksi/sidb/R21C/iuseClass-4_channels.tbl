@@ -171,8 +171,8 @@ metop-b 20240621 120000  21001231 240000  amsua  0                   # Noisy cha
 
 # METOP-C   # using start data of data in regular data files - can modify this to reflect additional data availability
 #=========
-metop-c 20190917 000000  20240621 060000  amsua  1     14            #
-metop-c 20240621 000000  21001231 240000  amsua  0                   # Noisy channel 14 (all sats)
+metop-c 20190917 000000  20240621 060000  amsua  0                   # CRTM coefficient files duplicated so nothing was assimilated.
+metop-c 20240621 120000  21001231 240000  amsua  0                   # Noisy channel 14 (all sats)
 
 
 # Downgrade & upgrade 14 to iuse=4
