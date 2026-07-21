@@ -49,6 +49,7 @@ public GSI_NSTCoupler_init
 public GSI_NSTCoupler_read
 public GSI_NSTCoupler_skindepth
 public GSI_NSTCoupler_deter
+public GSI_NSTCoupler_deter_viirs
 public GSI_NSTCoupler_final
 
 public :: nst_gsi,nstinfo,zsea1,zsea2,fac_dtl,fac_tsl
