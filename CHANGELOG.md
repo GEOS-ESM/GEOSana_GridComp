@@ -10,9 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
-
-- remove redundant line in setuprad that causes thousands of warnings to appear in log
-  when writing diag files.
+03Feb2026:
+- output ABI tb standard deviation to nc diag file and change water wapor unit from g/kg to kg/kg
 
 ### Fixed
 
