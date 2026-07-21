@@ -3,11 +3,12 @@
    niter_no_qc(1)=999,niter_no_qc(2)=999,
    write_diag(1)=>>>GSIWRTDIAG1<<<,write_diag(2)=>>>GSIWRTDIAG2<<<,write_diag(3)=>>>GSIWRTDIAG3<<<,
    jiterstart=>>>JITERSTART<<<,jiterend=>>>JITEREND<<<,
-!--gencode=82,qoption=2,pseudo_q2=.true.,
-!--factqmin=0.005,factqmax=0.005,deltim=300,
-   gencode=82,qoption=1,
-   factqmin=0.8,factqmax=1.2,deltim=300,
+   gencode=82,qoption=2,
+   factqmin=0.005,factqmax=0.005,deltim=300,
+!--gencode=82,qoption=1,
+!--factqmin=0.8,factqmax=1.2,deltim=300,
    ifact10=0,
+   pseudo_q2=.true.,
    use_prepb_satwnd=>>>USE_PREPB_SATWND<<<,
    ec_amv_qc=.false.,
    diag_version=30303,
@@ -66,7 +67,7 @@
  /
  &OBSQC
    dfact=0.75,dfact1=3.0,noiqc=.false.,oberrflg=.true.,c_varqc=0.02,blacklst=.true.,
-   use_poq7=.true.,qc_noirjaco3=.false.,qc_satwnds=.false.,cld_det_dec2bin=.true.,
+   use_poq7=.true.,qc_noirjaco3=.false.,qc_satwnds=.true.,cld_det_dec2bin=.true.,
    half_goesr_err=.false.,max_tail=15000,
 !  tcp_ermin=0.75,tcp_ermax=0.75,
    >>>AIRCFT_BIAS<<<
@@ -76,6 +77,10 @@
  /
 OBS_INPUT::
 !  dfile          dtype       dplat       dsis                  dval    dthin  dsfcalc  obsclass
+   uprair         ps          null        ps                    0.0     0      0        ncep_uprair_bufr
+   uprair         t           null        t                     0.0     0      0        ncep_uprair_bufr
+   uprair         q           null        q                     0.0     0      0        ncep_uprair_bufr
+   uprair         uv          null        uv                    0.0     0      0        ncep_uprair_bufr
    prepbufr       ps          null        ps                    0.0     0      0        ncep_prep_bufr
    prepbufr       t           null        t                     0.0     0      0        ncep_prep_bufr
    prepbufr_profl t           null        t                     0.0     0      0        ncep_acftpfl_bufr
@@ -186,7 +191,7 @@ OBS_INPUT::
    atmsbufr       atms        n21         atms_n21              0.0     1      0        ncep_atms_bufr
    crisfsrbufr    cris-fsr    npp         cris-fsr_npp          0.0     3      0        ncep_crisfsr_bufr
    crisfsrbufr    cris-fsr    n20         cris-fsr_n20          0.0     3      0        ncep_crisfsr_bufr
-!  crisfsrbufr    cris-fsr    n21         cris-fsr_n21          0.0     3      0        ncep_crisfsr_bufr
+   crisfsrbufr    cris-fsr    n21         cris-fsr_n21          0.0     3      0        ncep_crisfsr_bufr
    satwndbufr     uv          null        uv                    0.0     0      0        ncep_satwnd_bufr
    avcspmbufr     avhrr       n18         avhrr3_n18            0.0     1      0        ncep_avcspm_bufr
    avcspmbufr     avhrr       n19         avhrr3_n19            0.0     1      0        ncep_avcspm_bufr
@@ -208,6 +213,8 @@ OBS_INPUT::
 !  tmibufr        tmi         trmm        tmi_trmm              0.0     1      0        gmao_tmi_bufr
    gmibufr        gmi         gpm         gmi_gpm               0.0     1      0        gmao_gmi_bufr
    amsr2bufr      amsr2       gcom-w1     amsr2_gcom-w1         0.0     1      0        gmao_amsr2_bufr
+   abibufr        abi         g16         abi_g16               0.0     1      0        ncep_goescsr_bufr
+   abibufr        abi         g18         abi_g18               0.0     1      0        ncep_goescsr_bufr
 ! The following needs to be set for oneob-test:
 !  prepqc         dummy       dummy       dummy                 1.0     1      0        test
 ::
