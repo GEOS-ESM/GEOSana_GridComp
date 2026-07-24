@@ -8,16 +8,17 @@ set (SRCSO
   geos_nstmod.F90
   gsi_fixture_GEOS.F90
   g5_pertmod.F90
+  crtm_aerosol.F90
   cplr_pertmod.F90
   cplr_ensemble.F90
   cplr_nst.F90
   cplr_timermod.F90
+  cplr_Set_CRTM_Aerosol.F90
   m_zeitTimer.F90
 #  stub_GEOSagcmPert_GridCompMod.F90
   )
 
 set (SRCSX
-  crtm_aerosol.F90 cplr_Set_CRTM_Aerosol.F90
   crtm_cloud.F90   cplr_Set_CRTM_Cloud.F90
   )
 
