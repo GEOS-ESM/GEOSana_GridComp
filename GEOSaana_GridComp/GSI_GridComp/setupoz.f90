@@ -334,7 +334,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
      endif
 
      allocate(rdiagbuf(irdim1,nlevs,nobs))
-     if(netcdf_diag) call init_netcdf_diag_
+     if(netcdf_diag(jiter)) call init_netcdf_diag_
   end if
 
 
@@ -578,7 +578,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
                  idia = idia+size(dhx_dx)
               endif
 
-              if (netcdf_diag) then
+              if (netcdf_diag(jiter)) then
                  k1 = k
                  k2 = k - 1
                  if(k2 == 0)k2 = 1
@@ -798,7 +798,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
                  enddo
                 end associate ! odiag
 
-                if (netcdf_diag) then
+                if (netcdf_diag(jiter)) then
 !                   TBD: Sensitivities must be written out in coordination w/ rest of obs
 !                 associate(odiag => my_diagLL%tail)
 !                   call nc_diag_data2d("ObsDiagSave_iuse",     obsdiag_iuse                              )
@@ -827,7 +827,7 @@ subroutine setupozlay(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
 ! If requested, write to diagnostic file
   if (ozone_diagsave) then
 
-     if (netcdf_diag) call nc_diag_write
+     if (netcdf_diag(jiter)) call nc_diag_write
 
      if (binary_diag .and. ii>0) then
         filex=obstype
@@ -1206,7 +1206,7 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
      endif
      allocate(rdiagbuf(irdim1,1,nobs))
      rdiagbuf=0._r_single
-     if(netcdf_diag) call init_netcdf_diag_
+     if(netcdf_diag(jiter)) call init_netcdf_diag_
   end if
 
 ! index information for data array (see reading routine)
@@ -1484,14 +1484,14 @@ subroutine setupozlev(obsLL,odiagLL,lunin,mype,stats_oz,nlevs,nreal,nobs,&
         errorinv = sqrt(varinv3*rat_err2)
 
         if (binary_diag) call contents_binary_diag_(my_diag)
-        if (netcdf_diag) call contents_netcdf_diag_(my_diag)
+        if (netcdf_diag(jiter)) call contents_netcdf_diag_(my_diag)
      end if   !end if(ozone_diagsave )
 
   end do   ! end do i=1,nobs
 
 ! If requested, write to diagnostic file
   if (ozone_diagsave) then
-     if (netcdf_diag) call nc_diag_write
+     if (netcdf_diag(jiter)) call nc_diag_write
      if (binary_diag .and. ii>0) then
         filex=obstype
         write(string,100) jiter

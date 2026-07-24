@@ -296,7 +296,7 @@ subroutine setupdw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
        nreal = nreal + size(dhx_dx)
      endif
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
-     if(netcdf_diag.and.nobs>0) call init_netcdf_diag_
+     if(netcdf_diag(jiter).and.nobs>0) call init_netcdf_diag_
   end if
 
   scale=one
@@ -664,7 +664,7 @@ subroutine setupdw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
         if (err_final>tiny_r_kind) errinv_final=one/err_final
 
         if (binary_diag) call contents_binary_diag_(my_diag)
-        if (netcdf_diag) call contents_netcdf_diag_(my_diag)
+        if (netcdf_diag(jiter)) call contents_netcdf_diag_(my_diag)
 
      end if
 
@@ -675,7 +675,7 @@ subroutine setupdw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
 
 ! Write information to diagnostic file
   if(conv_diagsave) then
-    if(netcdf_diag.and.nobs>0) call nc_diag_write
+    if(netcdf_diag(jiter).and.nobs>0) call nc_diag_write
     if(binary_diag .and. ii>0)then
        write(7)' dw',nchar,nreal,ii,mype,ioff0
        write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
@@ -958,9 +958,9 @@ subroutine setupdw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsa
            if (save_jacobian) then
               call fullarray(dhx_dx, dhx_dx_array)
               call nc_diag_data2d("Observation_Operator_Jacobian", dhx_dx_array)
-             call nc_diag_data2d("Observation_Operator_Jacobian_stind", dhx_dx%st_ind)
-             call nc_diag_data2d("Observation_Operator_Jacobian_endind", dhx_dx%end_ind)
-             call nc_diag_data2d("Observation_Operator_Jacobian_val", real(dhx_dx%val,r_single))
+              call nc_diag_data2d("Observation_Operator_Jacobian_stind", dhx_dx%st_ind)
+              call nc_diag_data2d("Observation_Operator_Jacobian_endind", dhx_dx%end_ind)
+              call nc_diag_data2d("Observation_Operator_Jacobian_val", real(dhx_dx%val,r_single))
            endif
    
   end subroutine contents_netcdf_diag_

@@ -308,7 +308,7 @@ subroutine setuplwcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
      endif
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
      ii=0
-     if(netcdf_diag) call init_netcdf_diag_
+     if(netcdf_diag(jiter)) call init_netcdf_diag_
   end if
 
 
@@ -614,7 +614,7 @@ subroutine setuplwcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
         ioff=ioff0
 
         if(binary_diag) call contents_binary_diag_(my_diag)
-        if(netcdf_diag) call contents_netcdf_diag_(my_diag)
+        if(netcdf_diag(jiter)) call contents_netcdf_diag_(my_diag)
      end if
 
 
@@ -625,7 +625,7 @@ subroutine setuplwcp(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diag
 
 ! Write information to diagnostic file
   if(conv_diagsave)then
-     if(netcdf_diag) call nc_diag_write
+     if(netcdf_diag(jiter)) call nc_diag_write
      if(binary_diag.and. ii>0)then
         write(7)'lwc',nchar,nreal,ii,mype,ioff0
         write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)

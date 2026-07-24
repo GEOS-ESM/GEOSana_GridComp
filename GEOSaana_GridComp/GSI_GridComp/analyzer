@@ -1982,14 +1982,31 @@ sub lndiag {
       $lsubdirs = "-subdirs";
    }
 
+   $this = `nmlread.py $rcname SETUP netcdf_diag`; chomp($result);
+   $var = "$this"; chomp($var);
+   # Remove the brackets
+   $var =~ s/^\[//;
+   $var =~ s/\]$//;
+   my @values = split /\s*,\s*/, $var;
+   my $ncdjiter = 0;
+   for my $value (@values) {
+       if ($value eq 'True') {
+           $ncdjiter++;
+       }
+   }
+
    $npe_factor = 4;
    $myncpus = floor($npes/$npe_factor);
    $myncpus = $myncpus  - $myncpus % 2;
    if ( $doasens ) {
-        my $nametag = "ans_${gnorm}${jiteradm}";
-        $cmd = "gsidiags -ncpus $myncpus -jiter $jiteradm -tag $nametag $nymd $nhms $expid $opt";
+        my $nametag = "-tag ans_${gnorm}${jiteradm}";
+        $cmd = "gsidiags -ncpus $myncpus -jiter $jiteradm $nametag $nymd $nhms $expid $opt";
    } else {
-        $cmd = "gsidiags $lsubdirs -ncpus $myncpus $nymd $nhms $expid $opt";
+        my $nametag = "";
+        if ($ncdjiter == 1) {
+           $nametag = "-tag ges";
+        }
+        $cmd = "gsidiags -ncpus $myncpus $lsubdirs -jiter $ncdjiter $nametag $nymd $nhms $expid $opt";
    }
    print " $cmd\n";
    $rc = System($cmd, "$log_ana","gsidiag");
