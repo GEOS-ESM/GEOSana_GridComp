@@ -276,7 +276,7 @@ subroutine setupspd(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
        nreal = nreal + size(dhx_dx)
      endif
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
-     if(netcdf_diag.and.nobs>0) call init_netcdf_diag_
+     if(netcdf_diag(jiter).and.nobs>0) call init_netcdf_diag_
   end if
 
 
@@ -651,7 +651,7 @@ subroutine setupspd(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
         if (err_final>tiny_r_kind) errinv_final = one/err_final
 
         if(binary_diag) call contents_binary_diag_(my_diag)
-        if(netcdf_diag) call contents_netcdf_diag_(my_diag)
+        if(netcdf_diag(jiter)) call contents_netcdf_diag_(my_diag)
 
      end if
 
@@ -663,7 +663,7 @@ subroutine setupspd(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diags
 
 ! Write information to diagnostic file
   if(conv_diagsave) then
-     if(netcdf_diag.and.nobs>0) call nc_diag_write
+     if(netcdf_diag(jiter).and.nobs>0) call nc_diag_write
      if(binary_diag .and. ii>0)then
         write(7)'spd',nchar,nreal,ii,mype,ioff0
         write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
