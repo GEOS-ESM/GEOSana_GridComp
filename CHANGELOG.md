@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+06Aug2026:
+- add new CRTM coefficient directory to analyzer to add update for ATMS N21 coef
+
 28Jan2026:
 - bug fix: add ABI tlapmean back (had lost them when backing out PR#209)
 - another miss (qcmod) wrt ABI and IR back out
