@@ -14,6 +14,7 @@
 !  2012-03-05 SA-         _full fields: tref, dt_cool, dt_warm, z_c, z_w, ... are declared here INSTEAD of satthin     
 !  2015-05-01 Li-         Change the nst fields to be single precision
 !  2017-09-14 LI-         Change the default value to be 1 for fac_dtl & fac_tsl
+!  2026-05-22 a.lee       Change gsi_nstcoupler_deter for viirs (needs further investigation)
 !
 !EOP
 !-------------------------------------------------------------------------
@@ -48,6 +49,7 @@ public GSI_NSTCoupler_init
 public GSI_NSTCoupler_read
 public GSI_NSTCoupler_skindepth
 public GSI_NSTCoupler_deter
+public GSI_NSTCoupler_deter_viirs
 public GSI_NSTCoupler_final
 
 public :: nst_gsi,nstinfo,zsea1,zsea2,fac_dtl,fac_tsl
@@ -110,6 +112,16 @@ interface gsi_nstcoupler_deter
      real(r_kind), intent(out) :: tref,dtw,dtc,tz_tr
   end subroutine deter_nst_
 end interface
+
+ interface gsi_nstcoupler_deter_viirs
+   subroutine deter_nst_viirs_(dlat_earth,dlon_earth,obstime,zob,tref,dtw,dtc,tz_tr)
+      use kinds,   only: r_kind
+      implicit none
+
+      real(r_kind), intent(in ) :: dlat_earth,dlon_earth,obstime,zob
+      real(r_kind), intent(out) :: tref,dtw,dtc,tz_tr
+   end subroutine deter_nst_viirs_
+ end interface
 !-------------------
 
 contains

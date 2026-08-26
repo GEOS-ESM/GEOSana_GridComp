@@ -55,6 +55,7 @@ module radinfo
 !   2016-11-29  shlyaeva - make nvarjac public
 !   2018-07-24  W. Gu   - the routines to handle correlated R-covariance moved out
 !   2019-06-19  Hu      - add option reset_bad_radbc for reset radiance bias correction coefficient if it is bad.
+!   2026-05-22  a.lee   - add viirs-m radiance assimilation 
 !
 ! subroutines included:
 !   sub init_rad            - set satellite related variables to defaults
@@ -1607,6 +1608,7 @@ contains
 !   2015-10-22  jung    - changed from using satinfo information in the radstat file to
 !                         using information from the satinfo file.
 !   2016-07-14  jung    - mods to make SEVIRI channel numbers consistent with other instruments.
+!   2026-05-22  a.lee   - use of ONLY water surface for BC pred coeff. update. 
 !
 ! attributes:
 !   language: f90
@@ -1640,7 +1642,7 @@ contains
    logical mean_only
    logical ssmi,ssmis,amsre,amsre_low,amsre_mid,amsre_hig,tmi,gmi,amsr2,saphir
    logical ssmis_las,ssmis_uas,ssmis_env,ssmis_img
-   logical avhrr,avhrr_navy,goessndr,goes_img,ahi,seviri,abi
+   logical avhrr,avhrr_navy,viirs,goessndr,goes_img,ahi,seviri,abi
 
    character(len=20):: obstype,platid
    character(len=20):: satsens,satsens_id
@@ -1823,6 +1825,7 @@ contains
       abi        = obstype == 'abi'
       avhrr      = obstype == 'avhrr'
       avhrr_navy = obstype == 'avhrr_navy'
+      viirs      = obstype == 'viirs-m'
       ssmi       = obstype == 'ssmi'
       amsre_low  = obstype == 'amsre_low'
       amsre_mid  = obstype == 'amsre_mid'
@@ -1906,7 +1909,8 @@ contains
 !           angle dependent bias.
                   if( ( abs(data_chan(j)%omgnbc) > 200. .or. &
                        data_chan(j)%tbobs < 50. .or. &
-                       data_chan(j)%tbobs > 500. ) ) cycle loopc
+                       data_chan(j)%tbobs > 500. .or. &
+                       data_fix%water_frac < 0.99 ) ) cycle loopc
  
 !           if errinv= (1 /(obs error)) is small (small = less than 1.e-6)
 !           the observation did not pass quality control.  In this
