@@ -169,12 +169,12 @@ subroutine read_tgas(nread, npuse, nouse, jsatid, infile, gstime, lunout,      &
         nchanl = 1
      end if
 
-     ! Try to get number of edges, if not, set to navg + 1
+     ! Try to get number of edges, if not, set to navg
      istat = nf90_inq_dimid(id_fin, 'nedge', id_nedge)
      if (istat == nf90_noerr) then
         call check(nf90_inquire_dimension(id_fin, id_nedge, len=nedge))
      else
-        nedge = navg + 1
+        nedge = navg
      end if
 
      nreal = 6 + 3*nchanl + nedge + (navg + navg*nchanl + nchanl)
