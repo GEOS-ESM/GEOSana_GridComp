@@ -150,7 +150,7 @@ subroutine setuptgas(obsLL, odiagLL, lunin, mype, stats_tgas, nchanl, nreal,   &
   real(r_kind),    dimension(nchanl) :: pchanl, gross, sclstd, sclmod
   real(r_kind),    dimension(nchanl) :: priorobs, gesobs, uncert, error
   real(r_kind),    dimension(nsig+1) :: pemod, zemod, peuse
-  real(r_kind),    dimension(nsig)   :: geslmod, qvmod, pluse
+  real(r_kind),    dimension(nsig)   :: dpdry, qvmod, pluse, geslmod
   integer(i_kind), dimension(nchanl) :: isbad
 
   real(r_kind),    dimension(nreal+nchanl,nobs) :: tgasdata
@@ -421,6 +421,9 @@ if (in_curbin) then
 !    Convert pemod units from kPa to hPa
      pemod = pemod * 10._r_kind
 
+!    Compute dry-air pressure thickness (for zavgtgas)
+     dpdry = (1 - qvmod) * (pemod(1:nsig) - pemod(2:nsig+1))
+
 !    Hack to use geometric height (m) instead of pressure for tgez, tgaz,
 !    and NOAA ObsPack data
      peuse = pemod
@@ -532,7 +535,7 @@ if (in_curbin) then
         if ( isdoas ) then
 
            ! Get guess fields on obs levels (averaging kernel levels) 
-           call zavgtgas_(pemod, geslmod, grdpe, gespro, avgwgt)
+           call zavgtgas_(dpdry, geslmod, grdpe, gespro, avgwgt)
 
            ! get background (= a-priori) NO2/SO2 on model levels
            priortgas(:) = 0.0
@@ -545,11 +548,11 @@ if (in_curbin) then
            endif
      
            ! map q onto obs levels
-           call zavgtgas_(pemod, qvmod, grdpe, qvavg, tmpwgt)
+           call zavgtgas_(dpdry, qvmod, grdpe, qvavg, tmpwgt)
 
            ! map prior tgas onto obs levels
            priorpro(:) = 0.0
-           call zavgtgas_(pemod, priortgas, grdpe, priorpro, tmpwgt)
+           call zavgtgas_(dpdry, priortgas, grdpe, priorpro, tmpwgt)
 
            ! convert both the a-priori and the current guess profile from mol/mol to 1e15 molec cm-2
            ! also accumulate guess observation, which is sum of all partial columns of the a-priori profile
@@ -580,7 +583,7 @@ if (in_curbin) then
 
 !       a. Mixing ratios in mol/mol, log, ...
         elseif (vunit /= 'molm2') then
-           call zavgtgas_(pemod, geslmod, grdpe, gespro, avgwgt)
+           call zavgtgas_(dpdry, geslmod, grdpe, gespro, avgwgt)
 
            if (ldebugob) then
               print *, 'geslmod    = '
@@ -591,7 +594,7 @@ if (in_curbin) then
         else
 !          Undry profile because pressures are total-air
            geslmod = geslmod * (1.0 - qvmod)
-           call zavgtgas_(pemod, geslmod, grdpe, gespro, avgwgt)
+           call zavgtgas_(dpdry, geslmod, grdpe, gespro, avgwgt)
 
            do k = 1,navg
               avgwgt(k,:) = avgwgt(k,:) * (1.0 - qvmod)
@@ -1316,16 +1319,16 @@ end if ! (in_curbin)
      end if
   end subroutine init_levs_
 
-  subroutine zavgtgas_(pe, f, ke, g, w)
+  subroutine zavgtgas_(dpdry, f, ke, g, w)
      logical,          parameter :: ldebug_ = .false.
      character(len=*), parameter :: myname_ = myname // '::zavgtgas_'
 
-     real(r_kind), intent(in   ) :: pe(nsig+1), f(nsig), ke(nedge)
+     real(r_kind), intent(in   ) :: dpdry(nsig), f(nsig), ke(nedge)
      real(r_kind), intent(  out) :: g(navg), w(navg,nsig)
 
      real(r_kind)    :: avg(nedge-1), wgt(nedge-1,nsig)
 
-     real(r_kind)    :: dz1, dz2, delp, delz, dlay
+     real(r_kind)    :: dz1, dz2, delz, dlay
      integer(i_kind) :: nlays, iz1, iz2, j, l
      logical         :: top2bot
 
@@ -1363,11 +1366,9 @@ end if ! (in_curbin)
            if (l == iz1) delz =         dz1 - iz1
            if (l == iz2) delz = delz - (dz2 - iz2)
 
-           delp = pe(l) - pe(l+1)
-
-           dlay     = dlay   +      delp*delz
-           avg(j)   = avg(j) + f(l)*delp*delz
-           wgt(j,l) =               delp*delz
+           dlay     = dlay   +      dpdry(l)*delz
+           avg(j)   = avg(j) + f(l)*dpdry(l)*delz
+           wgt(j,l) =               dpdry(l)*delz
         end do
 
         avg(j)   = avg(j)   / dlay
