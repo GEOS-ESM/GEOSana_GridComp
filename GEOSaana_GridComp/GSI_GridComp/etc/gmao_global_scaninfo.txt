@@ -57,4 +57,5 @@
  amsr2_gcom-w1             0.000      1.000        81     1    81
  abi_g16                   0.000      1.000        90    -1    -1
  abi_g18                   0.000      1.000        90    -1    -1
+ abi_g19                   0.000      1.000        90    -1    -1
 !sat_sis                  start       step      nstep  edge1  edge2
