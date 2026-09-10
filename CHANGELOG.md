@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+10Sep2026:
+- add ABI on GOES 19
 
 - remove redundant line in setuprad that causes thousands of warnings to appear in log
   when writing diag files.
