@@ -1905,6 +1905,7 @@ contains
 !           do not use this observation in computing the update to the
 !           angle dependent bias.
                   if( ( abs(data_chan(j)%omgnbc) > 200. .or. &
+                       data_fix%water_frac<0.99 .or. &
                        data_chan(j)%tbobs < 50. .or. &
                        data_chan(j)%tbobs > 500. ) ) cycle loopc
  
