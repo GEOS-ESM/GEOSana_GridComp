@@ -225,7 +225,8 @@ contains
 !   2020-08-26  mkim    - adjusted MHS QC for all-sky
 !   2020-09-27  j.jin   - assimilate SSMI, TMI and AMSRE (gmao format) in all-sky conditions.
 !   2023-06-30  j.jin   - add a qc_flag "ierrret_ges" to flag failed cloud retrieval from simulated Tb.
-!   2024-03-27  mkim    - changed the way to select all-sky GMI observations to use in BC coefficients updates 
+!   2024-03-27  mkim    - changed the way to select all-sky GMI observations to use in BC coefficients updates
+!   2026-05-22  a.lee   - add viirs-m radiance assimilation 
 !
 !  input argument list:
 !     lunin   - unit from which to read radiance (brightness temperature, tb) obs
@@ -302,7 +303,7 @@ contains
   use crtm_interface, only: ilzen_ang2,iscan_ang2,iszen_ang2,isazi_ang2, ilazi_ang2
   use crtm_module, only: H2O_ID
   use clw_mod, only: calc_clw, ret_amsua, gmi_37pol_diff,mhs_si
-  use qcmod, only: qc_ssmi,qc_seviri,qc_abi,qc_ssu,qc_avhrr,qc_goesimg,qc_msu,qc_irsnd,qc_amsua,qc_mhs,qc_atms
+  use qcmod, only: qc_ssmi,qc_seviri,qc_abi,qc_ssu,qc_avhrr,qc_viirs,qc_goesimg,qc_msu,qc_irsnd,qc_amsua,qc_mhs,qc_atms
   use qcmod, only: igood_qc,ifail_gross_qc,ifail_interchan_qc,ifail_crtm_qc,ifail_satinfo_qc,qc_noirjaco3,ifail_cloud_qc
   use qcmod, only: ifail_cao_qc,cao_check  
   use qcmod, only: ifail_iland_det, ifail_isnow_det, ifail_iice_det, ifail_iwater_det, ifail_imix_det, &
@@ -379,7 +380,7 @@ contains
   logical cao_flag                       
   logical hirs2,msu,goessndr,hirs3,hirs4,hirs,amsua,amsub,airs,hsb,goes_img,ahi,mhs,abi
   type(sparr2) :: dhx_dx
-  logical avhrr,avhrr_navy,lextra,ssu,iasi,cris,seviri,atms
+  logical avhrr,avhrr_navy,viirs,lextra,ssu,iasi,cris,seviri,atms
   logical ssmi,ssmis,amsre,amsre_low,amsre_mid,amsre_hig,amsr2,gmi,saphir
   logical tmi
   logical ssmis_las,ssmis_uas,ssmis_env,ssmis_img
@@ -522,6 +523,7 @@ contains
   ahi        = obstype == 'ahi'
   avhrr      = obstype == 'avhrr'
   avhrr_navy = obstype == 'avhrr_navy'
+  viirs      = obstype == 'viirs-m'
   ssmi       = obstype == 'ssmi'
   amsre_low  = obstype == 'amsre_low'
   amsre_mid  = obstype == 'amsre_mid'
@@ -1539,6 +1541,27 @@ contains
               wavenumber,ptau5,prsltmp,tvp,temp,wmix,emissivity_k,ts, &
               id_qc,aivals,errf,varinv,varinv_use,cld,cldp)
 
+!
+!  ---------- VIIRS  -------------------
+!       VIIRS Q C
+
+        else if (viirs) then
+
+           frac_sea=data_s(ifrac_sea,n)
+
+           do i=1,nchanl
+              m=ich(i)
+              if (icld_det(m)>0 .and. varinv(i) >= tiny_r_kind) then
+                 varinv_use(i) = varinv(i)
+              else
+                 varinv_use(i) = zero
+              end if
+           end do
+
+           call qc_viirs(nchanl,is,ndat,nsig,ich,sea,land,ice,snow,luse(n),   &
+              zsges,cenlat,frac_sea,pangs,trop5,tzbgr,tsavg5,tbc,tb_obs,tnoise, &
+              wavenumber,ptau5,prsltmp,tvp,temp,wmix,emissivity_k,ts, &
+              id_qc,aivals,errf,varinv,varinv_use,cld,cldp)
 
 !  ---------- SSM/I , SSMIS, AMSRE  -------------------
 !       SSM/I, SSMIS, & AMSRE Q C

@@ -684,6 +684,7 @@ subroutine read_obs(ndata,mype)
 !   2019-01-15  Li      - add to handle mbuoyb
 !   2019-03-27  h. liu   - add abi
 !   2021-04-16  j.jin    - read tmi and amsre bufr (made at gmao) data.
+!   2026-05-22  a.lee    - add viirs-m radiance assimilation 
 !
 !
 !   input argument list:
@@ -920,7 +921,8 @@ subroutine read_obs(ndata,mype)
                obstype == 'ssu'       .or. obstype == 'atms'      .or.  &
                obstype == 'cris'      .or. obstype == 'cris-fsr'  .or.  &
                obstype == 'amsr2'     .or. obstype == 'tmi'       .or.  &
-               obstype == 'gmi'       .or. obstype == 'saphir'   ) then
+               obstype == 'gmi'       .or. obstype == 'saphir'    .or.  &
+               obstype == 'viirs-m' ) then
           ditype(i) = 'rad'
        else if (is_extOzone(dfile(i),obstype,dplat(i))) then
           ditype(i) = 'ozone'
@@ -1026,6 +1028,8 @@ subroutine read_obs(ndata,mype)
              else if(obstype == 'cris' .or. obstype == 'cris-fsr')then
                 parallel_read(i)= .true.
              else if(avhrr)then
+                parallel_read(i)= .true.
+             else if(obstype == 'viirs-m')then
                 parallel_read(i)= .true.
              else if(amsre)then
 !               parallel_read(i)= .true.  ! turn parallel read off
@@ -1827,6 +1831,15 @@ subroutine read_obs(ndata,mype)
                        mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
                        nobs_sub1(1,i),read_rec(i),dval_use)
                   string='READ_AVHRR'
+
+   !            Process SST VIIRS RADIANCE  data
+                else if(obstype == 'viirs-m') then
+                   call read_sst_viirs(mype,val_dat,ithin,rmesh,dplat(i),gstime,&
+                        infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
+                        mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i), &
+                        nobs_sub1(1,i),read_rec(i),dval_use)
+                   string='READ_VIIRS'
+
                end if rad_obstype_select
 
 !         Process ozone data
