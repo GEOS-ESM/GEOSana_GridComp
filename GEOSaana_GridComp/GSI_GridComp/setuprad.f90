@@ -780,7 +780,7 @@ contains
 ! If diagnostic file requested, open unit to file and write header.
   if (rad_diagsave .and. nchanl_diag > 0) then
      if (binary_diag) call init_binary_diag_
-     if (netcdf_diag) call init_netcdf_diag_
+     if (netcdf_diag(jiter)) call init_netcdf_diag_
   endif
 
 ! Load data array for current satellite
@@ -2164,7 +2164,7 @@ contains
         if (rad_diagsave .and. luse(n) .and. nchanl_diag > 0) then
 
            if (binary_diag) call contents_binary_diag_(odiags(:),is,ioid(n))
-           if (netcdf_diag) call contents_netcdf_diag_(odiags(:),is,ioid(n))
+           if (netcdf_diag(jiter)) call contents_netcdf_diag_(odiags(:),is,ioid(n))
 
         end if
      endif ! (in_curbin)
@@ -2182,7 +2182,7 @@ contains
   deallocate(sc_index)
 
   if (rad_diagsave) then
-     if (netcdf_diag) call nc_diag_write
+     if (netcdf_diag(jiter)) call nc_diag_write
      if(binary_diag) call final_binary_diag_
      if (lextra .and. allocated(diagbufex)) deallocate(diagbufex)
   endif

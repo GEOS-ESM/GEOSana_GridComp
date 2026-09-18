@@ -285,7 +285,7 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
             allocate(all_qv_obs(nrealcld,nobs*nsig))
             all_qv_obs=miss_obs_real
          endif
-         if (netcdf_diag) call init_netcdf_diag_
+         if (netcdf_diag(jiter)) call init_netcdf_diag_
      endif
   endif
 
@@ -626,7 +626,7 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
                       if (err_final>tiny_r_kind) errinv_final = one/err_final
 
                       if (binary_diag) call contents_binary_diag_
-                      if (netcdf_diag) call contents_netcdf_diag_
+                      if (netcdf_diag(jiter)) call contents_netcdf_diag_
 
                       if (i_ens_mean == 1) then
        
@@ -706,7 +706,7 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
 
         if(conv_diagsave)then
            if (binary_diag) call contents_binary_diag_mem_
-           if (netcdf_diag) call contents_netcdf_diag_mem_
+           if (netcdf_diag(jiter)) call contents_netcdf_diag_mem_
         endif
      enddo
 
@@ -718,7 +718,7 @@ subroutine setupcldtot(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_di
   !! Write information to diagnostic file
   if(conv_diagsave)then
      if (i_cloud_q_innovation == 2 .and. iip>0) then
-        if(netcdf_diag) call nc_diag_write
+        if(netcdf_diag(jiter)) call nc_diag_write
         if(binary_diag)then
            write(7)'  q',nchar,nreal,iip,mype,ioff0
            write(7)cdiagbufp(1:iip),rdiagbufp(:,1:iip)

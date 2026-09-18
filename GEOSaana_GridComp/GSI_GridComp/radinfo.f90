@@ -1726,7 +1726,7 @@ contains
       fdiag_rad = 'diag_' // trim(dtype(iii)) // '_' // trim(dplat(iii))
 
 !     Set diagnostic file type
-      call set_netcdf_read(netcdf_diag)
+      call set_netcdf_read(any(netcdf_diag))
 
 !     See if diagnostic file exists
       inquire(file=fdiag_rad,exist=lexist)
