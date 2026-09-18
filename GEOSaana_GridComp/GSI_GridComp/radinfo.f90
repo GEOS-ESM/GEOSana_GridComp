@@ -1728,7 +1728,7 @@ contains
       fdiag_rad = 'diag_' // trim(dtype(iii)) // '_' // trim(dplat(iii))
 
 !     Set diagnostic file type
-      call set_netcdf_read(netcdf_diag)
+      call set_netcdf_read(any(netcdf_diag))
 
 !     See if diagnostic file exists
       inquire(file=fdiag_rad,exist=lexist)
@@ -1908,6 +1908,7 @@ contains
 !           do not use this observation in computing the update to the
 !           angle dependent bias.
                   if( ( abs(data_chan(j)%omgnbc) > 200. .or. &
+                       data_fix%water_frac<0.99 .or. &
                        data_chan(j)%tbobs < 50. .or. &
                        data_chan(j)%tbobs > 500. .or. &
                        data_fix%water_frac < 0.99 ) ) cycle loopc

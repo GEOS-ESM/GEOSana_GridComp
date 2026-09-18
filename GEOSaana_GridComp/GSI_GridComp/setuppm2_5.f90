@@ -430,7 +430,7 @@ subroutine setuppm2_5(obsLL,odiagLL,lunin,mype,nreal,nobs,isis,is,conv_diagsave)
      ii=0
      if (lobsdiagsave) nrealdiag=nrealdiag+4*miter+1
      allocate(cdiagbuf(nobs),rdiagbuf(nrealdiag,nobs))
-     if (netcdf_diag) call init_netcdf_diag_
+     if (netcdf_diag(jiter)) call init_netcdf_diag_
   end if
   mm1=mype+1
 
@@ -640,7 +640,7 @@ subroutine setuppm2_5(obsLL,odiagLL,lunin,mype,nreal,nobs,isis,is,conv_diagsave)
            if (err_final>tiny_r_kind) errinv_final=one/err_final
  
            if (binary_diag) call contents_binary_diag_(my_diag)
-           if (netcdf_diag) call contents_netcdf_diag_(my_diag)
+           if (netcdf_diag(jiter)) call contents_netcdf_diag_(my_diag)
 
         endif
 
@@ -661,7 +661,7 @@ subroutine setuppm2_5(obsLL,odiagLL,lunin,mype,nreal,nobs,isis,is,conv_diagsave)
 
 !! write information to diagnostic file
   if(conv_diagsave) then
-     if(netcdf_diag) call nc_diag_write
+     if(netcdf_diag(jiter)) call nc_diag_write
      if(binary_diag .and.ii>0) then
         write(7)cvar,nchar,nrealdiag,ii,mype,nrealdiag
         write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)

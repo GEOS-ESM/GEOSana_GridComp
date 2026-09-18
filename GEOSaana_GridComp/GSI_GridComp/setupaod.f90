@@ -291,7 +291,7 @@ subroutine setupaod(obsLL,odiagLL,lunin,mype,nchanl,nreal,nobs,&
      varnames(6:) = aerosol_names
 
      if (binary_diag) call init_binary_diag_
-     if (netcdf_diag) call init_netcdf_diag_
+     if (netcdf_diag(jiter)) call init_netcdf_diag_
   end if
 
 
@@ -616,7 +616,7 @@ subroutine setupaod(obsLL,odiagLL,lunin,mype,nchanl,nreal,nobs,&
            write(4) psfc,diagbuf,diagbufchan
 
           if (binary_diag) call contents_binary_diag_
-          if (netcdf_diag) call contents_netcdf_diag_
+          if (netcdf_diag(jiter)) call contents_netcdf_diag_
         end if
      endif ! (in_curbin)
 
@@ -632,7 +632,7 @@ subroutine setupaod(obsLL,odiagLL,lunin,mype,nchanl,nreal,nobs,&
   if (aero_diagsave) then
      close(4)
      if (binary_diag) call final_binary_diag_
-     if (netcdf_diag) call nc_diag_write
+     if (netcdf_diag(jiter)) call nc_diag_write
   endif
 
   call destroy_crtm

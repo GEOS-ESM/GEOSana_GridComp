@@ -240,7 +240,7 @@ subroutine setuptcamt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_dia
      if (lobsdiagsave) nreal=nreal+4*miter+1
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
      allocate(cprvstg(nobs),csprvstg(nobs))
-     if(netcdf_diag) call init_netcdf_diag_
+     if(netcdf_diag(jiter)) call init_netcdf_diag_
   end if
 
   call dtime_setup()
@@ -426,7 +426,7 @@ subroutine setuptcamt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_dia
         if (err_final>tiny_r_kind) errinv_final = one/err_final
 
         if(binary_diag) call contents_binary_diag_(my_diag)
-        if(netcdf_diag) call contents_netcdf_diag_(my_diag)
+        if(netcdf_diag(jiter)) call contents_netcdf_diag_(my_diag)
  
      end if
 
@@ -438,7 +438,7 @@ subroutine setuptcamt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_dia
 
 ! Write information to diagnostic file
   if(conv_diagsave)then
-     if(netcdf_diag) call nc_diag_write
+     if(netcdf_diag(jiter)) call nc_diag_write
      if(binary_diag)then
         write(7)'tca',nchar,nreal,ii,mype,ioff0
         write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
