@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
-- update to point to version of CRTM w/ fix for atms-n21
+- add abi_g19 (ABI on GOES 19)
 
 ### Fixed
 
