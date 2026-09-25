@@ -416,7 +416,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      endif
 
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
-     if (netcdf_diag.and.nobs>0) call init_netcdf_diag_
+     if (netcdf_diag(jiter).and.nobs>0) call init_netcdf_diag_
   end if
   num_bad_ikx=0
   do i=1,nobs
@@ -1497,7 +1497,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         if (err_final>tiny_r_kind) errinv_final = one/err_final
  
         if (binary_diag) call contents_binary_diag_(my_diagu,my_diagv)
-        if (netcdf_diag) call contents_netcdf_diag_(my_diagu,my_diagv)
+        if (netcdf_diag(jiter)) call contents_netcdf_diag_(my_diagu,my_diagv)
 
      endif
 
@@ -1594,7 +1594,7 @@ subroutine setupw(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
 
 ! Write information to diagnostic file
   if(conv_diagsave)then
-    if(netcdf_diag.and.nobs>0) call nc_diag_write
+    if(netcdf_diag(jiter).and.nobs>0) call nc_diag_write
     if(binary_diag .and. ii>0)then
        write(7)' uv',nchar,nreal,ii,mype,ioff0
        write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)

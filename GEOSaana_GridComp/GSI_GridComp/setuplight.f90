@@ -448,7 +448,7 @@ subroutine setuplight(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,light_di
      allocate(diagbuf(nreal,nobs))
      ii=0
      if(binary_diag) call init_binary_diag_(lu_diag,init_pass)
-     if(netcdf_diag) call init_netcdf_diag_()
+     if(netcdf_diag(jiter)) call init_netcdf_diag_()
   end if
 !--
 ! Save some lightning flash rate values (observed, guess, no. of obs.)
@@ -1108,7 +1108,7 @@ subroutine setuplight(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,light_di
         if (err_final>tiny_r_kind) errinv_final=one/err_final
 
         if(binary_diag) call contents_binary_diag_(my_diag)
-        if(netcdf_diag) call contents_netcdf_diag_(my_diag)
+        if(netcdf_diag(jiter)) call contents_netcdf_diag_(my_diag)
 
      end if
 
@@ -1125,7 +1125,7 @@ subroutine setuplight(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,light_di
    
 ! Write information to a diagnostics file
   if(light_diagsave .and. ii>0)then
-     if(netcdf_diag) call nc_diag_write
+     if(netcdf_diag(jiter)) call nc_diag_write
      if(binary_diag .and. ii>0)then
         write(lu_diag)" light",nchar,nreal,ii,mype
         write(lu_diag)diagbuf(:,1:ii)

@@ -326,7 +326,7 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
        mpi_comm_world,ierror)
 
 ! If netcdf diag, initialize it
-  if (conv_diagsave.and.netcdf_diag) call init_netcdf_diag_
+  if (conv_diagsave.and.netcdf_diag(jiter)) call init_netcdf_diag_
 
 ! Get height of maximum bending angle
   dobs_height_sub = zero
@@ -697,7 +697,7 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
         endif
 
 
-        if (conv_diagsave .and. netcdf_diag .and. luse) call contents_netcdf_diag_
+        if (conv_diagsave .and. netcdf_diag(jiter) .and. luse) call contents_netcdf_diag_
         
         gps_allptr => gps_allptr%llpoint
 
@@ -709,7 +709,7 @@ subroutine genstats_gps(bwork,awork,toss_gps_sub,conv_diagsave,mype)
 
 ! If requested, write information to diagnostic file
   if(conv_diagsave) then
-    if (netcdf_diag) call nc_diag_write
+    if (netcdf_diag(jiter)) call nc_diag_write
     if (binary_diag .and. icnt > 0)then
         nchar = 1
         write(7)'gps',nchar,nreal,icnt,mype,ioff
