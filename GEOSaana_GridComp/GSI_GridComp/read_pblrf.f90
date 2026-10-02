@@ -125,10 +125,16 @@
       !occ_satid: Low Earth Orbit satellite identifier, e.g., COSMIC2=750-755
       character(20), allocatable, dimension(:,:) :: time_start ! UTC time at first level
       character(20), allocatable, dimension(:,:) :: localtime_start ! Local time at first level
-      character(20), allocatable, dimension(:,:) :: time_pblh ! UTC time at PBL level
+      !2024 data
+      character(19), allocatable, dimension(:,:) :: time_pblh ! UTC time at PBL level
+      !2015 data
+      !character(20), allocatable, dimension(:,:) :: time_pblh ! UTC time at PBL level
   
       real(r_kind), allocatable, dimension(:) :: ryear, rmonth, rdate, rhour, rminute
-      character(25) :: sfile
+      ! 2024 data
+      character(76) :: sfile
+      ! 2015 data
+      !character(25) :: sfile
 
       real(r_kind) :: mesh, nobs_within_distance
       real(r_kind) :: hsstdv
@@ -189,10 +195,15 @@
 !     Analysis Time
       !gnssro_pbl_obs_2015093018.nc4
       !source_file=gnssro_obs_2015093018.nc4
-      ierr = NF90_GET_ATT(ncid,nf90_global,'source_file',sfile)
-      if (ierr /= nf90_noerr) call handle_err(ierr,"source_file")
+      ! 2024 data
+      ierr = NF90_GET_ATT(ncid,nf90_global,'source_refractivity_file',sfile)
+      if (ierr /= nf90_noerr) call handle_err(ierr,"source_refractivity_file")
+      read(sfile(63:72),'(i10)') ana_time
+      ! 2015 data
+      !ierr = NF90_GET_ATT(ncid,nf90_global,'source_file',sfile)
+      !if (ierr /= nf90_noerr) call handle_err(ierr,"source_file")
+      !read(sfile(12:21),'(i10)') ana_time
       print*, "yeg_read_pblrf_ana_time: sfile=", sfile
-      read(sfile(12:21),'(i10)') ana_time
       print*, "yeg_read_pblrf_ana_time: ana_time=", ana_time
       !read(infile(16:25),'(i10)') ana_time
       print*, "yeg_read_pblrf: kx=",kx
@@ -511,9 +522,9 @@
          else if (alt(1,i)-zz>500) then ! if lowest observed altitude - zz [agl] > 500 m
             print*, 'read_pblrf L479: alt(1,i)-zz=',alt(1,i)-zz
             pblrfqm=10
-         else if (idomsfc==1 .or. idomsfc==2) then ! exclude data over land: (water(0),land(1),ice(2)) 
-            print*, 'read_pblrf L513: idomsfc==1 (land) or 2 (ice), idomsfc=',idomsfc
-            pblrfqm=11
+         !else if (idomsfc==1 .or. idomsfc==2) then ! exclude data over land: (water(0),land(1),ice(2)) 
+         !   print*, 'read_pblrf L513: idomsfc==1 (land) or 2 (ice), idomsfc=',idomsfc
+         !   pblrfqm=11
          end if
 
          if (pblrf_gnssro <= zero) then

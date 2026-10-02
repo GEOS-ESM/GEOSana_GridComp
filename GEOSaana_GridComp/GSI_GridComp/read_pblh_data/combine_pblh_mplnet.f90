@@ -13,7 +13,7 @@
       implicit none
 
 !     Declare local parameters
-      integer(i_kind),parameter:: ntime = 161
+      integer(i_kind),parameter:: ntime = 200
       integer(i_kind),parameter:: maxnum = 2500 ! 150000
       real(r_double),parameter:: r360 = 360.0_r_double
       real(r_double),parameter:: missing = -99999.9_r_double
@@ -36,10 +36,11 @@
       integer(i_kind) :: ncid,ncid2(ntime),ierr,ierr2,dimid1,dimid2,dimid3,dimid4,dimid5,nobs
       integer(i_kind) :: ntime_1440
       integer(i_kind) :: varid1,varid2,varid3,varid4,varid5,varid6
-      integer(i_kind) :: varid7,varid8,varid9,varid10,varid11,varid12,varid13,varid14
+      integer(i_kind) :: varid7,varid8,varid9,varid10,varid11,varid12,varid13,varid14,varid15,varid16
 !     integer(i_kind) :: iyear, imonth, idate, ihour, iminute
       real(r_double), allocatable,dimension(:) :: time
       real(r_kind), allocatable,dimension(:) :: lat, lon, pblh, sfc_alti, flag_cloud_screen
+      real(r_kind), allocatable,dimension(:) :: cloud_base, flag_mixed_layer
       integer(i_kind), allocatable,dimension(:) :: ryear, rmonth, rdate, rhour, rmin
       real(r_double), allocatable,dimension(:) :: rsec
       !real(r_double), allocatable,dimension(:,:) :: ATB
@@ -47,6 +48,7 @@
       integer(i_kind) :: total_nobs(ntime)
       integer(i_kind) ana_time(ntime), win_time(ntime), obs_time
       real(r_kind), dimension(maxnum,ntime) :: slat, slon, spblh, ssfc_alti, sflag_cloud_screen
+      real(r_kind), dimension(maxnum,ntime) :: scloud_base, sflag_mixed_layer
       integer(i_kind), dimension(maxnum,ntime) :: syear, smonth, sdate, shour, smin
       real(r_double), dimension(maxnum,ntime) :: ssec
       character(19), dimension(maxnum,ntime) :: ssite
@@ -58,10 +60,10 @@
       sis = 'mplnet'
 
 !     set analysis window and output file name
-      ana_yy0 = 2015
+      ana_yy0 = 2024
       ana_yy1 = ana_yy0
-      ana_mm0 = 8
-      ana_dd0 = 20
+      ana_mm0 = 7
+      ana_dd0 = 14
       ana_hh0 = 21
       win_time(1) = ana_yy0*1000000+ana_mm0*10000+ana_dd0*100+ana_hh0
       print*, win_time(1)
@@ -114,6 +116,8 @@
 
          allocate(lat(ntime_1440), lon(ntime_1440), time(ntime_1440), pblh(ntime_1440), sfc_alti(ntime_1440))
          allocate(flag_cloud_screen(ntime_1440))
+         allocate(cloud_base(ntime_1440))
+         allocate(flag_mixed_layer(ntime_1440))
          !allocate(lat(time), lon(time), pblh(time), sfc_elev(norbits))
          !allocate(sfc_mask(norbits), liadr_data_alt(nheights), ATB(norbits, nheights))
          allocate(ryear(ntime_1440), rmonth(ntime_1440), rdate(ntime_1440), rhour(ntime_1440), rmin(ntime_1440))
@@ -146,6 +150,16 @@
 !        FLAG_MEANINGS = "cloud_free", "cloud_fraction_>_0%", "cloud_detection_fail", "no_cloud_product" ;
          ierr = NF90_INQ_VARID(ncid,'FLAG_CLOUD_SCREEN',varid6)
          if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid6,flag_cloud_screen)
+
+!        CLOUD_BASE [km]: altitude of the bottom of each cloud layer in the merged cloud scene
+         ierr = NF90_INQ_VARID(ncid,'CLOUD_BASE',varid7)
+         if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid7,cloud_base)
+
+!        FLAG_MIXED_LAYER:
+!        1b, 2b, 4b, 8b, 16b, 32b ;
+!        FLAG_MEANINGS = "no_problems", "mixed_layer_height_within_4_range_bins_minimum_detectable_height", "fraction_of_missing_or_attenuated_signal_data_>_50%", "signal_noise_in_profile_too_high", "missing_4wk_mean", "failure" ;
+         ierr = NF90_INQ_VARID(ncid,'FLAG_MIXED_LAYER',varid8)
+         if (ierr == nf90_noerr) ierr = NF90_GET_VAR(ncid,varid8,flag_mixed_layer)
 
 !        Read the global attribute 
 !        Here, string global attribute doesn't work.
@@ -180,7 +194,7 @@
             ! Convert Julian date 
             call calendar_date_realsec(time(i),ryear(i),rmonth(i),rdate(i),rhour(i),rmin(i),rsec(i))
             obs_time = ryear(i)*1000000+rmonth(i)*10000+rdate(i)*100+rhour(i)
-            print*, i, "obs_time=", obs_time
+            !print*, i, "obs_time=", obs_time
             kk = 0
             do j = 2, ntime
                if (obs_time>=win_time(j-1) .and. obs_time<win_time(j)) then
@@ -204,6 +218,8 @@
             spblh(ii,kk) = pblh(i)*1000.0 
             ssfc_alti(ii,kk) = sfc_alti(i)*1000.0 
             sflag_cloud_screen(ii,kk) = flag_cloud_screen(i)
+            scloud_base(ii,kk) = cloud_base(i)*1000.0
+            sflag_mixed_layer(ii,kk) = flag_mixed_layer(i)
             ssite(ii,kk) = site
             sinstrument(ii,kk) = instrument
 
@@ -217,6 +233,7 @@
          if (ierr /= nf90_noerr) call handle_err(ierr,"close")
 
          deallocate(lat, lon, time, pblh, sfc_alti, flag_cloud_screen)
+         deallocate(cloud_base, flag_mixed_layer)
          deallocate(ryear, rmonth, rdate, rhour, rmin, rsec)
 
       end do ! end of nfile
@@ -251,8 +268,10 @@
          ierr2 = nf90_def_var(ncid2(i), 'PBL_Height', NF90_FLOAT, dimid1, varid10)
          ierr2 = nf90_def_var(ncid2(i), 'Surface_Altitude', NF90_FLOAT, dimid1, varid11)
          ierr2 = nf90_def_var(ncid2(i), 'Flag_Cloud_Screen', NF90_FLOAT, dimid1, varid12)
-         ierr2 = nf90_def_var(ncid2(i), 'Site', NF90_CHAR,(/dimid4, dimid1/), varid13)
-         ierr2 = nf90_def_var(ncid2(i), 'Instrument', NF90_CHAR,(/dimid5, dimid1/), varid14)
+         ierr2 = nf90_def_var(ncid2(i), 'Cloud_Base', NF90_FLOAT, dimid1, varid13)
+         ierr2 = nf90_def_var(ncid2(i), 'Flag_Mixed_Layer', NF90_FLOAT, dimid1, varid14)
+         ierr2 = nf90_def_var(ncid2(i), 'Site', NF90_CHAR,(/dimid4, dimid1/), varid15)
+         ierr2 = nf90_def_var(ncid2(i), 'Instrument', NF90_CHAR,(/dimid5, dimid1/), varid16)
          !ierr2 = nf90_def_var(ncid2(i), 'Total_Attenuated_Backscatter_532', NF90_DOUBLE, (/ dimid1,dimid2 /), varid12)
 
          ierr2 = nf90_put_att(ncid2(i), varid9, 'units', 'YYYYMMDDHH')
@@ -260,6 +279,7 @@
          ierr2 = nf90_put_att(ncid2(i), varid2, 'units', 'degrees_east')
          ierr2 = nf90_put_att(ncid2(i), varid10, 'units', 'meters')
          ierr2 = nf90_put_att(ncid2(i), varid11, 'units', 'meters')
+         ierr2 = nf90_put_att(ncid2(i), varid13, 'units', 'meters')
 
          ierr2 = nf90_enddef(ncid2(i))
 
@@ -276,8 +296,10 @@
          ierr2 = nf90_put_var(ncid2(i), varid10, spblh(1:kk,i))  
          ierr2 = nf90_put_var(ncid2(i), varid11, ssfc_alti(1:kk,i))  
          ierr2 = nf90_put_var(ncid2(i), varid12, sflag_cloud_screen(1:kk,i))  
-         ierr2 = nf90_put_var(ncid2(i), varid13, ssite(1:kk,i))
-         ierr2 = nf90_put_var(ncid2(i), varid14, sinstrument(1:kk,i))
+         ierr2 = nf90_put_var(ncid2(i), varid13, scloud_base(1:kk,i))  
+         ierr2 = nf90_put_var(ncid2(i), varid14, sflag_mixed_layer(1:kk,i))  
+         ierr2 = nf90_put_var(ncid2(i), varid15, ssite(1:kk,i))
+         ierr2 = nf90_put_var(ncid2(i), varid16, sinstrument(1:kk,i))
          !ierr2 = nf90_put_var(ncid2(i), varid12, sATB(1:kk,1:nheights,i))  
 
          ierr2 = NF90_CLOSE(ncid2(i))
@@ -293,6 +315,10 @@
      if (ana_hh1 >= 24) then
         ana_hh1 = ana_hh1 - 24
         ana_dd1 = ana_dd0 + 1
+        if (ana_mm0 == 7 .and. ana_dd1 > 31) then
+           ana_mm1 = 8
+           ana_dd1 = 1
+        end if
         if (ana_mm0 == 8 .and. ana_dd1 > 31) then
            ana_mm1 = 9
            ana_dd1 = 1
@@ -328,7 +354,7 @@
     integer :: i,j,k,l,n,jd
     real(r_double) :: frac_day
 
-    print*, julian_date
+    !print*, julian_date
     jd = int(julian_date)
 
     l = jd+68569
@@ -364,6 +390,11 @@
     if (hrs >= 24.0) then
        hrs = hrs - 24
        day = day + 1
+    end if
+
+    if (month==7 .and. day > 31) then
+       month = 8
+       day = 1
     end if
 
     if (month==8 .and. day > 31) then
