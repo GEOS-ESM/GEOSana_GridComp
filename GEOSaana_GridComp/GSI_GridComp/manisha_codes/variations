@@ -1,0 +1,53 @@
+;Experiments w/ read_pblri.f90 and corresponding changes (Used GEOSadas-5.29.4.6):
+
+Period: OLD PERIOD 
+Name of Experiment: pblhe7_cnncats
+Name of modified file: read_pblri.f90
+Path to Source Code: /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.29.4.6
+
+
+; Experiments w/ read_pblsld.f90 (and read_pblgld.f90) and corresponding changes (Used GEOSadas-5.42.11 for all experiments except use GEOSadas-5.42.11_v2 for two experiments below):
+;Path to Source Code: /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.42.11   OR ALTERNATIVELY /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.42.11_v2
+
+Period: OLD PERIOD
+Name of Experiment: pblhe9_cnncats (with localtime qc)
+Name of modified files: read_pblsld.f90_oldperiod_wlocaltimeqc, read_pblgld.f90_oldperiod
+Path to Source Code: /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.42.11 
+
+Period: OLD PERIOD
+Name of Experiment: pblhe9_cnncats_minqc (without localtime qc)
+Name of modified files: read_pblsld.f90_oldperiod_nolocaltimeqc, read_pblgld.f90_oldperiod
+Path to Source Code: /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.42.11 
+
+Period: OLD PERIOD
+Name of Experiment: pblhe9_dtdscats (with localtime qc)
+Name of modified files: read_pblsld.f90_oldperiod_dtds_wlocaltimeqc, read_pblgld.f90_oldperiod
+Path to Source Code: /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.42.11_v2
+
+Period: OLD PERIOD
+Name of Experiment: pblhe9_dtdscats_minqc (without localtime qc)
+Name of modified files: read_pblsld.f90_oldperiod_dtds_nolocaltimeqc, read_pblgld.f90_oldperiod
+Path to Source Code: /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.42.11_v2
+
+Period: NEW PERIOD
+Name of Experiment: pblhe10_cnnicesat2 (with localtime qc)
+Name of modified file: read_pblsld.f90_newperiod_wlocaltimeqc_whighlatqc
+Path to Source Code: /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.42.11
+
+Period: NEW PERIOD
+Name of Experiment: pblhe10_cnnicesat2_minqc (without localtime qc)
+Name of modified file: read_pblsld.f90_newperiod_nolocaltimeqc_whighlatqc
+Path to Source Code: /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.42.11
+
+Period: NEW PERIOD
+Name of Experiment: pblhe10_dtdsicesat2 (without localtime qc)
+Name of modified files: read_pblsld.f90_newperiod_dtds_wlocaltimeqc, read_pblgld.f90_wqc
+Path to Source Code: /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.42.11
+
+Period: NEW PERIOD
+Name of Experiment: pblhe10_dtdsicesat2_minqc(without localtime qc)
+Name of modified file: read_pblsld.f90_newperiod_dtds_wolocaltimeqc
+Path to Source Code: /discover/nobackup/mganesha/DSI_PBL/2025/GEOSadas-5.42.11
+
+
+
