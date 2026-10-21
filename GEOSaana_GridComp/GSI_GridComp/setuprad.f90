@@ -1638,7 +1638,7 @@ contains
               if(radmod%lcloud_fwd .and. eff_area) then
                  if(radmod%rtype == 'amsua' .and. (i <=5 .or. i==15) ) then 
                     errf(i) = three*errf(i)    
-                 else if(radmod%rtype == 'atms' .and. (i <= 6 .or. (i>15 .and. i<19)) ) then
+                 else if(radmod%rtype == 'atms' .and. (i <= 6 .or. (i>15 .and. i<20)) ) then
                     errf(i) = min(three*errf(i),10.0_r_kind)    
                  else if(radmod%rtype == 'gmi' .or. radmod%rtype == 'tmi' &
                          .or. radmod%rtype == 'ssmi'  &
