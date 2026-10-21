@@ -2059,9 +2059,9 @@ subroutine call_crtm(obstype,obstime,data_s,nchanl,nreal,ich, &
                     cloud_cont(k,2)=max(1.001_r_kind*1.0E-6_r_kind, cloud_cont(k,2))
               end do
            else ! .not. (cw_cv.or.ql_cv)
-              if (imp_physics==11 .and. lprecip_wk .and. cloud_cont(k,ii) > 1.0e-6_r_kind) then
+              if (imp_physics==11 .and. lprecip_wk) then
                  do ii=1,n_clouds_fwd_wk
-                    cloud_efr (k,ii)=cloudefr(kk2,ii)
+                    if (cloud_cont(k,ii) > 1.0e-6_r_kind) cloud_efr (k,ii)=cloudefr(kk2,ii)
                  enddo
               endif
 
