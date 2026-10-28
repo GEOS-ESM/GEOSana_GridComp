@@ -1435,12 +1435,12 @@ contains
 
            if (adp_anglebc) then
               tb_obsbc1=tb_obs(1)-cbias(nadir,ich(1))-predx(1,ich(1))
-              tb_obsbc16=tb_obs(16)-cbias(nadir,ich(16))-predx(1,ich(16)) 
-              tb_obsbc17=tb_obs(17)-cbias(nadir,ich(17))-predx(1,ich(17)) 
+!             tb_obsbc16=tb_obs(16)-cbias(nadir,ich(16))-predx(1,ich(16)) 
+!             tb_obsbc17=tb_obs(17)-cbias(nadir,ich(17))-predx(1,ich(17)) 
            else
               tb_obsbc1=tb_obs(1)-cbias(nadir,ich(1))
-              tb_obsbc16=tb_obs(16)-cbias(nadir,ich(16))  
-              tb_obsbc17=tb_obs(17)-cbias(nadir,ich(17))  
+!             tb_obsbc16=tb_obs(16)-cbias(nadir,ich(16))  
+!             tb_obsbc17=tb_obs(17)-cbias(nadir,ich(17))  
            end if
 !          si_obs = (tb_obsbc16-tb_obsbc17) - (tsim_clr(16)-tsim_clr(17)) 
 !          si_fg  = (tsim(16)-tsim(17)) - (tsim_clr(16)-tsim_clr(17)) 
@@ -1458,12 +1458,12 @@ contains
 
            if (adp_anglebc) then
               tb_obsbc1=tb_obs(1)-cbias(nadir,ich(1))-predx(1,ich(1))
-              tb_obsbc17=tb_obs(17)-cbias(nadir,ich(17))-predx(1,ich(17))
-              tb_obsbc18=tb_obs(18)-cbias(nadir,ich(18))-predx(1,ich(18))
+!             tb_obsbc17=tb_obs(17)-cbias(nadir,ich(17))-predx(1,ich(17))
+!             tb_obsbc18=tb_obs(18)-cbias(nadir,ich(18))-predx(1,ich(18))
            else
               tb_obsbc1=tb_obs(1)-cbias(nadir,ich(1))
-              tb_obsbc17=tb_obs(17)-cbias(nadir,ich(17))
-              tb_obsbc18=tb_obs(18)-cbias(nadir,ich(18))
+!             tb_obsbc17=tb_obs(17)-cbias(nadir,ich(17))
+!             tb_obsbc18=tb_obs(18)-cbias(nadir,ich(18))
            end if
 !          si_obs = (tb_obsbc17-tb_obsbc18) - (tsim_clr(17)-tsim_clr(18))
 !          si_fg  = (tsim(17)-tsim(18)) - (tsim_clr(17)-tsim_clr(18))
