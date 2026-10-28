@@ -114,6 +114,7 @@ set (SRCS_UTIL
   mpl_allreduce.F90
   mpl_bcast.f90
   mrmsmod.f90
+  mws_spatial_average_mod.f90
   native_endianness.f90
   netcdf_mod.f90
   ncepgfs_io.f90
@@ -490,6 +491,7 @@ set (SRCS_SOLVER
   read_lag.f90
   read_lidar.f90
   read_Lightning.f90
+  read_mws.f90
   read_nsstbufr.f90
   read_mitm_mxtm.f90
   read_modsbufr.f90

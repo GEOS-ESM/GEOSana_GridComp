@@ -419,6 +419,7 @@ sub init {
 
        Assignfn( "$rcname",                                    "gsiparm.anl");
        Assignfn( "$fvwork/gsi_atms_beamwidth.rc",       "atms_beamwidth.txt");
+       Assignfn( "$fvwork/gsi_mws_beamwidth.rc",         "mws_beamwidth.txt");
        Assignfn( "$fvwork/gmao_global_cloudy_radiance_info.rc",       "cloudy_radiance_info.txt");
        Assignfn( "$fvwork/gmao_global_aeroinfo.rc",               "aeroinfo");
        if ( $nsig == 72 ) {

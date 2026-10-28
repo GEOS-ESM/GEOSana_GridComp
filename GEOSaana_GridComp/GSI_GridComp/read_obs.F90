@@ -218,6 +218,8 @@ subroutine read_obs_check (lexist,filename,jsatid,dtype,minuse,nread)
          kidsat=3
        else if(jsatid == 'metop-c')then
          kidsat=5
+       else if(jsatid == 'metop-sg-a1')then
+         kidsat=24  
        else if(jsatid == 'm08')then
          kidsat = 55
        else if(jsatid == 'm09')then
@@ -922,7 +924,7 @@ subroutine read_obs(ndata,mype)
                obstype == 'cris'      .or. obstype == 'cris-fsr'  .or.  &
                obstype == 'amsr2'     .or. obstype == 'tmi'       .or.  &
                obstype == 'gmi'       .or. obstype == 'saphir'    .or.  &
-               obstype == 'viirs-m' ) then
+               obstype == 'viirs-m'   .or. obstype == 'mws') then
           ditype(i) = 'rad'
        else if (is_extOzone(dfile(i),obstype,dplat(i))) then
           ditype(i) = 'ozone'
@@ -1019,6 +1021,8 @@ subroutine read_obs(ndata,mype)
 ! N.B. ATMS must be run on one processor for the filtering code to work.
              else if(obstype == 'atms')then
 !                 parallel_read(i)= .true.
+             else if(obstype == 'mws')then
+!                 parallel_read(i)= .true.
              else if(ssmis)then
 !               parallel_read(i)= .true.
              else if(seviri)then
@@ -1059,25 +1063,26 @@ subroutine read_obs(ndata,mype)
                   (obstype == 'amsua' .or. obstype == 'amsub' .or. &
                    obstype == 'mhs'   .or. obstype == 'hirs3' .or. &
                    obstype == 'cris'  .or. obstype == 'cris-fsr' .or. &
-                   obstype == 'iasi'  .or. obstype == 'atms') .and. &
+                   obstype == 'iasi'  .or. obstype == 'atms' .or. &
+                   obstype == 'mws') .and. &
                   (dplat(i) == 'n17' .or. dplat(i) == 'n18' .or. &
                    dplat(i) == 'n19' .or. dplat(i) == 'npp' .or. &
                    dplat(i) == 'n20' .or. &
                    dplat(i) == 'n21' .or. &
                    dplat(i) == 'metop-a' .or. dplat(i) == 'metop-b' .or. &
-                   dplat(i) == 'metop-c')
+                   dplat(i) == 'metop-c' .or. dplat(i) == 'metop-sg-a1')
 ! direct broadcast from NESDIS/UW
           db_possible(i) = ditype(i) == 'rad'  .and.       &
                   (obstype == 'amsua' .or.  obstype == 'amsub' .or.  &
                    obstype == 'mhs' .or. obstype == 'atms' .or. &
                    obstype == 'cris' .or. obstype == 'cris-fsr' .or. &
-                   obstype == 'iasi') .and. &
+                   obstype == 'iasi' .or. obstype == 'mws') .and. &
                   (dplat(i) == 'n17' .or. dplat(i) == 'n18' .or. &
                    dplat(i) == 'n19' .or. dplat(i) == 'npp' .or. &
                    dplat(i) == 'n20' .or. &
                    dplat(i) == 'n21' .or. &
                    dplat(i) == 'metop-a' .or. dplat(i) == 'metop-b' .or. &
-                   dplat(i) == 'metop-c')
+                   dplat(i) == 'metop-c' .or. dplat(i) == 'metop-sg-a1')
 
 !   Inquire data set to deterimine if input data available and size of dataset
           ii=ii+1
@@ -1679,6 +1684,14 @@ subroutine read_obs(ndata,mype)
                      mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),nobs_sub1(1,i),&
                      read_rec(i),read_ears_rec(i),read_db_rec(i),dval_use,radmod)
                 string='READ_ATMS'
+
+!            Process mws data 
+             else if (obstype == 'mws') then                       
+                call read_mws(mype,val_dat,ithin,isfcalc,rmesh,dplat(i),gstime,&
+                     infile,lunout,obstype,nread,npuse,nouse,twind,sis, &
+                     mype_root,mype_sub(mm1,i),npe_sub(i),mpi_comm_sub(i),nobs_sub1(1,i),&
+                     read_rec(i),read_ears_rec(i),read_db_rec(i),dval_use,radmod)
+                string='READ_MWS'                
 
 !            Process saphir data
              else if (obstype == 'saphir') then

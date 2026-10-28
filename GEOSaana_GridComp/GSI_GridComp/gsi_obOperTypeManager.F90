@@ -305,6 +305,7 @@ function dtype2index_(dtype) result(index_)
     case("amsub"  ); index_= iobOper_rad
     case("msu"    ); index_= iobOper_rad
     case("mhs"    ); index_= iobOper_rad
+    case("mws"    ); index_= iobOper_rad
     case("hirs2"  ); index_= iobOper_rad
     case("hirs3"  ); index_= iobOper_rad
     case("hirs4"  ); index_= iobOper_rad

@@ -651,8 +651,16 @@ sub init {
       Assignfn( "$CRTM_COEFFS","CRTM_Coeffs");
    } else {
       Assignfn( "$fvInput/$myetc/JEDI-CRTM-2.4.1j1-GMAO-1/Little_Endian","CRTM_Coeffs");
+      #Assignfn( "/discover/nobackup/projects/gmao/obsdev/yzhu/GEOSadas-5.44.4/crtm_coeff/v3.1.2.0/Little_Endian","CRTM_Coeffs");
    }
    Assignfn( "$fvhome/run/prepobs_errtable.global","errtable");
+
+   ($psnymd, $psnhms) = ( tick($nymd,$nhms,-6*3600) ); # tick time to previous synoptic time
+   $psyyyy = substr($psnymd,0,4);
+   $psmm   = substr($psnymd,4,2);
+   $psdd   = substr($psnymd,6,2);
+   $pshh   = substr($psnhms,0,2);
+   Assignfn( "/discover/nobackup/projects/gmao/obsdev/yzhu/archive/$expid/obs/Y${psyyyy}/M${psmm}/D${psdd}/H${pshh}/$expid.diag_mws_metop-sg_ges.${psyyyy}${psmm}${psdd}_${pshh}z.bin","diag_mws_metop-sg");
 
 # SSI/GSI static data and resolution dependent static data
 # NOTE: for a while, when using GSI, will need both because of spectral transforms
@@ -710,6 +718,7 @@ sub init {
 
        Assignfn( "$rcname",                                    "gsiparm.anl");
        Assignfn( "$fvwork/gsi_atms_beamwidth.rc",       "atms_beamwidth.txt");
+       Assignfn( "$fvwork/gsi_mws_beamwidth.rc",         "mws_beamwidth.txt");
        Assignfn( "$fvwork/gmao_global_cloudy_radiance_info.rc",       "cloudy_radiance_info.txt");
        Assignfn( "$fvwork/gmao_global_aeroinfo.rc",               "aeroinfo");
        if ( $nsig == 72 ) {
