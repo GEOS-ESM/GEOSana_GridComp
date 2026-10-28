@@ -513,7 +513,7 @@ SUBROUTINE MODIFY_BEAMWIDTH (nxmax, nymax, nx, ny, image, sampling_dist,&
      DEALLOCATE(gooddata_map)
 
      RETURN
-   END SUBROUTINE MODIFY_BEAMWIDTH_atms
+   END SUBROUTINE MODIFY_BEAMWIDTH
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
