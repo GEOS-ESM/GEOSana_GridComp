@@ -40,6 +40,16 @@ endforeach ()
 #     the extra dots and I can't figure out how to do it programatically
 
 install(
+   FILES gmao_global_hybens_info.x48y25l72.rc.txt
+   DESTINATION etc
+   RENAME gmao_global_hybens_info.x48y25l72.rc
+   )
+install(
+   FILES gmao_global_hybens_info.x96y49l72.txt
+   DESTINATION etc
+   RENAME gmao_global_hybens_info.x96y49l72.rc
+   )
+install(
    FILES gmao_global_hybens_info.x288y181l72.txt
    DESTINATION etc
    RENAME gmao_global_hybens_info.x288y181l72.rc

@@ -100,8 +100,8 @@ OBS_INPUT::
  &HYBRID_ENSEMBLE
    l_hyb_ens=@L_HYB_ENS,n_ens=2,beta_s0=0.25,generate_ens=.false.,uv_hyb_ens=.true.,
    s_ens_h=800.,s_ens_v=-0.5,
-   jcap_ens=32,nlat_ens=@ENS_GSINLAT,nlon_ens=@ENS_GSINLON,aniso_a_en=.false.,
-   jcap_ens_test=32,
+   jcap_ens=@ENS_JCAP,nlat_ens=@ENS_GSINLAT,nlon_ens=@ENS_GSINLON,aniso_a_en=.false.,
+   jcap_ens_test=@ENS_JCAP,
    oz_univ_static=.true.,
 !  sst_staticB=.false.,
 !  use_localization_grid=.true.,
