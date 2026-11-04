@@ -1139,6 +1139,7 @@ contains
           do j =1,jpch_rad
              if (inew_rad(j) .and. iuse_rad(j)>=0 .and. all(predx(:,j)==zero)) then
                 iuse_rad(j)=-1
+                write(iout_rad,*)'RADINFO: new rad channel without BC set to passive: ", j
              end if
           end do
        end if
@@ -1579,6 +1580,12 @@ contains
       nstep = 130
       edge1 = 1
       edge2 = 130
+   else if (index(isis,'mws')/=0) then
+      step  = 1.049_r_kind
+      start = -49.312_r_kind
+      nstep = 95
+      edge1 = 7
+      edge2 = 89
    end if
 
    return

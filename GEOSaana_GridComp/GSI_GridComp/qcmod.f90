@@ -3557,7 +3557,6 @@ subroutine qc_amsua(nchanl,is,ndat,nsig,npred,sea,land,ice,snow,mixed,luse,   &
 !                  available for ATMS).
   latms_surfaceqc = ((latms .or. lmws) .AND. .NOT.(sea .OR. land))
 
-
 ! If window channels are missing, skip the following QC and do not
 ! assimilate channels 1-6 & 15.
 

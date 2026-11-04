@@ -24,6 +24,7 @@ set (etc_txt_files
    gmao_global_scaninfo.txt
    gmao_global_tlapmean.txt
    gsi_atms_beamwidth.txt
+   gsi_mws_beamwidth.txt
    )
 
 foreach (txt_file ${etc_txt_files})
