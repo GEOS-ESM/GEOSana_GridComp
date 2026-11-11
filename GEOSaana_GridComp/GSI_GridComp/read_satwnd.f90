@@ -1480,7 +1480,7 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
            dlnpob=log(one_tenth*ppb)  ! ln(pressure in cb)
            ppb=one_tenth*ppb         ! from mb to cb
  !         Special block for data thinning - if requested
-           if (ithin > 0 .and. iuse >=0 .and. qm <4) then
+           if (ithin > 0) then
               ntmp=ndata  ! counting moved to map3gridS
  !         Set data quality index for thinning
               if (thin4d) then
@@ -1503,6 +1503,8 @@ subroutine read_satwnd(nread,ndata,nodata,infile,obstype,lunout,gstime,twind,sis
               else
                  crit1 = timedif/r6+half
               endif
+!             Prefer usable obs over monitored/QC-flagged obs within a thinning box
+              if (usage >= r100) crit1 = crit1 + r100
               if (pflag==0) then
                  do kk=1,nsig
                     presl_thin(kk)=presl(kk)
