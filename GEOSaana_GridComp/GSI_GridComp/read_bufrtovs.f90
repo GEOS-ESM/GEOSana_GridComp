@@ -600,7 +600,7 @@ subroutine read_bufrtovs(mype,val_tovs,ithin,isfcalc,&
 
 !          Extract satellite id.  If not the one we want, read next record
            ksatid=nint(bfr1bhdr(1))
-           if(ksatid /= kidsat) cycle read_subset
+           if(ksatid /= kidsat) cycle read_loop
            rsat=bfr1bhdr(1) 
 
 !          If msu, drop obs from first (1) and last (11) scan positions

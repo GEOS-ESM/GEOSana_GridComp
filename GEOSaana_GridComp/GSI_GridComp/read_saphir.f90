@@ -315,7 +315,7 @@ subroutine read_saphir(mype,val_tovs,ithin,isfcalc,&
 !       Extract satellite id.  If not the one we want, read next record
         rsat=bfr1bhdr(1) 
         ksatid=nint(bfr1bhdr(1))
-        if(ksatid /= kidsat) cycle read_subset
+        if(ksatid /= kidsat) cycle read_loop
 
 !       Extract observation location and other required information
         if(abs(bfr1bhdr(9)) <= 90._r_kind .and. abs(bfr1bhdr(10)) <= r360)then
