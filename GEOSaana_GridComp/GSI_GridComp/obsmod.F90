@@ -499,7 +499,7 @@ module obsmod
 #endif
 
   logical luse_obsdiag
-  logical binary_diag, netcdf_diag 
+  logical binary_diag, netcdf_diag(1:50)
 
 ! Declare types
 

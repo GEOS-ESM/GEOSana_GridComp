@@ -525,7 +525,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
      if(l_pbl_pseudo_surfobst) allocate(cdiagbufp(nobs*3),rdiagbufp(nreal,nobs*3))
      rdiagbuf=zero
-     if(netcdf_diag.and.nobs>0) call init_netcdf_diag_
+     if(netcdf_diag(jiter).and.nobs>0) call init_netcdf_diag_
   end if
   scale=one
   rsig=float(nsig)
@@ -1259,7 +1259,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
         if (err_final>tiny_r_kind) errinv_final=one/err_final
 
         if(binary_diag) call contents_binary_diag_(my_diag)
-        if(netcdf_diag) call contents_netcdf_diag_(my_diag)
+        if(netcdf_diag(jiter)) call contents_netcdf_diag_(my_diag)
      end if
 
 
@@ -1375,7 +1375,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
               else
                  iip=nobs
               endif
-              if(netcdf_diag) call contents_netcdf_diagp_
+              if(netcdf_diag(jiter)) call contents_netcdf_diagp_
            end if
 
            prest = prest - pps_press_incr
@@ -1394,7 +1394,7 @@ subroutine setupt(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_diagsav
   call final_vars_
 ! Write information to diagnostic file
   if(conv_diagsave)then
-    if(netcdf_diag.and.nobs>0.and.do_nc_diag) call nc_diag_write
+    if(netcdf_diag(jiter).and.nobs>0.and.do_nc_diag) call nc_diag_write
     if(binary_diag .and. ii>0)then
        write(7)'  t',nchar,nreal,ii+iip,mype,idia0
        if(l_pbl_pseudo_surfobst .and. iip>0) then

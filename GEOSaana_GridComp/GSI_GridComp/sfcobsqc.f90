@@ -22,6 +22,7 @@ module sfcobsqc
 !   2014-10-01  Xue - add GSD surface data uselist
 !   2015-07-10  pondeca - add reject list for cldch
 !   2018-03-14  pondeca - add station accept list for mesonet visibility
+!   2026-05-22  a.lee   - correct the use of calcsun in subroutine get_sunangle
 !
 ! subroutines included:
 !   sub init_rjlists
@@ -1126,7 +1127,8 @@ subroutine get_sunangle(idate,dtime,dlon,dlat,sunangle)
   rlon=real(dlon/deg2rad,kind=r_single) ; if (rlon > s180) rlon=rlon-s360
   rlat=real(dlat/deg2rad,kind=r_single)
 
-  call calcsun(idayyr3,ndays,time,rlat,rlon,sunangle)
+  call calcsun(idayyr3,ndays,time,rlon,rlat,sunangle)
+  !call calcsun(idayyr3,ndays,time,rlat,rlon,sunangle)
 
 end subroutine get_sunangle
 

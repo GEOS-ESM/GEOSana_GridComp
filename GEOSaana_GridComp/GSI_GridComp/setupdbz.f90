@@ -623,7 +623,7 @@ subroutine setupdbz(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,radardbz_d
         if (err_final>tiny_r_kind) errinv_final = one/err_final
 
         if(binary_diag) call contents_binary_diag_(my_diag)
-        if(netcdf_diag) call contents_netcdf_diag_(my_diag)
+        if(netcdf_diag(jiter)) call contents_netcdf_diag_(my_diag)
 
 
      end if

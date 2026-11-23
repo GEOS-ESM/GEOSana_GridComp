@@ -12,6 +12,7 @@ module radiance_mod
 !   2015-07-20 Yanqiu Zhu
 !   2016-10-27 Yanqiu - add ATMS
 !   2020-01-13 mkim - add allsky MHS
+!   2026-05-22 a.lee  - add viirs-m radiance assimilation
 !
 ! subroutines included:
 !   sub radiance_mode_init           -  guess init
@@ -404,6 +405,7 @@ contains
        if (index(dtype(i),'sndr') /= 0)   rtype(i)='sndr'
        if (index(dtype(i),'hirs') /= 0)   rtype(i)='hirs'
        if (index(dtype(i),'avhrr') /= 0)  rtype(i)='avhrr'
+       if (index(dtype(i),'viirs-m') /= 0)  rtype(i)='viirs'
        if (index(dtype(i),'modis') /= 0)  rtype(i)='modis'
        if (index(dtype(i),'seviri') /= 0) rtype(i)='seviri'
 
@@ -414,7 +416,8 @@ contains
           rtype(i) == 'avhrr'  .or. rtype(i) == 'amsre'    .or.  rtype(i) == 'ssmis'  .or. & 
           rtype(i) == 'ssmi'   .or. rtype(i) == 'atms'     .or.  rtype(i) == 'cris'   .or. & 
           rtype(i) == 'amsr2'  .or. rtype(i) == 'gmi'      .or.  rtype(i) == 'saphir' .or. &
-          rtype(i) == 'cris-fsr' .or. rtype(i) == 'tmi'    .or.  rtype(i) == 'abi') then
+          rtype(i) == 'cris-fsr' .or. rtype(i) == 'tmi'    .or.  rtype(i) == 'abi'    .or. &
+          rtype(i) == 'viirs' ) then
           drtype(i)='rads'
        end if
     end do

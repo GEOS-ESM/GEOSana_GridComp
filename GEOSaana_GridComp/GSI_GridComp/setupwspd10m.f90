@@ -268,7 +268,7 @@ subroutine setupwspd10m(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_d
      if (lobsdiagsave) nreal=nreal+4*miter+1
      if (twodvar_regional) then; nreal=nreal+2; allocate(cprvstg(nobs),csprvstg(nobs)); endif
      allocate(cdiagbuf(nobs),rdiagbuf(nreal,nobs))
-     if(netcdf_diag) call init_netcdf_diag_
+     if(netcdf_diag(jiter)) call init_netcdf_diag_
   end if
 
   call dtime_setup()
@@ -649,7 +649,7 @@ subroutine setupwspd10m(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_d
         if (err_final>tiny_r_kind) errinv_final = one/err_final
 
         if(binary_diag) call contents_binary_diag_(my_diag)
-        if(netcdf_diag) call contents_netcdf_diag_(my_diag)
+        if(netcdf_diag(jiter)) call contents_netcdf_diag_(my_diag)
  
      end if
 
@@ -661,7 +661,7 @@ subroutine setupwspd10m(obsLL,odiagLL,lunin,mype,bwork,awork,nele,nobs,is,conv_d
 
 ! Write information to diagnostic file
   if(conv_diagsave)then
-     if(netcdf_diag) call nc_diag_write
+     if(netcdf_diag(jiter)) call nc_diag_write
      if(binary_diag .and. ii>0)then
         write(7)'wst',nchar,nreal,ii,mype,ioff0
         write(7)cdiagbuf(1:ii),rdiagbuf(:,1:ii)
