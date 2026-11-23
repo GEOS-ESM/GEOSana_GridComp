@@ -3,6 +3,7 @@ radiance_mod_instr_input::
  gmi       sea        ex_obserr3   .true.      .false.   
  mhs       global     ex_obserr3   .true.      .false.   
  amsr2      sea       ex_obserr1   .true.      .false.
+ atms       sea       ex_obserr1   .true.      .true.
 ::
   
 obs_gmi::
@@ -105,4 +106,25 @@ obs_ssmi::
     5   0.050  0.20   0.00
     6   0.050  0.10   0.00
     7   0.050  0.10   0.00
+::
+
+obs_atms::
+!  Parameters for the observation error model
+!  cclr [kg/m2] & ccld [kg/m2]: range of cloud amounts
+!  over which the main increase in error take place
+!  ch   cclr   ccld
+    1   0.030  0.35
+    2   0.030  0.35
+    3   0.030  0.40
+    4   0.030  0.45
+    5   0.030  0.50
+    6   0.100  1.00
+    7   0.150  1.00
+   16   0.020  0.35
+   17   0.030  0.40
+   18   0.030  0.50
+   19   0.030  0.50
+   20   0.030  0.50
+   21   0.030  0.50
+   22   0.030  0.50
 ::
