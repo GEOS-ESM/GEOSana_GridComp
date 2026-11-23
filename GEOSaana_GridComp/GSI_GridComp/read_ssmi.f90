@@ -287,7 +287,7 @@ subroutine read_ssmi(mype,val_ssmi,ithin,rmesh,jsatid,gstime,&
         call ufbint(lnbufr,bfr1bhdr,ntime,1,iret,hdr1b)
 
 !       Extract satellite id.  If not the one we want, read next record
-        if(nint(bfr1bhdr(1)) /= bufsat) cycle read_subset
+        if(nint(bfr1bhdr(1)) /= bufsat) cycle read_loop
 
 
 !       calc obs seqential time  If time outside window, skip this obs
